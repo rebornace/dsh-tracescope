@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@rebornace/dsh-tracescope": "workspace:*",
-    "@rebornace/tracescope-core": "workspace:*",
+    "@rebornace/dsh-tracescope": "workspace:0.1.0",
+    "@rebornace/tracescope-core": "workspace:0.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
