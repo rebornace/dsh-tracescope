@@ -1,0 +1,16 @@
+{
+  "name": "dsh-tracescope",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TraceScope: git-diff impact scoping and test-trace analysis for DeepSeek Harness",
+  "license": "MIT",
+  "packageManager": "pnpm@9.6.0",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm --filter @rebornace/tracescope-core test",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

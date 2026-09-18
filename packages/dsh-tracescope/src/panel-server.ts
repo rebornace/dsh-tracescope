@@ -1,0 +1,305 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  analyzeImpact,
+  exportReportCsv,
+  exportReportMarkdown,
+  listGitRefs,
+  listRecentCommits,
+  parseGitAuth,
+  resolveGitRepo,
+  type ImpactReport,
+} from '@rebornace/tracescope-core'
+
+const DEFAULT_PORT = 3927
+
+/** Present in the CJS Desktop host bundle; absent in ESM `tsc` emit. */
+declare const __dirname: string | undefined
+
+export interface PanelServerHandle {
+  port: number
+  url: string
+  close: () => Promise<void>
+}
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  const json = JSON.stringify(body)
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+  })
+  res.end(json)
+}
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+function parseFetchFlag(value: string | null, fallback: boolean): boolean {
+  if (value === null || value === '') return fallback
+  const s = value.toLowerCase()
+  if (s === '1' || s === 'true' || s === 'yes') return true
+  if (s === '0' || s === 'false' || s === 'no') return false
+  return fallback
+}
+
+function contentType(filePath: string): string {
+  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8'
+  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8'
+  if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8'
+  if (filePath.endsWith('.svg')) return 'image/svg+xml'
+  return 'application/octet-stream'
+}
+
+async function handleApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    })
+    res.end()
+    return true
+  }
+
+  if (url.pathname === '/api/health' && req.method === 'GET') {
+    sendJson(res, 200, { ok: true, name: 'tracescope-panel' })
+    return true
+  }
+
+  if (url.pathname === '/api/commits' && req.method === 'POST') {
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw || '{}') as {
+        repoPath?: string
+        limit?: number
+        fetch?: boolean | string
+        auth?: unknown
+      }
+      const repoPath = body.repoPath ?? ''
+      const limit = Number(body.limit ?? 40)
+      if (!repoPath) {
+        sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
+        return true
+      }
+      const fetchRemote = parseFetchFlag(
+        body.fetch === undefined || body.fetch === null ? null : String(body.fetch),
+        true,
+      )
+      const auth = parseGitAuth(body.auth)
+      const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote, auth })
+      const [commits, refs] = await Promise.all([
+        listRecentCommits(resolved.repoPath, {
+          limit: Number.isFinite(limit) ? limit : 40,
+          allRefs: true,
+        }),
+        listGitRefs(resolved.repoPath),
+      ])
+      sendJson(res, 200, { resolved, commits, refs })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
+    }
+    return true
+  }
+
+  if (url.pathname === '/api/commits' && req.method === 'GET') {
+    const repoPath = url.searchParams.get('repoPath') ?? ''
+    const limit = Number(url.searchParams.get('limit') ?? '40')
+    if (!repoPath) {
+      sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
+      return true
+    }
+    try {
+      const fetchRemote = parseFetchFlag(url.searchParams.get('fetch'), true)
+      const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote })
+      const [commits, refs] = await Promise.all([
+        listRecentCommits(resolved.repoPath, {
+          limit: Number.isFinite(limit) ? limit : 40,
+          allRefs: true,
+        }),
+        listGitRefs(resolved.repoPath),
+      ])
+      sendJson(res, 200, { resolved, commits, refs })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
+    }
+    return true
+  }
+
+  if (url.pathname === '/api/analyze' && req.method === 'POST') {
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw) as {
+        repoPath?: string
+        baseCommit?: string
+        headCommit?: string
+        rippleDepth?: number
+        modulesConfigPath?: string
+        exportDir?: string
+        fetchRemote?: boolean
+        fetch?: boolean
+        auth?: unknown
+      }
+      if (!body.repoPath || !body.baseCommit || !body.headCommit) {
+        sendJson(res, 400, { error: '需要 repoPath、baseCommit、headCommit' })
+        return true
+      }
+      const report = await analyzeImpact({
+        repoPath: body.repoPath,
+        baseCommit: body.baseCommit,
+        headCommit: body.headCommit,
+        rippleDepth: body.rippleDepth,
+        modulesConfigPath: body.modulesConfigPath,
+        fetchRemote: body.fetchRemote ?? body.fetch,
+        auth: parseGitAuth(body.auth),
+      })
+      const markdown = exportReportMarkdown(report)
+      const csv = exportReportCsv(report)
+      if (body.exportDir) {
+        await writeExports(body.exportDir, markdown, csv)
+      }
+      sendJson(res, 200, { report, markdown, csv })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, 400, { error: message })
+    }
+    return true
+  }
+
+  if (url.pathname === '/api/export' && req.method === 'POST') {
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw) as {
+        exportDir?: string
+        report?: ImpactReport
+      }
+      if (!body.exportDir || !body.report) {
+        sendJson(res, 400, { error: '需要 exportDir 与 report' })
+        return true
+      }
+      const markdown = exportReportMarkdown(body.report)
+      const csv = exportReportCsv(body.report)
+      await writeExports(body.exportDir, markdown, csv)
+      sendJson(res, 200, {
+        ok: true,
+        files: [
+          path.join(body.exportDir, 'tracescope-report.md'),
+          path.join(body.exportDir, 'tracescope-report.csv'),
+        ],
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, 400, { error: message })
+    }
+    return true
+  }
+
+  return false
+}
+
+async function writeExports(exportDir: string, markdown: string, csv: string): Promise<void> {
+  await mkdir(exportDir, { recursive: true })
+  await writeFile(path.join(exportDir, 'tracescope-report.md'), markdown, 'utf8')
+  await writeFile(path.join(exportDir, 'tracescope-report.csv'), csv, 'utf8')
+}
+
+function getStartDir(): string {
+  // CJS Desktop host bundle provides __dirname (lib/index.cjs).
+  if (typeof __dirname === 'string') return __dirname
+  // ESM path for `dist/panel-server.js` (MCP). Avoid a static `import.meta`
+  // reference so the CJS host bundle does not warn / empty it out.
+  const metaUrl = (new Function('return import.meta.url') as () => string)()
+  return path.dirname(fileURLToPath(metaUrl))
+}
+
+function panelStaticRoot(): string {
+  // Walk up from lib/ or dist/ until we find package-local panel/index.html
+  let dir = getStartDir()
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(dir, 'panel', 'index.html')
+    if (existsSync(candidate)) return path.join(dir, 'panel')
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  throw new Error(`[tracescope] panel assets not found (startDir=${getStartDir()})`)
+}
+
+let sharedPanel: PanelServerHandle | null = null
+
+export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServerHandle> {
+  if (sharedPanel) return sharedPanel
+
+  const staticRoot = panelStaticRoot()
+
+  const server: Server = createServer(async (req, res) => {
+    try {
+      const host = req.headers.host ?? `127.0.0.1:${port}`
+      const url = new URL(req.url ?? '/', `http://${host}`)
+
+      if (await handleApi(req, res, url)) return
+
+      let rel = url.pathname === '/' ? '/index.html' : url.pathname
+      rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, '')
+      const filePath = path.join(staticRoot, rel)
+      if (!filePath.startsWith(staticRoot)) {
+        res.writeHead(403).end('Forbidden')
+        return
+      }
+      const data = await readFile(filePath)
+      res.writeHead(200, { 'Content-Type': contentType(filePath) })
+      res.end(data)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        res.writeHead(404).end('Not Found')
+        return
+      }
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }).end(message)
+    }
+  })
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(port, '127.0.0.1', () => resolve())
+    })
+  } catch (error: unknown) {
+    const code = (error as NodeJS.ErrnoException)?.code
+    if (code === 'EADDRINUSE') {
+      // Another TraceScope host (DSH plugin or MCP) already owns the panel port.
+      return {
+        port,
+        url: `http://127.0.0.1:${port}/`,
+        close: async () => undefined,
+      }
+    }
+    throw error
+  }
+
+  sharedPanel = {
+    port,
+    url: `http://127.0.0.1:${port}/`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (sharedPanel?.port === port) sharedPanel = null
+          err ? reject(err) : resolve()
+        })
+      }),
+  }
+  return sharedPanel
+}

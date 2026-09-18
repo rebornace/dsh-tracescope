@@ -1,0 +1,3 @@
+- insert:
+    - id: tracescope
+      name: '@rebornace/dsh-tracescope'

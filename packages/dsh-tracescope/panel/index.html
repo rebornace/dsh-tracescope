@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TraceScope 手测范围</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">TraceScope</p>
+        <h1>手测范围助手</h1>
+        <p class="sub">选仓库、选两个版本，一键生成要测的功能清单。不用敲命令。</p>
+      </div>
+      <div class="status-pill" id="serverStatus">连接中…</div>
+    </header>
+
+    <main class="layout">
+      <section class="card">
+        <h2>1. 选择要对比的版本</h2>
+
+        <label class="field">
+          <span>项目文件夹路径（git 仓库）</span>
+          <div class="row">
+            <input id="repoPath" type="text" placeholder="例如 C:\work\my-app" />
+            <button type="button" id="btnLoadCommits" class="secondary">加载版本列表</button>
+          </div>
+          <p class="hint">向同事要「项目在电脑上的文件夹路径」，粘贴到这里即可。</p>
+        </label>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>稳定版本（对照用）</span>
+            <select id="baseCommit" disabled>
+              <option value="">先加载版本列表</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>待测版本（这次要验的）</span>
+            <select id="headCommit" disabled>
+              <option value="">先加载版本列表</option>
+            </select>
+          </label>
+        </div>
+
+        <details class="advanced">
+          <summary>高级选项（一般不用改）</summary>
+          <label class="field">
+            <span>模块映射文件（可选）</span>
+            <input id="modulesConfigPath" type="text" placeholder="tracescope.modules.yml 路径" />
+          </label>
+          <label class="field">
+            <span>导出目录（可选）</span>
+            <input id="exportDir" type="text" placeholder="例如 C:\tmp\tracescope-out" />
+          </label>
+          <label class="field">
+            <span>波及层级</span>
+            <input id="rippleDepth" type="number" min="1" max="5" value="2" />
+          </label>
+        </details>
+
+        <div class="actions">
+          <button type="button" id="btnAnalyze" class="primary" disabled>生成手测清单</button>
+          <p class="error" id="formError" hidden></p>
+        </div>
+      </section>
+
+      <section class="card" id="reportSection" hidden>
+        <div class="report-head">
+          <div>
+            <h2>2. 手测清单</h2>
+            <p class="meta" id="reportMeta"></p>
+          </div>
+          <div class="row">
+            <button type="button" id="btnExportMd" class="secondary">下载 Markdown</button>
+            <button type="button" id="btnExportCsv" class="secondary">下载 CSV</button>
+            <button type="button" id="btnSaveDisk" class="secondary">保存到导出目录</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button type="button" class="tab active" data-tab="direct">直接变更</button>
+          <button type="button" class="tab" data-tab="ripple">可能波及</button>
+        </div>
+
+        <div id="listDirect" class="item-list"></div>
+        <div id="listRipple" class="item-list" hidden></div>
+
+        <p class="hint">点选「通过 / 失败 / 跳过」记录手测结果。证据可展开查看，给开发看也不怕。</p>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

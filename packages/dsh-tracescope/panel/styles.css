@@ -1,0 +1,259 @@
+:root {
+  --bg: #f3efe6;
+  --ink: #1c1915;
+  --muted: #6b645a;
+  --card: #fffdf8;
+  --line: #ddd4c5;
+  --accent: #0f6e56;
+  --accent-soft: #d8f0e7;
+  --warn: #9a6700;
+  --danger: #b42318;
+  --shadow: 0 12px 40px rgba(40, 30, 10, 0.08);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, #efe4c8 0, transparent 40%),
+    linear-gradient(180deg, #f7f2e8, var(--bg));
+  min-height: 100vh;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 2rem clamp(1rem, 4vw, 3rem) 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0.2rem 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+.sub, .hint, .meta {
+  color: var(--muted);
+  margin: 0.35rem 0 0;
+  line-height: 1.5;
+}
+
+.status-pill {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.layout {
+  padding: 0 clamp(1rem, 4vw, 3rem) 3rem;
+  display: grid;
+  gap: 1.25rem;
+  max-width: 1100px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.25rem 1.35rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+
+h2 {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.field span {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+input, select, button {
+  font: inherit;
+}
+
+input, select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.row input { flex: 1; min-width: 220px; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+
+.secondary {
+  background: #efe8da;
+  color: var(--ink);
+}
+
+.advanced {
+  margin: 0.5rem 0 1rem;
+  border-top: 1px dashed var(--line);
+  padding-top: 0.8rem;
+}
+
+.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+
+.actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+
+.error {
+  color: var(--danger);
+  margin: 0;
+}
+
+.report-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+}
+
+.tab.active {
+  background: var(--accent-soft);
+  border-color: #9dceb9;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.75rem;
+  background: #fff;
+}
+
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.item h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 0.45rem 0 0.7rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: #efe8da;
+}
+
+.badge.high { background: #fce8e6; color: var(--danger); }
+.badge.medium { background: #fff4ce; color: var(--warn); }
+.badge.low { background: #e8f5ee; color: var(--accent); }
+
+.status-group {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.status-group button {
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  background: #f4efe4;
+}
+
+.status-group button.active-pass { background: #d8f0e7; color: var(--accent); font-weight: 700; }
+.status-group button.active-fail { background: #fce8e6; color: var(--danger); font-weight: 700; }
+.status-group button.active-skip { background: #efe8da; font-weight: 700; }
+
+.steps, .evidence, .files {
+  margin: 0.55rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+details.evidence-box {
+  margin-top: 0.55rem;
+}
+
+details.evidence-box summary {
+  cursor: pointer;
+  color: var(--accent);
+}

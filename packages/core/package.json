@@ -1,0 +1,56 @@
+{
+  "name": "@rebornace/tracescope-core",
+  "version": "0.1.0",
+  "description": "Git-diff impact analysis and hand-test scope reports for TraceScope",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "tracescope",
+    "git-diff",
+    "impact-analysis",
+    "manual-testing",
+    "deepseek-harness"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rebornace/dsh-tracescope.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/rebornace/dsh-tracescope#readme",
+  "bugs": {
+    "url": "https://github.com/rebornace/dsh-tracescope/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
