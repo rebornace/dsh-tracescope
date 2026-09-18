@@ -1,0 +1,53 @@
+{
+  "name": "@rebornace/tracescope-mcp",
+  "version": "0.1.0",
+  "description": "TraceScope MCP server — impact analysis and visual panel for any MCP-capable agent",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "tracescope-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@rebornace/dsh-tracescope": "workspace:*",
+    "@rebornace/tracescope-core": "workspace:*",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "tracescope",
+    "deepseek-harness",
+    "impact-analysis",
+    "manual-testing"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rebornace/dsh-tracescope.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/rebornace/dsh-tracescope#readme",
+  "bugs": {
+    "url": "https://github.com/rebornace/dsh-tracescope/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

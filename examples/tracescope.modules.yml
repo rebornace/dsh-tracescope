@@ -1,0 +1,16 @@
+# TraceScope module mapping (optional)
+
+# match: path substring or prefix*
+# name: product-facing display name for testers / PM / design
+# risk: high | medium | low
+
+modules:
+  - match: com/example/pay*
+    name: 支付收银台
+    risk: high
+  - match: Login*
+    name: 登录
+    risk: high
+  - match: Home*
+    name: 首页
+    risk: medium
