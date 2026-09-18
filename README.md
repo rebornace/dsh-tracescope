@@ -1,60 +1,77 @@
 # TraceScope
 
-**鐗堟湰: `0.1.1`**锛堝湪 0.1.0 鍔熻兘鍐荤粨鍩虹涓婄殑瀹夊叏鎵弿淇鐗堬級
+**版本: `0.1.1`**（在 0.1.0 功能冻结基础上的安全扫描修复版）
 
-[涓枃](./README.md) 路 [English](./README.en.md)
+[中文](./README.md) · [English](./README.en.md)
 
-TraceScope锛堜粨搴撳悕 `dsh-tracescope`锛夊府鍔╂祴璇曞悓瀛︿粠銆岀ǔ瀹氱増鏈?鈫?寰呮祴鐗堟湰銆嶇殑浠ｇ爜宸紓锛屽揩閫熷緱鍒?*瑕佹祴鍝簺鍔熻兘**鐨勬竻鍗曪紝骞跺湪 DeepSeek Harness **Web / Desktop** 鍙充晶鏍忛噷瀹屾垚鍕鹃€夈€佸娉ㄣ€佹埅鍥俱€侀檮浠朵笌缂洪櫡鎻愪氦銆?
-鑳藉姏閫氳繃涓ゅ眰鍒嗗彂锛堣瑙?[ARCHITECTURE.md](./ARCHITECTURE.md)锛夛細
+TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 → 待测版本」的代码差异，快速得到**要测哪些功能**的清单，并在 DeepSeek Harness **Web / Desktop** 右侧栏里完成勾选、备注、截图、附件与缺陷提交。
 
-| 琛ㄩ潰 | 浣滅敤 |
+能力通过两层分发（详见 [ARCHITECTURE.md](./ARCHITECTURE.md)）：
+
+| 表面 | 作用 |
 |------|------|
-| `@rebornace/tracescope-core` | 纭畾鎬у奖鍝嶉潰鍒嗘瀽寮曟搸锛堜笌 Agent 鏃犲叧锛?|
-| `@rebornace/tracescope-mcp` | MCP Server锛屼緵 Cursor / Claude 绛変换鎰?MCP 瀹㈡埛绔皟鐢?|
-| `@rebornace/dsh-tracescope` | DSH 鎻掍欢锛欻ost API + 鍙充晶鏍忓祵鍏?UI锛堟湰鐗堟湰涓昏矾寰勶級 |
+| `@rebornace/tracescope-core` | 确定性影响面分析引擎（与 Agent 无关） |
+| `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
+| `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
 
-## 鐗堟湰 `0.1.0` 宸插寘鍚姛鑳?
-- **鍙?Commit 褰卞搷闈?*锛氱洿鎺ュ彉鏇?+ 鍙嶅悜渚濊禆娉㈠強锛堥粯璁ゆ繁搴?2锛?- **浜鸿瘽鍔熻兘鍚?*锛歚tracescope.modules.yml` 鏄犲皠 鈫?闈欐€佹爣棰樻娊鍙?鈫?鍚彂寮忓懡鍚?- **DSH 鍙充晶鏍?*锛氬浠撳簱銆佽繙绔璇併€侀粯璁ゅ悓姝ャ€屽緟娴?/ 绋冲畾銆嶇増鏈?- **鐢熸垚鎵嬫祴娓呭崟**锛氱‘瀹氭€у垎鏋愬苟钀界洏锛涘悓鐗堟湰瀵规瘮鍙繚鐣欐渶鏂颁竴鏉″巻鍙?- **妯″瀷瀵硅瘽鍒嗘瀽**锛氬垱寤鸿亰澶╀换鍔°€佸啓鍏ヤ細璇濊崏绋裤€乣tracescope_publish_handtest` 鍥炲啓娓呭崟
-- **鍕鹃€夌姸鎬?*锛氶€氳繃 / 澶辫触 / 璺宠繃 / 閲嶇疆锛涘け璐ュ彲濉娉?+ **姣忔潯鏈€澶?3 寮犳埅鍥?*
-- **浠诲姟绾ч檮浠?*锛氳棰?/ 鏂囨。绛夋寕鍦ㄦ暣浠藉姣斾换鍔′笂锛堟渶澶?8 涓紝涓嶈窡鍗曟潯 checklist锛?- **鍏宠仈浜戞晥鏁忔嵎浠诲姟**锛氱被鍨嬪彲澶氶€夛紝浠诲姟鍙閫夛紝杈呭姪鐢熸垚娓呭崟绉嶅瓙 / 妯″瀷鎻愮ず
-- **缂洪櫡骞冲彴**锛氫簯鏁?/ GitHub Issues / GitLab Issues / 閫氱敤 Webhook  
-  - 鎻愪氦鏃跺彲**淇敼榛樿鏍囬**  
-  - 浜戞晥锛氫换鍔￠檮浠剁湡瀹炰笂浼狅紱鎴浘宓屽叆缂洪櫡**璇︽儏**瀵瑰簲鏉＄洰锛坄![鏂囦欢鍚峕(embedUrl)`锛?- **瀵煎嚭**锛歁arkdown / CSV锛涘鍒跺け璐ュ弽棣?- **鏈満鏁版嵁**锛歚~/.tracescope/`锛堣璇併€佺己闄烽厤缃€佹姤鍛娿€侀檮浠讹級
+## 版本 `0.1.0` 已包含功能
 
-## 鐜瑕佹眰
+- **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）
+- **人话功能名**：`tracescope.modules.yml` 映射 → 静态标题抽取 → 启发式命名
+- **DSH 右侧栏**：多仓库、远端认证、默认同步「待测 / 稳定」版本
+- **生成手测清单**：确定性分析并落盘；同版本对比只保留最新一条历史
+- **模型对话分析**：创建聊天任务、写入会话草稿、`tracescope_publish_handtest` 回写清单
+- **勾选状态**：通过 / 失败 / 跳过 / 重置；失败可填备注 + **每条最多 3 张截图**
+- **任务级附件**：视频 / 文档等挂在整份对比任务上（最多 8 个，不跟单条 checklist）
+- **关联云效敏捷任务**：类型可多选，任务可多选，辅助生成清单种子 / 模型提示
+- **缺陷平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook  
+  - 提交时可**修改默认标题**  
+  - 云效：任务附件真实上传；截图嵌入缺陷**详情**对应条目（`![文件名](embedUrl)`）
+- **导出**：Markdown / CSV；复制失败反馈
+- **本机数据**：`~/.tracescope/`（认证、缺陷配置、报告、附件）
+
+## 环境要求
 
 - Node.js `>= 20`
-- pnpm `9.x`锛堜粨搴撳０鏄?`packageManager: pnpm@9.6.0`锛?- 浣跨敤 DSH 鎻掍欢鏃讹細宸插畨瑁?DeepSeek Harness锛?*Web** 鎴?**Desktop**锛夛紝骞惰兘鎵ц `dsh plugin`
+- pnpm `9.x`（仓库声明 `packageManager: pnpm@9.6.0`）
+- 使用 DSH 插件时：已安装 DeepSeek Harness（**Web** 或 **Desktop**），并能执行 `dsh plugin`
 
-## 瀹夎涓庢瀯寤?
+## 安装与构建
+
 ```bash
 pnpm install
 pnpm build
 pnpm test
 ```
 
-甯哥敤鍛戒护锛?
+常用命令：
+
 ```bash
-# 浠呮瀯寤?/ 娴嬭瘯鏍稿績寮曟搸
+# 仅构建 / 测试核心引擎
 pnpm --filter @rebornace/tracescope-core build
 pnpm --filter @rebornace/tracescope-core test
 
-# 鏋勫缓 DSH 鎻掍欢涓?MCP
+# 构建 DSH 插件与 MCP
 pnpm --filter @rebornace/dsh-tracescope build
 pnpm --filter @rebornace/tracescope-mcp build
 ```
 
-## 瀹夎鍒?DSH锛圵eb / Desktop锛?
-鎻掍欢鍖咃細[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)锛堝惈 `dsh.bundle` + 鍙充晶鏍?Client锛學eb / Desktop 鍚屼竴鍖咃級銆?
-鎸?[DSH 瀹樻柟鍙戝竷璇存槑](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.zh.md)锛屼紭鍏堢敤 **npm 棰勬瀯寤哄寘**锛堟棤闇€ `allowBuilds`锛夈€?
-### 鏂瑰紡涓€锛歞sh-market 鎻掍欢甯傚満鎼滅储瀹夎锛堟帹鑽愶級
+## 安装到 DSH（Web / Desktop）
 
-1. 鍦?DSH **Web** 鎴?**Desktop** 涓墦寮€ [dsh-market](https://github.com/dsh-market/dsh-market) 甯傚満闈㈡澘  
-2. 鎼滅储鍏抽敭璇嶏細`tracescope`銆乣dsh-tracescope`銆乣鎵嬫祴` 鎴?`褰卞搷闈  
-3. 閫夋嫨 **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope`锛屼竴閿畨瑁呭埌褰撳墠 profile  
+插件包：[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)（含 `dsh.bundle` + 右侧栏 Client，Web / Desktop 同一包）。
 
-鏀跺綍鏉＄洰瑙?[awesome-dsh-plugin PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)锛堝悎骞跺悗甯傚満鍒楄〃浼氳嚜鍔ㄦ洿鏂帮級銆俷pm 鍖呭甫 `dsh-plugin` 绛夊叧閿瘝锛屼究浜庡競鍦轰笌 registry 妫€绱€?
-### 鏂瑰紡浜岋細鍛戒护琛屽畨瑁咃紙Web 涓?Desktop锛?
+按 [DSH 官方发布说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.zh.md)，优先用 **npm 预构建包**（无需 `allowBuilds`）。
+
+### 方式一：dsh-market 插件市场搜索安装（推荐）
+
+1. 在 DSH **Web** 或 **Desktop** 中打开 [dsh-market](https://github.com/dsh-market/dsh-market) 市场面板  
+2. 搜索关键词：`tracescope`、`dsh-tracescope`、`手测` 或 `影响面`  
+3. 选择 **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope`，一键安装到当前 profile  
+
+已收录于 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（[PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)）。npm 包带 `dsh-plugin` 等关键词，便于市场与 registry 检索。
+
+### 方式二：命令行安装（Web 与 Desktop）
+
 ```bash
 # DSH Web
 dsh plugin --profile web add @rebornace/dsh-tracescope
@@ -63,13 +80,15 @@ dsh plugin --profile web add @rebornace/dsh-tracescope
 dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
-鑻ユ湰鏈洪粯璁よ蛋 npmmirror 涓斿皻鏈悓姝ュ埌鏈€鏂颁緷璧栵紝鍙复鏃跺湪瀵瑰簲 profile 鐩綍鍐欏叆 `.npmrc`锛?
+若本机默认走 npmmirror 且尚未同步到最新依赖，可临时在对应 profile 目录写入 `.npmrc`：
+
 ```ini
 registry=https://registry.npmjs.org/
 ```
 
-鍐嶆墽琛屼笂闈㈢殑 `dsh plugin add`銆?
-### 鏂瑰紡涓夛細鏈湴璺緞 / GitHub
+再执行上面的 `dsh plugin add`。
+
+### 方式三：本地路径 / GitHub
 
 ```bash
 pnpm --filter @rebornace/dsh-tracescope build
@@ -79,48 +98,59 @@ dsh plugin --profile web add <repo>/packages/dsh-tracescope
 # Desktop
 dsh plugin --profile desktop add <repo>/packages/dsh-tracescope
 
-# 鎴?GitHub锛堥渶涓?prepare 鏋勫缓鎺堟潈锛岃瀹樻柟鏂囨。锛?dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
+# 或 GitHub（需为 prepare 构建授权，见官方文档）
+dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 ```
 
-### 瀹夎鍚?
-1. 閲嶅惎 / 鍒锋柊瀵瑰簲 profile锛圵eb 娴忚鍣ㄤ細璇濇垨 Desktop锛? 
-2. 鎵撳紑鍙充晶鏍?**TraceScope** 鏍囩锛堟柊浼氳瘽鍙兘鑷姩鎵撳紑锛? 
-3. 鎴栧湪浼氳瘽涓娇鐢?`/tracescope` 鐩稿叧鑳藉姏锛圚ost tools + 闈㈡澘锛?
-### npm 鍖咃紙0.1.1锛?
-| 鍖?| 鐢ㄩ€?|
+### 安装后
+
+1. 重启 / 刷新对应 profile（Web 浏览器会话或 Desktop）  
+2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
+3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
+
+### npm 包（0.1.1）
+
+| 包 | 用途 |
 |----|------|
-| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle锛堝惈 `dsh.bundle` + Client Slot锛夛紝Web / Desktop 閫氱敤 |
-| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 鍒嗘瀽寮曟搸锛堟彃浠朵緷璧栵級 |
-| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | 鐙珛 MCP Server |
+| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle（含 `dsh.bundle` + Client Slot），Web / Desktop 通用 |
+| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 分析引擎（插件依赖） |
+| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | 独立 MCP Server |
 
-## 娴嬭瘯鍚屽鎿嶄綔娴佺▼锛?.1.0锛?
-1. **閫変粨搴?*锛氭湰鍦拌矾寰勬垨杩滅 URL锛涢渶瑕佹椂閰嶇疆 HTTPS Token / SSH 绉侀挜锛堝彲璁颁綇鍒版湰鏈猴級
-2. **鍚屾鐗堟湰**锛氶粯璁ゅ緟娴?= 鏈€鏂版彁浜わ紝绋冲畾 = 娆℃柊鎻愪氦锛涗篃鍙墜鍔ㄦ敼
-3. **锛堝彲閫夛級缂洪櫡骞冲彴**锛氫粨搴撻厤缃噷閫変簯鏁?/ GitHub / GitLab / Webhook 骞朵繚瀛? 
-   - 浜戞晥锛氬～ token 鈫?鎷夊彇浼佷笟 鈫?閫夐」鐩?/ 缂洪櫡绫诲瀷 / 璐熻矗浜?4. **锛堝彲閫夛級鍏宠仈鏁忔嵎浠诲姟**锛氬嬀閫夌被鍨?鈫?鎷夊彇浠诲姟 鈫?澶氶€夊悗锛屽啀鐐广€岀敓鎴愭墜娴嬫竻鍗曘€嶆垨銆屾ā鍨嬪璇濆垎鏋愩€?5. **鐢熸垚娓呭崟**鎴?*妯″瀷瀵硅瘽鍒嗘瀽**锛堟湁娓呭崟鏃朵細浜屾纭锛?6. **鎵嬫祴鍕鹃€?*锛氬け璐ユ潯鐩～鍐欏娉ㄣ€佹坊鍔犳埅鍥撅紙鍙€夋枃浠舵垨 Ctrl+V锛?7. **浠诲姟闄勪欢**锛氬湪娓呭崟鍖哄煙涓婁紶褰曞儚 / 鏂囨。锛堝皬鏂囦欢閫夋枃浠讹紱澶ц棰戝彲鐢ㄦ湰鏈虹粷瀵硅矾寰勶級
-8. **澶嶅埗澶辫触鍙嶉** / **鎻愪氦缂洪櫡**锛堝彲鏀规爣棰橈級 / **瀵煎嚭鎶ュ憡**
+## 测试同学操作流程（0.1.0）
 
-## 鍙€夛細妯″潡鏄犲皠
+1. **选仓库**：本地路径或远端 URL；需要时配置 HTTPS Token / SSH 私钥（可记住到本机）
+2. **同步版本**：默认待测 = 最新提交，稳定 = 次新提交；也可手动改
+3. **（可选）缺陷平台**：仓库配置里选云效 / GitHub / GitLab / Webhook 并保存  
+   - 云效：填 token → 拉取企业 → 选项目 / 缺陷类型 / 负责人
+4. **（可选）关联敏捷任务**：勾选类型 → 拉取任务 → 多选后，再点「生成手测清单」或「模型对话分析」
+5. **生成清单**或**模型对话分析**（有清单时会二次确认）
+6. **手测勾选**：失败条目填写备注、添加截图（可选文件或 Ctrl+V）
+7. **任务附件**：在清单区域上传录像 / 文档（小文件选文件；大视频可用本机绝对路径）
+8. **复制失败反馈** / **提交缺陷**（可改标题） / **导出报告**
 
-绀轰緥瑙?[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)銆傚垎鏋愭椂鍙寚瀹氳鏂囦欢锛屾妸璺緞瑙勫垯鏄犲皠鎴愪骇鍝佸姛鑳藉悕涓庨闄╃瓑绾с€?
-## 鏈満鏁版嵁鐩綍
+## 可选：模块映射
 
-| 璺緞 | 鍐呭 |
+示例见 [examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。分析时可指定该文件，把路径规则映射成产品功能名与风险等级。
+
+## 本机数据目录
+
+| 路径 | 内容 |
 |------|------|
-| `~/.tracescope/auth.json`锛堝強璁よ瘉瀛樺偍锛?| Git 杩滅鍑嵁锛堝彲閫夎浣忥級 |
-| `~/.tracescope/tracker.json` | 缂洪櫡骞冲彴閰嶇疆 |
-| `~/.tracescope/reports/` | 鎵嬫祴娓呭崟鏈€鏂扮増 + 鍘嗗彶绱㈠紩 |
-| `~/.tracescope/attachments/<reportKey>/` | 浠诲姟绾ч檮浠朵簩杩涘埗 |
-| `~/.tracescope/repos/` | 杩滅浠撳簱鏈湴缂撳瓨锛堝閫傜敤锛?|
+| `~/.tracescope/auth.json`（及认证存储） | Git 远端凭据（可选记住） |
+| `~/.tracescope/tracker.json` | 缺陷平台配置 |
+| `~/.tracescope/reports/` | 手测清单最新版 + 历史索引 |
+| `~/.tracescope/attachments/<reportKey>/` | 任务级附件二进制 |
+| `~/.tracescope/repos/` | 远端仓库本地缓存（如适用） |
 
-## MCP锛堜换鎰?Agent锛?
+## MCP（任意 Agent）
+
 ```bash
 pnpm --filter @rebornace/dsh-tracescope build
 pnpm --filter @rebornace/tracescope-mcp build
 ```
 
-瀹㈡埛绔厤缃ず渚嬶紙璺緞鏀逛负鏈満缁濆璺緞锛夛細
+客户端配置示例（路径改为本机绝对路径）：
 
 ```json
 {
@@ -133,34 +163,40 @@ pnpm --filter @rebornace/tracescope-mcp build
 }
 ```
 
-MCP tools锛?.1.0锛夛細
+MCP tools（0.1.0）：
 
-| Tool | 璇存槑 |
+| Tool | 说明 |
 |------|------|
-| `tracescope_open_panel` | 鎵撳紑鏈満鍙鍖栭潰鏉?|
-| `tracescope_list_commits` | 鍒楀嚭浠撳簱鎻愪氦 / 寮曠敤 |
-| `tracescope_analyze_impact` | 纭畾鎬у奖鍝嶉潰鍒嗘瀽 |
+| `tracescope_open_panel` | 打开本机可视化面板 |
+| `tracescope_list_commits` | 列出仓库提交 / 引用 |
+| `tracescope_analyze_impact` | 确定性影响面分析 |
 
-DSH Host 鍐呰繕娉ㄥ唽浜嗕細璇濅晶宸ュ叿锛堜緥濡?`tracescope_get_diff`銆乣tracescope_publish_handtest`锛夛紝渚涖€屾ā鍨嬪璇濆垎鏋愩€嶄娇鐢ㄣ€?
-## 鍖呬竴瑙?
-| 鍖?| 鐗堟湰 | 璇存槑 |
+DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`tracescope_publish_handtest`），供「模型对话分析」使用。
+
+## 包一览
+
+| 包 | 版本 | 说明 |
 |----|------|------|
-| `@rebornace/tracescope-core` | 0.1.1 | 鍒嗘瀽銆佹姤鍛婂瓨鍌ㄣ€佷簯鏁?/ Tracker銆佸鍑?|
+| `@rebornace/tracescope-core` | 0.1.1 | 分析、报告存储、云效 / Tracker、导出 |
 | `@rebornace/dsh-tracescope` | 0.1.1 | DSH Host + React Slot Client |
 | `@rebornace/tracescope-mcp` | 0.1.1 | MCP Server |
-| `adapters/*`銆乣browser-extension` | 鑴氭墜鏋?| **鏈撼鍏?0.1.0 浜や粯鑼冨洿** |
+| `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
-## 宸茬煡闄愬埗锛?.1.0锛?
-- 浜戞晥鎴浘瑕佸湪璇︽儏閲屽祵鍥撅紝闇€缁忓伐浣滈」闄勪欢鎺ュ彛鎹㈠彇姘镐箙 `embedUrl`锛岄檮浠跺垪琛ㄩ噷浠嶅彲鑳藉嚭鐜板搴旀枃浠讹紙骞冲彴鑳藉姏闄愬埗锛?- GitHub / GitLab / Webhook锛?*涓嶄細**鍍忎簯鏁堜竴鏍蜂笂浼犺棰戜簩杩涘埗锛涘涓烘弿杩版枃鏈?/ Webhook JSON 鍏冩暟鎹?- 鍙嬬洘 Adapter銆丄ndroid USB銆佹祻瑙堝櫒鎵╁睍褰曞埗绛変粛涓哄悗缁矾绾垮浘
+## 已知限制（0.1.0）
 
-## 寮€鍙?
+- 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`，附件列表里仍可能出现对应文件（平台能力限制）
+- GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制；多为描述文本 / Webhook JSON 元数据
+- 友盟 Adapter、Android USB、浏览器扩展录制等仍为后续路线图
+
+## 开发
+
 ```bash
 pnpm install
 pnpm -r run typecheck
 pnpm test
 ```
 
-鏋舵瀯璇存槑锛歔ARCHITECTURE.md](./ARCHITECTURE.md)
+架构说明：[ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ## License
 
