@@ -26,7 +26,7 @@ async function openPanel(): Promise<{ url: string }> {
 
 const server = new McpServer({
   name: 'tracescope',
-  version: '0.1.0',
+  version: '0.1.1',
 })
 
 server.tool(

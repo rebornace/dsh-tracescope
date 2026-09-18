@@ -217,12 +217,10 @@ async function writeExports(exportDir: string, markdown: string, csv: string): P
 }
 
 function getStartDir(): string {
-  // CJS Desktop host bundle provides __dirname (lib/index.cjs).
-  if (typeof __dirname === 'string') return __dirname
-  // ESM path for `dist/panel-server.js` (MCP). Avoid a static `import.meta`
-  // reference so the CJS host bundle does not warn / empty it out.
-  const metaUrl = (new Function('return import.meta.url') as () => string)()
-  return path.dirname(fileURLToPath(metaUrl))
+  // CJS Desktop host bundle provides __dirname; native ESM uses import.meta.url.
+  // Do not evaluate import.meta via a dynamic code constructor (marketplace scanners flag it).
+  if (typeof __dirname === 'string' && __dirname.length > 0) return __dirname
+  return path.dirname(fileURLToPath(import.meta.url))
 }
 
 function panelStaticRoot(): string {

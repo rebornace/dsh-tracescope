@@ -10,4 +10,4 @@ cd "$ROOT"
 pnpm --filter @rebornace/tracescope-core publish --access public --no-git-checks
 pnpm --filter @rebornace/dsh-tracescope publish --access public --no-git-checks
 pnpm --filter @rebornace/tracescope-mcp publish --access public --no-git-checks
-echo "Published @rebornace/{tracescope-core,dsh-tracescope,tracescope-mcp}@0.1.0"
+echo "Published @rebornace/{tracescope-core,dsh-tracescope,tracescope-mcp}@0.1.1"
