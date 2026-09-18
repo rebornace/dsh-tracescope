@@ -8,7 +8,8 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm --filter @rebornace/tracescope-core test",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "publish:npm": "powershell -ExecutionPolicy Bypass -File ./scripts/publish-npm.ps1"
   },
   "engines": {
     "node": ">=20"
