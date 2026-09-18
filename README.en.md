@@ -2,9 +2,9 @@
 
 **Version: `0.1.1`** (security-scan fix on top of the 0.1.0 feature freeze)
 
-[涓枃](./README.md) 路 [English](./README.en.md)
+[中文](./README.md) · [English](./README.en.md)
 
-**TraceScope** (`dsh-tracescope` monorepo) turns a **stable 鈫?under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects鈥攆rom a **DeepSeek Harness Web or Desktop** right-sidebar UI.
+**TraceScope** (`dsh-tracescope` monorepo) turns a **stable → under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects—from a **DeepSeek Harness Web or Desktop** right-sidebar UI.
 
 Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 
@@ -17,7 +17,7 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 ## Version `0.1.0` feature set
 
 - **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2)
-- **Product-facing names**: modules YAML 鈫?static title extraction 鈫?heuristics
+- **Product-facing names**: modules YAML → static title extraction → heuristics
 - **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits
 - **Generate checklist**: deterministic analyze + persist; one history row per comparison pair
 - **Chat / model analysis**: job + composer draft + `tracescope_publish_handtest`
@@ -53,7 +53,7 @@ pnpm --filter @rebornace/tracescope-mcp build
 
 ## Install into DSH (Web / Desktop)
 
-Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) (`dsh.bundle` + right-sidebar Client 鈥?same package for Web and Desktop).
+Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) (`dsh.bundle` + right-sidebar Client — same package for Web and Desktop).
 
 Per the [official DSH publish guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), prefer the **prebuilt npm package** (no `allowBuilds`).
 
@@ -91,7 +91,7 @@ pnpm --filter @rebornace/dsh-tracescope build
 dsh plugin --profile web add <repo>/packages/dsh-tracescope
 dsh plugin --profile desktop add <repo>/packages/dsh-tracescope
 
-# GitHub (requires prepare build allowance 鈥?see DSH docs)
+# GitHub (requires prepare build allowance — see DSH docs)
 dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 ```
