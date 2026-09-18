@@ -48,7 +48,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@rebornace/tracescope-core": "workspace:*"
+    "@rebornace/tracescope-core": "workspace:0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

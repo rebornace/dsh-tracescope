@@ -47,15 +47,12 @@ importers:
   packages/dsh-tracescope:
     dependencies:
       '@rebornace/tracescope-core':
-        specifier: workspace:*
+        specifier: workspace:0.1.0
         version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^22.13.10
         version: 22.20.3
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
       typescript:
         specifier: ^5.8.2
         version: 5.9.3
@@ -66,10 +63,10 @@ importers:
         specifier: ^1.30.0
         version: 1.30.0(zod@3.25.76)
       '@rebornace/dsh-tracescope':
-        specifier: workspace:*
+        specifier: workspace:0.1.0
         version: link:../dsh-tracescope
       '@rebornace/tracescope-core':
-        specifier: workspace:*
+        specifier: workspace:0.1.0
         version: link:../core
       zod:
         specifier: ^3.24.2
