@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.1.0`** (documented feature freeze for this release)
+**Version: `0.1.1`** (security-scan fix on top of the 0.1.0 feature freeze)
 
 [中文](./README.md) · [English](./README.en.md)
 
@@ -77,7 +77,7 @@ After restart:
 1. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
 2. Or use `/tracescope` Host capabilities from the session
 
-### npm packages (0.1.0)
+### npm packages (0.1.1)
 
 | Package | Role |
 |---------|------|
@@ -135,9 +135,9 @@ Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handt
 
 | Package | Version | Notes |
 |---------|---------|-------|
-| `@rebornace/tracescope-core` | 0.1.0 | Analysis, storage, Yunxiao/tracker, export |
-| `@rebornace/dsh-tracescope` | 0.1.0 | DSH Host + React Slot client |
-| `@rebornace/tracescope-mcp` | 0.1.0 | MCP server |
+| `@rebornace/tracescope-core` | 0.1.1 | Analysis, storage, Yunxiao/tracker, export |
+| `@rebornace/dsh-tracescope` | 0.1.1 | DSH Host + React Slot client |
+| `@rebornace/tracescope-mcp` | 0.1.1 | MCP server |
 | `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
 
 ## Known limitations (0.1.0)
