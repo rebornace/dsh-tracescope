@@ -1,7 +1,7 @@
 {
   "name": "@rebornace/dsh-tracescope",
   "version": "0.1.1",
-  "description": "TraceScope DeepSeek Harness plugin — embedded React Slot UI + same-origin APIs",
+  "description": "TraceScope DeepSeek Harness plugin 鈥?embedded React Slot UI + same-origin APIs",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,12 +59,18 @@
   },
   "keywords": [
     "dsh-plugin",
+    "dsh-market",
     "deepseek-harness",
     "dsh",
+    "dsh-web",
+    "dsh-desktop",
     "dsh-tracescope",
     "tracescope",
     "testing",
     "manual-testing",
+    "hand-test",
+    "impact-analysis",
+    "git-diff",
     "mcp"
   ],
   "repository": {
