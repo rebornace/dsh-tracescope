@@ -2,9 +2,9 @@
 
 **Version: `0.1.1`** (security-scan fix on top of the 0.1.0 feature freeze)
 
-[中文](./README.md) · [English](./README.en.md)
+[涓枃](./README.md) 路 [English](./README.en.md)
 
-**TraceScope** (`dsh-tracescope` monorepo) turns a **stable → under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects—primarily from a **DeepSeek Harness / Desktop** right-sidebar UI.
+**TraceScope** (`dsh-tracescope` monorepo) turns a **stable 鈫?under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects鈥攆rom a **DeepSeek Harness Web or Desktop** right-sidebar UI.
 
 Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 
@@ -17,7 +17,7 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 ## Version `0.1.0` feature set
 
 - **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2)
-- **Product-facing names**: modules YAML → static title extraction → heuristics
+- **Product-facing names**: modules YAML 鈫?static title extraction 鈫?heuristics
 - **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits
 - **Generate checklist**: deterministic analyze + persist; one history row per comparison pair
 - **Chat / model analysis**: job + composer draft + `tracescope_publish_handtest`
@@ -34,7 +34,7 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 
 - Node.js `>= 20`
 - pnpm `9.x` (`packageManager: pnpm@9.6.0`)
-- For the DSH plugin: DeepSeek Harness / Desktop with `dsh plugin`
+- For the DSH plugin: DeepSeek Harness (**Web** or **Desktop**) with `dsh plugin`
 
 ## Install & build
 
@@ -51,37 +51,62 @@ pnpm --filter @rebornace/dsh-tracescope build
 pnpm --filter @rebornace/tracescope-mcp build
 ```
 
-## DSH Desktop (recommended)
+## Install into DSH (Web / Desktop)
 
-Per the [official DSH publish guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), prefer the **prebuilt npm package** (no `allowBuilds`):
+Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) (`dsh.bundle` + right-sidebar Client 鈥?same package for Web and Desktop).
+
+Per the [official DSH publish guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), prefer the **prebuilt npm package** (no `allowBuilds`).
+
+### Option 1: Search and install in dsh-market (recommended)
+
+1. Open the [dsh-market](https://github.com/dsh-market/dsh-market) panel inside DSH **Web** or **Desktop**
+2. Search for `tracescope`, `dsh-tracescope`, or `hand-test`
+3. Install **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope` into the current profile
+
+Listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) ([PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)). The npm package includes `dsh-plugin` keywords for catalog / registry search.
+
+### Option 2: CLI (Web and Desktop)
 
 ```bash
+# DSH Web
+dsh plugin --profile web add @rebornace/dsh-tracescope
+
+# DSH Desktop
 dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
-Local path install for development:
+If your default registry is npmmirror and dependencies are not synced yet, add a temporary `.npmrc` in that profile directory:
+
+```ini
+registry=https://registry.npmjs.org/
+```
+
+Then re-run `dsh plugin add`.
+
+### Option 3: Local path / GitHub
 
 ```bash
 pnpm --filter @rebornace/dsh-tracescope build
+
+dsh plugin --profile web add <repo>/packages/dsh-tracescope
 dsh plugin --profile desktop add <repo>/packages/dsh-tracescope
-```
 
-Git install (requires `prepare` build allowance — see DSH docs):
-
-```bash
+# GitHub (requires prepare build allowance 鈥?see DSH docs)
+dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
 ```
 
-After restart:
+### After install
 
-1. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
-2. Or use `/tracescope` Host capabilities from the session
+1. Restart / refresh the profile (Web session or Desktop)
+2. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
+3. Or use `/tracescope` Host capabilities from the session
 
 ### npm packages (0.1.1)
 
 | Package | Role |
 |---------|------|
-| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle (`dsh.bundle` + Client Slot) |
+| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle (`dsh.bundle` + Client Slot) for Web and Desktop |
 | [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | Analysis engine (plugin dependency) |
 | [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | Standalone MCP server |
 
@@ -129,7 +154,7 @@ See [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 | `tracescope_list_commits` | List commits / refs |
 | `tracescope_analyze_impact` | Deterministic impact analysis |
 
-Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handtest`) support chat-driven analysis inside Desktop.
+Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handtest`) support chat-driven analysis inside Web / Desktop.
 
 ## Packages
 
