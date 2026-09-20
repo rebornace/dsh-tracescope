@@ -32,6 +32,7 @@ window.__ModuleLoader__.load({
         background: 'var(--dsh-bg, #f7f2e8)',
         color: 'var(--dsh-fg, #1c1915)',
         fontSize: 13,
+        position: 'relative',
       },
       card: {
         border: '1px solid var(--dsh-border, #ddd4c5)',
@@ -108,6 +109,37 @@ window.__ModuleLoader__.load({
         justifyContent: 'center',
         zIndex: 10000,
         padding: 16,
+      },
+      busyOverlay: {
+        position: 'absolute',
+        inset: 0,
+        zIndex: 9000,
+        background: 'rgba(247, 242, 232, 0.78)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '56px 16px 16px',
+        cursor: 'wait',
+        backdropFilter: 'blur(1px)',
+      },
+      busyBanner: {
+        maxWidth: 420,
+        width: '100%',
+        borderRadius: 12,
+        padding: '14px 16px',
+        background: 'var(--dsh-card, #fffdf8)',
+        border: '1px solid var(--dsh-border, #ddd4c5)',
+        boxShadow: '0 8px 28px rgba(0,0,0,0.12)',
+        textAlign: 'center',
+      },
+      busySpinner: {
+        width: 22,
+        height: 22,
+        margin: '0 auto 10px',
+        borderRadius: '50%',
+        border: '3px solid #efe8da',
+        borderTopColor: '#0f6e56',
+        animation: 'tracescope-spin 0.8s linear infinite',
       },
       modalCard: {
         width: 'min(420px, 100%)',
@@ -511,6 +543,7 @@ window.__ModuleLoader__.load({
 
     function StatusButtons(props) {
       var status = props.status || 'pending'
+      var locked = Boolean(props.disabled)
       return jsxs('div', {
         style: Object.assign({}, styles.row, { gap: 6 }),
         children: ['pass', 'fail', 'skip', 'pending'].map(function (s) {
@@ -520,6 +553,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
+              disabled: locked,
               title:
                 s === 'pass'
                   ? '标记为手测通过'
@@ -528,9 +562,14 @@ window.__ModuleLoader__.load({
                     : s === 'skip'
                       ? '本轮不测，标记跳过'
                       : '清除结果，恢复为待测',
-              style: statusBtnStyle(s, active),
+              style: Object.assign(
+                {},
+                statusBtnStyle(s, active),
+                locked ? { opacity: 0.55, cursor: 'not-allowed' } : null,
+              ),
               'aria-pressed': active ? 'true' : 'false',
               onClick: function () {
+                if (locked) return
                 props.onChange(s)
               },
               children: active && s !== 'pending' ? '✓ ' + label : label,
@@ -579,6 +618,7 @@ window.__ModuleLoader__.load({
       var item = props.item
       var listKind = props.listKind
       var itemIndex = props.itemIndex
+      var locked = Boolean(props.disabled)
       var st = item.status || 'pending'
       var note = item.testerNote || ''
       var shots = item.testerScreenshots || []
@@ -588,6 +628,7 @@ window.__ModuleLoader__.load({
           borderLeft: '4px solid',
           borderLeftColor:
             st === 'pass' ? '#0f6e56' : st === 'fail' ? '#b42318' : st === 'skip' ? '#b54708' : '#ddd4c5',
+          opacity: locked ? 0.72 : 1,
         }),
         children: [
           jsxs('div', {
@@ -614,7 +655,9 @@ window.__ModuleLoader__.load({
               }),
               jsx(StatusButtons, {
                 status: st,
+                disabled: locked,
                 onChange: function (s) {
+                  if (locked) return
                   props.onStatus(listKind, itemIndex, item.id, s)
                 },
               }),
@@ -642,14 +685,18 @@ window.__ModuleLoader__.load({
                       lineHeight: 1.45,
                     }),
                     value: note,
+                    disabled: locked,
                     placeholder: '复现步骤、期望/实际结果、相关账号…（可 Ctrl+V 粘贴截图）',
                     onChange: function (e) {
+                      if (locked) return
                       props.onNote(listKind, itemIndex, item.id, e.target.value)
                     },
                     onBlur: function (e) {
+                      if (locked) return
                       props.onNote(listKind, itemIndex, item.id, e.target.value, true)
                     },
                     onPaste: function (e) {
+                      if (locked) return
                       var items = e.clipboardData && e.clipboardData.items
                       if (!items || !items.length) return
                       var imageItem = null
@@ -698,8 +745,10 @@ window.__ModuleLoader__.load({
                         type: 'file',
                         accept: 'image/*',
                         multiple: true,
+                        disabled: locked,
                         style: { display: 'none' },
                         onChange: function (e) {
+                          if (locked) return
                           var files = Array.prototype.slice.call((e.target.files && e.target.files) || [])
                           e.target.value = ''
                           if (!files.length) return
@@ -754,8 +803,9 @@ window.__ModuleLoader__.load({
                       jsx('button', {
                         type: 'button',
                         style: styles.btn,
-                        disabled: shots.length >= MAX_SHOTS,
+                        disabled: locked || shots.length >= MAX_SHOTS,
                         onClick: function () {
+                          if (locked) return
                           if (fileRef.current) fileRef.current.click()
                         },
                         children: '添加截图',
@@ -816,7 +866,9 @@ window.__ModuleLoader__.load({
                                     border: 0,
                                   }),
                                   title: '移除截图',
+                                  disabled: locked,
                                   onClick: function () {
+                                    if (locked) return
                                     props.onScreenshots(
                                       listKind,
                                       itemIndex,
@@ -1003,6 +1055,11 @@ window.__ModuleLoader__.load({
       var _busy = useState(false)
       var busy = _busy[0]
       var setBusy = _busy[1]
+      var _busyMessage = useState('')
+      var busyMessage = _busyMessage[0]
+      var setBusyMessage = _busyMessage[1]
+      var busyRef = useRef(false)
+      var busyMsgRef = useRef('')
       var _health = useState('检查中…')
       var health = _health[0]
       var setHealth = _health[1]
@@ -1039,6 +1096,38 @@ window.__ModuleLoader__.load({
       var _chatHint = useState('')
       var chatHint = _chatHint[0]
       var setChatHint = _chatHint[1]
+
+      function beginBusy(message) {
+        if (busyRef.current) {
+          setChatHint(
+            '请等待当前操作完成后再试' +
+              (busyMsgRef.current ? '（' + busyMsgRef.current + '）' : '') +
+              '。网络较慢时请勿重复点击。',
+          )
+          return false
+        }
+        var text = message || '处理中，请稍候…'
+        busyRef.current = true
+        busyMsgRef.current = text
+        setBusy(true)
+        setBusyMessage(text)
+        return true
+      }
+
+      function endBusy() {
+        busyRef.current = false
+        busyMsgRef.current = ''
+        setBusy(false)
+        setBusyMessage('')
+      }
+
+      function updateBusyMessage(message) {
+        if (!busyRef.current) return
+        var text = message || '处理中，请稍候…'
+        busyMsgRef.current = text
+        setBusyMessage(text)
+      }
+
       var _jobId = useState('')
       var jobId = _jobId[0]
       var setJobId = _jobId[1]
@@ -1256,7 +1345,7 @@ window.__ModuleLoader__.load({
           }
           viewingHistoryRef.current = null
           setError('')
-          setBusy(true)
+          if (!beginBusy('正在加载已存清单…')) return
           apiPost('/tracescope/v1/report-load', {
             repoPath: repoPath.trim(),
             baseCommit: baseCommit,
@@ -1275,7 +1364,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [repoPath, baseCommit, headCommit],
@@ -1299,7 +1388,7 @@ window.__ModuleLoader__.load({
       var openHistoryEntry = useCallback(
         function (id) {
           if (!id) return
-          setBusy(true)
+          if (!beginBusy('正在打开历史任务…')) return
           setError('')
           apiPost('/tracescope/v1/report-history-get', { id: id })
             .then(function (data) {
@@ -1328,7 +1417,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [repoPath],
@@ -1336,6 +1425,13 @@ window.__ModuleLoader__.load({
 
       var switchRepo = useCallback(
         function (nextPath) {
+          if (busyRef.current) {
+            setChatHint(
+              '请等待当前操作完成后再切换仓库' +
+                (busyMsgRef.current ? '（' + busyMsgRef.current + '）' : ''),
+            )
+            return
+          }
           var next = String(nextPath || '').trim()
           if (!next || next === repoPath.trim()) return
           skipAutoSyncRef.current = false
@@ -1486,7 +1582,7 @@ window.__ModuleLoader__.load({
           localStorage.setItem(REPO_PATH_KEY, repoPath.trim())
           rememberRepo(repoPath.trim())
           persistAuth()
-          setBusy(true)
+          if (!beginBusy('正在同步仓库版本（含远端拉取，网络慢时请耐心等待）…')) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
@@ -1516,7 +1612,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [repoPath, authMode, authUser, authToken, authKey, rememberAuth],
@@ -1557,7 +1653,7 @@ window.__ModuleLoader__.load({
           }
           function runAnalyze() {
             persistAuth()
-            setBusy(true)
+            if (!beginBusy('正在生成手测清单…')) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/analyze', {
               repoPath: repoPath.trim(),
@@ -1582,7 +1678,7 @@ window.__ModuleLoader__.load({
                 setError(err.message || String(err))
               })
               .finally(function () {
-                setBusy(false)
+                endBusy()
               })
           }
           if (report) {
@@ -1623,7 +1719,7 @@ window.__ModuleLoader__.load({
           }
           function runChat() {
             persistAuth()
-            setBusy(true)
+            if (!beginBusy('正在准备模型对话分析…')) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/jobs', {
               repoPath: repoPath.trim(),
@@ -1666,7 +1762,7 @@ window.__ModuleLoader__.load({
                 setError(err.message || String(err))
               })
               .finally(function () {
-                setBusy(false)
+                endBusy()
               })
           }
           // Only warn when overwriting a previous model-produced checklist.
@@ -1715,7 +1811,7 @@ window.__ModuleLoader__.load({
             confirmLabel: '删除',
             danger: true,
             onConfirm: function () {
-              setBusy(true)
+              if (!beginBusy('正在删除历史任务…')) return
               setError('')
               apiPost('/tracescope/v1/report-history-delete', { id: historyId })
                 .then(function () {
@@ -1728,7 +1824,7 @@ window.__ModuleLoader__.load({
                   setError(err.message || String(err))
                 })
                 .finally(function () {
-                  setBusy(false)
+                  endBusy()
                 })
             },
           })
@@ -1886,17 +1982,18 @@ window.__ModuleLoader__.load({
           }
           var room = 8 - currentCount
           var queue = list.slice(0, room)
+          if (!beginBusy('正在上传任务附件…')) return
           var idx = 0
           function next() {
             if (idx >= queue.length) {
-              setBusy(false)
+              endBusy()
               return
             }
             var file = queue[idx++]
             var electronPath = file && file.path ? String(file.path) : ''
             // Large files: prefer host-side copy via absolute path when Electron exposes it.
             if (electronPath && file.size > 35 * 1024 * 1024) {
-              setBusy(true)
+              updateBusyMessage('正在从本机路径添加「' + file.name + '」…')
               setChatHint('正在从本机路径添加「' + file.name + '」…')
               apiPost('/tracescope/v1/report-attachments', {
                 action: 'upload',
@@ -1918,7 +2015,7 @@ window.__ModuleLoader__.load({
                   next()
                 })
                 .catch(function (err) {
-                  setBusy(false)
+                  endBusy()
                   setError(err.message || String(err))
                 })
               return
@@ -1932,7 +2029,7 @@ window.__ModuleLoader__.load({
               next()
               return
             }
-            setBusy(true)
+            updateBusyMessage('正在上传「' + file.name + '」…')
             setChatHint('正在上传「' + file.name + '」…')
             fileToBase64(file)
               .then(function (b64) {
@@ -1957,7 +2054,7 @@ window.__ModuleLoader__.load({
                 next()
               })
               .catch(function (err) {
-                setBusy(false)
+                endBusy()
                 setError(err.message || String(err))
               })
           }
@@ -1974,7 +2071,7 @@ window.__ModuleLoader__.load({
           }
           var localPath = taskAttachPath.trim()
           if (!localPath) return
-          setBusy(true)
+          if (!beginBusy('正在从路径添加附件…')) return
           setError('')
           apiPost('/tracescope/v1/report-attachments', {
             action: 'upload',
@@ -1997,7 +2094,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [report, repoPath, baseCommit, headCommit, taskAttachPath],
@@ -2006,7 +2103,7 @@ window.__ModuleLoader__.load({
       var removeTaskAttachment = useCallback(
         function (id) {
           if (!report || !id) return
-          setBusy(true)
+          if (!beginBusy('正在删除附件…')) return
           apiPost('/tracescope/v1/report-attachments', {
             action: 'delete',
             repoPath: repoPath.trim(),
@@ -2027,7 +2124,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [report, repoPath, baseCommit, headCommit],
@@ -2036,7 +2133,7 @@ window.__ModuleLoader__.load({
       var downloadTaskAttachment = useCallback(
         function (att) {
           if (!report || !att) return
-          setBusy(true)
+          if (!beginBusy('正在下载附件…')) return
           apiPost('/tracescope/v1/report-attachments', {
             action: 'download',
             repoPath: repoPath.trim(),
@@ -2073,7 +2170,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [report, repoPath, baseCommit, headCommit],
@@ -2148,7 +2245,7 @@ window.__ModuleLoader__.load({
             '.md'
 
           // Prefer server markdown when possible (small request: pair only, no full report body).
-          setBusy(true)
+          if (!beginBusy('正在导出清单…')) return
           setError('')
           apiPost('/tracescope/v1/report-export', {
             repoPath: repoPath.trim() || report.repoPath || '',
@@ -2172,7 +2269,7 @@ window.__ModuleLoader__.load({
               setChatHint('已导出（本地面板数据）：' + filename)
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [report, repoPath, baseCommit, headCommit],
@@ -2180,7 +2277,7 @@ window.__ModuleLoader__.load({
 
       var saveTrackerSettings = useCallback(
         function () {
-          setBusy(true)
+          if (!beginBusy('正在保存缺陷平台配置…')) return
           var payload = { provider: trackerProvider }
           if (trackerProvider === 'yunxiao') {
             payload.yunxiao = {
@@ -2223,7 +2320,7 @@ window.__ModuleLoader__.load({
               setError(err.message || String(err))
             })
             .finally(function () {
-              setBusy(false)
+              endBusy()
             })
         },
         [
@@ -2311,6 +2408,8 @@ window.__ModuleLoader__.load({
 
       var refreshYunxiaoOrgs = useCallback(
         function () {
+          if (!beginBusy('正在拉取云效企业列表…')) return
+          setYxCatalogHint('正在拉取云效企业…')
           loadYunxiaoCatalog('organizations')
             .then(function (options) {
               setYxOrgs(options)
@@ -2319,6 +2418,9 @@ window.__ModuleLoader__.load({
               }
             })
             .catch(function () {})
+            .finally(function () {
+              endBusy()
+            })
         },
         [loadYunxiaoCatalog, yxOrg],
       )
@@ -2330,6 +2432,7 @@ window.__ModuleLoader__.load({
             setYxCatalogHint('请先选择企业')
             return
           }
+          if (!beginBusy('正在拉取云效项目与成员…')) return
           setYxCatalogHint('正在拉取项目与成员…')
           Promise.all([
             loadYunxiaoCatalog('projects', { organizationId: org }),
@@ -2353,6 +2456,9 @@ window.__ModuleLoader__.load({
             .catch(function (err) {
               setYxCatalogHint(err.message || String(err))
             })
+            .finally(function () {
+              endBusy()
+            })
         },
         [loadYunxiaoCatalog, yxOrg],
       )
@@ -2365,6 +2471,7 @@ window.__ModuleLoader__.load({
             setYxCatalogHint('请先选择企业和项目')
             return
           }
+          if (!beginBusy('正在拉取云效缺陷类型…')) return
           loadYunxiaoCatalog('workitemTypes', {
             organizationId: org,
             spaceId: space,
@@ -2375,6 +2482,9 @@ window.__ModuleLoader__.load({
               if (options.length === 1) setYxType(options[0].id)
             })
             .catch(function () {})
+            .finally(function () {
+              endBusy()
+            })
         },
         [loadYunxiaoCatalog, yxOrg, yxSpace],
       )
@@ -2392,6 +2502,7 @@ window.__ModuleLoader__.load({
             setWiHint('请至少勾选一种工作项类型')
             return
           }
+          if (!beginBusy('正在拉取敏捷任务…')) return
           setWiHint('正在拉取敏捷任务…')
           apiPost('/tracescope/v1/yunxiao-catalog', {
             action: 'workitems',
@@ -2409,6 +2520,9 @@ window.__ModuleLoader__.load({
             })
             .catch(function (err) {
               setWiHint(err.message || String(err))
+            })
+            .finally(function () {
+              endBusy()
             })
         },
         [yxEndpoint, yxToken, yxOrg, yxSpace, wiCats],
@@ -2450,7 +2564,7 @@ window.__ModuleLoader__.load({
             confirmLabel: '提交',
             danger: false,
             onConfirm: function (subject) {
-              setBusy(true)
+              if (!beginBusy('正在提交失败反馈到缺陷平台…')) return
               setError('')
               apiPost('/tracescope/v1/tracker-submit', {
                 repoPath: repoPath.trim(),
@@ -2484,7 +2598,7 @@ window.__ModuleLoader__.load({
                   setError(err.message || String(err))
                 })
                 .finally(function () {
-                  setBusy(false)
+                  endBusy()
                 })
             },
           })
@@ -2497,11 +2611,50 @@ window.__ModuleLoader__.load({
       return jsxs('div', {
         style: styles.root,
         children: [
+          jsx('style', {
+            children:
+              '@keyframes tracescope-spin{to{transform:rotate(360deg)}}',
+          }),
+          busy
+            ? jsx('div', {
+                style: styles.busyOverlay,
+                role: 'status',
+                'aria-live': 'polite',
+                'aria-busy': 'true',
+                onClick: function (e) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                },
+                onMouseDown: function (e) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                },
+                children: jsxs('div', {
+                  style: styles.busyBanner,
+                  children: [
+                    jsx('div', { style: styles.busySpinner, 'aria-hidden': 'true' }),
+                    jsx('div', {
+                      style: { fontWeight: 700, marginBottom: 6 },
+                      children: '加载中，请稍候',
+                    }),
+                    jsx('div', {
+                      style: { color: '#6b645a', fontSize: 12, lineHeight: 1.45 },
+                      children:
+                        busyMessage ||
+                        '正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。',
+                    }),
+                  ],
+                }),
+              })
+            : null,
           jsxs('div', {
             style: styles.row,
             children: [
               jsx('strong', { children: 'TraceScope 手测范围' }),
-              jsx('span', { style: { color: '#6b645a' }, children: health }),
+              jsx('span', {
+                style: { color: busy ? '#0f6e56' : '#6b645a' },
+                children: busy ? busyMessage || '处理中…' : health,
+              }),
             ],
           }),
           jsxs('section', {
@@ -2556,7 +2709,9 @@ window.__ModuleLoader__.load({
                   jsx('button', {
                     type: 'button',
                     style: styles.btn,
+                    disabled: busy,
                     onClick: function () {
+                      if (busy) return
                       setSettingsOpen(!settingsOpen)
                     },
                     children: settingsOpen ? '收起配置' : '仓库配置',
@@ -2592,6 +2747,7 @@ window.__ModuleLoader__.load({
                           jsx('input', {
                             style: styles.input,
                             value: repoPath,
+                            disabled: busy,
                             placeholder: 'C:\\work\\app 或 https://github.com/org/repo.git',
                             onChange: function (e) {
                               setRepoPath(e.target.value)
@@ -2840,7 +2996,9 @@ window.__ModuleLoader__.load({
                                   jsx('select', {
                                     style: styles.input,
                                     value: yxOrg,
+                                    disabled: busy,
                                     onChange: function (e) {
+                                      if (busy) return
                                       var id = e.target.value
                                       setYxOrg(id)
                                       setYxSpace('')
@@ -2884,8 +3042,9 @@ window.__ModuleLoader__.load({
                                   jsx('select', {
                                     style: styles.input,
                                     value: yxSpace,
-                                    disabled: !yxOrg,
+                                    disabled: busy || !yxOrg,
                                     onChange: function (e) {
+                                      if (busy) return
                                       var id = e.target.value
                                       setYxSpace(id)
                                       setYxType('')
@@ -2930,7 +3089,7 @@ window.__ModuleLoader__.load({
                                       jsx('select', {
                                         style: styles.input,
                                         value: yxType,
-                                        disabled: !yxSpace,
+                                        disabled: busy || !yxSpace,
                                         onChange: function (e) {
                                           setYxType(e.target.value)
                                         },
@@ -2969,7 +3128,7 @@ window.__ModuleLoader__.load({
                                       jsx('select', {
                                         style: styles.input,
                                         value: yxAssignee,
-                                        disabled: !yxOrg,
+                                        disabled: busy || !yxOrg,
                                         onChange: function (e) {
                                           setYxAssignee(e.target.value)
                                         },
@@ -3650,8 +3809,9 @@ window.__ModuleLoader__.load({
                         {
                           style: styles.input,
                           value: baseCommit,
-                          disabled: !commits.length && !(refs && refs.length),
+                          disabled: busy || (!commits.length && !(refs && refs.length)),
                           onChange: function (e) {
+                            if (busy) return
                             viewingHistoryRef.current = null
                             setBaseCommit(e.target.value)
                           },
@@ -3669,8 +3829,9 @@ window.__ModuleLoader__.load({
                         {
                           style: styles.input,
                           value: headCommit,
-                          disabled: !commits.length && !(refs && refs.length),
+                          disabled: busy || (!commits.length && !(refs && refs.length)),
                           onChange: function (e) {
+                            if (busy) return
                             viewingHistoryRef.current = null
                             setHeadCommit(e.target.value)
                           },
@@ -3927,7 +4088,9 @@ window.__ModuleLoader__.load({
                       jsx('button', {
                         type: 'button',
                         style: Object.assign({}, styles.btn, tab === 'direct' ? { fontWeight: 700 } : null),
+                        disabled: busy,
                         onClick: function () {
+                          if (busy) return
                           setTab('direct')
                         },
                         children: '直接变更',
@@ -3935,7 +4098,9 @@ window.__ModuleLoader__.load({
                       jsx('button', {
                         type: 'button',
                         style: Object.assign({}, styles.btn, tab === 'ripple' ? { fontWeight: 700 } : null),
+                        disabled: busy,
                         onClick: function () {
+                          if (busy) return
                           setTab('ripple')
                         },
                         children: '可能波及',
@@ -3950,6 +4115,7 @@ window.__ModuleLoader__.load({
                             item: item,
                             listKind: tab === 'ripple' ? 'ripple' : 'direct',
                             itemIndex: index,
+                            disabled: busy,
                             onStatus: onStatus,
                             onNote: onNote,
                             onScreenshots: onScreenshots,
