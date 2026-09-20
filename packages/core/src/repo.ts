@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { access, mkdir } from 'node:fs/promises'
+import { access, mkdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import {
@@ -109,7 +109,20 @@ export async function resolveGitRepo(
       })
       synced = true
     } else if (!(await isGitWorkTree(repoPath))) {
-      throw new Error(`缓存目录不是有效 git 仓库：${repoPath}`)
+      // A previous clone may have failed mid-way and left a non-repo folder.
+      // Wipe it and clone again instead of blocking the user forever.
+      await rm(repoPath, { recursive: true, force: true })
+      await gitExec(['clone', '--recurse-submodules', remoteUrl, repoPath], {
+        cwd: cacheRoot,
+        maxBuffer: 64 * 1024 * 1024,
+        auth,
+      })
+      synced = true
+      if (!(await isGitWorkTree(repoPath))) {
+        throw new Error(
+          `重新克隆后缓存仍不是有效 git 仓库：${repoPath}（请手动删除该目录后重试，并检查远端地址与鉴权）`,
+        )
+      }
     } else if (options.fetch !== false) {
       await gitFetchAll(repoPath, auth)
       synced = true
