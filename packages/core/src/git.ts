@@ -16,7 +16,8 @@ export async function gitExec(
   options: GitExecOptions = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const { env, configArgs } = buildGitAuthEnv(options.auth)
-  const argv = [...configArgs, ...args]
+  // Always allow our managed cache dirs (avoids Windows "dubious ownership" false negatives).
+  const argv = ['-c', 'safe.directory=*', ...configArgs, ...args]
   try {
     const result = await execFileAsync('git', argv, {
       cwd: options.cwd,
@@ -31,22 +32,42 @@ export async function gitExec(
     const err = error as { stderr?: string; message?: string }
     const detail = redactSecrets(String(err.stderr || err.message || error).trim())
     const authHint =
-      /Authentication failed|could not read Username|Permission denied|ERROR: Repository not found|fatal: could not read|403|401/i.test(
+      /Authentication failed|could not read Username|Permission denied|ERROR: Repository not found|fatal: could not read|403|401|Access denied|Invalid token|认证失败/i.test(
         detail,
       )
-        ? '（若是私有仓，请在面板里配置 HTTPS Token 或 SSH 私钥后重试）'
-        : ''
+        ? '（若是私有仓，请在面板「仓库配置」填写 Codeup/Git HTTPS Token 或 SSH 私钥后重试）'
+        : /dubious ownership/i.test(detail)
+          ? '（Git 安全目录拦截：插件已尝试自动放行；若仍失败请重启 DSH 后再试）'
+          : ''
     throw new Error((detail || `git ${args.join(' ')} failed`) + authHint)
   }
 }
 
-export async function isGitWorkTree(repoPath: string): Promise<boolean> {
+export type GitWorkTreeInspection = {
+  ok: boolean
+  /** Raw git / filesystem detail when ok=false (already secret-redacted when from git). */
+  detail?: string
+}
+
+/** Inspect whether path is a usable git work tree; keep failure reason for UI. */
+export async function inspectGitWorkTree(repoPath: string): Promise<GitWorkTreeInspection> {
   try {
-    const { stdout } = await gitExec(['rev-parse', '--is-inside-work-tree'], { cwd: repoPath })
-    return stdout.trim() === 'true'
-  } catch {
-    return false
+    const { stdout, stderr } = await gitExec(['rev-parse', '--is-inside-work-tree'], {
+      cwd: repoPath,
+    })
+    if (stdout.trim() === 'true') return { ok: true }
+    const detail = redactSecrets((stderr || stdout || 'rev-parse 未返回 true').trim())
+    return { ok: false, detail }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    }
   }
+}
+
+export async function isGitWorkTree(repoPath: string): Promise<boolean> {
+  return (await inspectGitWorkTree(repoPath)).ok
 }
 
 /** Fetch all remotes so remote-tracking refs become available. */

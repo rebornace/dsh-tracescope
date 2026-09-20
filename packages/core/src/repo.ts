@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
-import { access, mkdir, rm } from 'node:fs/promises'
+import { access, mkdir, readdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import {
   adaptRemoteUrlForAuth,
   type GitAuth,
 } from './auth.js'
-import { gitExec, gitFetchAll, isGitWorkTree } from './git.js'
+import { gitExec, gitFetchAll, inspectGitWorkTree } from './git.js'
 
 export type ResolvedRepo = {
   /** Original user input (path or remote URL). */
@@ -78,6 +78,77 @@ function authModeOf(auth: GitAuth | undefined): ResolvedRepo['authMode'] {
   return auth.mode
 }
 
+/** Display path with forward slashes so chat/IM clients do not eat Windows backslashes. */
+function displayPath(p: string): string {
+  return path.resolve(p).replace(/\\/g, '/')
+}
+
+async function describeBrokenCache(repoPath: string, gitDetail?: string): Promise<string> {
+  const shown = displayPath(repoPath)
+  const parts: string[] = [`缓存目录校验失败：${shown}`]
+  let hasGit = false
+  try {
+    await access(path.join(repoPath, '.git'))
+    hasGit = true
+  } catch {
+    hasGit = false
+  }
+  if (!hasGit) {
+    parts.push('原因：目录里没有 .git（克隆未完成或被杀毒软件清空）。')
+  } else if (gitDetail) {
+    parts.push(`原因：${gitDetail}`)
+  } else {
+    parts.push('原因：存在 .git，但 git rev-parse 未确认工作区。')
+  }
+  try {
+    const entries = await readdir(repoPath)
+    parts.push(`目录内文件数：${entries.length}。`)
+  } catch {
+    parts.push('目录不可读（权限/占用）。')
+  }
+  parts.push(
+    '处理：1) 确认面板已配置 HTTPS Token；2) 关闭占用后点「保存并加载版本」会自动清理重试；3) 仍失败可手动删除上述缓存目录。',
+  )
+  return parts.join(' ')
+}
+
+/**
+ * Clone remote into cache. Prefer plain clone first (Codeup private submodules often
+ * break --recurse-submodules mid-way); optionally warn if recurse was skipped after retry.
+ */
+async function cloneRemoteCache(
+  remoteUrl: string,
+  repoPath: string,
+  cacheRoot: string,
+  auth: GitAuth | undefined,
+): Promise<void> {
+  const common = {
+    cwd: cacheRoot,
+    maxBuffer: 64 * 1024 * 1024,
+    auth,
+  } as const
+  try {
+    await gitExec(['clone', '--recurse-submodules', remoteUrl, repoPath], common)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    // Partial clone may leave a folder — wipe before retry without submodules.
+    if (await pathExists(repoPath)) {
+      await rm(repoPath, { recursive: true, force: true })
+    }
+    try {
+      await gitExec(['clone', remoteUrl, repoPath], common)
+    } catch (retryError: unknown) {
+      const retryMsg = retryError instanceof Error ? retryError.message : String(retryError)
+      throw new Error(
+        `克隆失败：${retryMsg}` +
+          (/submodule/i.test(msg)
+            ? '（含子模块拉取失败；已尝试不拉子模块仍失败，请检查 Token 对主仓与子模块的权限）'
+            : ''),
+      )
+    }
+  }
+}
+
 /**
  * Resolve a local path or remote git URL to a usable work-tree.
  * Remote URLs are cloned under `~/.tracescope/repos` and re-used on later runs.
@@ -102,30 +173,24 @@ export async function resolveGitRepo(
     let synced = false
 
     if (!(await pathExists(repoPath))) {
-      await gitExec(['clone', '--recurse-submodules', remoteUrl, repoPath], {
-        cwd: cacheRoot,
-        maxBuffer: 64 * 1024 * 1024,
-        auth,
-      })
+      await cloneRemoteCache(remoteUrl, repoPath, cacheRoot, auth)
       synced = true
-    } else if (!(await isGitWorkTree(repoPath))) {
-      // A previous clone may have failed mid-way and left a non-repo folder.
-      // Wipe it and clone again instead of blocking the user forever.
-      await rm(repoPath, { recursive: true, force: true })
-      await gitExec(['clone', '--recurse-submodules', remoteUrl, repoPath], {
-        cwd: cacheRoot,
-        maxBuffer: 64 * 1024 * 1024,
-        auth,
-      })
-      synced = true
-      if (!(await isGitWorkTree(repoPath))) {
-        throw new Error(
-          `重新克隆后缓存仍不是有效 git 仓库：${repoPath}（请手动删除该目录后重试，并检查远端地址与鉴权）`,
-        )
+    } else {
+      const existing = await inspectGitWorkTree(repoPath)
+      if (!existing.ok) {
+        // Stale/partial cache from a previous failed clone — wipe and clone again.
+        await rm(repoPath, { recursive: true, force: true })
+        await cloneRemoteCache(remoteUrl, repoPath, cacheRoot, auth)
+        synced = true
+      } else if (options.fetch !== false) {
+        await gitFetchAll(repoPath, auth)
+        synced = true
       }
-    } else if (options.fetch !== false) {
-      await gitFetchAll(repoPath, auth)
-      synced = true
+    }
+
+    const check = await inspectGitWorkTree(repoPath)
+    if (!check.ok) {
+      throw new Error(await describeBrokenCache(repoPath, check.detail))
     }
 
     return {
@@ -139,8 +204,12 @@ export async function resolveGitRepo(
   }
 
   const repoPath = path.resolve(trimmed)
-  if (!(await isGitWorkTree(repoPath))) {
-    throw new Error(`本地路径不是 git 仓库：${repoPath}`)
+  const localCheck = await inspectGitWorkTree(repoPath)
+  if (!localCheck.ok) {
+    throw new Error(
+      `本地路径不是 git 仓库：${displayPath(repoPath)}` +
+        (localCheck.detail ? `（${localCheck.detail}）` : ''),
+    )
   }
 
   let synced = false
