@@ -690,15 +690,25 @@ export function apply(ctx: Context) {
       const spaceId =
         typeof body.spaceId === 'string' ? body.spaceId.trim() : existing.yunxiao?.spaceId || ''
 
+      const wantDebug = Boolean(body.debug)
+      const withDebug = (payload: Record<string, unknown>, debug: unknown) =>
+        wantDebug ? { ...payload, debug } : payload
+
       if (action === 'organizations') {
         const result = await listYunxiaoOrganizations(endpoint, token)
-        if (!result.ok) throw new Error(result.error || '获取企业列表失败')
-        return { options: result.options }
+        if (!result.ok) {
+          if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
+          throw new Error(result.error || '获取企业列表失败')
+        }
+        return withDebug({ options: result.options }, result.debug)
       }
       if (action === 'projects') {
         const result = await listYunxiaoProjects(endpoint, token, organizationId)
-        if (!result.ok) throw new Error(result.error || '获取项目列表失败')
-        return { options: result.options }
+        if (!result.ok) {
+          if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
+          throw new Error(result.error || '获取项目列表失败')
+        }
+        return withDebug({ options: result.options, warning: result.error }, result.debug)
       }
       if (action === 'workitemTypes') {
         const category = typeof body.category === 'string' ? body.category : 'Bug'
@@ -709,13 +719,19 @@ export function apply(ctx: Context) {
           spaceId,
           category,
         )
-        if (!result.ok) throw new Error(result.error || '获取缺陷类型失败')
-        return { options: result.options }
+        if (!result.ok) {
+          if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
+          throw new Error(result.error || '获取缺陷类型失败')
+        }
+        return withDebug({ options: result.options }, result.debug)
       }
       if (action === 'members') {
         const result = await listYunxiaoMembers(endpoint, token, organizationId)
-        if (!result.ok) throw new Error(result.error || '获取成员列表失败')
-        return { options: result.options }
+        if (!result.ok) {
+          if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
+          throw new Error(result.error || '获取成员列表失败')
+        }
+        return withDebug({ options: result.options }, result.debug)
       }
       if (action === 'workitems') {
         const categoriesRaw = body.categories

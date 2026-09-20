@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.1.1`**（在 0.1.0 功能冻结基础上的安全扫描修复版）
+**版本: `0.1.2`**（云效项目拉取加固 + 面板请求日志）
 
 [中文](./README.md) · [English](./README.en.md)
 
@@ -109,7 +109,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
 3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
 
-### npm 包（0.1.1）
+### npm 包（0.1.2）
 
 | 包 | 用途 |
 |----|------|
@@ -177,9 +177,9 @@ DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`traces
 
 | 包 | 版本 | 说明 |
 |----|------|------|
-| `@rebornace/tracescope-core` | 0.1.1 | 分析、报告存储、云效 / Tracker、导出 |
-| `@rebornace/dsh-tracescope` | 0.1.1 | DSH Host + React Slot Client |
-| `@rebornace/tracescope-mcp` | 0.1.1 | MCP Server |
+| `@rebornace/tracescope-core` | 0.1.2 | 分析、报告存储、云效 / Tracker、导出 |
+| `@rebornace/dsh-tracescope` | 0.1.2 | DSH Host + React Slot Client |
+| `@rebornace/tracescope-mcp` | 0.1.2 | MCP Server |
 | `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
 ## 已知限制（0.1.0）

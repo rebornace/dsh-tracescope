@@ -96,6 +96,7 @@ export {
   type YunxiaoConfig,
   type YunxiaoCreateResult,
   type YunxiaoOption,
+  type YunxiaoDebugEntry,
   type YunxiaoWorkItem,
 } from './yunxiao.js'
 export {

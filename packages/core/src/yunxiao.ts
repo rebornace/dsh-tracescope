@@ -26,6 +26,31 @@ export interface YunxiaoOption {
   name: string
 }
 
+/** Sanitized Yunxiao HTTP trace for in-panel troubleshooting (never includes the token). */
+export interface YunxiaoDebugEntry {
+  at: string
+  method: string
+  path: string
+  status: number
+  requestBody?: string
+  responsePreview: string
+  optionCount?: number
+  error?: string
+}
+
+const DEBUG_PREVIEW_LIMIT = 1800
+
+function previewJson(raw: unknown, limit = DEBUG_PREVIEW_LIMIT): string {
+  let text: string
+  try {
+    text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+  } catch {
+    text = String(raw)
+  }
+  if (text.length <= limit) return text
+  return `${text.slice(0, limit)}\n…(truncated ${text.length - limit} chars)`
+}
+
 export function isYunxiaoConfigReady(config: Partial<YunxiaoConfig> | null | undefined): boolean {
   if (!config) return false
   return Boolean(
@@ -55,9 +80,22 @@ async function yunxiaoRequest(
   path: string,
   init: RequestInit = {},
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: boolean; status: number; raw: unknown; error?: string }> {
+): Promise<{
+  ok: boolean
+  status: number
+  raw: unknown
+  error?: string
+  debug: YunxiaoDebugEntry
+}> {
   const base = normalizeYunxiaoEndpoint(endpoint)
-  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const pathOnly = path.startsWith('/') ? path : `/${path}`
+  const url = `${base}${pathOnly}`
+  const method = (init.method || 'GET').toUpperCase()
+  const requestBody =
+    typeof init.body === 'string' && init.body.trim()
+      ? previewJson(init.body, 600)
+      : undefined
+  const at = new Date().toISOString()
   try {
     const res = await fetchImpl(url, {
       ...init,
@@ -73,6 +111,14 @@ async function yunxiaoRequest(
     } catch {
       /* keep text */
     }
+    const debug: YunxiaoDebugEntry = {
+      at,
+      method,
+      path: pathOnly,
+      status: res.status,
+      requestBody,
+      responsePreview: previewJson(raw),
+    }
     if (!res.ok) {
       const msg =
         typeof raw === 'object' && raw && 'errorMessage' in raw
@@ -80,16 +126,38 @@ async function yunxiaoRequest(
           : typeof raw === 'object' && raw && 'message' in raw
             ? String((raw as { message?: string }).message)
             : text.slice(0, 400) || `HTTP ${res.status}`
-      return { ok: false, status: res.status, raw, error: msg }
+      return { ok: false, status: res.status, raw, error: msg, debug: { ...debug, error: msg } }
     }
-    return { ok: true, status: res.status, raw }
+    return { ok: true, status: res.status, raw, debug }
   } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
     return {
       ok: false,
       status: 0,
       raw: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: msg,
+      debug: {
+        at,
+        method,
+        path: pathOnly,
+        status: 0,
+        requestBody,
+        responsePreview: '',
+        error: msg,
+      },
     }
+  }
+}
+
+function withOptionDebug(
+  debug: YunxiaoDebugEntry,
+  options: YunxiaoOption[],
+  error?: string,
+): YunxiaoDebugEntry {
+  return {
+    ...debug,
+    optionCount: options.length,
+    error: error || debug.error,
   }
 }
 
@@ -100,20 +168,26 @@ function asRecordArray(raw: unknown): Record<string, unknown>[] {
   if (!raw || typeof raw !== 'object') return []
   const obj = raw as Record<string, unknown>
   for (const key of [
-    'result',
-    'data',
     'organizations',
     'projects',
     'members',
+    'workitems',
     'list',
     'items',
-    'workitems',
+    'data',
+    'result',
   ]) {
-    if (Array.isArray(obj[key])) {
-      return (obj[key] as unknown[]).filter((x) => x && typeof x === 'object') as Record<
-        string,
-        unknown
-      >[]
+    const nested = obj[key]
+    if (Array.isArray(nested)) {
+      return nested.filter((x) => x && typeof x === 'object') as Record<string, unknown>[]
+    }
+  }
+  // Yunxiao search often wraps rows as { result: { data: [...] } } / { data: { list: [...] } }
+  for (const key of ['result', 'data']) {
+    const nested = obj[key]
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const inner = asRecordArray(nested)
+      if (inner.length) return inner
     }
   }
   return []
@@ -153,8 +227,22 @@ export async function listYunxiaoOrganizations(
   endpoint: string,
   token: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string }> {
-  if (!token.trim()) return { ok: false, options: [], error: '请先填写访问令牌' }
+): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string; debug: YunxiaoDebugEntry }> {
+  if (!token.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先填写访问令牌',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'GET',
+        path: '/oapi/v1/platform/organizations',
+        status: 0,
+        responsePreview: '',
+        error: '请先填写访问令牌',
+      },
+    }
+  }
   const res = await yunxiaoRequest(
     endpoint,
     token,
@@ -162,14 +250,24 @@ export async function listYunxiaoOrganizations(
     { method: 'GET' },
     fetchImpl,
   )
-  if (!res.ok) return { ok: false, options: [], error: res.error }
+  if (!res.ok) {
+    return {
+      ok: false,
+      options: [],
+      error: res.error,
+      debug: withOptionDebug(res.debug, [], res.error),
+    }
+  }
+  const options = toOptions(
+    asRecordArray(res.raw),
+    // Keep `id` first — this is what list-orgs returns and what projects:search expects.
+    ['id', 'organizationId', 'identifier'],
+    ['name', 'organizationName'],
+  )
   return {
     ok: true,
-    options: toOptions(
-      asRecordArray(res.raw),
-      ['id', 'organizationId', 'identifier'],
-      ['name', 'organizationName'],
-    ),
+    options,
+    debug: withOptionDebug(res.debug, options),
   }
 }
 
@@ -179,9 +277,37 @@ export async function listYunxiaoProjects(
   token: string,
   organizationId: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string }> {
-  if (!token.trim()) return { ok: false, options: [], error: '请先填写访问令牌' }
-  if (!organizationId.trim()) return { ok: false, options: [], error: '请先选择企业' }
+): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string; debug: YunxiaoDebugEntry }> {
+  if (!token.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先填写访问令牌',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'POST',
+        path: '/oapi/v1/projex/organizations/{org}/projects:search',
+        status: 0,
+        responsePreview: '',
+        error: '请先填写访问令牌',
+      },
+    }
+  }
+  if (!organizationId.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先选择企业',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'POST',
+        path: '/oapi/v1/projex/organizations/{org}/projects:search',
+        status: 0,
+        responsePreview: '',
+        error: '请先选择企业',
+      },
+    }
+  }
   const org = encodeURIComponent(organizationId.trim())
   const res = await yunxiaoRequest(
     endpoint,
@@ -189,25 +315,40 @@ export async function listYunxiaoProjects(
     `/oapi/v1/projex/organizations/${org}/projects:search`,
     {
       method: 'POST',
+      // Keep body minimal — matching working Yunxiao PAT clients.
+      // A malformed `conditions` string can yield HTTP 200 with an empty list.
       body: JSON.stringify({
         page: 1,
         perPage: 100,
-        orderBy: 'gmtCreate',
-        sort: 'desc',
-        conditions: '{"conditionGroups":[[]]}',
       }),
     },
     fetchImpl,
   )
-  if (!res.ok) return { ok: false, options: [], error: res.error }
-  return {
-    ok: true,
-    options: toOptions(
-      asRecordArray(res.raw),
-      ['id', 'identifier', 'spaceId', 'projectId'],
-      ['name', 'projectName', 'spaceName'],
-    ),
+  if (!res.ok) {
+    return {
+      ok: false,
+      options: [],
+      error: res.error,
+      debug: withOptionDebug(res.debug, [], res.error),
+    }
   }
+  const options = toOptions(
+    asRecordArray(res.raw),
+    // Prefer identifier (Projex project id) when both id/identifier exist.
+    ['identifier', 'id', 'spaceId', 'projectId'],
+    ['name', 'projectName', 'spaceName'],
+  )
+  if (!options.length) {
+    const error =
+      '云效返回成功但未解析到项目。请确认 PAT 含「项目只读/读写」，且所选企业下确有项目；也可在面板手动填写 spaceId。'
+    return {
+      ok: true,
+      options: [],
+      error,
+      debug: withOptionDebug(res.debug, [], error),
+    }
+  }
+  return { ok: true, options, debug: withOptionDebug(res.debug, options) }
 }
 
 /** List work item types (default Bug) for a project. */
@@ -218,10 +359,36 @@ export async function listYunxiaoWorkitemTypes(
   spaceId: string,
   category = 'Bug',
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string }> {
-  if (!token.trim()) return { ok: false, options: [], error: '请先填写访问令牌' }
+): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string; debug: YunxiaoDebugEntry }> {
+  if (!token.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先填写访问令牌',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'GET',
+        path: '/oapi/v1/projex/organizations/{org}/projects/{project}/workitemTypes',
+        status: 0,
+        responsePreview: '',
+        error: '请先填写访问令牌',
+      },
+    }
+  }
   if (!organizationId.trim() || !spaceId.trim()) {
-    return { ok: false, options: [], error: '请先选择企业和项目' }
+    return {
+      ok: false,
+      options: [],
+      error: '请先选择企业和项目',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'GET',
+        path: '/oapi/v1/projex/organizations/{org}/projects/{project}/workitemTypes',
+        status: 0,
+        responsePreview: '',
+        error: '请先选择企业和项目',
+      },
+    }
   }
   const org = encodeURIComponent(organizationId.trim())
   const project = encodeURIComponent(spaceId.trim())
@@ -233,15 +400,20 @@ export async function listYunxiaoWorkitemTypes(
     { method: 'GET' },
     fetchImpl,
   )
-  if (!res.ok) return { ok: false, options: [], error: res.error }
-  return {
-    ok: true,
-    options: toOptions(
-      asRecordArray(res.raw),
-      ['id', 'identifier', 'workitemTypeId'],
-      ['name', 'nameEn', 'displayName'],
-    ),
+  if (!res.ok) {
+    return {
+      ok: false,
+      options: [],
+      error: res.error,
+      debug: withOptionDebug(res.debug, [], res.error),
+    }
   }
+  const options = toOptions(
+    asRecordArray(res.raw),
+    ['id', 'identifier', 'workitemTypeId'],
+    ['name', 'nameEn', 'displayName'],
+  )
+  return { ok: true, options, debug: withOptionDebug(res.debug, options) }
 }
 
 /** List organization members for assignee selection. */
@@ -250,9 +422,37 @@ export async function listYunxiaoMembers(
   token: string,
   organizationId: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string }> {
-  if (!token.trim()) return { ok: false, options: [], error: '请先填写访问令牌' }
-  if (!organizationId.trim()) return { ok: false, options: [], error: '请先选择企业' }
+): Promise<{ ok: boolean; options: YunxiaoOption[]; error?: string; debug: YunxiaoDebugEntry }> {
+  if (!token.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先填写访问令牌',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'GET',
+        path: '/oapi/v1/platform/organizations/{org}/members',
+        status: 0,
+        responsePreview: '',
+        error: '请先填写访问令牌',
+      },
+    }
+  }
+  if (!organizationId.trim()) {
+    return {
+      ok: false,
+      options: [],
+      error: '请先选择企业',
+      debug: {
+        at: new Date().toISOString(),
+        method: 'GET',
+        path: '/oapi/v1/platform/organizations/{org}/members',
+        status: 0,
+        responsePreview: '',
+        error: '请先选择企业',
+      },
+    }
+  }
   const org = encodeURIComponent(organizationId.trim())
   const res = await yunxiaoRequest(
     endpoint,
@@ -261,15 +461,20 @@ export async function listYunxiaoMembers(
     { method: 'GET' },
     fetchImpl,
   )
-  if (!res.ok) return { ok: false, options: [], error: res.error }
-  return {
-    ok: true,
-    options: toOptions(
-      asRecordArray(res.raw),
-      ['userId', 'id', 'memberId'],
-      ['name', 'userName', 'nickName'],
-    ),
+  if (!res.ok) {
+    return {
+      ok: false,
+      options: [],
+      error: res.error,
+      debug: withOptionDebug(res.debug, [], res.error),
+    }
   }
+  const options = toOptions(
+    asRecordArray(res.raw),
+    ['userId', 'id', 'memberId'],
+    ['name', 'userName', 'nickName'],
+  )
+  return { ok: true, options, debug: withOptionDebug(res.debug, options) }
 }
 
 export interface YunxiaoWorkItem {

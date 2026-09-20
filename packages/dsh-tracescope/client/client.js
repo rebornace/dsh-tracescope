@@ -64,6 +64,15 @@ window.__ModuleLoader__.load({
         color: '#fff',
         fontWeight: 700,
       },
+      secondary: {
+        border: '1px solid var(--dsh-border, #ddd4c5)',
+        borderRadius: 999,
+        padding: '6px 10px',
+        cursor: 'pointer',
+        background: 'var(--dsh-card, #fffdf8)',
+        color: 'var(--dsh-fg, #1c1915)',
+        fontSize: 12,
+      },
       error: { color: '#b42318', margin: 0 },
       item: {
         border: '1px solid var(--dsh-border, #ddd4c5)',
@@ -913,6 +922,12 @@ window.__ModuleLoader__.load({
       var _yxCatalogHint = useState('')
       var yxCatalogHint = _yxCatalogHint[0]
       var setYxCatalogHint = _yxCatalogHint[1]
+      var _yxDebugLog = useState(false)
+      var yxDebugLog = _yxDebugLog[0]
+      var setYxDebugLog = _yxDebugLog[1]
+      var _yxRequestLog = useState('')
+      var yxRequestLog = _yxRequestLog[0]
+      var setYxRequestLog = _yxRequestLog[1]
       var _trackerProvider = useState('none')
       var trackerProvider = _trackerProvider[0]
       var setTrackerProvider = _trackerProvider[1]
@@ -2232,6 +2247,28 @@ window.__ModuleLoader__.load({
         ],
       )
 
+      var appendYunxiaoDebug = useCallback(function (action, data) {
+        if (!data || !data.debug) return
+        var d = data.debug
+        var lines = [
+          '── ' + action + ' @ ' + (d.at || '') + ' ──',
+          (d.method || '?') + ' ' + (d.path || ''),
+          'status: ' + (d.status != null ? d.status : '?') +
+            (d.optionCount != null ? '  options: ' + d.optionCount : ''),
+        ]
+        if (d.requestBody) lines.push('request: ' + d.requestBody)
+        if (d.error) lines.push('error: ' + d.error)
+        if (data.warning) lines.push('warning: ' + data.warning)
+        if (data.error) lines.push('apiError: ' + data.error)
+        if (d.responsePreview) lines.push('response:\n' + d.responsePreview)
+        lines.push('')
+        setYxRequestLog(function (prev) {
+          var next = (prev ? prev + '\n' : '') + lines.join('\n')
+          // Keep last ~12KB so the panel stays usable.
+          return next.length > 12000 ? next.slice(next.length - 12000) : next
+        })
+      }, [])
+
       var loadYunxiaoCatalog = useCallback(
         function (action, extra) {
           setYxCatalogHint('正在从云效拉取…')
@@ -2244,13 +2281,24 @@ window.__ModuleLoader__.load({
                 token: yxToken,
                 organizationId: yxOrg,
                 spaceId: yxSpace,
+                debug: yxDebugLog,
               },
               extra || {},
             ),
           )
             .then(function (data) {
+              appendYunxiaoDebug(action, data)
+              if (data && data.error && !(data.options && data.options.length)) {
+                var errMsg = data.error
+                setYxCatalogHint(errMsg)
+                throw new Error(errMsg)
+              }
               var options = (data && data.options) || []
-              setYxCatalogHint('已拉取 ' + options.length + ' 项')
+              if (data && data.warning && !options.length) {
+                setYxCatalogHint(data.warning)
+              } else {
+                setYxCatalogHint('已拉取 ' + options.length + ' 项')
+              }
               return options
             })
             .catch(function (err) {
@@ -2258,7 +2306,7 @@ window.__ModuleLoader__.load({
               throw err
             })
         },
-        [yxEndpoint, yxToken, yxOrg, yxSpace],
+        [yxEndpoint, yxToken, yxOrg, yxSpace, yxDebugLog, appendYunxiaoDebug],
       )
 
       var refreshYunxiaoOrgs = useCallback(
@@ -2282,18 +2330,29 @@ window.__ModuleLoader__.load({
             setYxCatalogHint('请先选择企业')
             return
           }
-          loadYunxiaoCatalog('projects', { organizationId: org })
-            .then(function (options) {
-              setYxProjects(options)
-              if (options.length === 1) setYxSpace(options[0].id)
+          setYxCatalogHint('正在拉取项目与成员…')
+          Promise.all([
+            loadYunxiaoCatalog('projects', { organizationId: org }),
+            loadYunxiaoCatalog('members', { organizationId: org }),
+          ])
+            .then(function (results) {
+              var projects = results[0] || []
+              var members = results[1] || []
+              setYxProjects(projects)
+              if (projects.length === 1) setYxSpace(projects[0].id)
+              setYxMembers(members)
+              if (members.length === 1) setYxAssignee(members[0].id)
+              if (!projects.length) {
+                setYxCatalogHint(
+                  '企业已选中，但项目列表为空（请检查 PAT 项目权限，或手动填写 spaceId）',
+                )
+              } else {
+                setYxCatalogHint('已拉取项目 ' + projects.length + ' 个、成员 ' + members.length + ' 人')
+              }
             })
-            .catch(function () {})
-          loadYunxiaoCatalog('members', { organizationId: org })
-            .then(function (options) {
-              setYxMembers(options)
-              if (options.length === 1) setYxAssignee(options[0].id)
+            .catch(function (err) {
+              setYxCatalogHint(err.message || String(err))
             })
-            .catch(function () {})
         },
         [loadYunxiaoCatalog, yxOrg],
       )
@@ -2954,6 +3013,99 @@ window.__ModuleLoader__.load({
                                     children: yxCatalogHint,
                                   })
                                 : null,
+                              jsxs('div', {
+                                style: {
+                                  marginTop: 8,
+                                  paddingTop: 8,
+                                  borderTop: '1px dashed #ddd6cb',
+                                },
+                                children: [
+                                  jsxs('label', {
+                                    style: {
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      fontSize: 12,
+                                      color: '#6b645a',
+                                      cursor: 'pointer',
+                                    },
+                                    children: [
+                                      jsx('input', {
+                                        type: 'checkbox',
+                                        checked: yxDebugLog,
+                                        onChange: function (e) {
+                                          setYxDebugLog(e.target.checked)
+                                          if (!e.target.checked) setYxRequestLog('')
+                                        },
+                                      }),
+                                      '请求日志（排查用，不含 token）',
+                                    ],
+                                  }),
+                                  yxDebugLog
+                                    ? jsxs('div', {
+                                        style: { marginTop: 6 },
+                                        children: [
+                                          jsxs('div', {
+                                            style: {
+                                              display: 'flex',
+                                              gap: 6,
+                                              marginBottom: 4,
+                                            },
+                                            children: [
+                                              jsx('button', {
+                                                type: 'button',
+                                                style: styles.secondary,
+                                                disabled: !yxRequestLog,
+                                                onClick: function () {
+                                                  if (
+                                                    navigator.clipboard &&
+                                                    navigator.clipboard.writeText
+                                                  ) {
+                                                    navigator.clipboard
+                                                      .writeText(yxRequestLog)
+                                                      .then(function () {
+                                                        setYxCatalogHint('请求日志已复制')
+                                                      })
+                                                      .catch(function () {
+                                                        setYxCatalogHint('复制失败，请手动全选复制')
+                                                      })
+                                                  } else {
+                                                    setYxCatalogHint('请手动全选下方日志复制')
+                                                  }
+                                                },
+                                                children: '复制日志',
+                                              }),
+                                              jsx('button', {
+                                                type: 'button',
+                                                style: styles.secondary,
+                                                disabled: !yxRequestLog,
+                                                onClick: function () {
+                                                  setYxRequestLog('')
+                                                },
+                                                children: '清空',
+                                              }),
+                                            ],
+                                          }),
+                                          jsx('textarea', {
+                                            readOnly: true,
+                                            value:
+                                              yxRequestLog ||
+                                              '开启后执行「拉取企业 / 选企业」即可在此看到云效请求与响应摘要。',
+                                            style: Object.assign({}, styles.input, {
+                                              minHeight: 140,
+                                              fontFamily:
+                                                'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                                              fontSize: 11,
+                                              lineHeight: 1.35,
+                                              resize: 'vertical',
+                                              whiteSpace: 'pre',
+                                            }),
+                                          }),
+                                        ],
+                                      })
+                                    : null,
+                                ],
+                              }),
                             ],
                           })
                         : null,
