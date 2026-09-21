@@ -2,6 +2,8 @@
 
 **Version: `0.1.8`** (analyze from git objects; Codeup API fallback when local git is unavailable)
 
+Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **current** release, not the 0.1.0 snapshot.
+
 [中文](./README.md) · [English](./README.en.md)
 
 **TraceScope** (`dsh-tracescope` monorepo) turns a **stable → under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects—from a **DeepSeek Harness Web or Desktop** right-sidebar UI.
@@ -14,11 +16,13 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 | `@rebornace/tracescope-mcp` | MCP server for Cursor / Claude / any MCP client |
 | `@rebornace/dsh-tracescope` | DSH plugin: Host APIs + embedded sidebar UI (primary path for this release) |
 
-## Version `0.1.0` feature set
+## Current capabilities (0.1.8)
 
-- **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2)
+- **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2). Local git indexes **commit objects**, not whatever files happen to be readable in the work tree
+- **Read mode**: local git, or a **Codeup API** fallback (no static ripple; chat analysis can still read diffs)
+- **Remote cache**: new syncs are bare object repos under `~/.tracescope/repos`. Existing checkouts keep working
 - **Product-facing names**: modules YAML → static title extraction → heuristics
-- **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits
+- **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits; other actions lock while a request is in flight
 - **Generate checklist**: deterministic analyze + persist; one history row per comparison pair
 - **Chat / model analysis**: job + composer draft + `tracescope_publish_handtest`
 - **Checklist status**: pass / fail / skip / reset; fail notes + **up to 3 screenshots per item**
@@ -26,7 +30,8 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 - **Yunxiao agile work items**: multi-select categories + items to seed checklist / prompts
 - **Issue trackers**: Yunxiao / GitHub / GitLab / Webhook  
   - Editable default title on submit  
-  - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each failed item (`![filename](embedUrl)`)
+  - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each failed item (`![filename](embedUrl)`)  
+  - Yunxiao catalog calls can be inspected in an in-panel log (token redacted)
 - **Export**: Markdown / CSV; copy fail feedback
 - **Local data**: under `~/.tracescope/`
 
@@ -110,13 +115,13 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 | [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | Analysis engine (plugin dependency) |
 | [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | Standalone MCP server |
 
-## Tester workflow (0.1.0)
+## Tester workflow
 
-1. Pick a local path or remote URL; configure HTTPS / SSH auth if needed
-2. Sync versions (defaults: latest = under-test, second-latest = stable)
+1. Pick a repo and a read mode. Default is local git (HTTPS token or SSH key as needed). If git is missing or the cache never becomes usable, switch to the Codeup API and use a `https://codeup.aliyun.com/<orgId>/group/repo.git` URL plus a token with code read access
+2. Sync versions (defaults: latest = under-test, second-latest = stable). Codeup mode lists recent commits on the default branch
 3. Optionally configure a defect platform (Yunxiao catalogs via token + dropdowns)
 4. Optionally link Yunxiao agile work items (multi-select types + items)
-5. **Generate checklist** or **Chat analysis** (confirm if overwriting)
+5. **Generate checklist** or **Chat analysis** (confirm if overwriting). The Codeup deterministic checklist is direct changes only
 6. Mark results; on fail, add notes and screenshots (file picker or paste)
 7. Add task-level video/doc attachments
 8. Copy fail feedback / submit defect (editable title) / export report
@@ -165,11 +170,13 @@ Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handt
 | `@rebornace/tracescope-mcp` | 0.1.8 | MCP server |
 | `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
 
-## Known limitations (0.1.0)
+## Known limitations
 
+- Codeup API mode has no local static ripple; use local git for that
 - Yunxiao inline screenshots require the work-item attachment API to obtain permanent `embedUrl`s; files may still appear in the attachment list (platform constraint)
 - GitHub / GitLab / Webhook do **not** upload video binaries the way Yunxiao does
 - Umeng adapter, Android USB, browser recording remain roadmap items
+- The version shown on the plugin-market card can lag npm `latest`
 
 ## Development
 

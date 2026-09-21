@@ -2,6 +2,8 @@
 
 **版本: `0.1.8`**（本地分析改读 git 对象；云效代码接口可作为无 Git 兜底）
 
+功能节点见 [更新日志](./CHANGELOG.md)。下面是**当前版本**能力，不是 0.1.0 的快照。
+
 [中文](./README.md) · [English](./README.en.md)
 
 TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 → 待测版本」的代码差异，快速得到**要测哪些功能**的清单，并在 DeepSeek Harness **Web / Desktop** 右侧栏里完成勾选、备注、截图、附件与缺陷提交。
@@ -14,11 +16,13 @@ TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 �
 | `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
 | `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
 
-## 版本 `0.1.0` 已包含功能
+## 当前能力（0.1.8）
 
-- **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）
+- **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）。本地 Git 按**提交对象**建索引，不要求工作区文件此刻能被打开
+- **读取方式**：本地 Git，或**云效代码接口**兜底（无 Git 时只出直接变更清单；模型对话仍可读 diff）
+- **远端缓存**：新同步为 bare 对象库（`~/.tracescope/repos`）。已有完整检出可继续用
 - **人话功能名**：`tracescope.modules.yml` 映射 → 静态标题抽取 → 启发式命名
-- **DSH 右侧栏**：多仓库、远端认证、默认同步「待测 / 稳定」版本
+- **DSH 右侧栏**：多仓库、远端认证、默认同步「待测 / 稳定」版本；加载中锁定其它操作
 - **生成手测清单**：确定性分析并落盘；同版本对比只保留最新一条历史
 - **模型对话分析**：创建聊天任务、写入会话草稿、`tracescope_publish_handtest` 回写清单
 - **勾选状态**：通过 / 失败 / 跳过 / 重置；失败可填备注 + **每条最多 3 张截图**
@@ -26,9 +30,10 @@ TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 �
 - **关联云效敏捷任务**：类型可多选，任务可多选，辅助生成清单种子 / 模型提示
 - **缺陷平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook  
   - 提交时可**修改默认标题**  
-  - 云效：任务附件真实上传；截图嵌入缺陷**详情**对应条目（`![文件名](embedUrl)`）
+  - 云效：任务附件真实上传；截图嵌入缺陷**详情**对应条目（`![文件名](embedUrl)`）  
+  - 云效目录请求可在面板查看日志（不含 token）
 - **导出**：Markdown / CSV；复制失败反馈
-- **本机数据**：`~/.tracescope/`（认证、缺陷配置、报告、附件）
+- **本机数据**：`~/.tracescope/`（认证、缺陷配置、报告、附件、远端缓存）
 
 ## 环境要求
 
@@ -117,14 +122,14 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 | [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 分析引擎（插件依赖） |
 | [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | 独立 MCP Server |
 
-## 测试同学操作流程（0.1.0）
+## 测试同学操作流程
 
-1. **选仓库**：本地路径或远端 URL；需要时配置 HTTPS Token / SSH 私钥（可记住到本机）
-2. **同步版本**：默认待测 = 最新提交，稳定 = 次新提交；也可手动改
+1. **选仓库与读取方式**：本地路径或远端 URL。默认「本地 Git」（HTTPS Token / SSH 私钥可记住）。没有 git 或缓存一直失败时，改成「云效代码接口」，地址用 `https://codeup.aliyun.com/<组织ID>/组/仓库.git`，令牌用云效 Token 或 HTTPS Token（需代码读权限）
+2. **同步版本**：默认待测 = 最新提交，稳定 = 次新提交；也可手动改。云效接口模式按默认分支拉近期提交
 3. **（可选）缺陷平台**：仓库配置里选云效 / GitHub / GitLab / Webhook 并保存  
    - 云效：填 token → 拉取企业 → 选项目 / 缺陷类型 / 负责人
 4. **（可选）关联敏捷任务**：勾选类型 → 拉取任务 → 多选后，再点「生成手测清单」或「模型对话分析」
-5. **生成清单**或**模型对话分析**（有清单时会二次确认）
+5. **生成清单**或**模型对话分析**（有清单时会二次确认）。云效接口模式的确定性清单只有直接变更
 6. **手测勾选**：失败条目填写备注、添加截图（可选文件或 Ctrl+V）
 7. **任务附件**：在清单区域上传录像 / 文档（小文件选文件；大视频可用本机绝对路径）
 8. **复制失败反馈** / **提交缺陷**（可改标题） / **导出报告**
@@ -182,11 +187,13 @@ DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`traces
 | `@rebornace/tracescope-mcp` | 0.1.8 | MCP Server |
 | `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
-## 已知限制（0.1.0）
+## 已知限制
 
+- **云效代码接口**模式没有本地静态波及；要波及分析请用本地 Git
 - 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`，附件列表里仍可能出现对应文件（平台能力限制）
 - GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制；多为描述文本 / Webhook JSON 元数据
 - 友盟 Adapter、Android USB、浏览器扩展录制等仍为后续路线图
+- 插件市场卡片上的版本号不是每次 npm 发布后立刻更新
 
 ## 开发
 
