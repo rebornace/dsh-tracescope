@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/dsh-tracescope",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "TraceScope DeepSeek Harness plugin 鈥?embedded React Slot UI + same-origin APIs",
   "license": "MIT",
   "type": "module",
@@ -48,7 +48,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@rebornace/tracescope-core": "workspace:0.1.10"
+    "@rebornace/tracescope-core": "workspace:0.1.11"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.1.10`** (sync defaults to newest branch + stable/under-test commits; branch picker + persistent PAT)
+**Version: `0.1.11`** (sync defaults to newest branch + stable/under-test commits; branch picker + persistent PAT)
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **current** release, not the 0.1.0 snapshot.
 
@@ -16,9 +16,10 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 | `@rebornace/tracescope-mcp` | MCP server for Cursor / Claude / any MCP client |
 | `@rebornace/dsh-tracescope` | DSH plugin: Host APIs + embedded sidebar UI (primary path for this release) |
 
-## Current capabilities (0.1.10)
+## Current capabilities (0.1.11)
 
 - **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2). Local git indexes **commit objects**, not whatever files happen to be readable in the work tree
+- **Languages with ripple**: mobile — Kotlin, Java (Kotlin interop), Swift (ObjC interop), Objective-C, Dart/Flutter; web — TypeScript/JavaScript, Vue, CSS/SCSS/Sass/Less, HTML. Other languages still appear in **direct changes** (git diff is language-agnostic) but without static ripple.
 - **Read mode**: local git, or a **Codeup API** fallback (no static ripple; chat analysis can still read diffs)
 - **Remote cache**: new syncs are bare object repos under `~/.tracescope/repos`. Existing checkouts keep working
 - **Product-facing names**: modules YAML → static title extraction → heuristics
@@ -107,7 +108,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
 3. Or use `/tracescope` Host capabilities from the session
 
-### npm packages (0.1.10)
+### npm packages (0.1.11)
 
 | Package | Role |
 |---------|------|
@@ -165,9 +166,9 @@ Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handt
 
 | Package | Version | Notes |
 |---------|---------|-------|
-| `@rebornace/tracescope-core` | 0.1.10 | Analysis, storage, Yunxiao/tracker, export |
-| `@rebornace/dsh-tracescope` | 0.1.10 | DSH Host + React Slot client |
-| `@rebornace/tracescope-mcp` | 0.1.10 | MCP server |
+| `@rebornace/tracescope-core` | 0.1.11 | Analysis, storage, Yunxiao/tracker, export |
+| `@rebornace/dsh-tracescope` | 0.1.11 | DSH Host + React Slot client |
+| `@rebornace/tracescope-mcp` | 0.1.11 | MCP server |
 | `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
 
 ## Known limitations

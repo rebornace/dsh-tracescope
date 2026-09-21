@@ -5,12 +5,20 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.1.11 — 2026-09-21
+
+- **语言支持扩展（静态反向依赖波及）**：
+  - 移动端：Kotlin（`.kt/.kts`）、Java（`.java`，与 Kotlin 互调）、Swift（`.swift`，与 ObjC 互调）、Objective-C（`.m/.mm/.h`）、Dart/Flutter（`.dart`，`package:` / 相对 import / `part`）
+  - Web：TypeScript/JavaScript（`.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs`，`import`/`require`/动态 `import()`、`@/` 别名）、Vue（`.vue` SFC，`<script>` + `<template>` 组件标签）、CSS/SCSS/Sass/Less（`@import/@use/@forward`、`url()`、class/id 反查）、HTML（`<link>`/`<script>`）
+  - 其他语言仍正常输出**直接变更**清单（不限语言），但没有反向依赖波及链路。
+- Static ripple extended to Java/Swift/Dart, TS/JS/Vue/CSS/HTML.
+
 ## 0.1.10 — 2026-09-21
 
 - **同步后默认**：自动落到「最新」分支；待测 = 最新提交，稳定 = 倒数第二次提交。分支列表仍用「稳定 / 待测」分开选。
 - 默认选中后，当前分支上的「稳定」「待测」都会显示勾选（不再只勾待测）。
 - 分支列表按最新活动排序，并标出「最新」分支（对齐云效 Codeup）。
-- After sync: jump to newest branch and default 待测=latest / 稳定=second-latest; both branch buttons check when those commits are selected; branch list sorted by tip activity.
+- After sync: newest branch + 待测=latest / 稳定=second-latest; both buttons check.
 
 ## 0.1.9 — 2026-09-21
 
