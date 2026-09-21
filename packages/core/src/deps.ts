@@ -1,48 +1,164 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { gitListTree, readGitBlobs } from './git.js'
 import { detectLanguage } from './heuristics.js'
+import {
+  collectRawReferences,
+  extractDeclaredSymbols,
+  extractStyleHooks,
+} from './deps-refs.js'
 
 export interface SourceIndex {
-  /** relative path -> file content (head tree snapshot on disk; for fixtures we read workspace). */
   files: Map<string, string>
-  /** relative path -> set of relative paths that import/reference it */
   reverseDeps: Map<string, Set<string>>
 }
 
+const INDEXED_EXT =
+  /\.(kt|kts|java|swift|m|mm|h|dart|ts|tsx|mts|cts|js|jsx|mjs|cjs|vue|css|scss|sass|less|html?|xml|strings)$/i
+
 function isIndexedSource(rel: string): boolean {
   const lang = detectLanguage(rel)
-  if (lang === 'kotlin' || lang === 'objc') return true
-  return lang === 'resource' && /\.(xml|strings)$/i.test(rel)
+  if (lang === 'other') return false
+  if (lang === 'resource') return /\.(xml|strings)$/i.test(rel)
+  return INDEXED_EXT.test(rel.replace(/\\/g, '/'))
 }
 
-function indexFromFiles(files: Map<string, string>): SourceIndex {
-  const byStem = new Map<string, string[]>()
-  for (const rel of files.keys()) {
-    const stem = path.basename(rel).replace(/\.(kt|kts|m|mm|h|xml)$/i, '')
-    const list = byStem.get(stem) ?? []
-    list.push(rel)
-    byStem.set(stem, list)
+function normalizeSpec(spec: string): string {
+  return String(spec).replace(/^[./]*\//, '').replace(/\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|vue|css|scss|sass|less|h|m|mm|dart|java|kt|kts|swift)$/i, '')
+}
+
+function specCandidates(spec: string): string[] {
+  const base = normalizeSpec(spec)
+  const exts = ['', '.ts', '.tsx', '.js', '.jsx', '.vue', '.dart', '.java', '.kt', '.swift', '.css', '.scss', '.h']
+  const cands = new Set<string>()
+  for (const e of exts) {
+    cands.add(base + e)
+    cands.add(base + '/index' + e)
+  }
+  return [...cands]
+}
+
+function resolveSpecifier(spec: string, files: Map<string, string>): string[] {
+  const out = new Set<string>()
+  const addPath = (p: string) => {
+    const cands = specCandidates(p)
+    for (const f of files.keys()) {
+      const nf = normalizeSpec(f)
+      if (cands.some((c) => nf === normalizeSpec(c))) out.add(f)
+    }
   }
 
+  const pkg = spec.match(/^package:[^/]+\/(.+)$/)
+  if (pkg) {
+    addPath(pkg[1]!)
+    addPath('lib/' + pkg[1]!)
+    return [...out]
+  }
+
+  const clean = spec.split(/[?#]/)[0]!
+  if (spec.startsWith('@/')) addPath(clean.slice(2))
+  addPath(clean)
+  return [...out]
+}
+
+export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
   const reverseDeps = new Map<string, Set<string>>()
-  const ensure = (key: string) => {
-    let set = reverseDeps.get(key)
+  const bySymbol = new Map<string, string[]>()
+  const styleHooks = new Map<string, Set<string>>()
+
+  const ensure = (target: string) => {
+    let set = reverseDeps.get(target)
     if (!set) {
       set = new Set()
-      reverseDeps.set(key, set)
+      reverseDeps.set(target, set)
     }
     return set
   }
 
+  // Pass 1: declared symbols and style hooks
   for (const [rel, content] of files) {
     const lang = detectLanguage(rel)
-    const refs = collectReferences(content, lang)
-    for (const ref of refs) {
-      const targets = resolveRef(ref, byStem, files)
-      for (const target of targets) {
-        if (target === rel) continue
-        ensure(target).add(rel)
+    for (const sym of extractDeclaredSymbols(content, lang)) {
+      const list = bySymbol.get(sym) ?? []
+      list.push(rel)
+      bySymbol.set(sym, list)
+    }
+    const hooks = extractStyleHooks(content, lang)
+    if (hooks.size) styleHooks.set(rel, hooks)
+  }
+
+  // Pass 2: references
+  for (const [rel, content] of files) {
+    const lang = detectLanguage(rel)
+    const raw = collectRawReferences(content, lang)
+    const targets = new Set<string>()
+
+    const fromDir = path.posix.dirname(rel.replace(/\\/g, '/'))
+    const resolveRel = (spec: string): string[] => {
+      if (spec.startsWith('@/')) {
+        const tail = spec.slice(2)
+        // Common web roots; exact match resolves if present, else src/ then lib/.
+        return [tail, 'src/' + tail, 'lib/' + tail]
+      }
+      if (/^\.\.?\//.test(spec)) {
+        return [
+          path.posix
+            .normalize(path.posix.join(fromDir, spec))
+            .replace(/^\//, ''),
+        ]
+      }
+      // Dart allows same-directory part/import without "./".
+      if (lang === 'dart' && /^[A-Za-z0-9_.-]+$/.test(spec)) {
+        return [path.posix.join(fromDir, spec)]
+      }
+      return [spec]
+    }
+
+    for (const spec of raw.specifiers) {
+      if (/^[a-z]+:\/\//i.test(spec) && !spec.startsWith('package:')) continue
+      for (const relSpec of resolveRel(spec)) {
+        for (const t of resolveSpecifier(relSpec, files)) {
+          if (t !== rel) targets.add(t)
+        }
+      }
+    }
+    for (const sym of raw.symbols) {
+      // Vue kebab tag -> PascalCase symbol
+      const variants = [sym]
+      if (sym.includes('-')) {
+        variants.push(
+          sym
+            .split('-')
+            .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+            .join(''),
+        )
+      }
+      for (const v of variants) {
+        for (const t of bySymbol.get(v) ?? []) {
+          if (t !== rel) targets.add(t)
+        }
+        // Also match by file stem
+        for (const f of files.keys()) {
+          const stem = path.basename(f).replace(/\.[^.]+$/, '')
+          if (stem === v && f !== rel) targets.add(f)
+        }
+      }
+    }
+    for (const t of targets) ensure(t).add(rel)
+  }
+
+  // Pass 3: style hooks usage -> stylesheet
+  for (const [rel, content] of files) {
+    const lang = detectLanguage(rel)
+    if (lang !== 'vue' && lang !== 'html' && lang !== 'javascript') continue
+    const used = extractStyleHooks(content, lang)
+    for (const [styleFile, hooks] of styleHooks) {
+      if (styleFile === rel) continue
+      for (const h of used) {
+        if (hooks.has(h)) {
+          ensure(styleFile).add(rel)
+          break
+        }
       }
     }
   }
@@ -50,13 +166,8 @@ function indexFromFiles(files: Map<string, string>): SourceIndex {
   return { files, reverseDeps }
 }
 
-/**
- * Build a lightweight reverse-dependency index for Kotlin + Objective-C sources
- * under `rootDir` (working tree). Good enough for V0.1 static ripple.
- */
 export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
   const files = new Map<string, string>()
-
   await walk(rootDir, rootDir, async (rel, abs) => {
     if (!isIndexedSource(rel)) return
     try {
@@ -65,14 +176,9 @@ export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
       // ignore unreadable
     }
   })
-
-  return indexFromFiles(files)
+  return buildIndexFromFileMap(files)
 }
 
-/**
- * Same index as `buildSourceIndex`, but from git blobs at `commit`.
- * Does not need a checked-out work tree (bare repos included).
- */
 export async function buildSourceIndexAtCommit(
   repoPath: string,
   commit: string,
@@ -80,55 +186,7 @@ export async function buildSourceIndexAtCommit(
   const names = await gitListTree(repoPath, commit)
   const wanted = names.filter(isIndexedSource)
   const files = await readGitBlobs(repoPath, commit, wanted)
-  return indexFromFiles(files)
-}
-
-function collectReferences(content: string, lang: ReturnType<typeof detectLanguage>): string[] {
-  const refs: string[] = []
-  if (lang === 'kotlin') {
-    const importRe = /^\s*import\s+([a-zA-Z0-9_.]+)/gm
-    let m: RegExpExecArray | null
-    while ((m = importRe.exec(content))) {
-      const full = m[1] ?? ''
-      const simple = full.split('.').pop()
-      if (simple) refs.push(simple)
-    }
-    // Same-module type mentions: FooActivity, BarFragment
-    const typeRe = /\b([A-Z][A-Za-z0-9]+(?:Activity|Fragment|ViewModel|Screen))\b/g
-    while ((m = typeRe.exec(content))) {
-      refs.push(m[1] ?? '')
-    }
-  } else if (lang === 'objc') {
-    const importRe = /#import\s+"([^"]+)"/g
-    let m: RegExpExecArray | null
-    while ((m = importRe.exec(content))) {
-      const header = m[1] ?? ''
-      refs.push(header.replace(/\.(h|m|mm)$/i, ''))
-    }
-    const classRe = /@interface\s+([A-Za-z0-9_]+)/g
-    while ((m = classRe.exec(content))) {
-      refs.push(m[1] ?? '')
-    }
-  }
-  return refs.filter(Boolean)
-}
-
-function resolveRef(
-  ref: string,
-  byStem: Map<string, string[]>,
-  files: Map<string, string>,
-): string[] {
-  const stem = ref.replace(/\.(h|m|mm|kt)$/i, '')
-  const hits = byStem.get(stem)
-  if (hits?.length) return hits
-  // Fallback: path contains stem
-  const out: string[] = []
-  for (const p of files.keys()) {
-    if (path.basename(p).startsWith(stem + '.') || path.basename(p) === stem) {
-      out.push(p)
-    }
-  }
-  return out
+  return buildIndexFromFileMap(files)
 }
 
 export function rippleFrom(
@@ -142,22 +200,20 @@ export function rippleFrom(
   for (let d = 1; d <= depth; d++) {
     const next: string[] = []
     for (const file of frontier) {
-      const importers = reverseDeps.get(file)
-      if (!importers) continue
-      for (const importer of importers) {
+      for (const importer of reverseDeps.get(file) ?? []) {
         if (seedSet.has(importer) || result.has(importer)) continue
         result.set(importer, { depth: d, via: file })
         next.push(importer)
       }
     }
     frontier = next
-    if (frontier.length === 0) break
+    if (!frontier.length) break
   }
   return result
 }
 
 async function walk(
-  root: string,
+  rootDir: string,
   dir: string,
   onFile: (rel: string, abs: string) => Promise<void>,
 ): Promise<void> {
@@ -167,32 +223,16 @@ async function walk(
   } catch {
     return
   }
+  const skip = new Set(['node_modules', '.git', 'build', 'Pods', 'dist', '.dart_tool'])
   for (const entry of entries) {
     const abs = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      if (
-        entry.name === 'node_modules' ||
-        entry.name === '.git' ||
-        entry.name === 'build' ||
-        entry.name === 'Pods' ||
-        entry.name === 'dist'
-      ) {
-        continue
-      }
-      await walk(root, abs, onFile)
+      if (skip.has(entry.name)) continue
+      await walk(rootDir, abs, onFile)
       continue
     }
     if (!entry.isFile()) continue
-    const rel = path.relative(root, abs).replace(/\\/g, '/')
+    const rel = path.relative(rootDir, abs).replace(/\\/g, '/')
     await onFile(rel, abs)
-  }
-}
-
-export async function pathExists(p: string): Promise<boolean> {
-  try {
-    await stat(p)
-    return true
-  } catch {
-    return false
   }
 }
