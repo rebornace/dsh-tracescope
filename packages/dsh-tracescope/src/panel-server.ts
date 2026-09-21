@@ -13,9 +13,11 @@ import {
   listCodeupCommits,
   listGitRefs,
   listRecentCommits,
+  loadRememberedYunxiaoAccess,
   parseGitAuth,
   resolveCodeupTarget,
   resolveGitRepo,
+  gitFetchRef,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
 
@@ -90,6 +92,7 @@ async function handleApi(
         repoPath?: string
         limit?: number
         fetch?: boolean | string
+        refName?: string
         auth?: unknown
         accessMode?: string
         codeup?: {
@@ -101,6 +104,7 @@ async function handleApi(
       }
       const repoPath = body.repoPath ?? ''
       const limit = Number(body.limit ?? 40)
+      const refName = typeof body.refName === 'string' ? body.refName.trim() : ''
       if (!repoPath) {
         sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
         return true
@@ -116,12 +120,20 @@ async function handleApi(
           organizationId: codeup.organizationId,
           repositoryId: codeup.repositoryId,
         })
-        const req = { endpoint: codeup.endpoint, token: codeup.token ?? '' }
+        const remembered = await loadRememberedYunxiaoAccess()
+        const incoming = (codeup.token ?? '').trim()
+        const token =
+          incoming && incoming !== '••••••••' ? incoming : remembered.token
+        const req = {
+          endpoint: codeup.endpoint || remembered.endpoint,
+          token,
+        }
         const repo = await getCodeupRepository(target, req)
+        const commitRef = refName || repo.defaultBranch
         const [commits, branches] = await Promise.all([
           listCodeupCommits(target, {
             ...req,
-            refName: repo.defaultBranch,
+            refName: commitRef,
             perPage: Number.isFinite(limit) ? limit : 40,
           }),
           listCodeupBranches(target, req),
@@ -138,18 +150,27 @@ async function handleApi(
           commits,
           refs: branches,
           defaultBranch: repo.defaultBranch,
+          commitRef,
         })
         return true
       }
       const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote, auth })
+      if (refName && !/^[0-9a-f]{7,40}$/i.test(refName)) {
+        try {
+          await gitFetchRef(resolved.repoPath, refName, auth)
+        } catch {
+          /* listRecentCommits will report if the ref is still missing */
+        }
+      }
       const [commits, refs] = await Promise.all([
         listRecentCommits(resolved.repoPath, {
           limit: Number.isFinite(limit) ? limit : 40,
-          allRefs: true,
+          allRefs: !refName,
+          ref: refName || undefined,
         }),
         listGitRefs(resolved.repoPath),
       ])
-      sendJson(res, 200, { resolved, commits, refs })
+      sendJson(res, 200, { resolved, commits, refs, commitRef: refName || undefined })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
@@ -214,7 +235,10 @@ async function handleApi(
               baseCommit: body.baseCommit,
               headCommit: body.headCommit,
               endpoint: body.codeup?.endpoint,
-              token: body.codeup?.token ?? '',
+              token:
+                (body.codeup?.token ?? '').trim() && (body.codeup?.token ?? '').trim() !== '••••••••'
+                  ? body.codeup?.token ?? ''
+                  : (await loadRememberedYunxiaoAccess()).token,
               organizationId: body.codeup?.organizationId,
               repositoryId: body.codeup?.repositoryId,
               modulesConfigPath: body.modulesConfigPath,

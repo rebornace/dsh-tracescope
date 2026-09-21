@@ -1,4 +1,4 @@
-# Publish TraceScope packages to registry.npmjs.org (dependency order).
+﻿# Publish TraceScope packages to registry.npmjs.org (dependency order).
 # Requires a Granular Access Token with:
 #   - Packages and scopes: scope "@rebornace" (Read and write / publish+stage)
 #   - Bypass two-factor authentication: enabled
@@ -43,4 +43,4 @@ foreach ($pkg in $packages) {
 }
 
 Write-Host ""
-Write-Host "All published: $($packages -join ', ')@0.1.8" -ForegroundColor Green
+Write-Host "All published: $($packages -join ', ')@0.1.9" -ForegroundColor Green

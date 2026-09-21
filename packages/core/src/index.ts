@@ -43,6 +43,7 @@ export {
   gitDiffFiles,
   gitDiffUnified,
   gitFetchAll,
+  gitFetchRef,
   gitLogSubjects,
   gitRevParse,
   listGitRefs,
@@ -137,9 +138,13 @@ export {
   type WebhookTrackerConfig,
 } from './issue-tracker.js'
 export {
+  isMaskedSecret,
+  loadRememberedYunxiaoAccess,
   loadTrackerConfig,
   publicTrackerConfig,
+  rememberYunxiaoAccess,
   saveTrackerConfig,
+  type RememberedYunxiaoAccess,
 } from './tracker-store.js'
 /** @deprecated Use buildFailFeedbackDescription */
 export { buildFailFeedbackDescription as buildYunxiaoFailDescription } from './issue-tracker.js'
