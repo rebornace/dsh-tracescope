@@ -1582,7 +1582,7 @@ window.__ModuleLoader__.load({
           localStorage.setItem(REPO_PATH_KEY, repoPath.trim())
           rememberRepo(repoPath.trim())
           persistAuth()
-          if (!beginBusy('正在同步仓库版本（含远端拉取，网络慢时请耐心等待）…')) return
+          if (!beginBusy('正在同步仓库版本…')) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
