@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
   analyzeImpact,
+  analyzeCodeupImpact,
   buildChatAnalysisPrompt,
   buildReportFromPublishedItems,
   deleteReportAttachmentFile,
@@ -27,6 +28,13 @@ import {
   readReportAttachmentFile,
   reportAttachmentsDir,
   resolveGitRepo,
+  compareCodeup,
+  changedPathsFromDiffs,
+  getCodeupRepository,
+  listCodeupBranches,
+  listCodeupCommits,
+  pageCodeupDiffs,
+  resolveCodeupTarget,
   saveHandtestReport,
   saveReportAttachmentBuffer,
   saveReportAttachmentFromLocalPath,
@@ -52,7 +60,7 @@ import {
 } from '@rebornace/tracescope-core'
 import type { Context } from './dsh-shims.js'
 import { defineTool } from './dsh-shims.js'
-import { createJob, getJob, publishJobReport } from './jobs.js'
+import { createJob, findJobForRepo, getJob, publishJobReport } from './jobs.js'
 
 export const name = 'tracescope'
 export const inject = ['tools', 'commands', 'webServer']
@@ -164,6 +172,63 @@ async function loadRepoHistory(
   return { resolved, commits, refs }
 }
 
+interface CodeupBodyAuth {
+  endpoint?: string
+  token: string
+  organizationId?: string
+  repositoryId?: string
+}
+
+function readAccessMode(body: Record<string, unknown>): 'git' | 'codeup' {
+  return body.accessMode === 'codeup' ? 'codeup' : 'git'
+}
+
+function readCodeupAuth(body: Record<string, unknown>): CodeupBodyAuth {
+  const raw = body.codeup
+  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    endpoint: typeof obj.endpoint === 'string' ? obj.endpoint : undefined,
+    token: String(obj.token ?? ''),
+    organizationId: typeof obj.organizationId === 'string' ? obj.organizationId : undefined,
+    repositoryId: typeof obj.repositoryId === 'string' ? obj.repositoryId : undefined,
+  }
+}
+
+async function loadCodeupHistory(remote: string, limit: number, auth: CodeupBodyAuth) {
+  const target = resolveCodeupTarget(remote, auth)
+  const req = { endpoint: auth.endpoint, token: auth.token }
+  const repo = await getCodeupRepository(target, req)
+  const [commits, branches] = await Promise.all([
+    listCodeupCommits(target, { ...req, refName: repo.defaultBranch, perPage: limit }),
+    listCodeupBranches(target, req),
+  ])
+  const head = commits[0]
+  const refs =
+    branches.length > 0
+      ? branches
+      : [
+          {
+            name: repo.defaultBranch,
+            sha: head?.sha ?? '',
+            short: head?.short ?? '',
+            kind: 'remote' as const,
+          },
+        ]
+  return {
+    resolved: {
+      input: remote,
+      repoPath: remote,
+      source: 'codeup' as const,
+      remoteUrl: remote,
+      synced: false,
+      authMode: 'https' as const,
+    },
+    commits,
+    refs,
+    defaultBranch: repo.defaultBranch,
+  }
+}
+
 async function runAnalyze(args: {
   repoPath: string
   baseCommit: string
@@ -173,20 +238,34 @@ async function runAnalyze(args: {
   exportDir?: string
   fetchRemote?: boolean
   auth?: GitAuth
+  accessMode?: 'git' | 'codeup'
+  codeup?: CodeupBodyAuth
   /** Original user input for persistence key (path or remote URL). */
   repoInput?: string
   persist?: boolean
   relatedWorkItems?: ReturnType<typeof parseAgileWorkItemRefs>
 }) {
-  let report = await analyzeImpact({
-    repoPath: args.repoPath,
-    baseCommit: args.baseCommit,
-    headCommit: args.headCommit,
-    rippleDepth: args.rippleDepth,
-    modulesConfigPath: args.modulesConfigPath,
-    fetchRemote: args.fetchRemote,
-    auth: args.auth,
-  })
+  let report =
+    args.accessMode === 'codeup'
+      ? await analyzeCodeupImpact({
+          remote: args.repoPath,
+          baseCommit: args.baseCommit,
+          headCommit: args.headCommit,
+          endpoint: args.codeup?.endpoint,
+          token: args.codeup?.token ?? '',
+          organizationId: args.codeup?.organizationId,
+          repositoryId: args.codeup?.repositoryId,
+          modulesConfigPath: args.modulesConfigPath,
+        })
+      : await analyzeImpact({
+          repoPath: args.repoPath,
+          baseCommit: args.baseCommit,
+          headCommit: args.headCommit,
+          rippleDepth: args.rippleDepth,
+          modulesConfigPath: args.modulesConfigPath,
+          fetchRemote: args.fetchRemote,
+          auth: args.auth,
+        })
   if (args.relatedWorkItems?.length) {
     report = mergeAgileWorkItemsIntoReport(report, args.relatedWorkItems)
   }
@@ -221,6 +300,26 @@ async function getDiffChunk(args: {
   limit?: number
   auth?: GitAuth
 }) {
+  const codeupJob = findJobForRepo(args.repoPath, args.baseCommit, args.headCommit)
+  if (codeupJob?.accessMode === 'codeup' && codeupJob.codeup?.token) {
+    const target = resolveCodeupTarget(codeupJob.repoInput, codeupJob.codeup)
+    const compare = await compareCodeup(target, {
+      endpoint: codeupJob.codeup.endpoint,
+      token: codeupJob.codeup.token,
+      base: args.baseCommit,
+      head: args.headCommit,
+    })
+    const page = pageCodeupDiffs(compare.diffs, {
+      paths: args.paths,
+      offset: args.offset,
+      limit: args.limit,
+      maxChars: MAX_DIFF_CHARS,
+    })
+    return {
+      repoPath: codeupJob.repoInput,
+      ...page,
+    }
+  }
   const resolved = await resolveGitRepo(args.repoPath, { fetch: false, auth: args.auth })
   const allFiles =
     args.paths && args.paths.length > 0
@@ -345,6 +444,9 @@ export function apply(ctx: Context) {
       if (!repoPath) throw new Error('缺少 repoPath（本地路径或远端地址）')
       const fetchRemote = parseFetchFlag(body.fetch, true)
       const auth = parseGitAuth(body.auth)
+      if (readAccessMode(body) === 'codeup') {
+        return await loadCodeupHistory(repoPath, Number.isFinite(limit) ? limit : 40, readCodeupAuth(body))
+      }
       return await loadRepoHistory(
         repoPath,
         Number.isFinite(limit) ? limit : 40,
@@ -378,6 +480,8 @@ export function apply(ctx: Context) {
             ? parseFetchFlag(body.fetchRemote ?? body.fetch, false)
             : undefined,
         auth: parseGitAuth(body.auth),
+        accessMode: readAccessMode(body),
+        codeup: readAccessMode(body) === 'codeup' ? readCodeupAuth(body) : undefined,
         persist: true,
         relatedWorkItems: parseAgileWorkItemRefs(body.relatedWorkItems),
       })
@@ -946,13 +1050,27 @@ export function apply(ctx: Context) {
       }
       const auth = parseGitAuth(body.auth)
       const fetchRemote = parseFetchFlag(body.fetch, true)
-      const resolved = await resolveGitRepo(repoInput, { fetch: fetchRemote, auth })
+      const accessMode = readAccessMode(body)
+      const codeup = accessMode === 'codeup' ? readCodeupAuth(body) : undefined
+      const resolved =
+        accessMode === 'codeup'
+          ? {
+              input: repoInput,
+              repoPath: repoInput,
+              source: 'codeup' as const,
+              remoteUrl: repoInput,
+              synced: false,
+              authMode: 'https' as const,
+            }
+          : await resolveGitRepo(repoInput, { fetch: fetchRemote, auth })
       const job = createJob({
         repoInput,
         repoPath: resolved.repoPath,
         baseCommit,
         headCommit,
         auth,
+        accessMode,
+        codeup,
       })
       const relatedWorkItems = parseAgileWorkItemRefs(body.relatedWorkItems)
       const prompt = buildChatAnalysisPrompt({
@@ -961,6 +1079,7 @@ export function apply(ctx: Context) {
         baseCommit,
         headCommit,
         relatedWorkItems,
+        accessMode,
       })
       return {
         jobId: job.id,
@@ -1053,16 +1172,22 @@ export function apply(ctx: Context) {
         },
       },
       async execute(args: Record<string, unknown>) {
+        const repoPath = String(args.repoPath)
+        const baseCommit = String(args.baseCommit)
+        const headCommit = String(args.headCommit)
+        const job = findJobForRepo(repoPath, baseCommit, headCommit)
         const result = await runAnalyze({
-          repoPath: String(args.repoPath),
-          baseCommit: String(args.baseCommit),
-          headCommit: String(args.headCommit),
+          repoPath: job?.accessMode === 'codeup' ? job.repoInput : repoPath,
+          baseCommit,
+          headCommit,
           rippleDepth: typeof args.rippleDepth === 'number' ? args.rippleDepth : undefined,
           modulesConfigPath:
             typeof args.modulesConfigPath === 'string' ? args.modulesConfigPath : undefined,
           exportDir: typeof args.exportDir === 'string' ? args.exportDir : undefined,
           fetchRemote: typeof args.fetchRemote === 'boolean' ? args.fetchRemote : undefined,
           auth: parseAuthFromToolArgs(args),
+          accessMode: job?.accessMode,
+          codeup: job?.codeup,
         })
         const summary = [
           `直接变更 ${result.report.direct.length} · 可能波及 ${result.report.ripple.length}`,
@@ -1222,7 +1347,18 @@ export function apply(ctx: Context) {
         const items = parsePublishedHandtestItems(parsed)
         let changedFiles: string[] = []
         try {
-          changedFiles = await gitDiffFiles(job.repoPath, job.baseCommit, job.headCommit)
+          if (job.accessMode === 'codeup' && job.codeup?.token) {
+            const target = resolveCodeupTarget(job.repoInput, job.codeup)
+            const compare = await compareCodeup(target, {
+              endpoint: job.codeup.endpoint,
+              token: job.codeup.token,
+              base: job.baseCommit,
+              head: job.headCommit,
+            })
+            changedFiles = changedPathsFromDiffs(compare.diffs)
+          } else {
+            changedFiles = await gitDiffFiles(job.repoPath, job.baseCommit, job.headCommit)
+          }
         } catch {
           changedFiles = [...new Set(items.flatMap((i) => i.files))]
         }

@@ -11,6 +11,23 @@ export type {
   TracescopeModulesConfig,
 } from './types.js'
 export { analyzeImpact } from './analyze.js'
+export {
+  analyzeCodeupImpact,
+  changedPathsFromDiffs,
+  compareCodeup,
+  getCodeupRepository,
+  listCodeupBranches,
+  listCodeupCommits,
+  pageCodeupDiffs,
+  parseCodeupRemote,
+  resolveCodeupTarget,
+  type CodeupCommitInfo,
+  type CodeupCompare,
+  type CodeupDiffFile,
+  type CodeupRefInfo,
+  type CodeupRequestOptions,
+  type CodeupTarget,
+} from './codeup.js'
 export { exportReportCsv, exportReportMarkdown } from './export.js'
 export { loadModulesConfig, matchModuleRule } from './modules-config.js'
 export {

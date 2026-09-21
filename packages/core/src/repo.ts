@@ -13,7 +13,7 @@ export type ResolvedRepo = {
   input: string
   /** Absolute local work-tree path used for analysis. */
   repoPath: string
-  source: 'local' | 'remote'
+  source: 'local' | 'remote' | 'codeup'
   /** Normalized remote URL when `source === 'remote'`. */
   remoteUrl?: string
   /** Whether a fetch/clone ran during this resolve. */
@@ -134,8 +134,9 @@ async function wipeCache(repoPath: string): Promise<void> {
 }
 
 /**
- * Clone remote into cache. Plain clone first — Codeup private submodules often break
- * --recurse-submodules and can leave a half-written folder.
+ * Clone remote into cache as a bare repo so analysis can read objects
+ * without checking out a work tree (avoids laying source files on disk).
+ * Existing non-bare caches are left as-is and still accepted.
  */
 async function cloneRemoteCache(
   remoteUrl: string,
@@ -150,7 +151,7 @@ async function cloneRemoteCache(
   } as const
   await wipeCache(repoPath)
   try {
-    await gitExec(['clone', '--single-branch', remoteUrl, repoPath], common)
+    await gitExec(['clone', '--bare', '--single-branch', remoteUrl, repoPath], common)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)
     await wipeCache(repoPath)

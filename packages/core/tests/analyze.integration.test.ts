@@ -79,4 +79,45 @@ class PayActivity {
       expect(rippledHome).toBe(true)
     })
   })
+
+  it('builds direct + ripple from a bare clone with no work tree', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'tracescope-'))
+    const pay = path.join(root, 'android/app/src/main/java/com/example/pay')
+    const home = path.join(root, 'android/app/src/main/java/com/example/home')
+    mkdirSync(pay, { recursive: true })
+    mkdirSync(home, { recursive: true })
+    writeFileSync(
+      path.join(pay, 'PayActivity.kt'),
+      `package com.example.pay\nclass PayActivity { fun onCreate() { setTitle("支付收银台") } }\n`,
+    )
+    writeFileSync(
+      path.join(home, 'HomeActivity.kt'),
+      `package com.example.home\nimport com.example.pay.PayActivity\nclass HomeActivity {}\n`,
+    )
+    git(root, ['init'])
+    git(root, ['config', 'user.email', 'test@example.com'])
+    git(root, ['config', 'user.name', 'Test'])
+    git(root, ['add', '.'])
+    git(root, ['commit', '-m', 'base'])
+    const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim()
+    writeFileSync(
+      path.join(pay, 'PayActivity.kt'),
+      `package com.example.pay\nclass PayActivity { fun onCreate() { setTitle("支付收银台") }\n fun pay() {} }\n`,
+    )
+    git(root, ['add', '.'])
+    git(root, ['commit', '-m', 'change pay'])
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim()
+    const bare = mkdtempSync(path.join(tmpdir(), 'tracescope-bare-'))
+    git(root, ['clone', '--bare', root, bare])
+
+    return analyzeImpact({
+      repoPath: bare,
+      baseCommit: base,
+      headCommit: head,
+      rippleDepth: 2,
+    }).then((report) => {
+      expect(report.changedFiles.some((f) => f.includes('PayActivity.kt'))).toBe(true)
+      expect(report.ripple.some((i) => i.files.some((f) => f.includes('HomeActivity.kt')))).toBe(true)
+    })
+  })
 })

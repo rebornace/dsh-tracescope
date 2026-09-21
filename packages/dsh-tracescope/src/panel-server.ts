@@ -5,11 +5,16 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeImpact,
+  analyzeCodeupImpact,
   exportReportCsv,
   exportReportMarkdown,
+  getCodeupRepository,
+  listCodeupBranches,
+  listCodeupCommits,
   listGitRefs,
   listRecentCommits,
   parseGitAuth,
+  resolveCodeupTarget,
   resolveGitRepo,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
@@ -86,6 +91,13 @@ async function handleApi(
         limit?: number
         fetch?: boolean | string
         auth?: unknown
+        accessMode?: string
+        codeup?: {
+          endpoint?: string
+          token?: string
+          organizationId?: string
+          repositoryId?: string
+        }
       }
       const repoPath = body.repoPath ?? ''
       const limit = Number(body.limit ?? 40)
@@ -98,6 +110,37 @@ async function handleApi(
         true,
       )
       const auth = parseGitAuth(body.auth)
+      if (body.accessMode === 'codeup') {
+        const codeup = body.codeup ?? {}
+        const target = resolveCodeupTarget(repoPath, {
+          organizationId: codeup.organizationId,
+          repositoryId: codeup.repositoryId,
+        })
+        const req = { endpoint: codeup.endpoint, token: codeup.token ?? '' }
+        const repo = await getCodeupRepository(target, req)
+        const [commits, branches] = await Promise.all([
+          listCodeupCommits(target, {
+            ...req,
+            refName: repo.defaultBranch,
+            perPage: Number.isFinite(limit) ? limit : 40,
+          }),
+          listCodeupBranches(target, req),
+        ])
+        sendJson(res, 200, {
+          resolved: {
+            input: repoPath,
+            repoPath,
+            source: 'codeup',
+            remoteUrl: repoPath,
+            synced: false,
+            authMode: 'https',
+          },
+          commits,
+          refs: branches,
+          defaultBranch: repo.defaultBranch,
+        })
+        return true
+      }
       const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote, auth })
       const [commits, refs] = await Promise.all([
         listRecentCommits(resolved.repoPath, {
@@ -152,20 +195,39 @@ async function handleApi(
         fetchRemote?: boolean
         fetch?: boolean
         auth?: unknown
+        accessMode?: string
+        codeup?: {
+          endpoint?: string
+          token?: string
+          organizationId?: string
+          repositoryId?: string
+        }
       }
       if (!body.repoPath || !body.baseCommit || !body.headCommit) {
         sendJson(res, 400, { error: '需要 repoPath、baseCommit、headCommit' })
         return true
       }
-      const report = await analyzeImpact({
-        repoPath: body.repoPath,
-        baseCommit: body.baseCommit,
-        headCommit: body.headCommit,
-        rippleDepth: body.rippleDepth,
-        modulesConfigPath: body.modulesConfigPath,
-        fetchRemote: body.fetchRemote ?? body.fetch,
-        auth: parseGitAuth(body.auth),
-      })
+      const report =
+        body.accessMode === 'codeup'
+          ? await analyzeCodeupImpact({
+              remote: body.repoPath,
+              baseCommit: body.baseCommit,
+              headCommit: body.headCommit,
+              endpoint: body.codeup?.endpoint,
+              token: body.codeup?.token ?? '',
+              organizationId: body.codeup?.organizationId,
+              repositoryId: body.codeup?.repositoryId,
+              modulesConfigPath: body.modulesConfigPath,
+            })
+          : await analyzeImpact({
+              repoPath: body.repoPath,
+              baseCommit: body.baseCommit,
+              headCommit: body.headCommit,
+              rippleDepth: body.rippleDepth,
+              modulesConfigPath: body.modulesConfigPath,
+              fetchRemote: body.fetchRemote ?? body.fetch,
+              auth: parseGitAuth(body.auth),
+            })
       const markdown = exportReportMarkdown(report)
       const csv = exportReportCsv(report)
       if (body.exportDir) {
