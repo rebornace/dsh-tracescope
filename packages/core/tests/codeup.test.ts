@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeCodeupImpact,
   changedPathsFromDiffs,
+  listCodeupBranches,
+  parseActivityTime,
   parseCodeupRemote,
   type CodeupDiffFile,
 } from '../src/codeup.js'
@@ -18,6 +20,63 @@ describe('codeup remote parse', () => {
 
   it('rejects non-codeup urls', () => {
     expect(parseCodeupRemote('https://github.com/org/repo.git')).toBeNull()
+  })
+})
+
+describe('parseActivityTime', () => {
+  it('parses Codeup space-separated dates that Date.parse alone mishandles in some engines', () => {
+    const ms = parseActivityTime('2022-03-18 09:00:00')
+    expect(ms).toBeGreaterThan(0)
+    expect(parseActivityTime('2024-04-05T15:30:45Z')).toBe(
+      Date.parse('2024-04-05T15:30:45Z'),
+    )
+  })
+})
+
+describe('listCodeupBranches order', () => {
+  it('requests updated_desc and keeps API order as rank', async () => {
+    let requested = ''
+    const refs = await listCodeupBranches(
+      {
+        organizationId: '5f2a9b67df9df74e36afc7da',
+        repositoryId: '5f2a9b67df9df74e36afc7da/allcpp/CPP_iOS',
+      },
+      {
+        token: 'pt-test',
+        fetchImpl: (async (url: string) => {
+          requested = String(url)
+          return {
+            ok: true,
+            text: async () =>
+              JSON.stringify([
+                {
+                  name: 'feature/new',
+                  commit: {
+                    id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                    shortId: 'bbbbbbbb',
+                    title: 'newest',
+                    committedDate: '2022-03-18 09:00:00',
+                  },
+                },
+                {
+                  name: 'master',
+                  commit: {
+                    id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                    shortId: 'aaaaaaaa',
+                    title: 'older tip',
+                    committedDate: '2024-01-01T00:00:00Z',
+                  },
+                },
+              ]),
+          } as Response
+        }) as typeof fetch,
+      },
+    )
+    expect(requested).toContain('sort=updated_desc')
+    expect(refs.map((r) => r.name)).toEqual(['feature/new', 'master'])
+    expect(refs[0]?.rank).toBe(0)
+    expect(refs[1]?.rank).toBe(1)
+    expect(refs[0]?.date).toContain('2022-03-18')
   })
 })
 

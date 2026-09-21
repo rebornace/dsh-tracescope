@@ -29,6 +29,15 @@ export interface CodeupRefInfo {
   sha: string
   short: string
   kind: 'remote'
+  date?: string
+  subject?: string
+  /** Epoch ms for sorting; higher = newer. */
+  activityTime?: number
+  /**
+   * Order from Codeup `sort=updated_desc` (0 = newest).
+   * Prefer this over tip commit time when present — matches the Codeup UI.
+   */
+  rank?: number
 }
 
 export interface CodeupDiffFile {
@@ -140,12 +149,45 @@ function commitFrom(raw: unknown): CodeupCommitInfo | null {
   const subject =
     (typeof obj.title === 'string' && obj.title) ||
     (typeof obj.message === 'string' && obj.message.split('\n')[0]) ||
+    (typeof obj.short_message === 'string' && obj.short_message.split('\n')[0]) ||
     ''
-  const date =
-    (typeof obj.committedDate === 'string' && obj.committedDate) ||
-    (typeof obj.authoredDate === 'string' && obj.authoredDate) ||
-    ''
+  const date = coerceDateString(
+    obj.committedDate ??
+      obj.committed_date ??
+      obj.authoredDate ??
+      obj.authored_date ??
+      obj.createdAt ??
+      obj.created_at,
+  )
   return { sha, short, subject, date }
+}
+
+/** Parse Codeup / git date strings (incl. `YYYY-MM-DD HH:mm:ss`) into epoch ms. */
+export function parseActivityTime(value: unknown): number {
+  if (value == null || value === '') return 0
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 0 && value < 1e12 ? Math.round(value * 1000) : Math.round(value)
+  }
+  const s = String(value).trim()
+  if (!s) return 0
+  if (/^\d{10,13}$/.test(s)) {
+    const n = Number(s)
+    return n < 1e12 ? n * 1000 : n
+  }
+  // Codeup often returns "2022-03-18 09:00:00" without timezone.
+  const normalized = s.includes('T')
+    ? s
+    : s.replace(/^(\d{4}-\d{2}-\d{2})[ ](\d{2}:\d{2}:\d{2})/, '$1T$2')
+  const parsed = Date.parse(normalized)
+  if (!Number.isNaN(parsed)) return parsed
+  const fallback = Date.parse(s)
+  return Number.isNaN(fallback) ? 0 : fallback
+}
+
+function coerceDateString(value: unknown): string {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  const ms = parseActivityTime(value)
+  return ms > 0 ? new Date(ms).toISOString() : ''
 }
 
 function stringField(obj: Record<string, unknown>, keys: string[]): string {
@@ -191,7 +233,11 @@ export async function listCodeupBranches(
   options: CodeupRequestOptions,
 ): Promise<CodeupRefInfo[]> {
   try {
-    const raw = await codeupGet(options, `${repoPath(target)}/branches?page=1&perPage=100`)
+    // `updated_desc` matches Codeup's own "recently updated" branch order.
+    const raw = await codeupGet(
+      options,
+      `${repoPath(target)}/branches?page=1&perPage=100&sort=updated_desc`,
+    )
     const refs: CodeupRefInfo[] = []
     for (const row of asList(raw, ['result', 'branches'])) {
       const obj = asRecord(row)
@@ -199,13 +245,25 @@ export async function listCodeupBranches(
       const name = stringField(obj, ['name'])
       if (!name) continue
       const commit = asRecord(obj.commit)
+      const tip = commit ? commitFrom(commit) : null
       const sha =
-        (commit && stringField(commit, ['id', 'sha'])) || stringField(obj, ['commitId'])
+        tip?.sha ||
+        (commit && stringField(commit, ['id', 'sha'])) ||
+        stringField(obj, ['commitId', 'commit_id'])
+      const date =
+        tip?.date ||
+        coerceDateString(
+          obj.updatedAt ?? obj.updated_at ?? obj.pushTime ?? obj.push_time,
+        )
       refs.push({
         name,
         sha,
-        short: sha ? sha.slice(0, 8) : '',
+        short: tip?.short || (sha ? sha.slice(0, 8) : ''),
         kind: 'remote',
+        date: date || undefined,
+        subject: tip?.subject || undefined,
+        activityTime: parseActivityTime(date) || undefined,
+        rank: refs.length,
       })
     }
     return refs
