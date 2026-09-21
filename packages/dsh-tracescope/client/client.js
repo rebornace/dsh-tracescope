@@ -580,27 +580,30 @@ window.__ModuleLoader__.load({
       })
     }
 
-    function buildVersionOptions(refs, commits, emptyLabel) {
-      var options = []
-      if ((!refs || !refs.length) && (!commits || !commits.length)) {
-        options.push(jsx('option', { value: '', children: emptyLabel }, 'empty'))
-        return options
-      }
+    function looksLikeCommitSha(value) {
+      return /^[0-9a-f]{7,40}$/i.test(String(value || '').trim())
+    }
+
+    function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
+      var branchOpts = []
+      var tagOpts = []
+      var commitOpts = []
       ;(refs || []).forEach(function (r) {
-        var prefix = r.kind === 'remote' ? '[远端] ' : r.kind === 'tag' ? '[标签] ' : '[分支] '
-        options.push(
-          jsx(
-            'option',
-            {
-              value: r.name,
-              children: prefix + r.name + ' · ' + r.short,
-            },
-            'ref-' + r.kind + '-' + r.name,
-          ),
+        if (!r || !r.name) return
+        var prefix = r.kind === 'remote' ? '远端 ' : r.kind === 'tag' ? '标签 ' : ''
+        var option = jsx(
+          'option',
+          {
+            value: r.name,
+            children: prefix + r.name + (r.short ? ' · ' + r.short : ''),
+          },
+          'ref-' + (r.kind || 'ref') + '-' + r.name,
         )
+        if (r.kind === 'tag') tagOpts.push(option)
+        else branchOpts.push(option)
       })
       ;(commits || []).forEach(function (c) {
-        options.push(
+        commitOpts.push(
           jsx(
             'option',
             {
@@ -611,7 +614,40 @@ window.__ModuleLoader__.load({
           ),
         )
       })
-      return options
+      var groups = []
+      if (branchOpts.length) {
+        groups.push(jsx('optgroup', { label: '分支', children: branchOpts }, 'g-branch'))
+      }
+      if (tagOpts.length) {
+        groups.push(jsx('optgroup', { label: '标签', children: tagOpts }, 'g-tag'))
+      }
+      if (commitOpts.length) {
+        groups.push(
+          jsx(
+            'optgroup',
+            {
+              label: commitRefLabel ? '近期提交 · ' + commitRefLabel : '近期提交',
+              children: commitOpts,
+            },
+            'g-commit',
+          ),
+        )
+      }
+      if (!groups.length) {
+        groups.push(jsx('option', { value: '', children: emptyLabel }, 'empty'))
+      }
+      return groups
+    }
+
+    function matchingBranches(refs, query) {
+      var branches = (refs || []).filter(function (r) {
+        return r && r.name && r.kind !== 'tag'
+      })
+      var q = String(query || '').trim().toLowerCase()
+      if (!q) return branches
+      return branches.filter(function (r) {
+        return r.name.toLowerCase().indexOf(q) !== -1
+      })
     }
 
     function ItemCard(props) {
@@ -923,6 +959,16 @@ window.__ModuleLoader__.load({
       })
     }
 
+    function usableSecret(value) {
+      var token = String(value || '').trim()
+      if (!token || token === '••••••••') return ''
+      return token
+    }
+
+    function isCodeupHttps(value) {
+      return /^https:\/\/codeup\.aliyun\.com\//i.test(String(value || '').trim())
+    }
+
     function TraceScopePanelBody() {
       var initialRepo = localStorage.getItem(REPO_PATH_KEY) || ''
       var _repo = useState(initialRepo)
@@ -945,12 +991,27 @@ window.__ModuleLoader__.load({
       var _copyFlash = useState('')
       var copyFlash = _copyFlash[0]
       var setCopyFlash = _copyFlash[1]
-      var _yxEndpoint = useState('https://openapi-rdc.aliyuncs.com')
+      var YX_AUTH_KEY = 'tracescope.yunxiaoAuth'
+      var savedYx = null
+      try {
+        savedYx = JSON.parse(localStorage.getItem(YX_AUTH_KEY) || 'null')
+      } catch (_e) {
+        savedYx = null
+      }
+      var _yxEndpoint = useState(
+        (savedYx && savedYx.endpoint) || 'https://openapi-rdc.aliyuncs.com',
+      )
       var yxEndpoint = _yxEndpoint[0]
       var setYxEndpoint = _yxEndpoint[1]
-      var _yxToken = useState('')
+      var _yxToken = useState((savedYx && savedYx.token) || '')
       var yxToken = _yxToken[0]
       var setYxToken = _yxToken[1]
+      var _yxTokenSaved = useState(Boolean(savedYx && savedYx.token))
+      var yxTokenSaved = _yxTokenSaved[0]
+      var setYxTokenSaved = _yxTokenSaved[1]
+      var _yxHydrated = useState(false)
+      var yxHydrated = _yxHydrated[0]
+      var setYxHydrated = _yxHydrated[1]
       var _yxOrg = useState('')
       var yxOrg = _yxOrg[0]
       var setYxOrg = _yxOrg[1]
@@ -1047,6 +1108,15 @@ window.__ModuleLoader__.load({
       var _head = useState('')
       var headCommit = _head[0]
       var setHeadCommit = _head[1]
+      var _branchQuery = useState('')
+      var branchQuery = _branchQuery[0]
+      var setBranchQuery = _branchQuery[1]
+      var _branchPickerOpen = useState(false)
+      var branchPickerOpen = _branchPickerOpen[0]
+      var setBranchPickerOpen = _branchPickerOpen[1]
+      var _commitListRef = useState('')
+      var commitListRef = _commitListRef[0]
+      var setCommitListRef = _commitListRef[1]
       var _report = useState(null)
       var report = _report[0]
       var setReport = _report[1]
@@ -1068,6 +1138,7 @@ window.__ModuleLoader__.load({
       var health = _health[0]
       var setHealth = _health[1]
       var AUTH_KEY = 'tracescope.auth'
+      var AUTH_UI_MODE_KEY = 'tracescope.authUiMode'
       var savedAuth = null
       try {
         savedAuth = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null')
@@ -1082,7 +1153,30 @@ window.__ModuleLoader__.load({
       } catch (_e) {
         savedAuth = null
       }
-      var _authMode = useState((savedAuth && savedAuth.mode) || 'none')
+      var savedAuthUiMode = ''
+      try {
+        savedAuthUiMode = localStorage.getItem(AUTH_UI_MODE_KEY) || ''
+      } catch (_e) {
+        savedAuthUiMode = ''
+      }
+      var initialAuthMode =
+        savedAuthUiMode === 'token' ||
+        savedAuthUiMode === 'yunxiao' ||
+        savedAuthUiMode === 'https' ||
+        savedAuthUiMode === 'ssh' ||
+        savedAuthUiMode === 'none'
+          ? savedAuthUiMode === 'yunxiao'
+            ? 'token'
+            : savedAuthUiMode
+          : (savedAuth && savedAuth.mode) || 'none'
+      if (
+        (initialAuthMode === 'https' || initialAuthMode === 'none') &&
+        (/^https:\/\/codeup\.aliyun\.com\//i.test(String(initialRepo || '').trim()) ||
+          localStorage.getItem(ACCESS_MODE_KEY) === 'codeup')
+      ) {
+        initialAuthMode = 'token'
+      }
+      var _authMode = useState(initialAuthMode)
       var authMode = _authMode[0]
       var setAuthMode = _authMode[1]
       var _authUser = useState((savedAuth && savedAuth.username) || 'git')
@@ -1163,24 +1257,69 @@ window.__ModuleLoader__.load({
       var setAuthHydrated = _authHydrated[1]
 
       function buildAuthPayload() {
-        if (authMode === 'https') {
-          return { mode: 'https', username: authUser || 'git', token: authToken }
-        }
         if (authMode === 'ssh') {
           return { mode: 'ssh', privateKeyPath: authKey }
+        }
+        if (authMode === 'token') {
+          return {
+            mode: 'https',
+            username: 'git',
+            token: usableSecret(yxToken),
+          }
+        }
+        if (authMode === 'https') {
+          return {
+            mode: 'https',
+            username: authUser || 'git',
+            token: usableSecret(authToken),
+          }
         }
         return { mode: 'none' }
       }
 
+      function codeupRequestToken() {
+        return authMode === 'token'
+          ? usableSecret(yxToken)
+          : authMode === 'https'
+            ? usableSecret(authToken)
+            : usableSecret(yxToken)
+      }
+
+      function setRemoteAuthMode(next) {
+        var mode = next === 'yunxiao' ? 'token' : next
+        setAuthMode(mode)
+        try {
+          localStorage.setItem(AUTH_UI_MODE_KEY, mode)
+        } catch (_e) {}
+      }
+
+      function shouldMirrorPatToYunxiao() {
+        return (
+          isCodeupHttps(repoPath) ||
+          accessMode === 'codeup' ||
+          trackerProvider === 'yunxiao'
+        )
+      }
+
       function persistAuth() {
         sessionStorage.removeItem(AUTH_KEY)
+        if (rememberAuth && authMode === 'token') {
+          var tokenPayload = buildAuthPayload()
+          if (!tokenPayload.token) return
+          localStorage.setItem(AUTH_KEY, JSON.stringify(tokenPayload))
+          apiPost('/tracescope/v1/auth-save', { remember: true, auth: tokenPayload }).catch(
+            function () {},
+          )
+          return
+        }
         if (rememberAuth && authMode !== 'none') {
           var payload = buildAuthPayload()
+          if (payload.mode === 'https' && !payload.token) return
           localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
           apiPost('/tracescope/v1/auth-save', { remember: true, auth: payload }).catch(function () {
             /* Host 落盘失败时仍保留 localStorage */
           })
-        } else {
+        } else if (authMode !== 'token') {
           localStorage.removeItem(AUTH_KEY)
           apiPost('/tracescope/v1/auth-save', { remember: false, auth: { mode: 'none' } }).catch(
             function () {},
@@ -1200,13 +1339,23 @@ window.__ModuleLoader__.load({
           .then(function (data) {
             var auth = data && data.auth
             if (auth && auth.mode && auth.mode !== 'none') {
-              setAuthMode(auth.mode)
-              if (auth.mode === 'https') {
-                setAuthUser(auth.username || 'git')
-                setAuthToken(auth.token || '')
-              }
               if (auth.mode === 'ssh') {
+                setRemoteAuthMode('ssh')
                 setAuthKey(auth.privateKeyPath || '')
+              } else if (auth.mode === 'https') {
+                var preferToken =
+                  isCodeupHttps(repoPath) ||
+                  accessMode === 'codeup' ||
+                  savedAuthUiMode === 'token' ||
+                  savedAuthUiMode === 'yunxiao'
+                if (preferToken) {
+                  setRemoteAuthMode('token')
+                  if (usableSecret(auth.token)) setYxToken(auth.token)
+                } else {
+                  setRemoteAuthMode('https')
+                  setAuthUser(auth.username || 'git')
+                  setAuthToken(auth.token || '')
+                }
               }
               setRememberAuth(true)
               try {
@@ -1228,7 +1377,8 @@ window.__ModuleLoader__.load({
             setTrackerReady(Boolean(c.ready))
             if (c.yunxiao) {
               if (c.yunxiao.endpoint) setYxEndpoint(c.yunxiao.endpoint)
-              if (c.yunxiao.token) setYxToken(c.yunxiao.token)
+              if (usableSecret(c.yunxiao.token)) setYxToken(c.yunxiao.token)
+              if (c.yunxiao.hasToken || usableSecret(c.yunxiao.token)) setYxTokenSaved(true)
               if (c.yunxiao.organizationId) setYxOrg(c.yunxiao.organizationId)
               if (c.yunxiao.spaceId) setYxSpace(c.yunxiao.spaceId)
               if (c.yunxiao.workitemTypeId) setYxType(c.yunxiao.workitemTypeId)
@@ -1264,12 +1414,79 @@ window.__ModuleLoader__.load({
             }
           })
           .catch(function () {})
+        apiGet('/tracescope/v1/yunxiao-token')
+          .then(function (data) {
+            if (!data) return
+            if (usableSecret(data.token)) {
+              setYxToken(data.token)
+              setYxTokenSaved(true)
+              try {
+                localStorage.setItem(
+                  YX_AUTH_KEY,
+                  JSON.stringify({
+                    token: data.token,
+                    endpoint: data.endpoint || '',
+                  }),
+                )
+              } catch (_e) {}
+            } else if (data.hasToken) {
+              setYxTokenSaved(true)
+            }
+            if (data.endpoint) setYxEndpoint(data.endpoint)
+            if (data.organizationId) setYxOrg(data.organizationId)
+          })
+          .catch(function () {})
+          .finally(function () {
+            setYxHydrated(true)
+          })
       }, [])
+
+      useEffect(function () {
+        if (!(isCodeupHttps(repoPath) || accessMode === 'codeup')) return
+        if (authMode === 'none' || authMode === 'https') setRemoteAuthMode('token')
+      }, [repoPath, accessMode])
+
+      useEffect(function () {
+        if (!yxHydrated) return
+        if (authMode === 'token' && !rememberAuth) return
+        var token = usableSecret(yxToken)
+        if (!token) return
+        var handle = setTimeout(function () {
+          try {
+            localStorage.setItem(
+              YX_AUTH_KEY,
+              JSON.stringify({ token: token, endpoint: yxEndpoint || '' }),
+            )
+            if (rememberAuth) setYxTokenSaved(true)
+          } catch (_e) {}
+          if (!shouldMirrorPatToYunxiao()) return
+          apiPost('/tracescope/v1/yunxiao-token-save', {
+            token: token,
+            endpoint: yxEndpoint,
+            organizationId: yxOrg,
+          })
+            .then(function () {
+              setYxTokenSaved(true)
+            })
+            .catch(function () {})
+        }, 400)
+        return function () {
+          clearTimeout(handle)
+        }
+      }, [yxHydrated, yxToken, yxEndpoint, yxOrg, authMode, rememberAuth, repoPath, accessMode, trackerProvider])
+
+      useEffect(function () {
+        if (!authHydrated || !yxHydrated) return
+        if (!(isCodeupHttps(repoPath) || accessMode === 'codeup')) return
+        if (authMode === 'ssh') return
+        if (yxTokenSaved || usableSecret(yxToken)) return
+        setSettingsOpen(true)
+      }, [authHydrated, yxHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authMode])
 
       useEffect(function () {
         if (!authHydrated) return
         persistAuth()
-      }, [authHydrated, rememberAuth, authMode, authUser, authToken, authKey])
+      }, [authHydrated, rememberAuth, authMode, authUser, authToken, authKey, yxToken, repoPath])
 
       function shortSha(value) {
         var s = String(value || '')
@@ -1451,6 +1668,9 @@ window.__ModuleLoader__.load({
           setHeadCommit('')
           setReport(null)
           setHistoryId('')
+          setBranchQuery('')
+          setBranchPickerOpen(false)
+          setCommitListRef('')
           viewingHistoryRef.current = null
           setChatHint('已切换仓库「' + shortRepoLabel(next) + '」，正在默认同步版本…')
           setSettingsOpen(false)
@@ -1575,38 +1795,48 @@ window.__ModuleLoader__.load({
             setError('请填写本地路径或远端仓库地址')
             return
           }
-          var codeupToken = (yxToken || (authMode === 'https' ? authToken : '')).trim()
-          if (accessMode === 'codeup') {
-            if (!codeupToken) {
-              setError('云效接口兜底需要个人访问令牌：填写缺陷配置里的云效 Token，或仓库 HTTPS Token（需有代码读权限）')
+          var codeupToken = codeupRequestToken()
+          if (authMode === 'token' || accessMode === 'codeup') {
+            if (!codeupToken && !yxTokenSaved) {
+              setError('请选择「个人访问令牌」并填写令牌。填一次会记在本机。')
+              setSettingsOpen(true)
+              setRemoteAuthMode('token')
               return
             }
-          } else {
-            if (authMode === 'https' && !authToken.trim()) {
-              setError('私有仓请填写 HTTPS Token')
+          } else if (authMode === 'https') {
+            if (!usableSecret(authToken)) {
+              setError('私有仓请填写 HTTPS 用户名和密码 / Token')
+              setSettingsOpen(true)
               return
             }
-            if (authMode === 'ssh' && !authKey.trim()) {
+          } else if (authMode === 'ssh') {
+            if (!authKey.trim()) {
               setError('请填写 SSH 私钥文件的本机绝对路径')
               return
             }
+          } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
+            setError('私有仓库请使用「个人访问令牌」')
+            setSettingsOpen(true)
+            setRemoteAuthMode('token')
+            return
           }
           localStorage.setItem(REPO_PATH_KEY, repoPath.trim())
           localStorage.setItem(ACCESS_MODE_KEY, accessMode)
           rememberRepo(repoPath.trim())
           persistAuth()
-          if (!beginBusy(accessMode === 'codeup' ? '正在通过云效接口读取版本…' : '正在同步仓库版本…')) return
+          if (!beginBusy(accessMode === 'codeup' ? '正在通过远端 API 读取版本…' : '正在同步仓库版本…')) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
             fetch: forceFetch === false ? false : true,
+            refName: opts && opts.refName ? opts.refName : undefined,
             auth: buildAuthPayload(),
             accessMode: accessMode,
             codeup:
               accessMode === 'codeup'
                 ? {
                     endpoint: yxEndpoint,
-                    token: codeupToken,
+                    token: codeupRequestToken(),
                     organizationId: yxOrg.trim(),
                   }
                 : undefined,
@@ -1616,17 +1846,32 @@ window.__ModuleLoader__.load({
               var list = data.commits || []
               setCommits(list)
               setRefs(data.refs || [])
+              var shownRef =
+                (data.commitRef && String(data.commitRef)) ||
+                (opts && opts.refName) ||
+                ''
+              setCommitListRef(shownRef)
               if (list.length && !(opts && opts.preserveSelection)) {
                 // Latest = 待测；second-latest = 稳定
                 setHeadCommit(list[0].sha)
                 setBaseCommit(list[Math.min(1, list.length - 1)].sha)
                 setChatHint(
-                  '已同步版本：待测 ' +
+                  '已同步版本' +
+                    (shownRef ? '（' + shownRef + '）' : '') +
+                    '：待测 ' +
                     (list[0].short || list[0].sha.slice(0, 7)) +
                     '，稳定 ' +
                     ((list[1] && (list[1].short || list[1].sha.slice(0, 7))) ||
                       list[0].short ||
                       list[0].sha.slice(0, 7)),
+                )
+              } else if (list.length && opts && opts.refName) {
+                setChatHint(
+                  '已加载分支「' +
+                    opts.refName +
+                    '」近期提交 ' +
+                    list.length +
+                    ' 条，可在下方下拉里选具体 commit',
                 )
               }
             })
@@ -1637,14 +1882,28 @@ window.__ModuleLoader__.load({
               endBusy()
             })
         },
-        [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxEndpoint, yxOrg],
+        [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxTokenSaved, yxEndpoint, yxOrg],
       )
 
       useEffect(
         function () {
           if (!authHydrated) return
           if (!repoPath.trim()) return
-          if (accessMode === 'codeup' && !(yxToken || (authMode === 'https' ? authToken : '')).trim()) {
+          if (
+            (authMode === 'token' || accessMode === 'codeup') &&
+            !codeupRequestToken() &&
+            !yxTokenSaved
+          ) {
+            return
+          }
+          if (
+            accessMode !== 'codeup' &&
+            authMode !== 'token' &&
+            isCodeupHttps(repoPath) &&
+            authMode !== 'ssh' &&
+            !codeupRequestToken() &&
+            !yxTokenSaved
+          ) {
             return
           }
           if (skipAutoSyncRef.current) {
@@ -1656,7 +1915,7 @@ window.__ModuleLoader__.load({
           loadCommits(true)
         },
         // Sync when the repo, access mode, or (for the Codeup fallback) token becomes available.
-        [authHydrated, repoPath, accessMode, yxToken, authToken, authMode],
+        [authHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authToken, authMode],
       )
 
       var selectedRelatedWorkItems = useCallback(
@@ -1691,7 +1950,7 @@ window.__ModuleLoader__.load({
                 accessMode === 'codeup'
                   ? {
                       endpoint: yxEndpoint,
-                      token: (yxToken || (authMode === 'https' ? authToken : '')).trim(),
+                      token: codeupRequestToken(),
                       organizationId: yxOrg.trim(),
                     }
                   : undefined,
@@ -1703,7 +1962,7 @@ window.__ModuleLoader__.load({
               viewingHistoryRef.current = null
               setChatHint(
                 accessMode === 'codeup'
-                  ? '已通过云效接口生成直接变更清单（无静态波及）。需要模型看 diff 时点「模型对话分析」。'
+                  ? '已通过远端 API 生成直接变更清单（无静态波及）。需要模型看 diff 时点「模型对话分析」。'
                   : related.length
                     ? '已生成清单（含 ' + related.length + ' 条关联敏捷任务种子），并保存到本机。'
                     : '已生成确定性清单并保存到本机。需要模型互动分析时点「模型对话分析」。',
@@ -1772,7 +2031,7 @@ window.__ModuleLoader__.load({
                 accessMode === 'codeup'
                   ? {
                       endpoint: yxEndpoint,
-                      token: (yxToken || (authMode === 'https' ? authToken : '')).trim(),
+                      token: codeupRequestToken(),
                       organizationId: yxOrg.trim(),
                     }
                   : undefined,
@@ -2330,7 +2589,7 @@ window.__ModuleLoader__.load({
 
       var saveTrackerSettings = useCallback(
         function () {
-          if (!beginBusy('正在保存缺陷平台配置…')) return
+          if (!beginBusy('正在保存协作平台配置…')) return
           var payload = { provider: trackerProvider }
           if (trackerProvider === 'yunxiao') {
             payload.yunxiao = {
@@ -2363,9 +2622,9 @@ window.__ModuleLoader__.load({
               setTrackerReady(Boolean(data && data.ready))
               setChatHint(
                 data && data.ready
-                  ? '缺陷平台配置已保存，可将失败反馈一键提交。'
+                  ? '协作平台配置已保存，可将失败反馈一键提交。'
                   : trackerProvider === 'none'
-                    ? '已清除缺陷平台配置。'
+                    ? '已清除协作平台配置。'
                     : '配置已写入，但仍不完整，请检查必填项。',
               )
             })
@@ -2545,7 +2804,7 @@ window.__ModuleLoader__.load({
       var refreshAgileWorkitems = useCallback(
         function () {
           if (!yxOrg || !yxSpace) {
-            setWiHint('请先在缺陷平台里选择企业和项目')
+            setWiHint('请先在协作平台里选择企业和项目')
             return
           }
           var categories = Object.keys(wiCats || {}).filter(function (k) {
@@ -2593,9 +2852,9 @@ window.__ModuleLoader__.load({
           }
           if (!trackerReady) {
             setConfirmDlg({
-              title: '先配置缺陷平台？',
+              title: '先配置协作平台？',
               message:
-                '尚未配置完整的缺陷平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。',
+                '尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。',
               confirmLabel: '打开配置',
               danger: false,
               onConfirm: function () {
@@ -2609,7 +2868,7 @@ window.__ModuleLoader__.load({
             message:
               '将把 ' +
               failed.length +
-              ' 条失败反馈提交到已配置的缺陷平台（' +
+              ' 条失败反馈提交到已配置的协作平台（' +
               trackerProvider +
               '）。可修改下方标题后再提交。',
             inputLabel: '缺陷标题',
@@ -2617,7 +2876,7 @@ window.__ModuleLoader__.load({
             confirmLabel: '提交',
             danger: false,
             onConfirm: function (subject) {
-              if (!beginBusy('正在提交失败反馈到缺陷平台…')) return
+              if (!beginBusy('正在提交失败反馈到协作平台…')) return
               setError('')
               apiPost('/tracescope/v1/tracker-submit', {
                 repoPath: repoPath.trim(),
@@ -2779,13 +3038,21 @@ window.__ModuleLoader__.load({
                       (resolved
                         ? ' · ' +
                           (resolved.source === 'codeup'
-                            ? '云效接口'
+                            ? '远端 API'
                             : resolved.source === 'remote'
                               ? '远端缓存'
                               : '本地') +
                           (resolved.authMode && resolved.authMode !== 'none'
-                            ? ' · 认证 ' + resolved.authMode
-                            : '')
+                            ? ' · 认证 ' +
+                              (authMode === 'token' ? '个人访问令牌' : resolved.authMode)
+                            : authMode === 'token'
+                              ? ' · 认证 个人访问令牌'
+                              : '') +
+                          (authMode === 'token' && (yxTokenSaved || usableSecret(yxToken))
+                            ? ' · 令牌已保存'
+                            : authMode === 'token'
+                              ? ' · 请填写个人访问令牌'
+                              : '')
                         : ''),
                   })
                 : null,
@@ -2831,10 +3098,10 @@ window.__ModuleLoader__.load({
                               } catch (_e) {}
                             },
                             children: [
-                              jsx('option', { value: 'git', children: '本地 Git（检出或对象库）' }, 'mode-git'),
+                              jsx('option', { value: 'git', children: '本地 Git（推荐）' }, 'mode-git'),
                               jsx('option', {
                                 value: 'codeup',
-                                children: '云效代码接口（无 Git 兜底）',
+                                children: '远端 API 兜底（无本机 Git）',
                               }, 'mode-codeup'),
                             ],
                           }),
@@ -2842,7 +3109,7 @@ window.__ModuleLoader__.load({
                             style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                             children:
                               accessMode === 'codeup'
-                                ? '不克隆仓库。用云效 OpenAPI 拉提交和 diff，可生成直接变更清单，模型对话也能看 diff。静态波及需要本地 Git。令牌用缺陷配置里的云效 Token，没有则用 HTTPS Token。'
+                                ? '不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。'
                                 : '同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。',
                           }),
                         ],
@@ -2907,11 +3174,18 @@ window.__ModuleLoader__.load({
                                 style: styles.input,
                                 value: authMode,
                                 onChange: function (e) {
-                                  setAuthMode(e.target.value)
+                                  setRemoteAuthMode(e.target.value)
                                 },
                                 children: [
                                   jsx('option', { value: 'none', children: '无需认证' }),
-                                  jsx('option', { value: 'https', children: 'HTTPS Token' }),
+                                  jsx('option', {
+                                    value: 'token',
+                                    children: '个人访问令牌',
+                                  }),
+                                  jsx('option', {
+                                    value: 'https',
+                                    children: 'HTTPS 用户名 + 密码/Token',
+                                  }),
                                   jsx('option', { value: 'ssh', children: 'SSH 私钥' }),
                                 ],
                               }),
@@ -2934,6 +3208,36 @@ window.__ModuleLoader__.load({
                             : jsx('div', { children: null }),
                         ],
                       }),
+                      authMode === 'token'
+                        ? jsxs('label', {
+                            style: styles.label,
+                            children: [
+                              '个人访问令牌',
+                              jsx('input', {
+                                style: styles.input,
+                                type: 'password',
+                                value: yxToken,
+                                disabled: busy,
+                                placeholder: yxTokenSaved
+                                  ? '已保存在本机，留空则继续使用'
+                                  : '粘贴 PAT / 个人访问令牌即可',
+                                onChange: function (e) {
+                                  setYxToken(e.target.value)
+                                },
+                              }),
+                              jsx('span', {
+                                style: {
+                                  display: 'block',
+                                  color: '#6b645a',
+                                  fontSize: 12,
+                                  lineHeight: 1.4,
+                                },
+                                children:
+                                  '适用于云效 Codeup、GitHub、GitLab 等。只需令牌，用户名固定为 git。云效仓库下同一份也可用于远端 API 与协作平台。',
+                              }),
+                            ],
+                          })
+                        : null,
                       authMode === 'https'
                         ? jsxs('label', {
                             style: styles.label,
@@ -2943,10 +3247,20 @@ window.__ModuleLoader__.load({
                                 style: styles.input,
                                 type: 'password',
                                 value: authToken,
-                                placeholder: '写入本机 ~/.tracescope（可选记住）',
+                                placeholder: '与上方用户名配套的密码或 Token',
                                 onChange: function (e) {
                                   setAuthToken(e.target.value)
                                 },
+                              }),
+                              jsx('span', {
+                                style: {
+                                  display: 'block',
+                                  color: '#6b645a',
+                                  fontSize: 12,
+                                  lineHeight: 1.4,
+                                },
+                                children:
+                                  '标准 HTTPS 认证，需同时填写用户名。若只有个人访问令牌，请改用「个人访问令牌」模式。',
                               }),
                             ],
                           })
@@ -2995,12 +3309,12 @@ window.__ModuleLoader__.load({
                           borderTop: '1px solid var(--dsh-border, #ddd4c5)',
                           fontWeight: 700,
                         },
-                        children: '缺陷平台（失败反馈）',
+                        children: '协作平台',
                       }),
                       jsx('p', {
                         style: { margin: '4px 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '可选云效 / GitHub Issues / GitLab Issues / 通用 Webhook。密钥保存在本机 ~/.tracescope/tracker.json。',
+                          '关联工作项、提交失败反馈。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。',
                       }),
                       jsxs('label', {
                         style: styles.label,
@@ -3033,7 +3347,7 @@ window.__ModuleLoader__.load({
                                   lineHeight: 1.4,
                                 },
                                 children:
-                                  '填写访问令牌后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人（无需手抄 ID）。',
+                                  '访问令牌与上方「个人访问令牌」共用。填好后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人。',
                               }),
                               jsxs('label', {
                                 style: styles.label,
@@ -3057,12 +3371,12 @@ window.__ModuleLoader__.load({
                                       marginBottom: 0,
                                     }),
                                     children: [
-                                      'x-yunxiao-token',
+                                      '访问令牌',
                                       jsx('input', {
                                         style: styles.input,
                                         type: 'password',
                                         value: yxToken,
-                                        placeholder: 'pt-…',
+                                        placeholder: yxTokenSaved ? '已保存在本机' : '个人访问令牌',
                                         onChange: function (e) {
                                           setYxToken(e.target.value)
                                         },
@@ -3072,7 +3386,7 @@ window.__ModuleLoader__.load({
                                   jsx('button', {
                                     type: 'button',
                                     style: styles.primary,
-                                    disabled: busy || !yxToken.trim(),
+                                    disabled: busy || (!usableSecret(yxToken) && !yxTokenSaved),
                                     onClick: refreshYunxiaoOrgs,
                                     children: '拉取企业',
                                   }),
@@ -3887,6 +4201,155 @@ window.__ModuleLoader__.load({
                   })
                 : null,
               jsxs('div', {
+                style: { marginTop: 8 },
+                children: [
+                  jsxs('div', {
+                    style: Object.assign({}, styles.row, {
+                      marginBottom: 0,
+                      alignItems: 'center',
+                      gap: 8,
+                    }),
+                    children: [
+                      jsx('button', {
+                        type: 'button',
+                        style: styles.btn,
+                        disabled: busy || !(refs && refs.length),
+                        onClick: function () {
+                          if (busy) return
+                          setBranchPickerOpen(!branchPickerOpen)
+                          if (branchPickerOpen) setBranchQuery('')
+                        },
+                        children: branchPickerOpen ? '收起分支' : '切换分支',
+                      }),
+                      !branchPickerOpen
+                        ? jsx('span', {
+                            style: { color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
+                            children: refs && refs.length ? '按名称筛选，点稳定 / 待测后自动收起' : '先同步版本',
+                          })
+                        : null,
+                    ],
+                  }),
+                  branchPickerOpen
+                    ? jsxs('div', {
+                        style: { marginTop: 6 },
+                        children: [
+                          jsx('input', {
+                            style: styles.input,
+                            value: branchQuery,
+                            disabled: busy || !(refs && refs.length),
+                            placeholder: refs && refs.length ? '输入分支名筛选，例如 develop' : '先同步版本',
+                            onChange: function (e) {
+                              setBranchQuery(e.target.value)
+                            },
+                          }),
+                          jsx('div', {
+                            style: {
+                              maxHeight: 168,
+                              overflow: 'auto',
+                              border: '1px solid var(--dsh-border, #ddd4c5)',
+                              borderRadius: 8,
+                              background: '#fff',
+                            },
+                            children: (function () {
+                              var matched = matchingBranches(refs, branchQuery)
+                              var shown = matched.slice(0, 40)
+                              if (!shown.length) {
+                                return jsx('div', {
+                                  style: { padding: '8px 10px', color: '#6b645a', fontSize: 12 },
+                                  children: refs && refs.length ? '没有匹配的分支' : '同步后在这里选分支',
+                                })
+                              }
+                              return shown.map(function (r) {
+                                var onHead = headCommit === r.name || headCommit === r.sha
+                                var onBase = baseCommit === r.name || baseCommit === r.sha
+                                function pickBranch(target) {
+                                  if (busy) return
+                                  viewingHistoryRef.current = null
+                                  if (target === 'base') {
+                                    setBaseCommit(r.name)
+                                    setChatHint('稳定版本已切到分支 ' + r.name + '，正在加载该分支近期提交…')
+                                  } else {
+                                    setHeadCommit(r.name)
+                                    setChatHint('待测版本已切到分支 ' + r.name + '，正在加载该分支近期提交…')
+                                  }
+                                  setBranchQuery('')
+                                  setBranchPickerOpen(false)
+                                  loadCommits(true, { preserveSelection: true, refName: r.name })
+                                }
+                                return jsxs(
+                                  'div',
+                                  {
+                                    style: {
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '6px 8px',
+                                      borderBottom: '1px solid #efe8da',
+                                      background: onHead || onBase ? '#f3faf6' : 'transparent',
+                                    },
+                                    children: [
+                                      jsx('div', {
+                                        style: {
+                                          flex: 1,
+                                          minWidth: 0,
+                                          fontSize: 12,
+                                          lineHeight: 1.35,
+                                          wordBreak: 'break-all',
+                                        },
+                                        title: r.name,
+                                        children:
+                                          (r.kind === 'remote' ? '远端 ' : '') +
+                                          r.name +
+                                          (r.short ? ' · ' + r.short : ''),
+                                      }),
+                                      jsx('button', {
+                                        type: 'button',
+                                        style: Object.assign({}, styles.btn, {
+                                          padding: '4px 8px',
+                                          fontWeight: onBase ? 700 : 500,
+                                        }),
+                                        disabled: busy,
+                                        onClick: function () {
+                                          pickBranch('base')
+                                        },
+                                        children: onBase ? '稳定 ✓' : '稳定',
+                                      }),
+                                      jsx('button', {
+                                        type: 'button',
+                                        style: Object.assign({}, styles.btn, {
+                                          padding: '4px 8px',
+                                          fontWeight: onHead ? 700 : 500,
+                                        }),
+                                        disabled: busy,
+                                        onClick: function () {
+                                          pickBranch('head')
+                                        },
+                                        children: onHead ? '待测 ✓' : '待测',
+                                      }),
+                                    ],
+                                  },
+                                  'branch-' + (r.kind || 'ref') + '-' + r.name,
+                                )
+                              })
+                            })(),
+                          }),
+                          branchQuery && matchingBranches(refs, branchQuery).length > 40
+                            ? jsx('div', {
+                                style: { color: '#6b645a', fontSize: 11, marginTop: 4 },
+                                children: '匹配超过 40 个，请再输入几个字缩小范围',
+                              })
+                            : !branchQuery && matchingBranches(refs, '').length > 40
+                              ? jsx('div', {
+                                  style: { color: '#6b645a', fontSize: 11, marginTop: 4 },
+                                  children: '分支较多，输入名称筛选。列表先显示前 40 个',
+                                })
+                              : null,
+                        ],
+                      })
+                    : null,
+                ],
+              }),
+              jsxs('div', {
                 style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 },
                 children: [
                   jsxs('label', {
@@ -3902,9 +4365,13 @@ window.__ModuleLoader__.load({
                           onChange: function (e) {
                             if (busy) return
                             viewingHistoryRef.current = null
-                            setBaseCommit(e.target.value)
+                            var next = e.target.value
+                            setBaseCommit(next)
+                            if (next && !looksLikeCommitSha(next)) {
+                              loadCommits(true, { preserveSelection: true, refName: next })
+                            }
                           },
-                          children: buildVersionOptions(refs, commits, '先同步版本'),
+                          children: buildVersionOptions(refs, commits, '先同步版本', commitListRef),
                         },
                       ),
                     ],
@@ -3922,9 +4389,13 @@ window.__ModuleLoader__.load({
                           onChange: function (e) {
                             if (busy) return
                             viewingHistoryRef.current = null
-                            setHeadCommit(e.target.value)
+                            var next = e.target.value
+                            setHeadCommit(next)
+                            if (next && !looksLikeCommitSha(next)) {
+                              loadCommits(true, { preserveSelection: true, refName: next })
+                            }
                           },
-                          children: buildVersionOptions(refs, commits, '先同步版本'),
+                          children: buildVersionOptions(refs, commits, '先同步版本', commitListRef),
                         },
                       ),
                     ],

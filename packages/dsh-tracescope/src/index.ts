@@ -14,10 +14,13 @@ import {
   handtestReportKey,
   listGitRefs,
   listRecentCommits,
+  gitFetchRef,
   loadHandtestReport,
   listHandtestHistory,
   loadHandtestHistoryEntry,
   deleteHandtestHistory,
+  isMaskedSecret,
+  loadRememberedYunxiaoAccess,
   loadStoredGitAuth,
   MAX_ATTACHMENT_UPLOAD_BYTES,
   MAX_REPORT_ATTACHMENTS,
@@ -38,6 +41,7 @@ import {
   saveHandtestReport,
   saveReportAttachmentBuffer,
   saveReportAttachmentFromLocalPath,
+  rememberYunxiaoAccess,
   saveStoredGitAuth,
   loadTrackerConfig,
   saveTrackerConfig,
@@ -163,13 +167,26 @@ async function loadRepoHistory(
   limit: number,
   fetchRemote: boolean,
   auth?: GitAuth,
+  refName?: string,
 ) {
   const resolved = await resolveGitRepo(repoInput, { fetch: fetchRemote, auth })
+  const ref = typeof refName === 'string' ? refName.trim() : ''
+  if (ref && !/^[0-9a-f]{7,40}$/i.test(ref)) {
+    try {
+      await gitFetchRef(resolved.repoPath, ref, auth)
+    } catch {
+      /* Branch may already exist locally; listRecentCommits will surface real errors. */
+    }
+  }
   const [commits, refs] = await Promise.all([
-    listRecentCommits(resolved.repoPath, { limit, allRefs: true }),
+    listRecentCommits(resolved.repoPath, {
+      limit,
+      allRefs: !ref,
+      ref: ref || undefined,
+    }),
     listGitRefs(resolved.repoPath),
   ])
-  return { resolved, commits, refs }
+  return { resolved, commits, refs, commitRef: ref || undefined }
 }
 
 interface CodeupBodyAuth {
@@ -194,12 +211,65 @@ function readCodeupAuth(body: Record<string, unknown>): CodeupBodyAuth {
   }
 }
 
-async function loadCodeupHistory(remote: string, limit: number, auth: CodeupBodyAuth) {
+function isCodeupHttpsRemote(input: string): boolean {
+  return /^https:\/\/codeup\.aliyun\.com\//i.test(input.trim())
+}
+
+/** Empty or masked panel tokens fall back to the token saved on this machine. */
+async function resolveCodeupAuth(body: Record<string, unknown>): Promise<CodeupBodyAuth> {
+  const parsed = readCodeupAuth(body)
+  if (!isMaskedSecret(parsed.token)) return parsed
+  const stored = await loadRememberedYunxiaoAccess()
+  const git = await loadStoredGitAuth()
+  const gitToken = git?.mode === 'https' ? git.token : ''
+  return {
+    ...parsed,
+    endpoint: parsed.endpoint || stored.endpoint,
+    organizationId: parsed.organizationId || stored.organizationId || undefined,
+    token: !isMaskedSecret(stored.token) ? stored.token : gitToken,
+  }
+}
+
+async function resolveRequestGitAuth(
+  auth: GitAuth | undefined,
+  repoInput: string,
+): Promise<GitAuth | undefined> {
+  if (auth?.mode === 'ssh') return auth
+  if (auth?.mode === 'https' && !isMaskedSecret(auth.token)) return auth
+  const stored = await loadStoredGitAuth()
+  if (auth?.mode === 'https' && stored?.mode === 'https' && !isMaskedSecret(stored.token)) {
+    return {
+      mode: 'https',
+      username: auth.username || stored.username || 'git',
+      token: stored.token,
+    }
+  }
+  if (isCodeupHttpsRemote(repoInput)) {
+    const yunxiao = await loadRememberedYunxiaoAccess()
+    if (!isMaskedSecret(yunxiao.token)) {
+      return {
+        mode: 'https',
+        username: auth?.mode === 'https' ? auth.username || 'git' : 'git',
+        token: yunxiao.token,
+      }
+    }
+  }
+  if (auth?.mode === 'https' && stored?.mode === 'ssh') return stored
+  return auth
+}
+
+async function loadCodeupHistory(
+  remote: string,
+  limit: number,
+  auth: CodeupBodyAuth,
+  refName?: string,
+) {
   const target = resolveCodeupTarget(remote, auth)
   const req = { endpoint: auth.endpoint, token: auth.token }
   const repo = await getCodeupRepository(target, req)
+  const commitRef = (typeof refName === 'string' && refName.trim()) || repo.defaultBranch
   const [commits, branches] = await Promise.all([
-    listCodeupCommits(target, { ...req, refName: repo.defaultBranch, perPage: limit }),
+    listCodeupCommits(target, { ...req, refName: commitRef, perPage: limit }),
     listCodeupBranches(target, req),
   ])
   const head = commits[0]
@@ -226,6 +296,7 @@ async function loadCodeupHistory(remote: string, limit: number, auth: CodeupBody
     commits,
     refs,
     defaultBranch: repo.defaultBranch,
+    commitRef,
   }
 }
 
@@ -443,15 +514,22 @@ export function apply(ctx: Context) {
       const limit = Number(body.limit ?? 40)
       if (!repoPath) throw new Error('缺少 repoPath（本地路径或远端地址）')
       const fetchRemote = parseFetchFlag(body.fetch, true)
-      const auth = parseGitAuth(body.auth)
+      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath)
+      const refName = typeof body.refName === 'string' ? body.refName.trim() : ''
       if (readAccessMode(body) === 'codeup') {
-        return await loadCodeupHistory(repoPath, Number.isFinite(limit) ? limit : 40, readCodeupAuth(body))
+        return await loadCodeupHistory(
+          repoPath,
+          Number.isFinite(limit) ? limit : 40,
+          await resolveCodeupAuth(body),
+          refName || undefined,
+        )
       }
       return await loadRepoHistory(
         repoPath,
         Number.isFinite(limit) ? limit : 40,
         fetchRemote,
         auth,
+        refName || undefined,
       )
     },
   })
@@ -479,9 +557,9 @@ export function apply(ctx: Context) {
           body.fetchRemote !== undefined || body.fetch !== undefined
             ? parseFetchFlag(body.fetchRemote ?? body.fetch, false)
             : undefined,
-        auth: parseGitAuth(body.auth),
+        auth: await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath),
         accessMode: readAccessMode(body),
-        codeup: readAccessMode(body) === 'codeup' ? readCodeupAuth(body) : undefined,
+        codeup: readAccessMode(body) === 'codeup' ? await resolveCodeupAuth(body) : undefined,
         persist: true,
         relatedWorkItems: parseAgileWorkItemRefs(body.relatedWorkItems),
       })
@@ -778,19 +856,19 @@ export function apply(ctx: Context) {
     run: async (body) => {
       const action = String(body.action ?? '')
       const existing = await loadTrackerConfig()
+      const remembered = await loadRememberedYunxiaoAccess()
       const endpoint =
         typeof body.endpoint === 'string' && body.endpoint.trim()
           ? body.endpoint.trim()
-          : existing.yunxiao?.endpoint || 'https://openapi-rdc.aliyuncs.com'
+          : existing.yunxiao?.endpoint || remembered.endpoint || 'https://openapi-rdc.aliyuncs.com'
       const tokenRaw = typeof body.token === 'string' ? body.token.trim() : ''
-      const token =
-        tokenRaw && tokenRaw !== '••••••••' ? tokenRaw : existing.yunxiao?.token || ''
+      const token = !isMaskedSecret(tokenRaw) ? tokenRaw : remembered.token
       if (!token) throw new Error('请先填写云效访问令牌并保存，或在本次请求中传入 token')
 
       const organizationId =
         typeof body.organizationId === 'string'
           ? body.organizationId.trim()
-          : existing.yunxiao?.organizationId || ''
+          : existing.yunxiao?.organizationId || remembered.organizationId || ''
       const spaceId =
         typeof body.spaceId === 'string' ? body.spaceId.trim() : existing.yunxiao?.spaceId || ''
 
@@ -959,10 +1037,17 @@ export function apply(ctx: Context) {
           next.webhook.headers = { Authorization: w.authHeader.trim() }
         }
       } else {
-        throw new Error('不支持的缺陷平台')
+        throw new Error('不支持的协作平台')
       }
 
       await saveTrackerConfig(next)
+      if (next.yunxiao && !isMaskedSecret(next.yunxiao.token)) {
+        await rememberYunxiaoAccess({
+          token: next.yunxiao.token,
+          endpoint: next.yunxiao.endpoint,
+          organizationId: next.yunxiao.organizationId,
+        })
+      }
       return {
         ok: true,
         config: publicTrackerConfig(next),
@@ -977,7 +1062,7 @@ export function apply(ctx: Context) {
     run: async (body) => {
       const config = await loadTrackerConfig()
       if (!isTrackerConfigReady(config)) {
-        throw new Error('请先在「仓库配置 → 缺陷平台」中选择平台并保存完整配置')
+        throw new Error('请先在「仓库配置 → 协作平台」中选择平台并保存完整配置')
       }
       const report = body.report as ImpactReport | undefined
       if (!report) throw new Error('缺少 report')
@@ -1004,6 +1089,38 @@ export function apply(ctx: Context) {
         uploadedAttachments: result.uploadedAttachments ?? 0,
         failedAttachments: result.failedAttachments ?? 0,
         attachmentErrors: result.attachmentErrors,
+      }
+    },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/yunxiao-token',
+    method: 'GET',
+    run: async () => {
+      const access = await loadRememberedYunxiaoAccess()
+      return {
+        token: access.token,
+        endpoint: access.endpoint,
+        organizationId: access.organizationId,
+        hasToken: !isMaskedSecret(access.token),
+      }
+    },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/yunxiao-token-save',
+    method: 'POST',
+    run: async (body) => {
+      const access = await rememberYunxiaoAccess({
+        token: typeof body.token === 'string' ? body.token : '',
+        endpoint: typeof body.endpoint === 'string' ? body.endpoint : undefined,
+        organizationId: typeof body.organizationId === 'string' ? body.organizationId : undefined,
+      })
+      return {
+        ok: true,
+        endpoint: access.endpoint,
+        organizationId: access.organizationId,
+        hasToken: !isMaskedSecret(access.token),
       }
     },
   })
@@ -1048,10 +1165,10 @@ export function apply(ctx: Context) {
       if (!repoInput || !baseCommit || !headCommit) {
         throw new Error('需要 repoPath、baseCommit、headCommit')
       }
-      const auth = parseGitAuth(body.auth)
+      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoInput)
       const fetchRemote = parseFetchFlag(body.fetch, true)
       const accessMode = readAccessMode(body)
-      const codeup = accessMode === 'codeup' ? readCodeupAuth(body) : undefined
+      const codeup = accessMode === 'codeup' ? await resolveCodeupAuth(body) : undefined
       const resolved =
         accessMode === 'codeup'
           ? {
@@ -1412,7 +1529,7 @@ export function apply(ctx: Context) {
             '可视化：右侧栏会尽量在新会话就绪后自动打开 TraceScope；也可点引导页「TraceScope」。',
             '若仍看不到右侧栏，多半是 DSH 在空白首页未挂载会话栏——进入会话页后再试（不必先发消息也可以，取决于客户端版本）。',
             '模型分析请用面板「模型对话分析」，在会话里互动后再 publish。',
-            '失败反馈可复制，或在配置缺陷平台后点「提交缺陷」。',
+            '失败反馈可复制，或在配置协作平台后点「提交缺陷」。',
             '',
             USAGE,
           ].join('\n'),

@@ -120,6 +120,27 @@ export async function gitFetchAll(repoPath: string, auth?: GitAuth): Promise<voi
   })
 }
 
+/**
+ * Fetch one branch into the local object store.
+ * Needed for bare `--single-branch` caches that never pulled other heads.
+ */
+export async function gitFetchRef(
+  repoPath: string,
+  refName: string,
+  auth?: GitAuth,
+): Promise<void> {
+  const branch = String(refName || '')
+    .trim()
+    .replace(/^refs\/heads\//i, '')
+    .replace(/^origin\//i, '')
+  if (!branch || /^[0-9a-f]{7,40}$/i.test(branch)) return
+  await gitExec(['fetch', 'origin', `+refs/heads/${branch}:refs/heads/${branch}`], {
+    cwd: repoPath,
+    maxBuffer: 64 * 1024 * 1024,
+    auth,
+  })
+}
+
 export async function gitDiffFiles(
   repoPath: string,
   baseCommit: string,
@@ -202,16 +223,21 @@ export interface GitCommitInfo {
 }
 
 /**
- * List recent commits. When `allRefs` is true (default), includes remote-tracking
- * history via `git log --all` so fetched remote branches appear after sync.
+ * List recent commits. When `ref` is set, only that branch/commit history.
+ * Otherwise `allRefs` (default true) uses `git log --all`.
  */
 export async function listRecentCommits(
   repoPath: string,
-  options: { limit?: number; allRefs?: boolean } = {},
+  options: { limit?: number; allRefs?: boolean; ref?: string } = {},
 ): Promise<GitCommitInfo[]> {
   const limit = options.limit ?? 40
   const args = ['log', `-n${limit}`, '--pretty=format:%H%x09%h%x09%s%x09%ci']
-  if (options.allRefs !== false) args.splice(1, 0, '--all')
+  const ref = typeof options.ref === 'string' ? options.ref.trim() : ''
+  if (ref) {
+    args.push(ref)
+  } else if (options.allRefs !== false) {
+    args.splice(1, 0, '--all')
+  }
   const { stdout } = await gitExec(args, {
     cwd: repoPath,
     maxBuffer: 5 * 1024 * 1024,

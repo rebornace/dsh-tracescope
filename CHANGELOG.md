@@ -5,6 +5,13 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.1.9 — 2026-09-21
+
+- **分支切换**：可按名称筛选，点「稳定 / 待测」后列表自动收起；选中分支后「近期提交」按该分支重新加载（不再只显示默认主分支）。
+- **个人访问令牌**与 **HTTPS 用户名 + 密码/Token** 分开：令牌模式适用于云效 / GitHub / GitLab 等；HTTPS 保持双字段。令牌会记在本机，重启不用重填。
+- 「缺陷平台」改名为 **协作平台**（关联工作项 + 失败反馈）。
+- Branch picker collapses after choose; recent commits follow the selected branch. PAT auth is separate from HTTPS username+password and persists across restarts. Tracker section renamed to collaboration platform.
+
 ## 0.1.8 — 2026-09-21
 
 - **读取方式**可在「仓库配置」里选：

@@ -6,9 +6,116 @@ import { isTrackerConfigReady } from './issue-tracker.js'
 import { normalizeYunxiaoEndpoint, type YunxiaoConfig } from './yunxiao.js'
 import { loadYunxiaoConfig } from './yunxiao-store.js'
 
+const MASKED_SECRET = '••••••••'
+
+function tracescopeRoot(cacheRoot?: string): string {
+  return cacheRoot ?? path.join(os.homedir(), '.tracescope')
+}
+
 function trackerPath(cacheRoot?: string): string {
-  const root = cacheRoot ?? path.join(os.homedir(), '.tracescope')
-  return path.join(root, 'tracker.json')
+  return path.join(tracescopeRoot(cacheRoot), 'tracker.json')
+}
+
+/** Repo access token, separate from the defect-platform provider switch. */
+function codeupAuthPath(cacheRoot?: string): string {
+  return path.join(tracescopeRoot(cacheRoot), 'codeup-auth.json')
+}
+
+export function isMaskedSecret(value: string | undefined | null): boolean {
+  const token = typeof value === 'string' ? value.trim() : ''
+  return !token || token === MASKED_SECRET
+}
+
+export interface RememberedYunxiaoAccess {
+  token: string
+  endpoint: string
+  organizationId: string
+}
+
+async function readCodeupAuthFile(cacheRoot?: string): Promise<RememberedYunxiaoAccess | null> {
+  try {
+    const raw = JSON.parse(await readFile(codeupAuthPath(cacheRoot), 'utf8')) as Record<string, unknown>
+    return {
+      token: typeof raw.token === 'string' ? raw.token : '',
+      endpoint: normalizeYunxiaoEndpoint(typeof raw.endpoint === 'string' ? raw.endpoint : undefined),
+      organizationId: typeof raw.organizationId === 'string' ? raw.organizationId : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Token used for Codeup git clone and the Codeup OpenAPI fallback.
+ * Prefers the dedicated access file, then defect-platform config, then legacy yunxiao.json.
+ */
+export async function loadRememberedYunxiaoAccess(
+  cacheRoot?: string,
+): Promise<RememberedYunxiaoAccess> {
+  const dedicated = await readCodeupAuthFile(cacheRoot)
+  const tracker = await loadTrackerConfig(cacheRoot)
+  const legacy = await loadYunxiaoConfig(cacheRoot)
+  const token =
+    dedicated?.token.trim() || tracker.yunxiao?.token.trim() || legacy?.token.trim() || ''
+  return {
+    token,
+    endpoint: normalizeYunxiaoEndpoint(
+      dedicated?.endpoint || tracker.yunxiao?.endpoint || legacy?.endpoint,
+    ),
+    organizationId:
+      dedicated?.organizationId ||
+      tracker.yunxiao?.organizationId ||
+      legacy?.organizationId ||
+      '',
+  }
+}
+
+/** Remember a Yunxiao personal access token across Desktop restarts. Empty / masked keeps the previous token. */
+export async function rememberYunxiaoAccess(
+  input: { token?: string; endpoint?: string; organizationId?: string },
+  cacheRoot?: string,
+): Promise<RememberedYunxiaoAccess> {
+  const current = await loadRememberedYunxiaoAccess(cacheRoot)
+  const incoming = typeof input.token === 'string' ? input.token.trim() : ''
+  const token = incoming && incoming !== MASKED_SECRET ? incoming : current.token
+  const endpoint = input.endpoint?.trim()
+    ? normalizeYunxiaoEndpoint(input.endpoint)
+    : current.endpoint
+  const organizationId =
+    (typeof input.organizationId === 'string' && input.organizationId.trim()) ||
+    current.organizationId
+  if (!token) return { token: '', endpoint, organizationId }
+  await mkdir(tracescopeRoot(cacheRoot), { recursive: true })
+  await writeFile(
+    codeupAuthPath(cacheRoot),
+    `${JSON.stringify({ token, endpoint, organizationId }, null, 2)}\n`,
+    'utf8',
+  )
+  let trackerOnDisk = false
+  try {
+    await readFile(trackerPath(cacheRoot), 'utf8')
+    trackerOnDisk = true
+  } catch {
+    trackerOnDisk = false
+  }
+  if (trackerOnDisk) {
+    const tracker = await loadTrackerConfig(cacheRoot)
+    if (tracker.provider === 'yunxiao' && tracker.yunxiao) {
+      await saveTrackerConfig(
+        {
+          ...tracker,
+          yunxiao: {
+            ...tracker.yunxiao,
+            token,
+            endpoint,
+            organizationId: organizationId || tracker.yunxiao.organizationId,
+          },
+        },
+        cacheRoot,
+      )
+    }
+  }
+  return { token, endpoint, organizationId }
 }
 
 function asProvider(value: unknown): TrackerProvider {
@@ -138,7 +245,7 @@ export async function saveTrackerConfig(
 }
 
 function maskToken(token: string): string {
-  return token.trim() ? '••••••••' : ''
+  return token.trim() ? MASKED_SECRET : ''
 }
 
 /** Public config for UI (secrets masked). */
