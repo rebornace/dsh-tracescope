@@ -159,26 +159,46 @@ async function cloneRemoteCache(
 }
 
 /**
- * After clone/fetch, Windows Defender / disk flush can make the first rev-parse flaky.
- * We only start this AFTER `git clone` has exited — it is not a mid-clone race in our code.
+ * After clone/fetch, Windows Defender / disk flush can make rev-parse flaky for a long time
+ * on large packs (testers reported ~40s+ scanner windows). Prefer waiting over wipe+reclone.
  */
+const GIT_SETTLE_BUDGET_MS = 55_000
+const GIT_SETTLE_FETCH_BUDGET_MS = 45_000
+const GIT_SETTLE_INITIAL_DELAY_MS = 400
+const GIT_SETTLE_MAX_DELAY_MS = 8_000
+const GIT_SETTLE_BACKOFF = 1.7
+
 async function waitForGitWorkTree(
   repoPath: string,
-  attempts = 6,
-  delayMs = 500,
+  budgetMs = GIT_SETTLE_BUDGET_MS,
 ): Promise<{ ok: boolean; detail?: string; repoPath: string }> {
+  const started = Date.now()
   let pathToCheck = repoPath
   let lastDetail = ''
-  for (let i = 0; i < attempts; i++) {
+  let delayMs = GIT_SETTLE_INITIAL_DELAY_MS
+
+  for (;;) {
     pathToCheck = await resolveUsableRepoPath(pathToCheck)
     const check = await inspectGitWorkTree(pathToCheck)
     if (check.ok) return { ok: true, repoPath: pathToCheck }
     lastDetail = check.detail || lastDetail
-    if (i < attempts - 1) {
-      await new Promise((r) => setTimeout(r, delayMs))
-    }
+
+    const elapsed = Date.now() - started
+    const remaining = budgetMs - elapsed
+    if (remaining <= 0) break
+
+    const sleepMs = Math.min(delayMs, remaining, GIT_SETTLE_MAX_DELAY_MS)
+    await new Promise((r) => setTimeout(r, sleepMs))
+    delayMs = Math.min(GIT_SETTLE_MAX_DELAY_MS, Math.round(delayMs * GIT_SETTLE_BACKOFF))
   }
-  return { ok: false, detail: lastDetail, repoPath: pathToCheck }
+
+  return {
+    ok: false,
+    detail:
+      lastDetail ||
+      `已等待约 ${Math.round(budgetMs / 1000)} 秒仍无法确认 git 工作区（可能被杀毒软件长时间占用）`,
+    repoPath: pathToCheck,
+  }
 }
 
 /** If git landed one level deeper, promote that work-tree path. */
@@ -231,38 +251,34 @@ export async function resolveGitRepo(
     const ensureFreshClone = async () => {
       await cloneRemoteCache(remoteUrl, repoPath, cacheRoot, auth)
       synced = true
-      const waited = await waitForGitWorkTree(repoPath)
+      const waited = await waitForGitWorkTree(repoPath, GIT_SETTLE_BUDGET_MS)
       repoPath = waited.repoPath
       return waited
     }
 
     if (!(await pathExists(repoPath))) {
-      await ensureFreshClone()
+      const cloned = await ensureFreshClone()
+      if (!cloned.ok) {
+        throw new Error(await describeBrokenCache(repoPath, cloned.detail))
+      }
     } else {
-      const waitedExisting = await waitForGitWorkTree(repoPath, 3, 300)
-      repoPath = waitedExisting.repoPath
-      if (!waitedExisting.ok) {
-        // Stale/unreadable cache — wipe and clone again.
-        await ensureFreshClone()
+      // Wait out AV/disk lag BEFORE wiping — avoid re-clone storms on large repos.
+      const existing = await waitForGitWorkTree(repoPath, GIT_SETTLE_BUDGET_MS)
+      repoPath = existing.repoPath
+      if (!existing.ok) {
+        const recloned = await ensureFreshClone()
+        if (!recloned.ok) {
+          throw new Error(await describeBrokenCache(repoPath, recloned.detail))
+        }
       } else if (options.fetch !== false) {
         await gitFetchAll(repoPath, auth)
         synced = true
-        const afterFetch = await waitForGitWorkTree(repoPath, 3, 300)
+        const afterFetch = await waitForGitWorkTree(repoPath, GIT_SETTLE_FETCH_BUDGET_MS)
         repoPath = afterFetch.repoPath
         if (!afterFetch.ok) {
           throw new Error(await describeBrokenCache(repoPath, afterFetch.detail))
         }
       }
-    }
-
-    let check = await waitForGitWorkTree(repoPath)
-    repoPath = check.repoPath
-    if (!check.ok) {
-      // Last resort: wipe once more and plain-clone again.
-      check = await ensureFreshClone()
-    }
-    if (!check.ok) {
-      throw new Error(await describeBrokenCache(repoPath, check.detail))
     }
 
     return {
