@@ -111,10 +111,9 @@ async function describeBrokenCache(repoPath: string, gitDetail?: string): Promis
   }
   const entries = await listCacheEntries(repoPath)
   if (entries.length) {
-    parts.push(`目录内 ${entries.length} 项：${entries.slice(0, 12).join(', ')}${entries.length > 12 ? '…' : ''}。`)
-    if (entries.length > 0 && entries.length <= 12) {
-      parts.push('（完整仓库通常远不止这些文件，当前缓存很像克隆中断/残缺。）')
-    }
+    parts.push(
+      `目录内 ${entries.length} 项：${entries.slice(0, 12).join(', ')}${entries.length > 12 ? '…' : ''}。`,
+    )
   } else {
     parts.push('目录为空或不可读。')
   }
@@ -157,6 +156,29 @@ async function cloneRemoteCache(
     await wipeCache(repoPath)
     throw new Error(`克隆失败：${msg}`)
   }
+}
+
+/**
+ * After clone/fetch, Windows Defender / disk flush can make the first rev-parse flaky.
+ * We only start this AFTER `git clone` has exited — it is not a mid-clone race in our code.
+ */
+async function waitForGitWorkTree(
+  repoPath: string,
+  attempts = 6,
+  delayMs = 500,
+): Promise<{ ok: boolean; detail?: string; repoPath: string }> {
+  let pathToCheck = repoPath
+  let lastDetail = ''
+  for (let i = 0; i < attempts; i++) {
+    pathToCheck = await resolveUsableRepoPath(pathToCheck)
+    const check = await inspectGitWorkTree(pathToCheck)
+    if (check.ok) return { ok: true, repoPath: pathToCheck }
+    lastDetail = check.detail || lastDetail
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+  return { ok: false, detail: lastDetail, repoPath: pathToCheck }
 }
 
 /** If git landed one level deeper, promote that work-tree path. */
@@ -209,28 +231,35 @@ export async function resolveGitRepo(
     const ensureFreshClone = async () => {
       await cloneRemoteCache(remoteUrl, repoPath, cacheRoot, auth)
       synced = true
-      repoPath = await resolveUsableRepoPath(repoPath)
+      const waited = await waitForGitWorkTree(repoPath)
+      repoPath = waited.repoPath
+      return waited
     }
 
     if (!(await pathExists(repoPath))) {
       await ensureFreshClone()
     } else {
-      repoPath = await resolveUsableRepoPath(repoPath)
-      const existing = await inspectGitWorkTree(repoPath)
-      if (!existing.ok) {
-        // Stale/partial cache (tester case: only ~6 files, rev-parse not true).
+      const waitedExisting = await waitForGitWorkTree(repoPath, 3, 300)
+      repoPath = waitedExisting.repoPath
+      if (!waitedExisting.ok) {
+        // Stale/unreadable cache — wipe and clone again.
         await ensureFreshClone()
       } else if (options.fetch !== false) {
         await gitFetchAll(repoPath, auth)
         synced = true
+        const afterFetch = await waitForGitWorkTree(repoPath, 3, 300)
+        repoPath = afterFetch.repoPath
+        if (!afterFetch.ok) {
+          throw new Error(await describeBrokenCache(repoPath, afterFetch.detail))
+        }
       }
     }
 
-    let check = await inspectGitWorkTree(repoPath)
+    let check = await waitForGitWorkTree(repoPath)
+    repoPath = check.repoPath
     if (!check.ok) {
       // Last resort: wipe once more and plain-clone again.
-      await ensureFreshClone()
-      check = await inspectGitWorkTree(repoPath)
+      check = await ensureFreshClone()
     }
     if (!check.ok) {
       throw new Error(await describeBrokenCache(repoPath, check.detail))
