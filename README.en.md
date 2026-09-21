@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.1.4`** (git cache diagnostics + safe.directory mitigation)
+**Version: `0.1.5`** (stronger broken-cache diagnosis + safer re-clone)
 
 [中文](./README.md) · [English](./README.en.md)
 
@@ -102,7 +102,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
 3. Or use `/tracescope` Host capabilities from the session
 
-### npm packages (0.1.4)
+### npm packages (0.1.5)
 
 | Package | Role |
 |---------|------|
@@ -160,9 +160,9 @@ Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handt
 
 | Package | Version | Notes |
 |---------|---------|-------|
-| `@rebornace/tracescope-core` | 0.1.4 | Analysis, storage, Yunxiao/tracker, export |
-| `@rebornace/dsh-tracescope` | 0.1.4 | DSH Host + React Slot client |
-| `@rebornace/tracescope-mcp` | 0.1.4 | MCP server |
+| `@rebornace/tracescope-core` | 0.1.5 | Analysis, storage, Yunxiao/tracker, export |
+| `@rebornace/dsh-tracescope` | 0.1.5 | DSH Host + React Slot client |
+| `@rebornace/tracescope-mcp` | 0.1.5 | MCP server |
 | `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
 
 ## Known limitations (0.1.0)

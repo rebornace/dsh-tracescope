@@ -49,15 +49,55 @@ export type GitWorkTreeInspection = {
   detail?: string
 }
 
+function normalizeGitOutput(text: string): string {
+  return String(text || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/\0/g, '')
+    .trim()
+}
+
 /** Inspect whether path is a usable git work tree; keep failure reason for UI. */
 export async function inspectGitWorkTree(repoPath: string): Promise<GitWorkTreeInspection> {
   try {
     const { stdout, stderr } = await gitExec(['rev-parse', '--is-inside-work-tree'], {
       cwd: repoPath,
     })
-    if (stdout.trim() === 'true') return { ok: true }
-    const detail = redactSecrets((stderr || stdout || 'rev-parse 未返回 true').trim())
-    return { ok: false, detail }
+    const out = normalizeGitOutput(stdout)
+    const first = (out.split(/\r?\n/)[0] || '').trim()
+    if (first === 'true') return { ok: true }
+
+    // Extra probes so the panel can show something more useful than "未返回 true".
+    let gitDir = ''
+    let head = ''
+    let bare = ''
+    try {
+      gitDir = normalizeGitOutput(
+        (await gitExec(['rev-parse', '--git-dir'], { cwd: repoPath })).stdout,
+      )
+    } catch (error: unknown) {
+      gitDir = error instanceof Error ? error.message : String(error)
+    }
+    try {
+      bare = normalizeGitOutput(
+        (await gitExec(['rev-parse', '--is-bare-repository'], { cwd: repoPath })).stdout,
+      )
+    } catch {
+      bare = ''
+    }
+    try {
+      head = normalizeGitOutput((await gitExec(['rev-parse', 'HEAD'], { cwd: repoPath })).stdout)
+    } catch (error: unknown) {
+      head = error instanceof Error ? error.message : String(error)
+    }
+
+    const bits = [
+      `is-inside-work-tree=${JSON.stringify(out) || '""'}`,
+      stderr ? `stderr=${normalizeGitOutput(stderr)}` : '',
+      gitDir ? `git-dir=${gitDir}` : '',
+      bare ? `bare=${bare}` : '',
+      head ? `HEAD=${head}` : '',
+    ].filter(Boolean)
+    return { ok: false, detail: redactSecrets(bits.join('；')) }
   } catch (error: unknown) {
     return {
       ok: false,
