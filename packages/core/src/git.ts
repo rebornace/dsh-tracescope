@@ -257,6 +257,12 @@ export interface GitRefInfo {
   sha: string
   short: string
   kind: 'local' | 'remote' | 'tag'
+  /** Tip commit date (ISO / git date), when available. */
+  date?: string
+  /** Tip commit subject, when available. */
+  subject?: string
+  /** Epoch ms for sorting; higher = newer. */
+  activityTime?: number
 }
 
 /** Paths at `commit` (works for bare repos and work trees). */
@@ -356,7 +362,8 @@ export async function listGitRefs(repoPath: string): Promise<GitRefInfo[]> {
   const { stdout } = await gitExec(
     [
       'for-each-ref',
-      '--format=%(objectname)%09%(objectname:short)%09%(refname:short)%09%(refname)',
+      '--sort=-committerdate',
+      '--format=%(objectname)%09%(objectname:short)%09%(refname:short)%09%(refname)%09%(committerdate:unix)%09%(committerdate:iso-strict)%09%(subject)',
       'refs/heads',
       'refs/remotes',
       'refs/tags',
@@ -367,13 +374,26 @@ export async function listGitRefs(repoPath: string): Promise<GitRefInfo[]> {
   for (const line of stdout.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    const [sha = '', short = '', name = '', full = ''] = trimmed.split('\t')
+    const [sha = '', short = '', name = '', full = '', unix = '', date = '', ...subjectParts] =
+      trimmed.split('\t')
     if (!sha || !name) continue
     if (/\/HEAD$/i.test(name)) continue
     let kind: GitRefInfo['kind'] = 'local'
     if (full.startsWith('refs/remotes/')) kind = 'remote'
     else if (full.startsWith('refs/tags/')) kind = 'tag'
-    refs.push({ name, sha, short, kind })
+    const subject = subjectParts.join('\t').trim()
+    const unixSec = Number(unix)
+    const activityTime =
+      Number.isFinite(unixSec) && unixSec > 0 ? Math.round(unixSec * 1000) : 0
+    refs.push({
+      name,
+      sha,
+      short,
+      kind,
+      date: date || undefined,
+      subject: subject || undefined,
+      activityTime: activityTime || undefined,
+    })
   }
   return refs
 }

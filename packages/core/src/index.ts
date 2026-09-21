@@ -19,6 +19,7 @@ export {
   listCodeupBranches,
   listCodeupCommits,
   pageCodeupDiffs,
+  parseActivityTime,
   parseCodeupRemote,
   resolveCodeupTarget,
   type CodeupCommitInfo,

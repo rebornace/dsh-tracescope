@@ -584,6 +584,18 @@ window.__ModuleLoader__.load({
       return /^[0-9a-f]{7,40}$/i.test(String(value || '').trim())
     }
 
+    /** Branch picker ✓: branch name/tip, or a commit SHA loaded for that branch. */
+    function branchOwnsVersion(r, selected, commitListRef, commits) {
+      if (!r || !selected) return false
+      var sel = String(selected)
+      if (sel === r.name || (r.sha && sel === r.sha)) return true
+      if (!looksLikeCommitSha(sel)) return false
+      if (String(commitListRef || '') !== String(r.name || '')) return false
+      return (commits || []).some(function (c) {
+        return c && (c.sha === sel || (c.short && sel.indexOf(c.short) === 0))
+      })
+    }
+
     function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
       var branchOpts = []
       var tagOpts = []
@@ -639,15 +651,85 @@ window.__ModuleLoader__.load({
       return groups
     }
 
+    function parseActivityTime(value) {
+      if (value == null || value === '') return 0
+      if (typeof value === 'number' && isFinite(value)) {
+        return value > 0 && value < 1e12 ? Math.round(value * 1000) : Math.round(value)
+      }
+      var s = String(value).trim()
+      if (!s) return 0
+      if (/^\d{10,13}$/.test(s)) {
+        var n = Number(s)
+        return n < 1e12 ? n * 1000 : n
+      }
+      var normalized =
+        s.indexOf('T') !== -1
+          ? s
+          : s.replace(/^(\d{4}-\d{2}-\d{2})[ ](\d{2}:\d{2}:\d{2})/, '$1T$2')
+      var parsed = Date.parse(normalized)
+      if (!isNaN(parsed)) return parsed
+      var fallback = Date.parse(s)
+      return isNaN(fallback) ? 0 : fallback
+    }
+
+    function branchActivityScore(r) {
+      if (!r) return 0
+      if (typeof r.rank === 'number' && isFinite(r.rank)) {
+        // Codeup updated_desc: rank 0 is newest → higher score.
+        return 1e15 - r.rank
+      }
+      if (typeof r.activityTime === 'number' && r.activityTime > 0) return r.activityTime
+      return parseActivityTime(r.date)
+    }
+
     function matchingBranches(refs, query) {
       var branches = (refs || []).filter(function (r) {
         return r && r.name && r.kind !== 'tag'
       })
       var q = String(query || '').trim().toLowerCase()
-      if (!q) return branches
-      return branches.filter(function (r) {
-        return r.name.toLowerCase().indexOf(q) !== -1
+      if (q) {
+        branches = branches.filter(function (r) {
+          return r.name.toLowerCase().indexOf(q) !== -1
+        })
+      }
+      return branches.slice().sort(function (a, b) {
+        var sb = branchActivityScore(b)
+        var sa = branchActivityScore(a)
+        if (sb !== sa) return sb - sa
+        return String(a.name || '').localeCompare(String(b.name || ''))
       })
+    }
+
+    function newestBranchTip(refs) {
+      var list = matchingBranches(refs, '')
+      if (!list.length) return null
+      if (branchActivityScore(list[0]) <= 0) return null
+      return list[0]
+    }
+
+    function formatRefWhen(dateStr) {
+      if (!dateStr) return ''
+      var ms = parseActivityTime(dateStr)
+      if (!ms) return String(dateStr).slice(0, 16)
+      var d = new Date(ms)
+      if (isNaN(d.getTime())) return String(dateStr).slice(0, 16)
+      var diff = Date.now() - d.getTime()
+      if (diff >= 0 && diff < 60 * 1000) return '刚刚'
+      if (diff >= 0 && diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + ' 分钟前'
+      if (diff >= 0 && diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + ' 小时前'
+      if (diff >= 0 && diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + ' 天前'
+      function pad(n) {
+        return n < 10 ? '0' + n : String(n)
+      }
+      return (
+        pad(d.getMonth() + 1) +
+        '-' +
+        pad(d.getDate()) +
+        ' ' +
+        pad(d.getHours()) +
+        ':' +
+        pad(d.getMinutes())
+      )
     }
 
     function ItemCard(props) {
@@ -1852,18 +1934,42 @@ window.__ModuleLoader__.load({
                 ''
               setCommitListRef(shownRef)
               if (list.length && !(opts && opts.preserveSelection)) {
+                var newest =
+                  matchingBranches(data.refs || [], '')[0] || null
+                var currentRef = String(
+                  (data.commitRef && String(data.commitRef)) ||
+                    (opts && opts.refName) ||
+                    '',
+                )
+                // After sync: prefer the newest branch tip, then default pair on that branch.
+                if (
+                  newest &&
+                  newest.name &&
+                  !(opts && opts.refName) &&
+                  currentRef !== newest.name
+                ) {
+                  setTimeout(function () {
+                    loadCommits(forceFetch === false ? false : true, {
+                      refName: newest.name,
+                    })
+                  }, 0)
+                  return
+                }
                 // Latest = 待测；second-latest = 稳定
                 setHeadCommit(list[0].sha)
                 setBaseCommit(list[Math.min(1, list.length - 1)].sha)
                 setChatHint(
-                  '已同步版本' +
-                    (shownRef ? '（' + shownRef + '）' : '') +
+                  '已同步' +
+                    (currentRef || (newest && newest.name)
+                      ? '分支「' + (currentRef || newest.name) + '」'
+                      : '版本') +
                     '：待测 ' +
                     (list[0].short || list[0].sha.slice(0, 7)) +
-                    '，稳定 ' +
+                    '（最新），稳定 ' +
                     ((list[1] && (list[1].short || list[1].sha.slice(0, 7))) ||
                       list[0].short ||
-                      list[0].sha.slice(0, 7)),
+                      list[0].sha.slice(0, 7)) +
+                    (list[1] ? '（倒数第二）' : ''),
                 )
               } else if (list.length && opts && opts.refName) {
                 setChatHint(
@@ -4224,7 +4330,20 @@ window.__ModuleLoader__.load({
                       !branchPickerOpen
                         ? jsx('span', {
                             style: { color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
-                            children: refs && refs.length ? '按名称筛选，点稳定 / 待测后自动收起' : '先同步版本',
+                            children: (function () {
+                              var tip = newestBranchTip(refs)
+                              if (tip && tip.name) {
+                                return (
+                                  '同步后默认用最新分支 ' +
+                                  tip.name +
+                                  '：待测=最新提交，稳定=倒数第二' +
+                                  (tip.date ? ' · ' + formatRefWhen(tip.date) : '')
+                                )
+                              }
+                              return refs && refs.length
+                                ? '按名称筛选；点稳定 / 待测后自动收起'
+                                : '先同步版本'
+                            })(),
                           })
                         : null,
                     ],
@@ -4237,7 +4356,9 @@ window.__ModuleLoader__.load({
                             style: styles.input,
                             value: branchQuery,
                             disabled: busy || !(refs && refs.length),
-                            placeholder: refs && refs.length ? '输入分支名筛选，例如 develop' : '先同步版本',
+                            placeholder: refs && refs.length
+                              ? '输入分支名筛选；列表按最新提交时间排序'
+                              : '先同步版本',
                             onChange: function (e) {
                               setBranchQuery(e.target.value)
                             },
@@ -4253,15 +4374,29 @@ window.__ModuleLoader__.load({
                             children: (function () {
                               var matched = matchingBranches(refs, branchQuery)
                               var shown = matched.slice(0, 40)
+                              var newest = matched[0] || null
+                              var newestScore = newest ? branchActivityScore(newest) : 0
                               if (!shown.length) {
                                 return jsx('div', {
                                   style: { padding: '8px 10px', color: '#6b645a', fontSize: 12 },
                                   children: refs && refs.length ? '没有匹配的分支' : '同步后在这里选分支',
                                 })
                               }
-                              return shown.map(function (r) {
-                                var onHead = headCommit === r.name || headCommit === r.sha
-                                var onBase = baseCommit === r.name || baseCommit === r.sha
+                              return shown.map(function (r, idx) {
+                                var onHead = branchOwnsVersion(
+                                  r,
+                                  headCommit,
+                                  commitListRef,
+                                  commits,
+                                )
+                                var onBase = branchOwnsVersion(
+                                  r,
+                                  baseCommit,
+                                  commitListRef,
+                                  commits,
+                                )
+                                var isNewest =
+                                  idx === 0 && newestScore > 0 && newest && r.name === newest.name
                                 function pickBranch(target) {
                                   if (busy) return
                                   viewingHistoryRef.current = null
@@ -4285,22 +4420,64 @@ window.__ModuleLoader__.load({
                                       gap: 6,
                                       padding: '6px 8px',
                                       borderBottom: '1px solid #efe8da',
-                                      background: onHead || onBase ? '#f3faf6' : 'transparent',
+                                      background: isNewest
+                                        ? '#eef6ff'
+                                        : onHead || onBase
+                                          ? '#f3faf6'
+                                          : 'transparent',
                                     },
                                     children: [
-                                      jsx('div', {
+                                      jsxs('div', {
                                         style: {
                                           flex: 1,
                                           minWidth: 0,
                                           fontSize: 12,
                                           lineHeight: 1.35,
-                                          wordBreak: 'break-all',
                                         },
-                                        title: r.name,
-                                        children:
-                                          (r.kind === 'remote' ? '远端 ' : '') +
+                                        title:
                                           r.name +
-                                          (r.short ? ' · ' + r.short : ''),
+                                          (r.subject ? '\n' + r.subject : '') +
+                                          (r.date ? '\n' + r.date : ''),
+                                        children: [
+                                          jsxs('div', {
+                                            style: { wordBreak: 'break-all' },
+                                            children: [
+                                              (r.kind === 'remote' ? '远端 ' : '') + r.name,
+                                              r.short
+                                                ? jsx('span', {
+                                                    style: { color: '#8a7f70' },
+                                                    children: ' · ' + r.short,
+                                                  })
+                                                : null,
+                                              isNewest
+                                                ? jsx('span', {
+                                                    style: Object.assign({}, styles.badge, {
+                                                      marginLeft: 6,
+                                                      background: '#dbeafe',
+                                                      color: '#1d4ed8',
+                                                    }),
+                                                    children: '最新',
+                                                  })
+                                                : null,
+                                            ],
+                                          }),
+                                          r.date || r.subject
+                                            ? jsx('div', {
+                                                style: {
+                                                  color: '#6b645a',
+                                                  fontSize: 11,
+                                                  marginTop: 2,
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap',
+                                                },
+                                                children:
+                                                  (r.date ? formatRefWhen(r.date) : '') +
+                                                  (r.date && r.subject ? ' · ' : '') +
+                                                  (r.subject || ''),
+                                              })
+                                            : null,
+                                        ],
                                       }),
                                       jsx('button', {
                                         type: 'button',

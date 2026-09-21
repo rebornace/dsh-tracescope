@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.1.9`**（分支筛选、个人访问令牌持久化；本地 Git 对象分析 / 云效 API 兜底）
+**版本: `0.1.10`**（同步默认最新分支 + 稳定/待测提交；分支筛选与个人访问令牌持久化）
 
 功能节点见 [更新日志](./CHANGELOG.md)。下面是**当前版本**能力，不是 0.1.0 的快照。
 
@@ -16,7 +16,7 @@ TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 �
 | `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
 | `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
 
-## 当前能力（0.1.9）
+## 当前能力（0.1.10）
 
 - **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）。本地 Git 按**提交对象**建索引，不要求工作区文件此刻能被打开
 - **读取方式**：本地 Git，或**云效代码接口**兜底（无 Git 时只出直接变更清单；模型对话仍可读 diff）
@@ -114,7 +114,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
 3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
 
-### npm 包（0.1.9）
+### npm 包（0.1.10）
 
 | 包 | 用途 |
 |----|------|
@@ -182,9 +182,9 @@ DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`traces
 
 | 包 | 版本 | 说明 |
 |----|------|------|
-| `@rebornace/tracescope-core` | 0.1.9 | 分析、报告存储、云效 / Tracker、导出 |
-| `@rebornace/dsh-tracescope` | 0.1.9 | DSH Host + React Slot Client |
-| `@rebornace/tracescope-mcp` | 0.1.9 | MCP Server |
+| `@rebornace/tracescope-core` | 0.1.10 | 分析、报告存储、云效 / Tracker、导出 |
+| `@rebornace/dsh-tracescope` | 0.1.10 | DSH Host + React Slot Client |
+| `@rebornace/tracescope-mcp` | 0.1.10 | MCP Server |
 | `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
 ## 已知限制
