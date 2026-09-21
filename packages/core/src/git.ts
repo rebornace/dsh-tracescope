@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { buildGitAuthEnv, redactSecrets, type GitAuth } from './auth.js'
 
@@ -84,6 +84,7 @@ export async function inspectGitWorkTree(repoPath: string): Promise<GitWorkTreeI
     } catch {
       bare = ''
     }
+    if ((bare.split(/\r?\n/)[0] || '').trim() === 'true') return { ok: true }
     try {
       head = normalizeGitOutput((await gitExec(['rev-parse', 'HEAD'], { cwd: repoPath })).stdout)
     } catch (error: unknown) {
@@ -230,6 +231,98 @@ export interface GitRefInfo {
   sha: string
   short: string
   kind: 'local' | 'remote' | 'tag'
+}
+
+/** Paths at `commit` (works for bare repos and work trees). */
+export async function gitListTree(repoPath: string, commit: string): Promise<string[]> {
+  const { stdout } = await gitExec(['ls-tree', '-r', '--name-only', commit], {
+    cwd: repoPath,
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+const MAX_BLOB_BYTES = 1_500_000
+
+/**
+ * Read blobs at `commit:path` without a checkout. Skips missing or oversized blobs.
+ * Responses are matched to `relativePaths` in request order.
+ */
+export function readGitBlobs(
+  repoPath: string,
+  commit: string,
+  relativePaths: string[],
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>()
+  if (relativePaths.length === 0) return Promise.resolve(files)
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-c', 'safe.directory=*', 'cat-file', '--batch'], {
+      cwd: repoPath,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    const stderrChunks: Buffer[] = []
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderrChunks.push(chunk)
+    })
+    child.on('error', reject)
+
+    let buf = Buffer.alloc(0)
+    let readingBody = false
+    let size = 0
+    let index = 0
+
+    const consume = () => {
+      for (;;) {
+        if (!readingBody) {
+          const nl = buf.indexOf(0x0a)
+          if (nl < 0) return
+          const header = buf.subarray(0, nl).toString('utf8')
+          buf = buf.subarray(nl + 1)
+          if (header.endsWith(' missing')) {
+            index += 1
+            continue
+          }
+          const parts = header.split(' ')
+          size = Number(parts[parts.length - 1] ?? '')
+          if (!Number.isFinite(size) || size < 0) {
+            index += 1
+            continue
+          }
+          readingBody = true
+        }
+        if (buf.length < size + 1) return
+        const rel = relativePaths[index]
+        const body = buf.subarray(0, size)
+        buf = buf.subarray(size + 1)
+        index += 1
+        readingBody = false
+        if (rel && body.length <= MAX_BLOB_BYTES) {
+          files.set(rel, body.toString('utf8'))
+        }
+      }
+    }
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      buf = Buffer.concat([buf, chunk])
+      consume()
+    })
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const detail = Buffer.concat(stderrChunks).toString('utf8').trim()
+        reject(new Error(detail || `git cat-file exited ${code}`))
+        return
+      }
+      resolve(files)
+    })
+
+    for (const rel of relativePaths) {
+      child.stdin.write(`${commit}:${rel}\n`)
+    }
+    child.stdin.end()
+  })
 }
 
 /** List local branches, remote-tracking branches, and tags for UI pickers. */

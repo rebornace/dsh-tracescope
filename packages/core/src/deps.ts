@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { gitListTree, readGitBlobs } from './git.js'
 import { detectLanguage } from './heuristics.js'
 
 export interface SourceIndex {
@@ -9,29 +10,20 @@ export interface SourceIndex {
   reverseDeps: Map<string, Set<string>>
 }
 
-/**
- * Build a lightweight reverse-dependency index for Kotlin + Objective-C sources
- * under `rootDir` (working tree). Good enough for V0.1 static ripple.
- */
-export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
-  const files = new Map<string, string>()
-  const byStem = new Map<string, string[]>()
+function isIndexedSource(rel: string): boolean {
+  const lang = detectLanguage(rel)
+  if (lang === 'kotlin' || lang === 'objc') return true
+  return lang === 'resource' && /\.(xml|strings)$/i.test(rel)
+}
 
-  await walk(rootDir, rootDir, async (rel, abs) => {
-    const lang = detectLanguage(rel)
-    if (lang !== 'kotlin' && lang !== 'objc' && lang !== 'resource') return
-    if (lang === 'resource' && !/\.(xml|strings)$/i.test(rel)) return
-    try {
-      const content = await readFile(abs, 'utf8')
-      files.set(rel, content)
-      const stem = path.basename(rel).replace(/\.(kt|kts|m|mm|h|xml)$/i, '')
-      const list = byStem.get(stem) ?? []
-      list.push(rel)
-      byStem.set(stem, list)
-    } catch {
-      // ignore unreadable
-    }
-  })
+function indexFromFiles(files: Map<string, string>): SourceIndex {
+  const byStem = new Map<string, string[]>()
+  for (const rel of files.keys()) {
+    const stem = path.basename(rel).replace(/\.(kt|kts|m|mm|h|xml)$/i, '')
+    const list = byStem.get(stem) ?? []
+    list.push(rel)
+    byStem.set(stem, list)
+  }
 
   const reverseDeps = new Map<string, Set<string>>()
   const ensure = (key: string) => {
@@ -56,6 +48,39 @@ export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
   }
 
   return { files, reverseDeps }
+}
+
+/**
+ * Build a lightweight reverse-dependency index for Kotlin + Objective-C sources
+ * under `rootDir` (working tree). Good enough for V0.1 static ripple.
+ */
+export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
+  const files = new Map<string, string>()
+
+  await walk(rootDir, rootDir, async (rel, abs) => {
+    if (!isIndexedSource(rel)) return
+    try {
+      files.set(rel, await readFile(abs, 'utf8'))
+    } catch {
+      // ignore unreadable
+    }
+  })
+
+  return indexFromFiles(files)
+}
+
+/**
+ * Same index as `buildSourceIndex`, but from git blobs at `commit`.
+ * Does not need a checked-out work tree (bare repos included).
+ */
+export async function buildSourceIndexAtCommit(
+  repoPath: string,
+  commit: string,
+): Promise<SourceIndex> {
+  const names = await gitListTree(repoPath, commit)
+  const wanted = names.filter(isIndexedSource)
+  const files = await readGitBlobs(repoPath, commit, wanted)
+  return indexFromFiles(files)
 }
 
 function collectReferences(content: string, lang: ReturnType<typeof detectLanguage>): string[] {

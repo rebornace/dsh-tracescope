@@ -8,7 +8,7 @@ import {
   extractObjCNavTitles,
   pickBestTitle,
 } from './display-names.js'
-import { buildSourceIndex, rippleFrom } from './deps.js'
+import { buildSourceIndex, buildSourceIndexAtCommit, rippleFrom } from './deps.js'
 import { gitDiffFiles, gitRevParse } from './git.js'
 import {
   classifyFileRisk,
@@ -128,7 +128,12 @@ export async function analyzeImpact(options: AnalyzeImpactOptions): Promise<Impa
 
   const modulesConfig =
     options.modulesConfig ?? (await loadModulesConfig(options.modulesConfigPath))
-  const index = await buildSourceIndex(repoPath)
+  let index
+  try {
+    index = await buildSourceIndexAtCommit(repoPath, headCommit)
+  } catch {
+    index = await buildSourceIndex(repoPath)
+  }
 
   type Acc = {
     displayName: string

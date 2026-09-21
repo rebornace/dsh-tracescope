@@ -938,6 +938,10 @@ window.__ModuleLoader__.load({
       var _settingsOpen = useState(!initialRepo)
       var settingsOpen = _settingsOpen[0]
       var setSettingsOpen = _settingsOpen[1]
+      var ACCESS_MODE_KEY = 'tracescope.accessMode'
+      var _accessMode = useState(localStorage.getItem(ACCESS_MODE_KEY) === 'codeup' ? 'codeup' : 'git')
+      var accessMode = _accessMode[0]
+      var setAccessMode = _accessMode[1]
       var _copyFlash = useState('')
       var copyFlash = _copyFlash[0]
       var setCopyFlash = _copyFlash[1]
@@ -1571,23 +1575,41 @@ window.__ModuleLoader__.load({
             setError('请填写本地路径或远端仓库地址')
             return
           }
-          if (authMode === 'https' && !authToken.trim()) {
-            setError('私有仓请填写 HTTPS Token')
-            return
-          }
-          if (authMode === 'ssh' && !authKey.trim()) {
-            setError('请填写 SSH 私钥文件的本机绝对路径')
-            return
+          var codeupToken = (yxToken || (authMode === 'https' ? authToken : '')).trim()
+          if (accessMode === 'codeup') {
+            if (!codeupToken) {
+              setError('云效接口兜底需要个人访问令牌：填写缺陷配置里的云效 Token，或仓库 HTTPS Token（需有代码读权限）')
+              return
+            }
+          } else {
+            if (authMode === 'https' && !authToken.trim()) {
+              setError('私有仓请填写 HTTPS Token')
+              return
+            }
+            if (authMode === 'ssh' && !authKey.trim()) {
+              setError('请填写 SSH 私钥文件的本机绝对路径')
+              return
+            }
           }
           localStorage.setItem(REPO_PATH_KEY, repoPath.trim())
+          localStorage.setItem(ACCESS_MODE_KEY, accessMode)
           rememberRepo(repoPath.trim())
           persistAuth()
-          if (!beginBusy('正在同步仓库版本…')) return
+          if (!beginBusy(accessMode === 'codeup' ? '正在通过云效接口读取版本…' : '正在同步仓库版本…')) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
             fetch: forceFetch === false ? false : true,
             auth: buildAuthPayload(),
+            accessMode: accessMode,
+            codeup:
+              accessMode === 'codeup'
+                ? {
+                    endpoint: yxEndpoint,
+                    token: codeupToken,
+                    organizationId: yxOrg.trim(),
+                  }
+                : undefined,
           })
             .then(function (data) {
               setResolved(data.resolved || null)
@@ -1615,13 +1637,16 @@ window.__ModuleLoader__.load({
               endBusy()
             })
         },
-        [repoPath, authMode, authUser, authToken, authKey, rememberAuth],
+        [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxEndpoint, yxOrg],
       )
 
       useEffect(
         function () {
           if (!authHydrated) return
           if (!repoPath.trim()) return
+          if (accessMode === 'codeup' && !(yxToken || (authMode === 'https' ? authToken : '')).trim()) {
+            return
+          }
           if (skipAutoSyncRef.current) {
             skipAutoSyncRef.current = false
             // Still refresh commit list for dropdowns without changing selected pair.
@@ -1630,8 +1655,8 @@ window.__ModuleLoader__.load({
           }
           loadCommits(true)
         },
-        // Intentionally sync when auth is ready or active repo changes.
-        [authHydrated, repoPath],
+        // Sync when the repo, access mode, or (for the Codeup fallback) token becomes available.
+        [authHydrated, repoPath, accessMode, yxToken, authToken, authMode],
       )
 
       var selectedRelatedWorkItems = useCallback(
@@ -1661,6 +1686,15 @@ window.__ModuleLoader__.load({
               headCommit: headCommit,
               rippleDepth: 2,
               auth: buildAuthPayload(),
+              accessMode: accessMode,
+              codeup:
+                accessMode === 'codeup'
+                  ? {
+                      endpoint: yxEndpoint,
+                      token: (yxToken || (authMode === 'https' ? authToken : '')).trim(),
+                      organizationId: yxOrg.trim(),
+                    }
+                  : undefined,
               relatedWorkItems: related,
             })
             .then(function (data) {
@@ -1668,9 +1702,11 @@ window.__ModuleLoader__.load({
               setTab('direct')
               viewingHistoryRef.current = null
               setChatHint(
-                related.length
-                  ? '已生成清单（含 ' + related.length + ' 条关联敏捷任务种子），并保存到本机。'
-                  : '已生成确定性清单并保存到本机。需要模型互动分析时点「模型对话分析」。',
+                accessMode === 'codeup'
+                  ? '已通过云效接口生成直接变更清单（无静态波及）。需要模型看 diff 时点「模型对话分析」。'
+                  : related.length
+                    ? '已生成清单（含 ' + related.length + ' 条关联敏捷任务种子），并保存到本机。'
+                    : '已生成确定性清单并保存到本机。需要模型互动分析时点「模型对话分析」。',
               )
               refreshHistory()
             })
@@ -1702,6 +1738,10 @@ window.__ModuleLoader__.load({
           authUser,
           authToken,
           authKey,
+          accessMode,
+          yxToken,
+          yxEndpoint,
+          yxOrg,
           rememberAuth,
           refreshHistory,
           report,
@@ -1727,6 +1767,15 @@ window.__ModuleLoader__.load({
               headCommit: headCommit,
               fetch: true,
               auth: buildAuthPayload(),
+              accessMode: accessMode,
+              codeup:
+                accessMode === 'codeup'
+                  ? {
+                      endpoint: yxEndpoint,
+                      token: (yxToken || (authMode === 'https' ? authToken : '')).trim(),
+                      organizationId: yxOrg.trim(),
+                    }
+                  : undefined,
               relatedWorkItems: related,
             })
               .then(function (data) {
@@ -1787,6 +1836,10 @@ window.__ModuleLoader__.load({
           authUser,
           authToken,
           authKey,
+          accessMode,
+          yxToken,
+          yxEndpoint,
+          yxOrg,
           rememberAuth,
           report,
           selectedRelatedWorkItems,
@@ -2725,7 +2778,11 @@ window.__ModuleLoader__.load({
                       shortRepoLabel(repoPath) +
                       (resolved
                         ? ' · ' +
-                          (resolved.source === 'remote' ? '远端缓存' : '本地') +
+                          (resolved.source === 'codeup'
+                            ? '云效接口'
+                            : resolved.source === 'remote'
+                              ? '远端缓存'
+                              : '本地') +
                           (resolved.authMode && resolved.authMode !== 'none'
                             ? ' · 认证 ' + resolved.authMode
                             : '')
@@ -2755,6 +2812,38 @@ window.__ModuleLoader__.load({
                             onBlur: function () {
                               if (repoPath.trim()) rememberRepo(repoPath.trim())
                             },
+                          }),
+                        ],
+                      }),
+                      jsxs('label', {
+                        style: styles.label,
+                        children: [
+                          '读取方式',
+                          jsx('select', {
+                            style: styles.input,
+                            value: accessMode,
+                            disabled: busy,
+                            onChange: function (e) {
+                              var next = e.target.value === 'codeup' ? 'codeup' : 'git'
+                              setAccessMode(next)
+                              try {
+                                localStorage.setItem(ACCESS_MODE_KEY, next)
+                              } catch (_e) {}
+                            },
+                            children: [
+                              jsx('option', { value: 'git', children: '本地 Git（检出或对象库）' }, 'mode-git'),
+                              jsx('option', {
+                                value: 'codeup',
+                                children: '云效代码接口（无 Git 兜底）',
+                              }, 'mode-codeup'),
+                            ],
+                          }),
+                          jsx('span', {
+                            style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
+                            children:
+                              accessMode === 'codeup'
+                                ? '不克隆仓库。用云效 OpenAPI 拉提交和 diff，可生成直接变更清单，模型对话也能看 diff。静态波及需要本地 Git。令牌用缺陷配置里的云效 Token，没有则用 HTTPS Token。'
+                                : '同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。',
                           }),
                         ],
                       }),

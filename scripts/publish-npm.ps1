@@ -43,4 +43,4 @@ foreach ($pkg in $packages) {
 }
 
 Write-Host ""
-Write-Host "All published: $($packages -join ', ')@0.1.7" -ForegroundColor Green
+Write-Host "All published: $($packages -join ', ')@0.1.8" -ForegroundColor Green
