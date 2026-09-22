@@ -6,7 +6,12 @@
 
 [中文](./README.md) · [English](./README.en.md)
 
-TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 → 待测版本」的代码差异，快速得到**要测哪些功能**的清单，并在 DeepSeek Harness **Web / Desktop** 右侧栏里完成勾选、备注、截图、附件与缺陷提交。
+TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代码改动会影响什么」的人——**开发者、测试都适用**。给定两个版本（稳定 → 待测，或任意基线 → 目标提交），它从代码差异快速生成**影响面清单**：直接变更 + 反向依赖波及。
+
+- **开发者**：提交 / 合并前用它自查改动面，确认波及的页面与模块，按清单自检后再提测；发现问题可直接记录并提交 issue
+- **测试 / QA**：快速确定回归范围，把清单当作手测 checklist，逐项核对、标注、截图，并提交缺陷、导出报告
+
+核对、标注、截图、附件与 issue 提交都能在 DeepSeek Harness **Web / Desktop** 右侧栏完成；也可以通过 MCP 在 Cursor / Claude 等任意客户端里调用分析能力。
 
 能力通过两层分发（详见 [ARCHITECTURE.md](./ARCHITECTURE.md)）：
 
@@ -27,17 +32,17 @@ TraceScope（仓库名 `dsh-tracescope`）帮助测试同学从「稳定版本 �
 - **远端缓存**：新同步为 bare 对象库（`~/.tracescope/repos`）。已有完整检出可继续用
 - **人话功能名**：`tracescope.modules.yml` 映射 → 静态标题抽取 → 启发式命名
 - **DSH 右侧栏**：多仓库、远端认证、默认同步「待测 / 稳定」版本；加载中锁定其它操作
-- **生成手测清单**：确定性分析并落盘；同版本对比只保留最新一条历史
+- **生成影响面清单**：确定性分析并落盘；同版本对比只保留最新一条历史
 - **模型对话分析**：创建聊天任务、写入会话草稿、`tracescope_publish_handtest` 回写清单
-- **勾选状态**：通过 / 失败 / 跳过 / 重置；失败可填备注 + **每条最多 3 张截图**
+- **逐项标注**：通过 / 失败 / 跳过 / 重置；问题项可填备注 + **每条最多 3 张截图**
 - **任务级附件**：视频 / 文档等挂在整份对比任务上（最多 8 个，不跟单条 checklist）
 - **关联云效敏捷任务**：类型可多选，任务可多选，辅助生成清单种子 / 模型提示
-- **缺陷平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook  
+- **协作平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook  
   - 提交时可**修改默认标题**  
-  - 云效：任务附件真实上传；截图嵌入缺陷**详情**对应条目（`![文件名](embedUrl)`）  
+  - 云效：任务附件真实上传；截图嵌入工作项**详情**对应条目（`![文件名](embedUrl)`）  
   - 云效目录请求可在面板查看日志（不含 token）
-- **导出**：Markdown / CSV；复制失败反馈
-- **本机数据**：`~/.tracescope/`（认证、缺陷配置、报告、附件、远端缓存）
+- **导出**：Markdown / CSV；复制问题反馈
+- **本机数据**：`~/.tracescope/`（认证、协作平台配置、报告、附件、远端缓存）
 
 ## 环境要求
 
@@ -74,7 +79,7 @@ pnpm --filter @rebornace/tracescope-mcp build
 ### 方式一：dsh-market 插件市场搜索安装（推荐）
 
 1. 在 DSH **Web** 或 **Desktop** 中打开 [dsh-market](https://github.com/dsh-market/dsh-market) 市场面板  
-2. 搜索关键词：`tracescope`、`dsh-tracescope`、`手测` 或 `影响面`  
+2. 搜索关键词：`tracescope`、`dsh-tracescope`、`影响面`、`自查` 或 `手测`  
 3. 选择 **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope`，一键安装到当前 profile  
 
 已收录于 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（[PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)）。npm 包带 `dsh-plugin` 等关键词，便于市场与 registry 检索。
@@ -126,17 +131,19 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 | [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 分析引擎（插件依赖） |
 | [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | 独立 MCP Server |
 
-## 测试同学操作流程
+## 使用流程
 
-1. **选仓库与读取方式**：本地路径或远端 URL。默认「本地 Git」（HTTPS Token / SSH 私钥可记住）。没有 git 或缓存一直失败时，改成「云效代码接口」，地址用 `https://codeup.aliyun.com/<组织ID>/组/仓库.git`，令牌用云效 Token 或 HTTPS Token（需代码读权限）
-2. **同步版本**：默认待测 = 最新提交，稳定 = 次新提交；也可手动改。云效接口模式按默认分支拉近期提交
-3. **（可选）缺陷平台**：仓库配置里选云效 / GitHub / GitLab / Webhook 并保存  
+适用于开发者提测前自查，也适用于测试确定回归范围，步骤相同：
+
+1. **选仓库与读取方式**：本地路径或远端 URL。默认「本地 Git」（HTTPS Token / SSH 私钥可记住）。没有 git 或缓存一直失败时，可改成「云效代码接口」，地址用 `https://codeup.aliyun.com/<组织ID>/组/仓库.git`，令牌用云效 Token 或 HTTPS Token（需代码读权限）
+2. **同步版本**：同步后自动选最新分支，默认待测（目标）= 最新提交、稳定（基线）= 次新提交；也可手动改。云效接口模式按默认分支拉近期提交
+3. **（可选）协作平台**：仓库配置里选云效 / GitHub / GitLab / Webhook 并保存  
    - 云效：填 token → 拉取企业 → 选项目 / 缺陷类型 / 负责人
-4. **（可选）关联敏捷任务**：勾选类型 → 拉取任务 → 多选后，再点「生成手测清单」或「模型对话分析」
+4. **（可选）关联敏捷任务**：勾选类型 → 拉取任务 → 多选后，再点「生成清单」或「模型对话分析」
 5. **生成清单**或**模型对话分析**（有清单时会二次确认）。云效接口模式的确定性清单只有直接变更
-6. **手测勾选**：失败条目填写备注、添加截图（可选文件或 Ctrl+V）
+6. **逐项核对并标注**：按清单走查，标记通过 / 失败 / 跳过；有问题填写备注、添加截图（可选文件或 Ctrl+V）
 7. **任务附件**：在清单区域上传录像 / 文档（小文件选文件；大视频可用本机绝对路径）
-8. **复制失败反馈** / **提交缺陷**（可改标题） / **导出报告**
+8. **复制问题反馈** / **提交 issue（缺陷）**（可改标题） / **导出报告**
 
 ## 可选：模块映射
 
@@ -147,8 +154,8 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 | 路径 | 内容 |
 |------|------|
 | `~/.tracescope/auth.json`（及认证存储） | Git 远端凭据（可选记住） |
-| `~/.tracescope/tracker.json` | 缺陷平台配置 |
-| `~/.tracescope/reports/` | 手测清单最新版 + 历史索引 |
+| `~/.tracescope/tracker.json` | 协作平台配置 |
+| `~/.tracescope/reports/` | 影响面清单最新版 + 历史索引 |
 | `~/.tracescope/attachments/<reportKey>/` | 任务级附件二进制 |
 | `~/.tracescope/repos/` | 远端仓库本地缓存（如适用） |
 

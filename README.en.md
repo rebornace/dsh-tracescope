@@ -6,7 +6,12 @@ Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **curr
 
 [中文](./README.md) · [English](./README.en.md)
 
-**TraceScope** (`dsh-tracescope` monorepo) turns a **stable → under-test git commit pair** into a **manual-test scope checklist**, then lets testers mark pass/fail, attach screenshots and task-level files, and submit defects—from a **DeepSeek Harness Web or Desktop** right-sidebar UI.
+**TraceScope** (`dsh-tracescope` monorepo) is for anyone who needs to understand the impact of a code change—**developers and testers alike**. Given two revisions (a stable baseline → an under-test target, or any base → target commit), it turns the diff into an **impact checklist**: direct changes plus reverse-dependency ripple.
+
+- **Developers**: self-review the scope of a change before committing/merging, confirm which pages and modules are affected, and walk the checklist before handing off; log issues and submit them directly when found
+- **Testers / QA**: quickly determine the regression scope, use the checklist as a manual-test plan, mark results, attach screenshots, submit defects, and export reports
+
+Review, marking, screenshots, attachments and issue submission all live in the **DeepSeek Harness Web or Desktop** right sidebar; the same analysis is also available over MCP from Cursor / Claude or any other client.
 
 Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 
@@ -24,16 +29,16 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 - **Remote cache**: new syncs are bare object repos under `~/.tracescope/repos`. Existing checkouts keep working
 - **Product-facing names**: modules YAML → static title extraction → heuristics
 - **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits; other actions lock while a request is in flight
-- **Generate checklist**: deterministic analyze + persist; one history row per comparison pair
+- **Generate impact checklist**: deterministic analyze + persist; one history row per comparison pair
 - **Chat / model analysis**: job + composer draft + `tracescope_publish_handtest`
-- **Checklist status**: pass / fail / skip / reset; fail notes + **up to 3 screenshots per item**
+- **Per-item status**: pass / fail / skip / reset; problem items get notes + **up to 3 screenshots per item**
 - **Task-level attachments**: videos/docs on the whole comparison (max 8), not per checklist row
 - **Yunxiao agile work items**: multi-select categories + items to seed checklist / prompts
-- **Issue trackers**: Yunxiao / GitHub / GitLab / Webhook  
+- **Issue trackers / collaboration**: Yunxiao / GitHub / GitLab / Webhook  
   - Editable default title on submit  
-  - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each failed item (`![filename](embedUrl)`)  
+  - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each problem item (`![filename](embedUrl)`)  
   - Yunxiao catalog calls can be inspected in an in-panel log (token redacted)
-- **Export**: Markdown / CSV; copy fail feedback
+- **Export**: Markdown / CSV; copy issue feedback
 - **Local data**: under `~/.tracescope/`
 
 ## Requirements
@@ -66,7 +71,7 @@ Per the [official DSH publish guide](https://github.com/deepseek-ai/deepseek-har
 ### Option 1: Search and install in dsh-market (recommended)
 
 1. Open the [dsh-market](https://github.com/dsh-market/dsh-market) panel inside DSH **Web** or **Desktop**
-2. Search for `tracescope`, `dsh-tracescope`, or `hand-test`
+2. Search for `tracescope`, `dsh-tracescope`, `impact`, or `manual-test`
 3. Install **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope` into the current profile
 
 Listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) ([PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)). The npm package includes `dsh-plugin` keywords for catalog / registry search.
@@ -116,16 +121,18 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 | [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | Analysis engine (plugin dependency) |
 | [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | Standalone MCP server |
 
-## Tester workflow
+## Workflow
+
+The same steps work for a developer's pre-handoff self-review and a tester scoping regression:
 
 1. Pick a repo and a read mode. Default is local git (HTTPS token or SSH key as needed). If git is missing or the cache never becomes usable, switch to the Codeup API and use a `https://codeup.aliyun.com/<orgId>/group/repo.git` URL plus a token with code read access
-2. Sync versions (defaults: latest = under-test, second-latest = stable). Codeup mode lists recent commits on the default branch
-3. Optionally configure a defect platform (Yunxiao catalogs via token + dropdowns)
+2. Sync versions: sync jumps to the newest branch; defaults are latest commit = under-test (target), second-latest = stable (baseline). Both can be changed manually. Codeup mode lists recent commits on the default branch
+3. Optionally configure a collaboration platform (Yunxiao catalogs via token + dropdowns)
 4. Optionally link Yunxiao agile work items (multi-select types + items)
 5. **Generate checklist** or **Chat analysis** (confirm if overwriting). The Codeup deterministic checklist is direct changes only
-6. Mark results; on fail, add notes and screenshots (file picker or paste)
+6. Walk the checklist and mark each item: pass / fail / skip; on problems, add notes and screenshots (file picker or paste)
 7. Add task-level video/doc attachments
-8. Copy fail feedback / submit defect (editable title) / export report
+8. Copy issue feedback / submit issue (editable title) / export report
 
 ## Optional module mapping
 
@@ -136,8 +143,8 @@ See [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 | Path | Contents |
 |------|----------|
 | `~/.tracescope/` auth store | Optional remembered git credentials |
-| `~/.tracescope/tracker.json` | Defect platform config |
-| `~/.tracescope/reports/` | Latest checklist + history index |
+| `~/.tracescope/tracker.json` | Collaboration platform config |
+| `~/.tracescope/reports/` | Latest impact checklist + history index |
 | `~/.tracescope/attachments/<reportKey>/` | Task attachment binaries |
 | `~/.tracescope/repos/` | Cached remote clones (when used) |
 
