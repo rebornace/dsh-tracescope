@@ -1051,6 +1051,427 @@ window.__ModuleLoader__.load({
       return /^https:\/\/codeup\.aliyun\.com\//i.test(String(value || '').trim())
     }
 
+    var VISUAL_PROPERTY_LABELS = {
+      width: '宽度',
+      height: '高度',
+      marginTop: '上外边距',
+      marginRight: '右外边距',
+      marginBottom: '下外边距',
+      marginLeft: '左外边距',
+      paddingTop: '上内边距',
+      paddingRight: '右内边距',
+      paddingBottom: '下内边距',
+      paddingLeft: '左内边距',
+      backgroundColor: '背景色',
+      borderWidth: '边框宽',
+      borderColor: '边框色',
+      cornerRadius: '圆角',
+      opacity: '不透明度',
+      fontFamily: '字体',
+      fontSize: '字号',
+      fontWeight: '字重',
+      lineHeight: '行高',
+      letterSpacing: '字间距',
+      color: '文字色',
+    }
+
+    function VisualValue(props) {
+      var value = props.value
+      if (value && typeof value === 'object' && value.unresolved) {
+        return jsx('span', {
+          style: { color: '#9a6700' },
+          title: value.raw,
+          children: '待确认：' + value.raw,
+        })
+      }
+      return jsx('span', { children: String(value) })
+    }
+
+    function VisualCompareCard(props) {
+      var repoInput = props.repoInput || ''
+      var auth = props.auth
+      var _figmaUrl = useState('')
+      var figmaUrl = _figmaUrl[0]
+      var setFigmaUrl = _figmaUrl[1]
+      var _figmaToken = useState('')
+      var figmaToken = _figmaToken[0]
+      var setFigmaToken = _figmaToken[1]
+      var _localRepoPath = useState('')
+      var localRepoPath = _localRepoPath[0]
+      var setLocalRepoPath = _localRepoPath[1]
+      var _layouts = useState([])
+      var layouts = _layouts[0]
+      var setLayouts = _layouts[1]
+      var _layoutRelative = useState('')
+      var layoutRelative = _layoutRelative[0]
+      var setLayoutRelative = _layoutRelative[1]
+      var _loadingLayouts = useState(false)
+      var loadingLayouts = _loadingLayouts[0]
+      var setLoadingLayouts = _loadingLayouts[1]
+      var _projectKinds = useState([])
+      var projectKinds = _projectKinds[0]
+      var setProjectKinds = _projectKinds[1]
+      var _data = useState(null)
+      var data = _data[0]
+      var setData = _data[1]
+      var _error = useState('')
+      var error = _error[0]
+      var setError = _error[1]
+      var _busy = useState(false)
+      var busy = _busy[0]
+      var setBusy = _busy[1]
+
+      // Scan the repository for layout files automatically whenever the repo changes.
+      useEffect(function () {
+        setError('')
+        setData(null)
+        setLayoutRelative('')
+        setLayouts([])
+        setProjectKinds([])
+        setLocalRepoPath('')
+        if (!repoInput) return
+        setLoadingLayouts(true)
+        apiPost('/tracescope/v1/layouts', {
+          repoPath: repoInput,
+          auth: auth,
+        })
+          .then(function (res) {
+            setLocalRepoPath(res.localRepoPath)
+            setLayouts(res.layouts || [])
+            setProjectKinds(res.projectKinds || [])
+            if ((res.layouts || []).length) setLayoutRelative(res.layouts[0].relativePath)
+          })
+          .catch(function (err) {
+            setError((err && err.message) || String(err))
+          })
+          .then(function () {
+            setLoadingLayouts(false)
+          })
+      }, [repoInput])
+
+      function run() {
+        setError('')
+        var payload = {
+          figmaUrl: figmaUrl.trim(),
+          figmaToken: figmaToken.trim(),
+          localRepoPath: localRepoPath,
+          layoutRelative: layoutRelative,
+        }
+        if (!payload.figmaUrl || !payload.figmaToken) {
+          setError('请填写 Figma 链接和 Token')
+          return
+        }
+        if (!payload.layoutRelative) {
+          setError(noLayoutReason || '仓库里没有可对比的布局文件')
+          return
+        }
+        setBusy(true)
+        apiPost('/tracescope/v1/visual-compare', payload)
+          .then(function (res) {
+            setData(res)
+          })
+          .catch(function (err) {
+            setData(null)
+            setError((err && err.message) || String(err))
+          })
+          .then(function () {
+            setBusy(false)
+          })
+      }
+
+      var result = data && data.result
+      var groups = []
+      if (result) {
+        var byNode = {}
+        result.diffs.forEach(function (d) {
+          if (!byNode[d.designNodeId]) {
+            byNode[d.designNodeId] = { name: d.nodeName, rows: [] }
+            groups.push(byNode[d.designNodeId])
+          }
+          byNode[d.designNodeId].rows.push(d)
+        })
+      }
+
+      var sevCounts = { high: 0, medium: 0, low: 0 }
+      if (result) {
+        result.diffs.forEach(function (d) {
+          sevCounts[d.severity] = (sevCounts[d.severity] || 0) + 1
+        })
+      }
+
+      var sevColor = { high: '#b42318', medium: '#9a6700', low: '#0f6e56' }
+
+      // Explain why no comparable (XML) layouts were found.
+      var noLayoutReason = ''
+      if (!loadingLayouts && !layouts.length) {
+        if (projectKinds.indexOf('flutter') !== -1) {
+          noLayoutReason =
+            '这是 Flutter 项目，UI 用 Dart 代码（Widget）描述，没有可解析的 Android/iOS 布局文件，当前版本暂不支持。'
+        } else if (projectKinds.indexOf('react-native') !== -1) {
+          noLayoutReason =
+            '这是 React Native 项目，UI 用 JS/TS 组件描述，没有可解析的原生布局文件，当前版本暂不支持。'
+        } else if (projectKinds.indexOf('android') !== -1) {
+          noLayoutReason =
+            '检测到 Android 工程，但没有发现 res/layout* 下的 XML。该页面可能是用 Jetpack Compose 或纯代码（Kotlin/Java）构建的，这类写法当前暂不支持对比。'
+        } else if (projectKinds.indexOf('ios') !== -1) {
+          noLayoutReason =
+            '检测到 iOS 工程，但没有发现 .xib/.storyboard。该页面可能是用 SwiftUI 或纯代码构建的，这类写法当前暂不支持对比。'
+        } else {
+          noLayoutReason =
+            '在仓库里没有发现 Android res/layout* XML 或 iOS .xib/.storyboard。请确认所选仓库根目录是否正确。'
+        }
+      }
+
+      return jsxs('section', {
+        style: styles.card,
+        children: [
+          jsx('strong', { children: 'UI 走查：设计稿 ↔ 代码' }),
+          jsx('p', {
+            style: { margin: '4px 0 10px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 },
+            children:
+              '从 Figma 拉取设计标注，与 Android XML / iOS xib 实现做确定性对比，自动列出尺寸、间距、颜色、字号差异。无需运行 App，也不依赖模型。',
+          }),
+
+          jsxs('label', {
+            style: styles.label,
+            children: [
+              'Figma 画板链接',
+              jsx('input', {
+                style: styles.input,
+                value: figmaUrl,
+                disabled: busy,
+                placeholder: 'https://www.figma.com/design/...?node-id=0-3046',
+                onChange: function (e) {
+                  setFigmaUrl(e.target.value)
+                },
+              }),
+            ],
+          }),
+
+          jsxs('label', {
+            style: styles.label,
+            children: [
+              'Figma Token',
+              jsx('input', {
+                style: styles.input,
+                type: 'password',
+                value: figmaToken,
+                disabled: busy,
+                placeholder: 'figd_...',
+                onChange: function (e) {
+                  setFigmaToken(e.target.value)
+                },
+              }),
+            ],
+          }),
+
+          jsxs('label', {
+            style: styles.label,
+            children: [
+              '选择布局（已自动从仓库扫描 ' + layouts.length + ' 个）',
+              jsx('select', {
+                style: styles.input,
+                value: layoutRelative,
+                disabled: busy || loadingLayouts || !layouts.length,
+                onChange: function (e) {
+                  setLayoutRelative(e.target.value)
+                },
+                children: loadingLayouts
+                  ? [jsx('option', { value: '', children: '正在扫描仓库…' }, 'scan')]
+                  : layouts.length
+                    ? layouts.map(function (l) {
+                        return jsx(
+                          'option',
+                          {
+                            value: l.relativePath,
+                            children:
+                              (l.platform === 'ios' ? 'iOS ' : 'Android ') + l.relativePath,
+                          },
+                          l.path,
+                        )
+                      })
+                    : [jsx('option', { value: '', children: '仓库里没有发现布局文件' }, 'none')],
+              }),
+              noLayoutReason
+                ? jsx('p', {
+                    style: {
+                      margin: '6px 0 0',
+                      color: '#9a6700',
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                    },
+                    children: noLayoutReason,
+                  })
+                : null,
+            ],
+          }),
+
+          jsx('button', {
+            type: 'button',
+            style: styles.primary,
+            disabled: busy,
+            onClick: run,
+            children: busy ? '对比中…' : '开始 UI 对比',
+          }),
+
+          error
+            ? jsx('p', {
+                style: { color: '#b42318', margin: '8px 0 0' },
+                children: error,
+              })
+            : null,
+
+          result
+            ? jsxs('div', {
+                style: { marginTop: 12 },
+                children: [
+                  jsx('p', {
+                    style: { margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.5 },
+                    children:
+                      (data.codeKind === 'uikit' ? 'iOS xib' : 'Android XML') +
+                      ' · 对比节点对 ' +
+                      result.comparedPairs +
+                      ' · 差异 ' +
+                      result.diffs.length +
+                      '（' +
+                      '高 ' + sevCounts.high + ' / 中 ' + sevCounts.medium + ' / 低 ' + sevCounts.low +
+                      '）· 未匹配 ' +
+                      result.unmatched.length +
+                      ' · 资源 dimen ' +
+                      data.resourceCounts.dimens +
+                      ' / color ' +
+                      data.resourceCounts.colors,
+                  }),
+
+                  groups.length === 0 && result.unmatched.length === 0
+                    ? jsx('p', {
+                        style: { color: '#0f6e56' },
+                        children: '没有发现差异。',
+                      })
+                    : null,
+
+                  jsx('div', {
+                    children: groups.map(function (g) {
+                      return jsxs('div', {
+                        style: {
+                          border: '1px solid var(--dsh-border,#ddd4c5)',
+                          borderRadius: 10,
+                          padding: 10,
+                          marginBottom: 8,
+                          background: '#fff',
+                        },
+                        children: [
+                          jsxs('div', {
+                            style: {
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              marginBottom: 6,
+                            },
+                            children: [
+                              jsx('strong', { children: g.name }),
+                              jsx('span', {
+                                style: { fontSize: 12, color: '#6b645a' },
+                                children: g.rows.length + ' 项差异',
+                              }),
+                            ],
+                          }),
+                          jsx('div', {
+                            children: g.rows.map(function (d) {
+                              return jsxs('div', {
+                                style: {
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 6,
+                                  border: '1px solid #ece5d8',
+                                  borderLeft: '4px solid ' + sevColor[d.severity],
+                                  borderRadius: 8,
+                                  padding: '4px 8px',
+                                  marginBottom: 4,
+                                  fontSize: 12,
+                                },
+                                children: [
+                                  jsx('span', {
+                                    style: { fontWeight: 600 },
+                                    children:
+                                      VISUAL_PROPERTY_LABELS[d.property] || d.property,
+                                  }),
+                                  jsxs('span', {
+                                    style: {
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      flexWrap: 'wrap',
+                                    },
+                                    children: [
+                                      jsx(VisualValue, { value: d.expected }),
+                                      jsx('span', {
+                                        style: { color: '#0f6e56' },
+                                        children: '→',
+                                      }),
+                                      d.actual === undefined
+                                        ? jsx('span', {
+                                            style: { color: '#b42318', fontWeight: 700 },
+                                            children: d.needsReview ? '需确认' : '缺失',
+                                          })
+                                        : jsx(VisualValue, { value: d.actual }),
+                                    ],
+                                  }),
+                                ],
+                              }, d.designNodeId + '-' + d.property)
+                            }),
+                          }),
+                        ],
+                      }, g.name)
+                    }),
+                  }),
+
+                  result.unmatched.length
+                    ? jsxs('details', {
+                        style: {
+                          border: '1px dashed var(--dsh-border,#ddd4c5)',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                        },
+                        children: [
+                          jsx('summary', {
+                            style: { cursor: 'pointer', color: '#0f6e56', fontWeight: 600 },
+                            children: '未匹配元素（' + result.unmatched.length + '）',
+                          }),
+                          jsx('ul', {
+                            style: { margin: '6px 0 0', paddingLeft: 18, fontSize: 12 },
+                            children: result.unmatched.map(function (u) {
+                              return jsxs('li', {
+                                children: [
+                                  jsx('span', {
+                                    style: {
+                                      display: 'inline-block',
+                                      fontSize: 11,
+                                      borderRadius: 999,
+                                      padding: '1px 7px',
+                                      marginRight: 4,
+                                      background: '#efe8da',
+                                    },
+                                    children: u.side === 'design' ? '仅设计稿' : '仅代码',
+                                  }),
+                                  u.name,
+                                  u.text ? '（' + u.text + '）' : '',
+                                ],
+                              }, u.id)
+                            }),
+                          }),
+                        ],
+                      })
+                    : null,
+                ],
+              })
+            : null,
+        ],
+      })
+    }
+
     function TraceScopePanelBody() {
       var initialRepo = localStorage.getItem(REPO_PATH_KEY) || ''
       var _repo = useState(initialRepo)
@@ -1205,6 +1626,20 @@ window.__ModuleLoader__.load({
       var _tab = useState('direct')
       var tab = _tab[0]
       var setTab = _tab[1]
+      var MODE_KEY = 'tracescope.mode'
+      var _mode = useState(
+        localStorage.getItem(MODE_KEY) === 'ui' ? 'ui' : 'functional',
+      )
+      var mode = _mode[0]
+      var setMode = _mode[1]
+      function switchMode(next) {
+        setMode(next)
+        try {
+          localStorage.setItem(MODE_KEY, next)
+        } catch (_e) {
+          /* ignore */
+        }
+      }
       var _error = useState('')
       var error = _error[0]
       var setError = _error[1]
@@ -4582,7 +5017,43 @@ window.__ModuleLoader__.load({
               error ? jsx('p', { style: styles.error, children: error }) : null,
             ],
           }),
-          report
+          jsxs('div', {
+            style: {
+              display: 'flex',
+              gap: 6,
+              background: 'var(--dsh-card,#fffdf8)',
+              border: '1px solid var(--dsh-border,#ddd4c5)',
+              borderRadius: 999,
+              padding: 4,
+            },
+            children: [
+              jsx('button', {
+                type: 'button',
+                style:
+                  mode === 'functional'
+                    ? Object.assign({}, styles.primary, { flex: 1 })
+                    : Object.assign({}, styles.secondary, { flex: 1 }),
+                disabled: busy,
+                onClick: function () {
+                  switchMode('functional')
+                },
+                children: '功能测试',
+              }),
+              jsx('button', {
+                type: 'button',
+                style:
+                  mode === 'ui'
+                    ? Object.assign({}, styles.primary, { flex: 1 })
+                    : Object.assign({}, styles.secondary, { flex: 1 }),
+                disabled: busy,
+                onClick: function () {
+                  switchMode('ui')
+                },
+                children: 'UI 测试',
+              }),
+            ],
+          }),
+          mode === 'functional' && report
             ? jsxs('section', {
                 style: styles.card,
                 children: [
@@ -4865,6 +5336,17 @@ window.__ModuleLoader__.load({
                 ],
               })
             : null,
+          jsx(
+            'div',
+            {
+              style: { display: mode === 'ui' ? 'block' : 'none' },
+              children: jsx(VisualCompareCard, {
+                repoInput: repoPath.trim(),
+                auth: buildAuthPayload(),
+              }),
+            },
+            'visual-compare-wrap',
+          ),
           confirmDlg
             ? jsxs('div', {
                 style: styles.modalBackdrop,

@@ -257,3 +257,48 @@ details.evidence-box summary {
   cursor: pointer;
   color: var(--accent);
 }
+
+/* UI visual compare */
+.visual-diffs { display: grid; gap: 0.7rem; }
+
+.diff-group .diff-rows { margin-top: 0.4rem; display: grid; gap: 0.35rem; }
+
+.diff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  font-size: 0.88rem;
+}
+
+.diff-row.sev-high { border-left-color: var(--danger); }
+.diff-row.sev-medium { border-left-color: var(--warn); }
+.diff-row.sev-low { border-left-color: var(--accent); }
+
+.diff-prop { font-weight: 600; min-width: 4.2rem; }
+
+.diff-vals { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+
+.diff-vals .expected { color: var(--muted); }
+.diff-vals .arrow { color: var(--accent); }
+.diff-vals .actual { font-weight: 700; }
+
+.missing { color: var(--danger); font-weight: 700; }
+.unresolved { color: var(--warn); }
+
+.badge.review { background: #fff4ce; color: var(--warn); font-weight: 700; }
+
+.unmatched-box {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+}
+
+.unmatched-box summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.unmatched-box ul { margin: 0.5rem 0 0; }

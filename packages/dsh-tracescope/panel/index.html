@@ -89,6 +89,43 @@
 
         <p class="hint">点选「通过 / 失败 / 跳过」记录手测结果。证据可展开查看，给开发看也不怕。</p>
       </section>
+
+      <section class="card" id="visualSection">
+        <h2>3. UI 走查：设计稿 ↔ 代码</h2>
+        <p class="meta">
+          从 Figma 拉取设计标注，和 Android XML / iOS xib 里的实现做确定性对比，
+          自动列出尺寸、间距、颜色、字号等差异。无需把 App 跑起来，也不依赖模型。
+        </p>
+
+        <label class="field">
+          <span>Figma 画板链接</span>
+          <input id="figmaUrl" type="text" placeholder="https://www.figma.com/design/...?node-id=0-3046" />
+        </label>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>Figma Token</span>
+            <input id="figmaToken" type="password" placeholder="figd_..." />
+          </label>
+          <label class="field">
+            <span>代码布局文件路径</span>
+            <input id="visualCodePath" type="text" placeholder="例如 ...\res\layout\activity_detail.xml" />
+          </label>
+        </div>
+        <p class="hint">代码文件支持 Android 布局 XML（自动发现 dimens/colors）与 iOS .xib/.storyboard。</p>
+
+        <div class="actions">
+          <button type="button" id="btnVisualCompare" class="primary">开始 UI 对比</button>
+          <p class="error" id="visualError" hidden></p>
+        </div>
+
+        <div id="visualResult" hidden>
+          <div class="report-head" style="margin-top:1rem">
+            <p class="meta" id="visualMeta"></p>
+          </div>
+          <div id="visualDiffs" class="visual-diffs"></div>
+        </div>
+      </section>
     </main>
 
     <script src="./app.js" type="module"></script>
