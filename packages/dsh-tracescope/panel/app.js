@@ -198,6 +198,147 @@ async function saveToDisk() {
   alert(`已保存：\n${(data.files || []).join('\n')}`)
 }
 
+const PROPERTY_LABELS = {
+  width: '宽度',
+  height: '高度',
+  marginTop: '上外边距',
+  marginRight: '右外边距',
+  marginBottom: '下外边距',
+  marginLeft: '左外边距',
+  paddingTop: '上内边距',
+  paddingRight: '右内边距',
+  paddingBottom: '下内边距',
+  paddingLeft: '左内边距',
+  backgroundColor: '背景色',
+  borderWidth: '边框宽',
+  borderColor: '边框色',
+  cornerRadius: '圆角',
+  opacity: '不透明度',
+  fontFamily: '字体',
+  fontSize: '字号',
+  fontWeight: '字重',
+  lineHeight: '行高',
+  letterSpacing: '字间距',
+  color: '文字色',
+}
+
+function setVisualError(msg) {
+  const el = $('visualError')
+  if (!msg) {
+    el.hidden = true
+    el.textContent = ''
+    return
+  }
+  el.hidden = false
+  el.textContent = msg
+}
+
+function formatComparedValue(value) {
+  if (value && typeof value === 'object' && value.unresolved) {
+    return `<span class="unresolved" title="无法静态解析">待确认：${escapeHtml(value.raw)}</span>`
+  }
+  return escapeHtml(String(value))
+}
+
+function diffRow(diff) {
+  const label = PROPERTY_LABELS[diff.property] || diff.property
+  const actualHtml = diff.actual === undefined ? '<span class="missing">缺失</span>' : formatComparedValue(diff.actual)
+  const reviewTag = diff.needsReview ? '<span class="badge review">需确认</span>' : ''
+  return `
+    <div class="diff-row sev-${escapeHtml(diff.severity)}">
+      <span class="diff-prop">${escapeHtml(label)}</span>
+      <span class="diff-vals">
+        <span class="expected">${formatComparedValue(diff.expected)}</span>
+        <span class="arrow">→</span>
+        <span class="actual">${actualHtml}</span>
+      </span>
+      ${reviewTag}
+    </div>`
+}
+
+function renderVisualDiffs(payload) {
+  const { result } = payload
+  const container = $('visualDiffs')
+  container.innerHTML = ''
+
+  // Group diffs by design node.
+  const groups = new Map()
+  for (const diff of result.diffs) {
+    if (!groups.has(diff.designNodeId)) {
+      groups.set(diff.designNodeId, { name: diff.nodeName, rows: [] })
+    }
+    groups.get(diff.designNodeId).rows.push(diff)
+  }
+
+  for (const group of groups.values()) {
+    const el = document.createElement('article')
+    el.className = 'item diff-group'
+    el.innerHTML = `
+      <div class="item-top">
+        <h3>${escapeHtml(group.name)}</h3>
+        <span class="badge">${group.rows.length} 项差异</span>
+      </div>
+      <div class="diff-rows">${group.rows.map(diffRow).join('')}</div>`
+    container.appendChild(el)
+  }
+
+  if (result.unmatched.length) {
+    const el = document.createElement('details')
+    el.className = 'unmatched-box'
+    el.open = true
+    const rows = result.unmatched
+      .map((u) => {
+        const side = u.side === 'design' ? '仅设计稿' : '仅代码'
+        const text = u.text ? `（${escapeHtml(u.text)}）` : ''
+        return `<li><span class="badge">${side}</span> ${escapeHtml(u.name)} ${text}</li>`
+      })
+      .join('')
+    el.innerHTML = `<summary>未匹配元素（${result.unmatched.length}）</summary><ul class="files">${rows}</ul>`
+    container.appendChild(el)
+  }
+
+  if (!result.diffs.length && !result.unmatched.length) {
+    container.innerHTML = '<p class="hint">没有发现差异。</p>'
+  }
+}
+
+async function runVisualCompare() {
+  setVisualError('')
+  const payload = {
+    figmaUrl: $('figmaUrl').value.trim(),
+    figmaToken: $('figmaToken').value.trim(),
+    codePath: $('visualCodePath').value.trim(),
+  }
+  if (!payload.figmaUrl || !payload.figmaToken || !payload.codePath) {
+    setVisualError('请填写 Figma 链接、Token 和代码文件路径')
+    return
+  }
+  $('btnVisualCompare').disabled = true
+  try {
+    const res = await fetch('/api/visual-compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'UI 对比失败')
+
+    $('visualResult').hidden = false
+    const sevCounts = { high: 0, medium: 0, low: 0 }
+    for (const d of data.result.diffs) sevCounts[d.severity] = (sevCounts[d.severity] || 0) + 1
+    $('visualMeta').textContent =
+      `${data.codeKind === 'uikit' ? 'iOS xib' : 'Android XML'} · 对比节点对 ${data.result.comparedPairs} · ` +
+      `差异 ${data.result.diffs.length}（高 ${sevCounts.high} / 中 ${sevCounts.medium} / 低 ${sevCounts.low}）· ` +
+      `未匹配 ${data.result.unmatched.length} · 资源 dimen ${data.resourceCounts.dimens} / color ${data.resourceCounts.colors}`
+    renderVisualDiffs(data)
+    $('visualResult').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (err) {
+    setVisualError(err.message || String(err))
+  } finally {
+    $('btnVisualCompare').disabled = false
+  }
+}
+
 function wireTabs() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -221,6 +362,7 @@ async function boot() {
     if (state.csv) downloadText('tracescope-report.csv', state.csv, 'text/csv')
   })
   $('btnSaveDisk').addEventListener('click', saveToDisk)
+  $('btnVisualCompare').addEventListener('click', runVisualCompare)
 
   document.addEventListener('click', (ev) => {
     const btn = ev.target.closest('.status-group button')

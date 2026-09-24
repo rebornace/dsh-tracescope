@@ -1,13 +1,19 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
   analyzeImpact,
   analyzeCodeupImpact,
+  buildAndroidResources,
   buildChatAnalysisPrompt,
   buildReportFromPublishedItems,
+  compareVisualDocs,
+  discoverLayouts,
+  ensureReadableCheckout,
   deleteReportAttachmentFile,
   exportReportCsv,
   exportReportMarkdown,
+  fetchFigmaDoc,
   formatAttachmentSize,
   gitDiffFiles,
   gitDiffUnified,
@@ -24,7 +30,9 @@ import {
   loadStoredGitAuth,
   MAX_ATTACHMENT_UPLOAD_BYTES,
   MAX_REPORT_ATTACHMENTS,
+  normalizeAndroidLayout,
   normalizeReportAttachments,
+  normalizeUIKitDoc,
   parseGitAuth,
   parsePublishedHandtestItems,
   patchHandtestItemStatus,
@@ -57,6 +65,7 @@ import {
   mergeAgileWorkItemsIntoReport,
   normalizeYunxiaoEndpoint,
   parseAgileWorkItemRefs,
+  type AndroidResources,
   type GitAuth,
   type ImpactReport,
   type TrackerConfig,
@@ -482,6 +491,51 @@ function toolText(text: string) {
   return [{ type: 'text' as const, text }]
 }
 
+/** Walk up from a layout file to find the Android module root (dir containing res/). */
+async function findAndroidResRoot(layoutPath: string): Promise<string | undefined> {
+  let dir = path.dirname(layoutPath)
+  for (let i = 0; i < 8; i++) {
+    const resDir = path.join(dir, 'src', 'main', 'res')
+    try {
+      const entries = await readdir(resDir)
+      if (entries.length) return path.join(dir, 'src', 'main')
+    } catch {
+      /* not here */
+    }
+    if (path.basename(dir) === 'res') return path.dirname(dir)
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return undefined
+}
+
+/** Read every values* XML (dimens/colors) under an Android res root. */
+async function discoverAndroidResources(resRoot: string): Promise<AndroidResources> {
+  const resDir = path.join(resRoot, 'res')
+  let valueDirs: string[] = []
+  try {
+    valueDirs = (await readdir(resDir, { withFileTypes: true }))
+      .filter((d) => d.isDirectory() && /^values/.test(d.name))
+      .map((d) => path.join(resDir, d.name))
+  } catch {
+    return { dimens: {}, colors: {} }
+  }
+  const xmls: string[] = []
+  for (const dir of valueDirs) {
+    let entries: string[] = []
+    try {
+      entries = await readdir(dir)
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      if (name.endsWith('.xml')) xmls.push(await readFile(path.join(dir, name), 'utf8'))
+    }
+  }
+  return buildAndroidResources(...xmls)
+}
+
 export function apply(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/health',
@@ -491,6 +545,74 @@ export function apply(ctx: Context) {
       name: 'tracescope',
       chatDrivenModel: true,
     }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/layouts',
+    method: 'POST',
+    run: async (body) => {
+      const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
+      if (!repoInput) throw new Error('缺少 repoPath')
+      // Remote repositories are cloned into a local cache first.
+      const fetchRemote = parseFetchFlag(body.fetch, true)
+      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoInput)
+      const resolved = await resolveGitRepo(repoInput, { fetch: fetchRemote, auth })
+      // Remote repos are cached as bare clones with no checked-out files;
+      // attach a readable worktree before scanning the filesystem.
+      const checkout = await ensureReadableCheckout(resolved.repoPath, auth)
+      const scan = await discoverLayouts(checkout.checkoutPath)
+      return {
+        localRepoPath: checkout.checkoutPath,
+        layouts: scan.layouts,
+        projectKinds: scan.projectKinds,
+        reactNativeConfirmed: scan.reactNativeConfirmed,
+      }
+    },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/visual-compare',
+    method: 'POST',
+    run: async (body) => {
+      const figmaUrl = String(body.figmaUrl ?? '').trim()
+      const figmaToken = String(body.figmaToken ?? '').trim()
+      const localRepoPath = String(body.localRepoPath ?? '').trim()
+      // Layout identified by its repo-relative path; never a hand-typed path.
+      const layoutRelative = String(body.layoutRelative ?? '').trim()
+      if (!figmaUrl || !figmaToken) throw new Error('需要 Figma 链接和访问 Token')
+      if (!localRepoPath) throw new Error('缺少本地仓库路径')
+      if (!layoutRelative) throw new Error('请先选择一个布局文件')
+
+      const codePath = path.resolve(localRepoPath, layoutRelative)
+      if (!existsSync(codePath)) throw new Error(`找不到布局文件：${layoutRelative}`)
+
+      const design = await fetchFigmaDoc(figmaUrl, undefined, { token: figmaToken })
+      const codeXml = await readFile(codePath, 'utf8')
+      const isUIKit = /\.(xib|storyboard)$/i.test(codePath)
+
+      let resources: AndroidResources = { dimens: {}, colors: {} }
+      let resRoot: string | undefined
+      if (!isUIKit) {
+        resRoot = await findAndroidResRoot(codePath)
+        if (resRoot) resources = await discoverAndroidResources(resRoot)
+      }
+
+      const code = isUIKit
+        ? normalizeUIKitDoc(codeXml)
+        : normalizeAndroidLayout(codeXml, resources)
+
+      const result = compareVisualDocs(design, code)
+      return {
+        result,
+        layoutRelative,
+        codeKind: isUIKit ? 'uikit' : 'android-xml',
+        resRoot,
+        resourceCounts: {
+          dimens: Object.keys(resources.dimens).length,
+          colors: Object.keys(resources.colors).length,
+        },
+      }
+    },
   })
 
   registerRoute(ctx, {

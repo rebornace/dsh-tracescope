@@ -1,23 +1,29 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeImpact,
   analyzeCodeupImpact,
+  buildAndroidResources,
+  compareVisualDocs,
   exportReportCsv,
   exportReportMarkdown,
+  fetchFigmaDoc,
   getCodeupRepository,
   listCodeupBranches,
   listCodeupCommits,
   listGitRefs,
   listRecentCommits,
   loadRememberedYunxiaoAccess,
+  normalizeAndroidLayout,
+  normalizeUIKitDoc,
   parseGitAuth,
   resolveCodeupTarget,
   resolveGitRepo,
   gitFetchRef,
+  type AndroidResources,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
 
@@ -63,6 +69,67 @@ function contentType(filePath: string): string {
   if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8'
   if (filePath.endsWith('.svg')) return 'image/svg+xml'
   return 'application/octet-stream'
+}
+
+/** Walk up from a layout file to find the Android module root (dir containing `res/`). */
+async function findAndroidResRoot(layoutPath: string): Promise<string | undefined> {
+  let dir = path.dirname(layoutPath)
+  for (let i = 0; i < 8; i++) {
+    const resDir = path.join(dir, 'src', 'main', 'res')
+    try {
+      const stat = await readdir(resDir)
+      if (stat.length) return path.join(dir, 'src', 'main')
+    } catch {
+      /* not here */
+    }
+    // Also accept a direct `res/` layout (res/layout/*.xml).
+    if (path.basename(dir) === 'res') {
+      const parent = path.dirname(dir)
+      try {
+        await readdir(dir)
+        return parent
+      } catch {
+        /* ignore */
+      }
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return undefined
+}
+
+/** Read every values* XML (dimens/colors) reachable under an Android res root. */
+async function discoverAndroidResources(resRoot: string): Promise<AndroidResources> {
+  const resDir = path.join(resRoot, 'res')
+  let valueDirs: string[] = []
+  try {
+    valueDirs = (await readdir(resDir, { withFileTypes: true }))
+      .filter((d) => d.isDirectory() && /^values/.test(d.name))
+      .map((d) => path.join(resDir, d.name))
+  } catch {
+    return { dimens: {}, colors: {} }
+  }
+  const files: string[] = []
+  for (const dir of valueDirs) {
+    let entries: string[] = []
+    try {
+      entries = await readdir(dir)
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      if (name.endsWith('.xml')) {
+        files.push(await readFile(path.join(dir, name), 'utf8'))
+      }
+    }
+  }
+  return buildAndroidResources(...files)
+}
+
+function inferCodeKind(codePath: string): 'android-xml' | 'uikit' {
+  if (/\.(xib|storyboard)$/i.test(codePath)) return 'uikit'
+  return 'android-xml'
 }
 
 async function handleApi(
@@ -285,6 +352,63 @@ async function handleApi(
           path.join(body.exportDir, 'tracescope-report.md'),
           path.join(body.exportDir, 'tracescope-report.csv'),
         ],
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, 400, { error: message })
+    }
+    return true
+  }
+
+  if (url.pathname === '/api/visual-compare' && req.method === 'POST') {
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw || '{}') as {
+        figmaUrl?: string
+        figmaToken?: string
+        codePath?: string
+      }
+      const figmaUrl = (body.figmaUrl ?? '').trim()
+      const figmaToken = (body.figmaToken ?? '').trim()
+      const codePath = (body.codePath ?? '').trim()
+      if (!figmaUrl || !figmaToken) {
+        sendJson(res, 400, { error: '需要 Figma 链接和访问 Token' })
+        return true
+      }
+      if (!codePath) {
+        sendJson(res, 400, { error: '需要代码布局文件路径' })
+        return true
+      }
+      if (!existsSync(codePath)) {
+        sendJson(res, 400, { error: `找不到代码文件：${codePath}` })
+        return true
+      }
+
+      const design = await fetchFigmaDoc(figmaUrl, undefined, { token: figmaToken })
+      const codeXml = await readFile(codePath, 'utf8')
+      const kind = inferCodeKind(codePath)
+
+      let resources: AndroidResources = { dimens: {}, colors: {} }
+      let resolvedResRoot: string | undefined
+      if (kind === 'android-xml') {
+        resolvedResRoot = await findAndroidResRoot(codePath)
+        if (resolvedResRoot) resources = await discoverAndroidResources(resolvedResRoot)
+      }
+
+      const code =
+        kind === 'uikit'
+          ? normalizeUIKitDoc(codeXml)
+          : normalizeAndroidLayout(codeXml, resources)
+
+      const result = compareVisualDocs(design, code)
+      sendJson(res, 200, {
+        result,
+        codeKind: kind,
+        resRoot: resolvedResRoot,
+        resourceCounts: {
+          dimens: Object.keys(resources.dimens).length,
+          colors: Object.keys(resources.colors).length,
+        },
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)

@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
+import path from 'node:path'
 import { promisify } from 'node:util'
 import { buildGitAuthEnv, redactSecrets, type GitAuth } from './auth.js'
 
@@ -213,6 +214,52 @@ export async function gitShowFile(
 export async function gitRevParse(repoPath: string, ref: string): Promise<string> {
   const { stdout } = await gitExec(['rev-parse', ref], { cwd: repoPath })
   return stdout.trim()
+}
+
+/**
+ * Bare clones (used for remote repos) have no checked-out files, so layout
+ * scanning and design extraction cannot read them from the filesystem.
+ *
+ * Creates (or reuses) a detached `git worktree` next to the bare cache
+ * directory and returns its work-tree path. Normal work trees are returned
+ * unchanged.
+ */
+export async function ensureReadableCheckout(
+  repoPath: string,
+  auth?: GitAuth,
+): Promise<{ checkoutPath: string; bare: boolean }> {
+  const bareOut = (await gitExec(['rev-parse', '--is-bare-repository'], { cwd: repoPath })).stdout
+    .trim()
+  if (bareOut !== 'true') {
+    return { checkoutPath: repoPath, bare: false }
+  }
+
+  // Prefer the remote default branch; fall back to HEAD when unresolvable.
+  let ref = 'HEAD'
+  try {
+    const symbolic = (
+      await gitExec(['symbolic-ref', '--short', 'HEAD'], { cwd: repoPath })
+    ).stdout.trim()
+    if (symbolic) ref = symbolic
+  } catch {
+    /* detached/unborn HEAD — keep HEAD */
+  }
+
+  const checkoutPath = path.join(path.dirname(repoPath), path.basename(repoPath) + '-worktree')
+  try {
+    await gitExec(['rev-parse', '--is-inside-work-tree'], { cwd: checkoutPath })
+    await gitExec(['checkout', '--detach', ref], { cwd: checkoutPath, auth })
+    await gitExec(['reset', '--hard', ref], { cwd: checkoutPath, auth })
+    return { checkoutPath, bare: true }
+  } catch {
+    /* not a worktree yet — create below */
+  }
+
+  await gitExec(['worktree', 'add', '--detach', '--force', checkoutPath, ref], {
+    cwd: repoPath,
+    auth,
+  })
+  return { checkoutPath, bare: true }
 }
 
 export interface GitCommitInfo {

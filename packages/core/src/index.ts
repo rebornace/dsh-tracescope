@@ -47,6 +47,7 @@ export {
   gitFetchRef,
   gitLogSubjects,
   gitRevParse,
+  ensureReadableCheckout,
   listGitRefs,
   listRecentCommits,
 } from './git.js'
@@ -166,3 +167,44 @@ export {
   parsePublishedHandtestItems,
   type PublishedHandtestItem,
 } from './handtest-publish.js'
+export type {
+  ComparedValue,
+  DesignBox,
+  DesignDiff,
+  DesignDoc,
+  DesignNode,
+  DesignNodeKind,
+  DesignStyle,
+  DiffSeverity,
+  Edges,
+  HexColor,
+  UnmatchedNode,
+  UnresolvedValue,
+  VisualCompareResult,
+  VisualProperty,
+} from './design-types.js'
+export {
+  figmaColorToHex,
+  fetchFigmaDoc,
+  normalizeFigmaTree,
+  parseFigmaUrl,
+  type FigmaClientOptions,
+} from './design-figma.js'
+export {
+  buildAndroidResources,
+  normalizeAndroidLayout,
+  parseAndroidDimension,
+  type AndroidResources,
+  type DimensionToken,
+} from './design-android.js'
+export { normalizeUIKitDoc } from './design-uikit.js'
+export {
+  compareVisualDocs,
+  type CompareOptions,
+} from './design-compare.js'
+export {
+  discoverLayouts,
+  type DiscoveredLayout,
+  type LayoutPlatform,
+} from './design-discover.js'
+export { parseXml, decodeXmlEntities, type XmlElement } from './xml-lite.js'
