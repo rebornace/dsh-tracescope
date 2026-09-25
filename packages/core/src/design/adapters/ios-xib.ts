@@ -1,19 +1,24 @@
 /**
- * iOS UIKit implementation source: normalise Interface Builder documents
- * (`.xib` / `.storyboard`, which are plist XML) into the vendor-neutral
- * {@link DesignDoc}.
+ * iOS Interface Builder platform adapter.
  *
- * Interface Builder stores absolute `frame` rects in points, so positions and
- * sizes are directly available without running the app. Programmatic
- * UIKit (built in code) is not covered here.
+ * Locates `.xib` / `.storyboard` documents (plist XML) and normalises their
+ * absolute point frames into the vendor-neutral model. Fully deterministic and
+ * supports property-level comparison. Programmatic UIKit is not covered here.
  */
+import { readFile } from 'node:fs/promises'
 import type {
   DesignDoc,
   DesignNode,
-  DesignNodeKind,
   HexColor,
-} from './design-types.js'
-import { parseXml, type XmlElement } from './xml-lite.js'
+} from '../types.js'
+import { parseXml, type XmlElement } from '../xml-lite.js'
+import { walkFiles } from '../fs-walk.js'
+import { normalizeText, tokenizeName } from '../page-fingerprint.js'
+import type {
+  CodePage,
+  PageFingerprint,
+  PlatformAdapter,
+} from './adapter-types.js'
 
 const VIEW_TAGS = new Set([
   'view',
@@ -79,7 +84,6 @@ function colorOf(el: XmlElement, key: string): HexColor | undefined {
     if (!ww) return undefined
     r = g = b = ww
   } else {
-    // System / named colors cannot be resolved without UIKit -> skip compare.
     return undefined
   }
   const alpha = color.attrs.alpha !== undefined ? Number(color.attrs.alpha) : 1
@@ -116,7 +120,7 @@ function cornerRadiusOf(el: XmlElement): number | undefined {
   return Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined
 }
 
-function kindFor(tag: string): DesignNodeKind {
+function kindFor(tag: string): DesignNode['kind'] {
   if (tag === 'label' || tag === 'textfield' || tag === 'textview' || tag === 'button') return 'text'
   if (tag === 'imageview') return 'image'
   if (CONTAINER_HINT.test(tag)) return 'frame'
@@ -163,7 +167,6 @@ function convertView(el: XmlElement, sequence: { n: number }): DesignNode | null
   }
 }
 
-/** Locate the first top-level view carrying a frame inside an IB document. */
 function findRootView(el: XmlElement): XmlElement | undefined {
   if (frameOf(el) && VIEW_TAGS.has(el.tag.toLowerCase())) return el
   for (const child of el.children) {
@@ -180,4 +183,68 @@ export function normalizeUIKitDoc(ibXml: string): DesignDoc {
   const root = convertView(rootEl, { n: 0 })
   if (!root) throw new Error('无法解析 UIKit 视图树')
   return { root, scale: 1, source: 'uikit' }
+}
+
+// ---------------------------------------------------------------------------
+// Fingerprint / adapter
+// ---------------------------------------------------------------------------
+
+function fingerprintFromDoc(ibXml: string, fileBase: string): PageFingerprint {
+  const texts = new Set<string>()
+  let controlCount = 0
+  try {
+    const parsed = parseXml(ibXml)
+    const visit = (el: XmlElement) => {
+      if (VIEW_TAGS.has(el.tag.toLowerCase())) controlCount += 1
+      const t = textOf(el)
+      if (t) {
+        const nt = normalizeText(t)
+        if (nt) texts.add(nt)
+      }
+      for (const c of el.children) visit(c)
+    }
+    visit(parsed)
+  } catch {
+    /* malformed doc — keep name-only fingerprint */
+  }
+  return {
+    texts: [...texts],
+    nameTokens: tokenizeName(fileBase.replace(/\.(xib|storyboard)$/i, '')),
+    controlCount,
+  }
+}
+
+export const iosXibAdapter: PlatformAdapter = {
+  id: 'ios-xib',
+  platform: 'ios',
+  kindLabel: 'iOS Xib',
+  precise: true,
+
+  async discoverPages(root: string): Promise<CodePage[]> {
+    const pages: CodePage[] = []
+    await walkFiles(root, async (file) => {
+      if (!/\.(xib|storyboard)$/i.test(file.name)) return
+      let xml = ''
+      try {
+        xml = await readFile(file.absolutePath, 'utf8')
+      } catch {
+        return
+      }
+      pages.push({
+        adapterId: 'ios-xib',
+        platform: 'ios',
+        kindLabel: 'iOS Xib',
+        relativePath: file.relativePath,
+        absolutePath: file.absolutePath,
+        precise: true,
+        fingerprint: fingerprintFromDoc(xml, file.name),
+      })
+    })
+    return pages
+  },
+
+  async toDesignDoc(page: CodePage): Promise<DesignDoc> {
+    const xml = await readFile(page.absolutePath, 'utf8')
+    return normalizeUIKitDoc(xml)
+  },
 }

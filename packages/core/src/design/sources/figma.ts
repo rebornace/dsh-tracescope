@@ -8,7 +8,7 @@ import type {
   DesignNodeKind,
   DesignStyle,
   HexColor,
-} from './design-types.js'
+} from '../types.js'
 
 const FIGMA_API = 'https://api.figma.com/v1'
 

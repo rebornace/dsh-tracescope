@@ -167,6 +167,9 @@ export {
   parsePublishedHandtestItems,
   type PublishedHandtestItem,
 } from './handtest-publish.js'
+// ---------------------------------------------------------------------------
+// Design subsystem (modular; see ./design)
+// ---------------------------------------------------------------------------
 export type {
   ComparedValue,
   DesignBox,
@@ -182,29 +185,55 @@ export type {
   UnresolvedValue,
   VisualCompareResult,
   VisualProperty,
-} from './design-types.js'
+} from './design/types.js'
 export {
   figmaColorToHex,
   fetchFigmaDoc,
   normalizeFigmaTree,
   parseFigmaUrl,
   type FigmaClientOptions,
-} from './design-figma.js'
+} from './design/sources/figma.js'
 export {
   buildAndroidResources,
   normalizeAndroidLayout,
   parseAndroidDimension,
   type AndroidResources,
   type DimensionToken,
-} from './design-android.js'
-export { normalizeUIKitDoc } from './design-uikit.js'
+} from './design/adapters/android-xml.js'
+export { normalizeUIKitDoc } from './design/adapters/ios-xib.js'
+export { compareVisualDocs, type CompareOptions } from './design/compare.js'
+export { parseXml, decodeXmlEntities, type XmlElement } from './design/xml-lite.js'
+// Adapter / page-matching API.
 export {
-  compareVisualDocs,
-  type CompareOptions,
-} from './design-compare.js'
+  discoverAllPages,
+  locatePagesForDesign,
+  compareDesignWithPage,
+  matchPages,
+  type PageComparison,
+} from './design/index.js'
+export {
+  designFingerprint,
+  normalizeText,
+  scorePage,
+  tokenizeName,
+  type PageMatch,
+  type MatchOptions,
+} from './design/page-fingerprint.js'
+export {
+  platformAdapters,
+  getPlatformAdapter,
+  type PlatformAdapter,
+} from './design/registry.js'
+export type {
+  AdapterId,
+  CodePage,
+  PageFingerprint,
+  PlatformId,
+} from './design/adapters/adapter-types.js'
+// Legacy discovery shim (kept for older routes).
 export {
   discoverLayouts,
   type DiscoveredLayout,
   type LayoutPlatform,
-} from './design-discover.js'
-export { parseXml, decodeXmlEntities, type XmlElement } from './xml-lite.js'
+  type ProjectKind,
+} from './design/legacy-discover.js'

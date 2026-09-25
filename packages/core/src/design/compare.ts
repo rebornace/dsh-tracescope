@@ -18,7 +18,7 @@ import type {
   UnresolvedValue,
   VisualCompareResult,
   VisualProperty,
-} from './design-types.js'
+} from './types.js'
 
 /** Absolute tolerance (logical units) for numeric length comparisons. */
 const NUMERIC_TOLERANCE = 0.6
