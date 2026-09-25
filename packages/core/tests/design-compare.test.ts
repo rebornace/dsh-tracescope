@@ -5,14 +5,14 @@ import {
   normalizeFigmaTree,
   parseFigmaUrl,
   type FigmaClientOptions,
-} from '../src/design-figma.js'
+} from '../src/design/sources/figma.js'
 import {
   buildAndroidResources,
   normalizeAndroidLayout,
-} from '../src/design-android.js'
-import { normalizeUIKitDoc } from '../src/design-uikit.js'
-import { compareVisualDocs } from '../src/design-compare.js'
-import type { DesignDoc, DesignNode } from '../src/design-types.js'
+} from '../src/design/adapters/android-xml.js'
+import { normalizeUIKitDoc } from '../src/design/adapters/ios-xib.js'
+import { compareVisualDocs } from '../src/design/compare.js'
+import type { DesignDoc, DesignNode } from '../src/design/types.js'
 
 // ---------------------------------------------------------------------------
 // Figma
