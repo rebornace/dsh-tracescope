@@ -15,6 +15,8 @@ import {
   type DesignDoc,
   discoverAllPages,
 } from '@rebornace/tracescope-core'
+import { stat } from 'node:fs/promises'
+import path from 'node:path'
 import { resolveRequestGitAuth } from './request-auth.js'
 
 export interface VisualRepoContext {
@@ -22,15 +24,35 @@ export interface VisualRepoContext {
   checkoutPath: string
 }
 
-/** Resolve the repo and ensure files are readable (attaches a worktree to bare clones). */
+/**
+ * Resolve the repository to a readable checkout.
+ *
+ * Design match/compare only reads source files, so an existing local folder is
+ * used directly even when it is not a Git checkout (e.g. an exported source
+ * snapshot). Remote URLs and non-existent paths still go through Git resolution,
+ * which clones/fetches and attaches a worktree to bare clones.
+ */
 export async function resolveVisualRepo(
   repoInput: string,
   body: Record<string, unknown>,
 ): Promise<VisualRepoContext> {
+  const trimmed = repoInput.trim()
+
+  // Fast path: a real directory on disk is readable as-is.
+  try {
+    const direct = path.resolve(trimmed)
+    const st = await stat(direct)
+    if (st.isDirectory()) {
+      return { repoInput: trimmed, checkoutPath: direct }
+    }
+  } catch {
+    /* not an existing local path — fall through to Git resolution */
+  }
+
   const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoInput)
-  const resolved = await resolveGitRepo(repoInput, { fetch: true, auth })
+  const resolved = await resolveGitRepo(trimmed, { fetch: true, auth })
   const checkout = await ensureReadableCheckout(resolved.repoPath, auth)
-  return { repoInput, checkoutPath: checkout.checkoutPath }
+  return { repoInput: trimmed, checkoutPath: checkout.checkoutPath }
 }
 
 /** Fetch the design doc from the Figma link/token. */
