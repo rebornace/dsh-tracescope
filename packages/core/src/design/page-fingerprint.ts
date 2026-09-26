@@ -10,6 +10,7 @@
  */
 import type { DesignDoc, DesignNode } from './types.js'
 import type { CodePage, PageFingerprint } from './adapters/adapter-types.js'
+import { detectSubPages, subPageAsDoc } from './subpages.js'
 
 /** Lowercase and collapse all whitespace; used for text equality. */
 export function normalizeText(value?: string): string {
@@ -117,9 +118,39 @@ export function scorePage(target: PageFingerprint, page: CodePage): PageMatch {
   return { page, score: Math.round(score * 1000) / 1000, reasons }
 }
 
+export interface MatchTarget {
+  fingerprint: PageFingerprint
+  /** Label of the screen part this target represents. */
+  label: string
+  kind: 'screen' | 'repeated-item' | 'card-variant'
+}
+
+/** Build scoring targets: the whole screen plus any extracted item subtrees. */
+export function buildMatchTargets(design: DesignDoc): MatchTarget[] {
+  const targets: MatchTarget[] = [
+    {
+      fingerprint: designFingerprint(design),
+      label: design.root.name,
+      kind: 'screen',
+    },
+  ]
+  for (const subPage of detectSubPages(design)) {
+    const subDoc = subPageAsDoc(design, subPage)
+    targets.push({
+      fingerprint: designFingerprint(subDoc),
+      label: subPage.label,
+      kind: subPage.reason,
+    })
+  }
+  return targets
+}
+
 /**
- * Rank all code pages against a design screen, best first. Pages below the
- * threshold are dropped.
+ * Rank all code pages against a design screen, best first.
+ *
+ * For list / board screens each page is scored against the whole screen and
+ * against the extracted item subtrees; the best part wins, so item layouts
+ * rank correctly. Pages below the threshold are dropped.
  */
 export function matchPages(
   design: DesignDoc,
@@ -127,9 +158,25 @@ export function matchPages(
   options: MatchOptions = {},
 ): PageMatch[] {
   const minScore = options.minScore ?? 0.15
-  const target = designFingerprint(design)
-  return pages
-    .map((page) => scorePage(target, page))
-    .filter((m) => m.score >= minScore)
-    .sort((a, b) => b.score - a.score)
+  const targets = buildMatchTargets(design)
+
+  const scored = pages.map((page) => {
+    let best = { match: null as PageMatch | null, target: targets[0]! }
+    for (const target of targets) {
+      const m = scorePage(target.fingerprint, page)
+      if (!best.match || m.score > best.match.score) best = { match: m, target }
+    }
+    const match = best.match!
+    // Annotate non-screen matches so the UI can explain the ranking.
+    if (best.target.kind !== 'screen') {
+      const note =
+        best.target.kind === 'repeated-item'
+          ? `列表项「${best.target.label}」`
+          : `卡片变体「${best.target.label}」`
+      match.reasons = [note, ...match.reasons]
+    }
+    return match
+  })
+
+  return scored.filter((m) => m.score >= minScore).sort((a, b) => b.score - a.score)
 }
