@@ -42,11 +42,11 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
-    "build:server": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --emitDeclarationOnly && node scripts/build-server.mjs && node scripts/build-client.mjs",
+    "build:server": "node scripts/build-server.mjs",
     "build:client": "node scripts/build-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepare": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json --emitDeclarationOnly && node scripts/build-server.mjs",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
