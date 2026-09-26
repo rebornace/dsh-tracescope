@@ -42,7 +42,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "build:server": "tsc -p tsconfig.json",
+    "build:client": "node scripts/build-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "tsc -p tsconfig.json",
     "prepublishOnly": "pnpm run build"
@@ -52,6 +54,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "esbuild": "0.28.2",
     "typescript": "^5.8.2"
   },
   "engines": {
