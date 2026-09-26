@@ -29,7 +29,7 @@ window.__ModuleLoader__.load({
 `
 
 const footer = `
-    return module.exports
+    return __tracescopeExports
   },
 })
 `

@@ -1,6 +1,10 @@
-    var module = { exports: {} }
-    var exports = module.exports
-    Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
+    // Dedicated export holder for the lazy-CJS factory wrapper. We deliberately
+    // avoid the special CommonJS names `module`/`exports` here: esbuild, when
+    // emitting `cjs`, reserves those for an ambient CommonJS wrapper and would
+    // rename a local `module` (e.g. to `module2`). The DSH factory only binds
+    // `require`, so the footer returns this object directly.
+    var __tracescopeExports = {}
+
 
     var React = require('react')
     var jsxRuntime = require('react/jsx-runtime')
@@ -5024,17 +5028,57 @@
     var inject = ['slots', 'sidebarRightTabs', 'sidebarRight', 'conversation', 'sessions']
     var KIND = 'tracescope'
 
-    function tryOpenTraceScopeTab() {
-      try {
-        var side =
-          hostCtx && (hostCtx.sidebarRight || (hostCtx.get && hostCtx.get('sidebarRight')))
-        if (side && typeof side.openTab === 'function') {
-          side.openTab(KIND)
-          return { ok: true }
+    function getSidebarRight() {
+      return hostCtx && (hostCtx.sidebarRight || (hostCtx.get && hostCtx.get('sidebarRight')))
+    }
+
+    // The rightbar seat only binds `sidebarRight` once the conversation surface
+    // mounts; calling openTab before that throws "no session surface is mounted".
+    // A single fixed-delay shot races the mount and silently loses on the official
+    // desktop build, so we poll until the service is bound and then open.
+    function openTraceScopeTabWhenReady(onStopped) {
+      var cancelled = false
+      var timer = null
+
+      function clearTimer() {
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
         }
-        return { ok: false, error: 'sidebarRight.openTab 不可用' }
-      } catch (err) {
-        return { ok: false, error: (err && err.message) || String(err) }
+      }
+
+      function schedule(delay) {
+        clearTimer()
+        timer = setTimeout(run, delay)
+      }
+
+      function finish() {
+        if (cancelled) return
+        cancelled = true
+        clearTimer()
+        if (typeof onStopped === 'function') onStopped()
+      }
+
+      function run() {
+        if (cancelled) return
+        var side = getSidebarRight()
+        if (!side || typeof side.openTab !== 'function') {
+          // Service not mounted yet; keep waiting (user may enter a session later).
+          schedule(150)
+          return
+        }
+        try {
+          side.openTab(KIND)
+          finish()
+        } catch (_err) {
+          // "no session surface is mounted" etc. — keep polling while sessions exist.
+          schedule(200)
+        }
+      }
+
+      run()
+      return function cancel() {
+        finish()
       }
     }
 
@@ -5063,30 +5107,48 @@
         })
       }, 'tracescope sidebar tab')
 
-      // Best-effort: when a session becomes current, expand right sidebar onto TraceScope.
-      // DSH may still hide the column on pure hero/blank until the conversation surface mounts.
+      // Auto-expand onto TraceScope once a conversation surface is mounted.
+      //
+      // Newer desktop builds' sessions snapshot no longer exposes `.current`
+      // (it only carries ids/byId/phase/projectionsBySession), so we cannot
+      // read the active session from it. Instead we poll `sidebarRight.openTab`:
+      // the service only binds once the rightbar seat mounts for a session, and
+      // calling it earlier throws "no session surface is mounted". We keep trying
+      // while sessions exist, so the poll that runs just after entering a
+      // session expands the column. openTab is idempotent for an already-open
+      // page, and collapsing the sidebar does not change the session list, so a
+      // deliberate collapse (without switching sessions) is not forced back open.
       ctx.effect(function () {
         var sessions = ctx.sessions || (ctx.get && ctx.get('sessions'))
         if (!sessions || !sessions.list || typeof sessions.list.subscribe !== 'function') {
           return function () {}
         }
-        var lastOpened = ''
-        function maybeOpen() {
+        var cancelCurrent = null
+
+        function reconcile() {
           try {
             var snap = sessions.list.getSnapshot()
-            var current = snap && snap.current
-            if (!current || current === lastOpened) return
-            lastOpened = current
-            // Defer so conversation seat finishes mounting.
-            setTimeout(function () {
-              tryOpenTraceScopeTab()
-            }, 120)
+            var ids = snap && snap.ids
+            var hasSessions = Array.isArray(ids) && ids.length > 0
+            if (hasSessions && !cancelCurrent) {
+              cancelCurrent = openTraceScopeTabWhenReady(function onOpened() {
+                cancelCurrent = null
+              })
+            }
           } catch (_e) {
-            /* ignore */
+            /* non-fatal: retry on next list change */
           }
         }
-        maybeOpen()
-        return sessions.list.subscribe(maybeOpen)
+
+        reconcile()
+        var unsubscribe = sessions.list.subscribe(reconcile)
+        return function dispose() {
+          unsubscribe()
+          if (cancelCurrent) {
+            cancelCurrent()
+            cancelCurrent = null
+          }
+        }
       }, 'tracescope auto-open')
 
       ctx.effect(function () {
@@ -5116,6 +5178,6 @@
       }, 'tracescope sidebar title')
     }
 
-    exports.name = name
-    exports.inject = inject
-    exports.apply = apply
+    __tracescopeExports.name = name
+    __tracescopeExports.inject = inject
+    __tracescopeExports.apply = apply

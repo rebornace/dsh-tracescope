@@ -450,9 +450,7 @@ var init_VisualComparePanel = __esm({
 });
 
 // client-src/entry.js
-var module2 = { exports: {} };
-var exports = module2.exports;
-Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+var __tracescopeExports = {};
 var React = require("react");
 var jsxRuntime = require("react/jsx-runtime");
 var jsx2 = jsxRuntime.jsx;
@@ -4907,17 +4905,46 @@ function TraceScopePanelBody() {
 var name = "tracescope-client";
 var inject = ["slots", "sidebarRightTabs", "sidebarRight", "conversation", "sessions"];
 var KIND = "tracescope";
-function tryOpenTraceScopeTab() {
-  try {
-    var side = hostCtx && (hostCtx.sidebarRight || hostCtx.get && hostCtx.get("sidebarRight"));
-    if (side && typeof side.openTab === "function") {
-      side.openTab(KIND);
-      return { ok: true };
+function getSidebarRight() {
+  return hostCtx && (hostCtx.sidebarRight || hostCtx.get && hostCtx.get("sidebarRight"));
+}
+function openTraceScopeTabWhenReady(onStopped) {
+  var cancelled = false;
+  var timer = null;
+  function clearTimer() {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
     }
-    return { ok: false, error: "sidebarRight.openTab 不可用" };
-  } catch (err) {
-    return { ok: false, error: err && err.message || String(err) };
   }
+  function schedule(delay) {
+    clearTimer();
+    timer = setTimeout(run, delay);
+  }
+  function finish() {
+    if (cancelled) return;
+    cancelled = true;
+    clearTimer();
+    if (typeof onStopped === "function") onStopped();
+  }
+  function run() {
+    if (cancelled) return;
+    var side = getSidebarRight();
+    if (!side || typeof side.openTab !== "function") {
+      schedule(150);
+      return;
+    }
+    try {
+      side.openTab(KIND);
+      finish();
+    } catch (_err) {
+      schedule(200);
+    }
+  }
+  run();
+  return function cancel() {
+    finish();
+  };
 }
 function apply(ctx) {
   hostCtx = ctx;
@@ -4948,21 +4975,29 @@ function apply(ctx) {
       return function() {
       };
     }
-    var lastOpened = "";
-    function maybeOpen() {
+    var cancelCurrent = null;
+    function reconcile() {
       try {
         var snap = sessions.list.getSnapshot();
-        var current = snap && snap.current;
-        if (!current || current === lastOpened) return;
-        lastOpened = current;
-        setTimeout(function() {
-          tryOpenTraceScopeTab();
-        }, 120);
+        var ids = snap && snap.ids;
+        var hasSessions = Array.isArray(ids) && ids.length > 0;
+        if (hasSessions && !cancelCurrent) {
+          cancelCurrent = openTraceScopeTabWhenReady(function onOpened() {
+            cancelCurrent = null;
+          });
+        }
       } catch (_e) {
       }
     }
-    maybeOpen();
-    return sessions.list.subscribe(maybeOpen);
+    reconcile();
+    var unsubscribe = sessions.list.subscribe(reconcile);
+    return function dispose() {
+      unsubscribe();
+      if (cancelCurrent) {
+        cancelCurrent();
+        cancelCurrent = null;
+      }
+    };
   }, "tracescope auto-open");
   ctx.effect(function() {
     return ctx.slots.inject("sidebar.right.pane.tab", function() {
@@ -4989,10 +5024,10 @@ function apply(ctx) {
     });
   }, "tracescope sidebar title");
 }
-exports.name = name;
-exports.inject = inject;
-exports.apply = apply;
+__tracescopeExports.name = name;
+__tracescopeExports.inject = inject;
+__tracescopeExports.apply = apply;
 
-    return module.exports
+    return __tracescopeExports
   },
 })
