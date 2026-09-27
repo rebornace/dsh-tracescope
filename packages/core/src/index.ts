@@ -152,6 +152,13 @@ export {
 export { buildFailFeedbackDescription as buildYunxiaoFailDescription } from './issue-tracker.js'
 /** @deprecated Use buildFailFeedbackSubject */
 export { buildFailFeedbackSubject as buildYunxiaoFailSubject } from './issue-tracker.js'
+// Modular tracker subsystem (one adapter file per platform + registry).
+export {
+  trackerAdapters,
+  getTrackerAdapter,
+  type TrackerAdapter,
+  type SubmitContext,
+} from './tracker/index.js'
 export {
   analyzeReportWithModel,
   enrichReportWithModel,

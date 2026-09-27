@@ -19,7 +19,7 @@ type CommandResult =
 export function registerCliCommand(ctx: Context) {
   ctx.commands.register({
     name: 'tracescope',
-    description: '打开右侧 TraceScope 面板，或命令行生成确定性手测范围报告',
+    description: '打开右侧 TraceScope 面板，或命令行生成确定性变更影响范围报告',
     input: { hint: '[<repo> <baseCommit> <headCommit> [exportDir]]' },
     handler: async (invocation: { rawInput: string }): Promise<CommandResult> => {
       const parts = invocation.rawInput.trim().split(/\s+/).filter(Boolean)

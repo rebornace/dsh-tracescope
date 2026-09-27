@@ -461,6 +461,14 @@ var useCallback = React.useCallback;
 var useRef = React.useRef;
 var VisualComparePanel2 = (init_VisualComparePanel(), __toCommonJS(VisualComparePanel_exports)).VisualComparePanel;
 var TAB_ID = "@rebornace/dsh-tracescope";
+var AUTO_OPEN_KEY = "tracescope.autoOpen";
+function isAutoOpenEnabled() {
+  try {
+    return localStorage.getItem(AUTO_OPEN_KEY) !== "off";
+  } catch (_e) {
+    return true;
+  }
+}
 var hostCtx = null;
 var styles = {
   root: {
@@ -700,7 +708,7 @@ function buildLocalExportMarkdown(report, meta) {
   var base = meta && meta.baseCommit || report.baseCommit || "";
   var head = meta && meta.headCommit || report.headCommit || "";
   var lines = [
-    "# TraceScope 手测范围报告",
+    "# TraceScope 变更验证报告",
     "",
     "- 仓库：`" + repo + "`",
     "- 稳定基线：`" + base + "`",
@@ -737,7 +745,7 @@ function buildLocalExportMarkdown(report, meta) {
         lines.push("  - `" + f + "`");
       });
       if (!(item.files || []).length) lines.push("  - （无）");
-      lines.push("- 建议手测：");
+      lines.push("- 建议验证：");
       (item.suggestedSteps || []).forEach(function(s, i) {
         lines.push("  " + (i + 1) + ". " + s);
       });
@@ -872,9 +880,9 @@ function defaultFailSubject(failed, repoPath) {
   var label = shortRepoLabel(repoPath || "");
   var prefix = label && label !== "（未选仓库）" ? "[TraceScope][" + label + "] " : "[TraceScope] ";
   if (failed.length === 1) {
-    return (prefix + "手测失败：" + (failed[0].displayName || "条目")).slice(0, 120);
+    return (prefix + "验证失败：" + (failed[0].displayName || "条目")).slice(0, 120);
   }
-  return (prefix + "手测失败 " + failed.length + " 项").slice(0, 120);
+  return (prefix + "验证失败 " + failed.length + " 项").slice(0, 120);
 }
 var MAX_SHOTS = 3;
 function compressImageToShot(fileOrBlob, nameHint, done, fail) {
@@ -952,7 +960,7 @@ function StatusButtons(props) {
         {
           type: "button",
           disabled: locked,
-          title: s === "pass" ? "标记为手测通过" : s === "fail" ? "标记为手测失败" : s === "skip" ? "本轮不测，标记跳过" : "清除结果，恢复为待测",
+          title: s === "pass" ? "标记为验证通过" : s === "fail" ? "标记为验证失败" : s === "skip" ? "本轮不测，标记跳过" : "清除结果，恢复为待测",
           style: Object.assign(
             {},
             statusBtnStyle(s, active),
@@ -1422,6 +1430,16 @@ function TraceScopePanelBody() {
   var _settingsOpen = useState2(!initialRepo);
   var settingsOpen = _settingsOpen[0];
   var setSettingsOpen = _settingsOpen[1];
+  var _autoOpen = useState2(isAutoOpenEnabled());
+  var autoOpen = _autoOpen[0];
+  var setAutoOpen = _autoOpen[1];
+  function toggleAutoOpen(next) {
+    setAutoOpen(next);
+    try {
+      localStorage.setItem(AUTO_OPEN_KEY, next ? "on" : "off");
+    } catch (_e) {
+    }
+  }
   var ACCESS_MODE_KEY = "tracescope.accessMode";
   var _accessMode = useState2(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
   var accessMode = _accessMode[0];
@@ -1965,7 +1983,7 @@ function TraceScopePanelBody() {
         } else {
           setReport(null);
           setHistoryId("");
-          setChatHint("当前版本对比尚无已存清单，请「生成手测清单」或「模型对话分析」。");
+          setChatHint("当前版本对比尚无已存清单，请「生成变更验证清单」或「模型对话分析」。");
         }
       }).catch(function(err) {
         setError(err.message || String(err));
@@ -2085,7 +2103,7 @@ function TraceScopePanelBody() {
       } else {
         setReport(null);
         setHistoryId("");
-        setChatHint("当前版本对比尚无已存清单，请「生成手测清单」或「模型对话分析」。");
+        setChatHint("当前版本对比尚无已存清单，请「生成变更验证清单」或「模型对话分析」。");
       }
     }).catch(function() {
       if (cancelled) return;
@@ -2272,7 +2290,7 @@ function TraceScopePanelBody() {
       }
       function runAnalyze() {
         persistAuth();
-        if (!beginBusy("正在生成手测清单…")) return;
+        if (!beginBusy("正在生成变更验证清单…")) return;
         var related = selectedRelatedWorkItems();
         apiPost("/tracescope/v1/analyze", {
           repoPath: repoPath.trim(),
@@ -2304,7 +2322,7 @@ function TraceScopePanelBody() {
       if (report) {
         setConfirmDlg({
           title: "重新生成清单？",
-          message: "当前版本对比已有手测清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。",
+          message: "当前版本对比已有变更验证清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。",
           confirmLabel: "重新生成",
           danger: false,
           onConfirm: runAnalyze
@@ -2580,7 +2598,7 @@ function TraceScopePanelBody() {
   var uploadTaskFiles = useCallback(
     function(files) {
       if (!report) {
-        setChatHint("请先生成手测清单，再上传任务附件");
+        setChatHint("请先生成变更验证清单，再上传任务附件");
         return;
       }
       var list = (files || []).filter(Boolean);
@@ -2667,7 +2685,7 @@ function TraceScopePanelBody() {
   var uploadTaskLocalPath = useCallback(
     function() {
       if (!report) {
-        setChatHint("请先生成手测清单，再上传任务附件");
+        setChatHint("请先生成变更验证清单，再上传任务附件");
         return;
       }
       var localPath = taskAttachPath.trim();
@@ -3053,7 +3071,7 @@ function TraceScopePanelBody() {
         var items2 = data && data.items || [];
         setWiItems(items2);
         setWiSelected({});
-        setWiHint("已拉取 " + items2.length + " 条，可多选后生成手测清单");
+        setWiHint("已拉取 " + items2.length + " 条，可多选后生成变更验证清单");
       }).catch(function(err) {
         setWiHint(err.message || String(err));
       }).finally(function() {
@@ -3169,6 +3187,37 @@ function TraceScopePanelBody() {
           })
         ]
       }),
+      // Top-level mode switch — always reachable, before/after repo setup.
+      jsxs2("div", {
+        style: {
+          display: "flex",
+          gap: 6,
+          background: "var(--dsh-card,#fffdf8)",
+          border: "1px solid var(--dsh-border,#ddd4c5)",
+          borderRadius: 999,
+          padding: 4
+        },
+        children: [
+          jsx2("button", {
+            type: "button",
+            style: mode === "functional" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
+            disabled: busy,
+            onClick: function() {
+              switchMode("functional");
+            },
+            children: "功能影响分析"
+          }),
+          jsx2("button", {
+            type: "button",
+            style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
+            disabled: busy,
+            onClick: function() {
+              switchMode("ui");
+            },
+            children: "UI 设计对比"
+          })
+        ]
+      }),
       jsxs2("section", {
         style: styles.card,
         children: [
@@ -3240,6 +3289,36 @@ function TraceScopePanelBody() {
             },
             children: [
               jsxs2("label", {
+                style: Object.assign({}, styles.row, {
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 10,
+                  cursor: "pointer",
+                  fontWeight: 500
+                }),
+                children: [
+                  jsx2("input", {
+                    type: "checkbox",
+                    checked: autoOpen,
+                    disabled: busy,
+                    onChange: function(e) {
+                      toggleAutoOpen(e.target.checked);
+                    },
+                    style: { margin: 0, cursor: "pointer" }
+                  }),
+                  jsxs2("span", {
+                    style: { display: "flex", flexDirection: "column", minWidth: 0 },
+                    children: [
+                      jsx2("span", { children: "进入会话时自动展开 TraceScope" }),
+                      jsx2("span", {
+                        style: { color: "#6b645a", fontSize: 12, fontWeight: 400, lineHeight: 1.4 },
+                        children: "关闭后仅在你从右侧栏主动选择时打开，适合频繁使用、不想被自动切换的用户。"
+                      })
+                    ]
+                  })
+                ]
+              }),
+              jsxs2("label", {
                 style: styles.label,
                 children: [
                   "仓库路径 / 远端地址",
@@ -3257,7 +3336,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }),
-              jsxs2("label", {
+              mode === "functional" && jsxs2("label", {
                 style: styles.label,
                 children: [
                   "读取方式",
@@ -3290,7 +3369,7 @@ function TraceScopePanelBody() {
               jsxs2("div", {
                 style: Object.assign({}, styles.row, { marginBottom: 8 }),
                 children: [
-                  jsx2("button", {
+                  mode === "functional" ? jsx2("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy || !repoPath.trim(),
@@ -3300,7 +3379,7 @@ function TraceScopePanelBody() {
                       setSettingsOpen(false);
                     },
                     children: "保存并加载版本"
-                  }),
+                  }) : null,
                   repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx2("button", {
                     type: "button",
                     style: styles.btn,
@@ -3989,7 +4068,7 @@ function TraceScopePanelBody() {
                     }),
                     jsx2("p", {
                       style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
-                      children: "勾选工作项类型后拉取任务，再多选任务。生成手测清单 / 模型对话分析时会把它们写入清单与提示。"
+                      children: "勾选工作项类型后拉取任务，再多选任务。生成变更验证清单 / 模型对话分析时会把它们写入清单与提示。"
                     }),
                     jsxs2("div", {
                       style: Object.assign({}, styles.row, {
@@ -4166,7 +4245,7 @@ function TraceScopePanelBody() {
                       style: styles.primary,
                       disabled: busy || !baseCommit || !headCommit,
                       onClick: analyze,
-                      children: "生成手测清单"
+                      children: "生成变更验证清单"
                     }),
                     jsx2("button", {
                       type: "button",
@@ -4533,36 +4612,6 @@ function TraceScopePanelBody() {
           error ? jsx2("p", { style: styles.error, children: error }) : null
         ]
       }),
-      jsxs2("div", {
-        style: {
-          display: "flex",
-          gap: 6,
-          background: "var(--dsh-card,#fffdf8)",
-          border: "1px solid var(--dsh-border,#ddd4c5)",
-          borderRadius: 999,
-          padding: 4
-        },
-        children: [
-          jsx2("button", {
-            type: "button",
-            style: mode === "functional" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
-            disabled: busy,
-            onClick: function() {
-              switchMode("functional");
-            },
-            children: "功能测试"
-          }),
-          jsx2("button", {
-            type: "button",
-            style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
-            disabled: busy,
-            onClick: function() {
-              switchMode("ui");
-            },
-            children: "UI 测试"
-          })
-        ]
-      }),
       mode === "functional" && report ? jsxs2("section", {
         style: styles.card,
         children: [
@@ -4572,7 +4621,7 @@ function TraceScopePanelBody() {
           }),
           jsx2("p", {
             style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 },
-            children: "手测时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。"
+            children: "验证时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。"
           }),
           jsxs2("div", {
             style: Object.assign({}, styles.row, {
@@ -4643,7 +4692,7 @@ function TraceScopePanelBody() {
             children: [
               jsx2("div", {
                 style: { fontWeight: 600, marginBottom: 4 },
-                children: "任务附件（整份手测任务）"
+                children: "任务附件（整份验证任务）"
               }),
               jsx2("p", {
                 style: {
@@ -4963,7 +5012,7 @@ function apply(ctx) {
             return "TraceScope";
           },
           description: function() {
-            return "对比版本、手测清单与模型分析（新建会话后也可从右侧栏打开）";
+            return "对比版本、变更验证清单与模型分析（新建会话后也可从右侧栏打开）";
           }
         }
       ]
@@ -4978,6 +5027,13 @@ function apply(ctx) {
     var cancelCurrent = null;
     function reconcile() {
       try {
+        if (!isAutoOpenEnabled()) {
+          if (cancelCurrent) {
+            cancelCurrent();
+            cancelCurrent = null;
+          }
+          return;
+        }
         var snap = sessions.list.getSnapshot();
         var ids = snap && snap.ids;
         var hasSessions = Array.isArray(ids) && ids.length > 0;

@@ -47,7 +47,7 @@ server.tool(
       content: [
         {
           type: 'text',
-          text: `TraceScope 可视化面板已启动：${url}\n测试同学可在页面里选仓库与版本并勾选手测结果，无需敲命令。`,
+          text: `TraceScope 可视化面板已启动：${url}\n可在页面里选仓库与版本并勾选验证结果，无需敲命令。`,
         },
       ],
     }

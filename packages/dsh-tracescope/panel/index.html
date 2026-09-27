@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TraceScope 手测范围</title>
+    <title>TraceScope 变更验证</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="top">
       <div>
         <p class="eyebrow">TraceScope</p>
-        <h1>手测范围助手</h1>
-        <p class="sub">选仓库、选两个版本，一键生成要测的功能清单。不用敲命令。</p>
+        <h1>变更验证助手</h1>
+        <p class="sub">选仓库、选两个版本，一键生成需要验证的功能清单。不用敲命令。</p>
       </div>
       <div class="status-pill" id="serverStatus">连接中…</div>
     </header>
@@ -61,7 +61,7 @@
         </details>
 
         <div class="actions">
-          <button type="button" id="btnAnalyze" class="primary" disabled>生成手测清单</button>
+          <button type="button" id="btnAnalyze" class="primary" disabled>生成变更验证清单</button>
           <p class="error" id="formError" hidden></p>
         </div>
       </section>
@@ -69,7 +69,7 @@
       <section class="card" id="reportSection" hidden>
         <div class="report-head">
           <div>
-            <h2>2. 手测清单</h2>
+            <h2>2. 变更验证清单</h2>
             <p class="meta" id="reportMeta"></p>
           </div>
           <div class="row">
@@ -87,7 +87,7 @@
         <div id="listDirect" class="item-list"></div>
         <div id="listRipple" class="item-list" hidden></div>
 
-        <p class="hint">点选「通过 / 失败 / 跳过」记录手测结果。证据可展开查看，给开发看也不怕。</p>
+        <p class="hint">点选「通过 / 失败 / 跳过」记录验证结果。证据可展开查看，给开发看也不怕。</p>
       </section>
 
       <section class="card" id="visualSection">
