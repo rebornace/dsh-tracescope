@@ -15,14 +15,43 @@ export function sendJson(res: { writeHead: Function; end: Function }, status: nu
   res.end(body)
 }
 
+function headerHost(value: string): string {
+  try {
+    return new URL(value).host
+  } catch {
+    return ''
+  }
+}
+
+/** True when the request target is a loopback host (with optional port). */
+function isLoopbackHost(host: string): boolean {
+  const h = host.toLowerCase()
+  return (
+    h === '127.0.0.1' ||
+    h === 'localhost' ||
+    h === '[::1]' ||
+    h.startsWith('127.0.0.1:') ||
+    h.startsWith('localhost:') ||
+    h.startsWith('[::1]:')
+  )
+}
+
+/**
+ * Decide whether a request may drive the local TraceScope API.
+ *
+ * Prefer `Origin` (always sent on cross-site POSTs and on same-origin fetch
+ * POSTs), then fall back to `Referer`; their host must match the target. Some
+ * Electron / embedded-sidebar builds strip BOTH for an internal request — in
+ * that case allow only a loopback target. A malicious web page driving the API
+ * always carries a non-matching `Origin`, so it is still rejected.
+ */
 export function isTrustedRequest(req: { headers: Record<string, string | string[] | undefined> }) {
   const host = String(req.headers.host ?? '')
+  const origin = String(req.headers.origin ?? '')
   const referer = String(req.headers.referer ?? '')
-  try {
-    return referer !== '' && new URL(referer).host === host
-  } catch {
-    return false
-  }
+  if (origin !== '') return headerHost(origin) === host
+  if (referer !== '') return headerHost(referer) === host
+  return isLoopbackHost(host)
 }
 
 export function readJsonBody(
