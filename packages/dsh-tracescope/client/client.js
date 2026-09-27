@@ -524,6 +524,21 @@ var styles = {
     color: "var(--dsh-fg, #1c1915)",
     fontSize: 12
   },
+  miniBtn: {
+    border: "1px solid var(--dsh-border, #ddd4c5)",
+    borderRadius: 999,
+    padding: "3px 10px",
+    cursor: "pointer",
+    background: "var(--dsh-card, #fffdf8)",
+    color: "#6b645a",
+    fontSize: 11,
+    lineHeight: 1.4,
+    whiteSpace: "nowrap"
+  },
+  miniBtnActive: {
+    borderColor: "var(--dsh-accent, #0f6e56)",
+    color: "var(--dsh-accent, #0f6e56)"
+  },
   error: { color: "#b42318", margin: 0 },
   item: {
     border: "1px solid var(--dsh-border, #ddd4c5)",
@@ -821,6 +836,40 @@ function clearComposerDraft() {
 }
 var REPOS_KEY = "tracescope.repos";
 var REPO_PATH_KEY = "tracescope.repoPath";
+var PROFILES_KEY = "tracescope.profiles";
+function readProfilesMap() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(PROFILES_KEY) || "{}");
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  } catch (_e) {
+    return {};
+  }
+}
+function readRepoProfile(repo) {
+  var key = String(repo || "").trim();
+  if (!key) return null;
+  var p = readProfilesMap()[key];
+  return p && typeof p === "object" ? p : null;
+}
+function writeRepoProfile(repo, profile) {
+  var key = String(repo || "").trim();
+  if (!key) return;
+  var map = readProfilesMap();
+  map[key] = profile;
+  var known = readRepoList();
+  var order = [key].concat(known.filter(function(r) {
+    return r !== key;
+  }));
+  var pruned = {};
+  var count = 0;
+  order.forEach(function(r) {
+    if (map[r] && typeof map[r] === "object" && count < 30) {
+      pruned[r] = map[r];
+      count += 1;
+    }
+  });
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(pruned));
+}
 function readRepoList() {
   try {
     var raw = JSON.parse(localStorage.getItem(REPOS_KEY) || "[]");
@@ -930,8 +979,14 @@ function compressImageToShot(fileOrBlob, nameHint, done, fail) {
 function formatBytes(n) {
   var bytes = Number(n) || 0;
   if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  var units = ["KB", "MB", "GB", "TB"];
+  var v = bytes / 1024;
+  var i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return v.toFixed(v < 10 ? 1 : 0) + " " + units[i];
 }
 function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
@@ -1451,6 +1506,56 @@ function TraceScopePanelBody() {
     } catch (_e) {
     }
   }
+  var _dataDirOpen = useState2(false);
+  var dataDirOpen = _dataDirOpen[0];
+  var setDataDirOpen = _dataDirOpen[1];
+  var _dataDir = useState2(null);
+  var dataDirInfo = _dataDir[0];
+  var setDataDirInfo = _dataDir[1];
+  var _dataDirDraft = useState2("");
+  var dataDirDraft = _dataDirDraft[0];
+  var setDataDirDraft = _dataDirDraft[1];
+  var _dataDirBusy = useState2(false);
+  var dataDirBusy = _dataDirBusy[0];
+  var setDataDirBusy = _dataDirBusy[1];
+  function refreshDataDir() {
+    return apiGet("/tracescope/v1/data-dir").then(function(data) {
+      setDataDirInfo(data);
+      setDataDirDraft(data.dataRoot || "");
+    }).catch(function() {
+    });
+  }
+  function toggleDataDir(next) {
+    var opening = typeof next === "boolean" ? next : !dataDirOpen;
+    setDataDirOpen(opening);
+    if (opening && !dataDirInfo) refreshDataDir();
+  }
+  function applyDataDir() {
+    if (dataDirBusy) return;
+    var target = String(dataDirDraft || "").trim();
+    if (!target) {
+      setChatHint("数据目录不能为空");
+      return;
+    }
+    if (dataDirInfo && target === dataDirInfo.dataRoot) {
+      setDataDirOpen(false);
+      return;
+    }
+    setDataDirBusy(true);
+    setChatHint("正在迁移数据到新目录，数据较多时请耐心等待，请勿关闭…");
+    apiPost("/tracescope/v1/data-dir-change", { dataRoot: target }).then(function(data) {
+      setDataDirInfo(data);
+      setDataDirDraft(data.dataRoot || target);
+      setDataDirOpen(false);
+      setChatHint(
+        data.migrated ? "数据已迁移至「" + data.dataRoot + "」，历史记录与附件均保留。" : "数据目录已切换为「" + data.dataRoot + "」。"
+      );
+    }).catch(function(err) {
+      setChatHint("更改数据目录失败：" + (err.message || String(err)));
+    }).finally(function() {
+      setDataDirBusy(false);
+    });
+  }
   var ACCESS_MODE_KEY = "tracescope.accessMode";
   var _accessMode = useState2(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
   var accessMode = _accessMode[0];
@@ -1738,6 +1843,209 @@ function TraceScopePanelBody() {
   function codeupRequestToken() {
     return authMode === "token" ? usableSecret(yxToken) : authMode === "https" ? usableSecret(authToken) : usableSecret(yxToken);
   }
+  var restoringProfileRef = useRef(false);
+  var pendingTrackerSyncRef = useRef(false);
+  function defaultYxEndpoint() {
+    return "https://openapi-rdc.aliyuncs.com";
+  }
+  function applyRepoProfile(p) {
+    restoringProfileRef.current = true;
+    pendingTrackerSyncRef.current = true;
+    setWiItems([]);
+    setWiSelected({});
+    setWiHint("");
+    setYxCatalogHint("");
+    setYxRequestLog("");
+    if (!p) {
+      setYxOrgs([]);
+      setYxProjects([]);
+      setYxTypes([]);
+      setYxMembers([]);
+      setAccessMode("git");
+      setAuthMode("none");
+      setAuthUser("git");
+      setAuthToken("");
+      setAuthKey("");
+      setRememberAuth(true);
+      setTrackerProvider("none");
+      setTrackerReady(false);
+      setYxEndpoint(defaultYxEndpoint());
+      setYxToken("");
+      setYxTokenSaved(false);
+      setYxOrg("");
+      setYxSpace("");
+      setYxType("");
+      setYxAssignee("");
+      setGhToken("");
+      setGhOwner("");
+      setGhRepo("");
+      setGhLabels("bug");
+      setGlHost("https://gitlab.com");
+      setGlToken("");
+      setGlProject("");
+      setGlLabels("bug");
+      setWhUrl("");
+      setWhAuth("");
+      return;
+    }
+    setAccessMode(p.accessMode === "codeup" ? "codeup" : "git");
+    var am = p.authMode === "token" || p.authMode === "https" || p.authMode === "ssh" || p.authMode === "none" ? p.authMode : "none";
+    setAuthMode(am);
+    setAuthUser(p.authUser || "git");
+    setAuthToken(p.authToken || "");
+    setAuthKey(p.authKey || "");
+    setRememberAuth(p.rememberAuth !== false);
+    setTrackerProvider(p.trackerProvider || "none");
+    setTrackerReady(Boolean(p.trackerReady));
+    setYxEndpoint(p.yxEndpoint || defaultYxEndpoint());
+    setYxToken(p.yxToken || "");
+    setYxTokenSaved(Boolean(p.yxTokenSaved));
+    setYxOrg(p.yxOrg || "");
+    setYxSpace(p.yxSpace || "");
+    setYxType(p.yxType || "");
+    setYxAssignee(p.yxAssignee || "");
+    setYxOrgs(p.yxOrg ? [{ id: p.yxOrg, name: p.yxOrg }] : []);
+    setYxProjects(p.yxSpace ? [{ id: p.yxSpace, name: p.yxSpace }] : []);
+    setYxTypes(p.yxType ? [{ id: p.yxType, name: p.yxType }] : []);
+    setYxMembers(p.yxAssignee ? [{ id: p.yxAssignee, name: p.yxAssignee }] : []);
+    setGhToken(p.ghToken || "");
+    setGhOwner(p.ghOwner || "");
+    setGhRepo(p.ghRepo || "");
+    setGhLabels(p.ghLabels || "bug");
+    setGlHost(p.glHost || "https://gitlab.com");
+    setGlToken(p.glToken || "");
+    setGlProject(p.glProject || "");
+    setGlLabels(p.glLabels || "bug");
+    setWhUrl(p.whUrl || "");
+    setWhAuth(p.whAuth || "");
+  }
+  function currentRepoProfile() {
+    return {
+      accessMode: accessMode === "codeup" ? "codeup" : "git",
+      authMode,
+      authUser,
+      authToken,
+      authKey,
+      rememberAuth,
+      trackerProvider,
+      trackerReady,
+      yxEndpoint,
+      yxToken,
+      yxTokenSaved,
+      yxOrg,
+      yxSpace,
+      yxType,
+      yxAssignee,
+      ghToken,
+      ghOwner,
+      ghRepo,
+      ghLabels,
+      glHost,
+      glToken,
+      glProject,
+      glLabels,
+      whUrl,
+      whAuth
+    };
+  }
+  useEffect(
+    function() {
+      var repo = repoPath.trim();
+      if (!repo || restoringProfileRef.current) {
+        restoringProfileRef.current = false;
+        return;
+      }
+      writeRepoProfile(repo, currentRepoProfile());
+    },
+    [
+      repoPath,
+      accessMode,
+      authMode,
+      authUser,
+      authToken,
+      authKey,
+      rememberAuth,
+      trackerProvider,
+      trackerReady,
+      yxEndpoint,
+      yxToken,
+      yxTokenSaved,
+      yxOrg,
+      yxSpace,
+      yxType,
+      yxAssignee,
+      ghToken,
+      ghOwner,
+      ghRepo,
+      ghLabels,
+      glHost,
+      glToken,
+      glProject,
+      glLabels,
+      whUrl,
+      whAuth
+    ]
+  );
+  useEffect(
+    function() {
+      if (!pendingTrackerSyncRef.current) return;
+      var repo = repoPath.trim();
+      if (!repo) {
+        pendingTrackerSyncRef.current = false;
+        return;
+      }
+      pendingTrackerSyncRef.current = false;
+      var payload = { provider: trackerProvider };
+      if (trackerProvider === "yunxiao") {
+        payload.yunxiao = {
+          endpoint: yxEndpoint,
+          token: yxToken,
+          organizationId: yxOrg,
+          spaceId: yxSpace,
+          workitemTypeId: yxType,
+          assignedTo: yxAssignee
+        };
+      } else if (trackerProvider === "github") {
+        payload.github = {
+          token: ghToken,
+          owner: ghOwner,
+          repo: ghRepo,
+          labels: ghLabels
+        };
+      } else if (trackerProvider === "gitlab") {
+        payload.gitlab = {
+          host: glHost,
+          token: glToken,
+          projectId: glProject,
+          labels: glLabels
+        };
+      } else if (trackerProvider === "webhook") {
+        payload.webhook = { url: whUrl, authHeader: whAuth };
+      }
+      apiPost("/tracescope/v1/tracker-config-save", payload).catch(function() {
+      });
+    },
+    [
+      repoPath,
+      trackerProvider,
+      yxEndpoint,
+      yxToken,
+      yxOrg,
+      yxSpace,
+      yxType,
+      yxAssignee,
+      ghToken,
+      ghOwner,
+      ghRepo,
+      ghLabels,
+      glHost,
+      glToken,
+      glProject,
+      glLabels,
+      whUrl,
+      whAuth
+    ]
+  );
   function setRemoteAuthMode(next) {
     var mode2 = next === "yunxiao" ? "token" : next;
     setAuthMode(mode2);
@@ -2064,6 +2372,7 @@ function TraceScopePanelBody() {
       stopJobPolling();
       setJobId("");
       setJobStatus("");
+      applyRepoProfile(readRepoProfile(next));
       setRepoPath(next);
       rememberRepo(next);
       setResolved(null);
@@ -3208,35 +3517,108 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          // Global preference — compact, independent of the repo/feature cards.
-          jsxs2("label", {
-            title: "进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。",
+          // Global preferences — compact, independent of the repo/feature cards.
+          jsxs2("div", {
             style: {
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
-              flex: "0 0 auto",
-              margin: 0,
-              fontSize: 11,
-              color: "#6b645a",
-              cursor: busy ? "default" : "pointer",
-              userSelect: "none"
+              gap: 8,
+              flex: "0 0 auto"
             },
             children: [
-              jsx2("input", {
-                type: "checkbox",
-                checked: autoOpen,
-                disabled: busy,
-                onChange: function(e) {
-                  toggleAutoOpen(e.target.checked);
+              jsxs2("label", {
+                title: "进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。",
+                style: {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  margin: 0,
+                  fontSize: 11,
+                  color: "#6b645a",
+                  cursor: busy ? "default" : "pointer",
+                  userSelect: "none"
                 },
-                style: { margin: 0, cursor: busy ? "default" : "pointer" }
+                children: [
+                  jsx2("input", {
+                    type: "checkbox",
+                    checked: autoOpen,
+                    disabled: busy,
+                    onChange: function(e) {
+                      toggleAutoOpen(e.target.checked);
+                    },
+                    style: { margin: 0, cursor: busy ? "default" : "pointer" }
+                  }),
+                  "自动展开"
+                ]
               }),
-              "自动展开"
+              jsx2("button", {
+                type: "button",
+                title: "自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘",
+                disabled: busy,
+                onClick: function() {
+                  toggleDataDir();
+                },
+                style: dataDirInfo && !dataDirInfo.envLocked || !dataDirInfo ? Object.assign({}, styles.miniBtn, dataDirOpen ? styles.miniBtnActive : null) : Object.assign({}, styles.miniBtn, { opacity: 0.7 }),
+                children: "数据目录" + (dataDirInfo ? " · " + formatBytes(dataDirInfo.sizeBytes) : "")
+              })
             ]
           })
         ]
       }),
+      // Compact data-directory editor (global preference), inline under header.
+      dataDirOpen ? jsxs2("div", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          padding: 8,
+          marginTop: 2,
+          background: "var(--dsh-card, #fffdf8)",
+          border: "1px solid var(--dsh-border, #ddd4c5)",
+          borderRadius: 10
+        },
+        children: [
+          jsxs2("label", {
+            style: { margin: 0, fontSize: 12, color: "#5d564c", display: "flex", flexDirection: "column", gap: 4 },
+            children: [
+              "数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）",
+              jsx2("input", {
+                style: styles.input,
+                value: dataDirDraft,
+                disabled: dataDirBusy,
+                placeholder: dataDirInfo ? dataDirInfo.defaultRoot : "",
+                onChange: function(e) {
+                  setDataDirDraft(e.target.value);
+                }
+              })
+            ]
+          }),
+          dataDirInfo && dataDirInfo.envLocked ? jsx2("p", {
+            style: { margin: 0, color: "#9a6a1f", fontSize: 12 },
+            children: "当前目录由环境变量 TRACESCOPE_HOME 指定（" + dataDirInfo.envRoot + "），请修改环境变量后重启，无法在此更改。"
+          }) : jsxs2("div", {
+            style: Object.assign({}, styles.row, { justifyContent: "flex-end" }),
+            children: [
+              jsx2("button", {
+                type: "button",
+                style: styles.secondary,
+                disabled: dataDirBusy,
+                onClick: function() {
+                  setDataDirOpen(false);
+                },
+                children: "取消"
+              }),
+              jsx2("button", {
+                type: "button",
+                style: styles.primary,
+                disabled: dataDirBusy,
+                onClick: applyDataDir,
+                children: dataDirBusy ? "迁移中…" : "更改并迁移"
+              })
+            ]
+          })
+        ]
+      }) : null,
       // Top-level mode switch — always reachable, before/after repo setup.
       jsxs2("div", {
         style: {

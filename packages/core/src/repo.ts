@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { access, mkdir, readdir, rm, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { reposDirFor, resolveDataRoot } from './paths.js'
 import path from 'node:path'
 import {
   adaptRemoteUrlForAuth,
@@ -244,7 +244,7 @@ export async function resolveGitRepo(
     if (auth?.mode === 'ssh' && /^https?:\/\//i.test(remoteUrl)) {
       throw new Error('SSH 认证请使用 git@host:org/repo.git 形式的地址，或改用 HTTPS Token')
     }
-    const cacheRoot = options.cacheRoot ?? path.join(homedir(), '.tracescope', 'repos')
+    const cacheRoot = options.cacheRoot ?? reposDirFor(await resolveDataRoot())
     await mkdir(cacheRoot, { recursive: true })
     let repoPath = cachePathForRemote(remoteUrl, cacheRoot)
     let synced = false

@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import {
   normalizeReportAttachments,
   removeReportAttachmentsDir,
 } from './attachments.js'
+import { dataRootSync } from './paths.js'
 import { ensureUniqueScopeItemIds } from './scope-ids.js'
 import { normalizeTesterScreenshots } from './screenshots.js'
 import type { ImpactReport, ScopeItem } from './types.js'
@@ -37,7 +37,7 @@ export interface HandtestHistorySummary {
 }
 
 function tracescopeRoot(cacheRoot?: string): string {
-  return cacheRoot ?? path.join(os.homedir(), '.tracescope')
+  return dataRootSync(cacheRoot)
 }
 
 function reportsDir(cacheRoot?: string): string {
