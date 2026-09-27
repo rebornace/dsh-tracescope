@@ -217,7 +217,10 @@ export {
   fetchFigmaDoc,
   normalizeFigmaTree,
   parseFigmaUrl,
+  renderFigmaNode,
   type FigmaClientOptions,
+  type FigmaRenderOptions,
+  type FigmaRenderResult,
 } from './design/sources/figma.js'
 export {
   buildAndroidResources,
