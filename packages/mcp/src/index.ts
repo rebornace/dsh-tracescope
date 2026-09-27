@@ -131,9 +131,9 @@ server.tool(
       await writeFile(path.join(args.exportDir, 'tracescope-report.csv'), csv, 'utf8')
     }
     const summary = [
-      `直接变更 ${report.direct.length} · 可能波及 ${report.ripple.length} · 变更文件 ${report.changedFiles.length}`,
+      `直接项 ${report.direct.length} · 可能波及 ${report.ripple.length} · 变更文件 ${report.changedFiles.length}`,
       '',
-      '## 直接变更',
+      '## 直接项',
       ...report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
       '',
       '## 可能波及',

@@ -107,7 +107,7 @@ describe('export', () => {
   it('exports markdown with human display names', () => {
     const md = exportReportMarkdown(sample)
     expect(md).toContain('订单列表')
-    expect(md).toContain('直接变更')
+    expect(md).toContain('直接项')
   })
 
   it('exports csv', () => {

@@ -86,10 +86,10 @@ export function registerAnalyzeImpactTool(ctx: Context) {
           codeup: job?.codeup,
         })
         const summary = [
-          `直接变更 ${result.report.direct.length} · 可能波及 ${result.report.ripple.length}`,
-          '（确定性分析；对话结论请用 tracescope_publish_handtest 回写面板）',
+          `直接项 ${result.report.direct.length} · 可能波及 ${result.report.ripple.length}`,
+          '（规则分析；对话结论请用 tracescope_publish_handtest 回写面板）',
           '',
-          '## 直接变更',
+          '## 直接项',
           ...result.report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
           '',
           '## 可能波及',

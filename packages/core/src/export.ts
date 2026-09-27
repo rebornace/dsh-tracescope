@@ -62,13 +62,13 @@ function renderFailFeedback(report: ImpactReport): string[] {
 
 export function exportReportMarkdown(report: ImpactReport): string {
   const lines = [
-    `# TraceScope 变更验证报告`,
+    `# TraceScope 验证报告`,
     '',
     `- 仓库：\`${report.repoPath}\``,
     `- 稳定基线：\`${report.baseCommit}\``,
     `- 待测提交：\`${report.headCommit}\``,
     `- 生成时间：${report.generatedAt}`,
-    `- 模型对比：${report.modelEnriched ? '是' : '否（确定性分析）'}`,
+    `- AI 分析：${report.modelEnriched ? '是' : '否（规则分析）'}`,
     `- 变更文件数：${report.changedFiles.length}`,
     '',
   ]
@@ -86,10 +86,10 @@ export function exportReportMarkdown(report: ImpactReport): string {
     lines.push('')
   }
 
-  lines.push(`## 直接变更`, '')
+  lines.push(`## 直接项`, '')
 
   if (report.direct.length === 0) {
-    lines.push('_无直接变更项_', '')
+    lines.push('_无直接项_', '')
   } else {
     report.direct.forEach((item, i) => lines.push(renderItem(item, i + 1)))
   }
