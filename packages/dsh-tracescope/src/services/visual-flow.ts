@@ -9,6 +9,7 @@ import {
   compareDesignWithPage,
   ensureReadableCheckout,
   fetchFigmaDoc,
+  isGitRemoteUrl,
   locatePagesForDesign,
   parseGitAuth,
   resolveGitRepo,
@@ -25,28 +26,44 @@ export interface VisualRepoContext {
 }
 
 /**
- * Resolve the repository to a readable checkout.
+ * Resolve the code location to a readable directory.
  *
- * Design match/compare only reads source files, so an existing local folder is
- * used directly even when it is not a Git checkout (e.g. an exported source
- * snapshot). Remote URLs and non-existent paths still go through Git resolution,
- * which clones/fetches and attaches a worktree to bare clones.
+ * Design match/compare only reads source files, so:
+ *  - an existing local folder is used directly, even without a Git checkout
+ *    (e.g. an exported source snapshot);
+ *  - a remote URL goes through Git resolution, which clones/fetches and attaches
+ *    a worktree to bare clones;
+ *  - a local path that does NOT exist is a hard, explicit error — we must not
+ *    fall back to spawning git (which may be missing in the packaged app,
+ *    producing a misleading "spawn git ENOENT").
  */
 export async function resolveVisualRepo(
   repoInput: string,
   body: Record<string, unknown>,
 ): Promise<VisualRepoContext> {
   const trimmed = repoInput.trim()
+  const direct = path.resolve(trimmed)
 
-  // Fast path: a real directory on disk is readable as-is.
+  let st: Awaited<ReturnType<typeof stat>> | null = null
+  let statCode: string | undefined
   try {
-    const direct = path.resolve(trimmed)
-    const st = await stat(direct)
-    if (st.isDirectory()) {
-      return { repoInput: trimmed, checkoutPath: direct }
+    st = await stat(direct)
+  } catch (error) {
+    statCode = (error as { code?: string }).code
+  }
+
+  // Existing local directory -> read directly (no Git needed).
+  if (st) {
+    if (!st.isDirectory()) {
+      throw new Error(`路径不是文件夹：${direct}（请点「浏览…」选择代码文件夹）`)
     }
-  } catch {
-    /* not an existing local path — fall through to Git resolution */
+    return { repoInput: trimmed, checkoutPath: direct }
+  }
+
+  // Local path missing -> only clone via Git when it is actually a remote URL.
+  if (!isGitRemoteUrl(trimmed)) {
+    const suffix = statCode === 'ENOENT' ? '本地文件夹不存在：' : '无法访问本地路径：'
+    throw new Error(`${suffix}${direct}（请点「浏览…」重新选择代码文件夹）`)
   }
 
   const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoInput)
