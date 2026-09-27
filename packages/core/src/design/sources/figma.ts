@@ -12,7 +12,71 @@ import type {
 
 const FIGMA_API = 'https://api.figma.com/v1'
 
-export interface FigmaClientOptions {
+export interface FigmaTransportOptions {
+  /** Total attempts per request, including the first one (default 3). */
+  attempts?: number
+  /** Per-attempt connect timeout in ms (default 20000). */
+  timeoutMs?: number
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Fetch with a connect timeout and automatic retries.
+ *
+ * Access to api.figma.com is frequently slow / intermittently reset on some
+ * networks; a single transient failure used to surface the raw English
+ * "fetch failed". We retry network-level errors and 5xx responses with a short
+ * backoff. HTTP 4xx (auth/not found) is returned immediately and never retried.
+ */
+async function figmaFetch(
+  url: string,
+  headers: Record<string, string>,
+  options: FigmaTransportOptions & { fetchImpl?: typeof fetch },
+): Promise<Response> {
+  const fetchImpl = options.fetchImpl ?? fetch
+  const attempts = Math.max(1, options.attempts ?? 3)
+  const timeoutMs = options.timeoutMs ?? 20000
+
+  let lastCause: unknown
+  let firedOwnTimeout = false
+  for (let i = 0; i < attempts; i += 1) {
+    if (i > 0) await sleep(Math.min(4000, 500 * 2 ** (i - 1)))
+    firedOwnTimeout = false
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      firedOwnTimeout = true
+      controller.abort()
+    }, timeoutMs)
+
+    let response: Response
+    try {
+      response = await fetchImpl(url, { headers, signal: controller.signal })
+    } catch (error) {
+      clearTimeout(timer)
+      lastCause = (error as { cause?: unknown })?.cause ?? error
+      continue
+    }
+    clearTimeout(timer)
+
+    // Transient server error -> retry; anything else (incl. all 4xx) is final.
+    if (response.status < 500 || i === attempts - 1) return response
+  }
+
+  const code =
+    lastCause && typeof lastCause === 'object'
+      ? String((lastCause as { code?: string }).code ?? '')
+      : ''
+  const isTimeout = firedOwnTimeout || /TIMEOUT/i.test(code)
+  throw new Error(
+    isTimeout
+      ? `连接 Figma 超时（已重试 ${attempts} 次）。请检查网络或代理后重试。`
+      : `无法连接 Figma 服务（已重试 ${attempts} 次，${code || 'network error'}）。请检查网络或代理后重试。`,
+  )
+}
+
+export interface FigmaClientOptions extends FigmaTransportOptions {
   token: string
   /** Logical-unit scale applied to raw Figma lengths (default 1). */
   scale?: number
@@ -207,11 +271,8 @@ export async function fetchFigmaDoc(
   }
   if (!resolvedNodeId) throw new Error('需要 Figma node id')
 
-  const fetchImpl = options.fetchImpl ?? fetch
   const url = `${FIGMA_API}/files/${fileKey}/nodes?ids=${encodeURIComponent(resolvedNodeId)}`
-  const response = await fetchImpl(url, {
-    headers: { 'X-Figma-Token': options.token },
-  })
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
   if (!response.ok) {
     throw new Error(`Figma API 请求失败：${response.status} ${response.statusText}`)
   }
@@ -224,7 +285,7 @@ export async function fetchFigmaDoc(
   return normalizeFigmaTree(entry, options.scale ?? 1)
 }
 
-export interface FigmaRenderOptions {
+export interface FigmaRenderOptions extends FigmaTransportOptions {
   token: string
   /** Render scale (default 2 for a crisp preview). */
   scale?: number
@@ -259,16 +320,13 @@ export async function renderFigmaNode(
   }
   if (!resolvedNodeId) throw new Error('需要 Figma node id 才能渲染')
 
-  const fetchImpl = options.fetchImpl ?? fetch
   const params = new URLSearchParams({
     ids: resolvedNodeId,
     format: options.format ?? 'png',
     scale: String(options.scale ?? 2),
   })
   const url = `${FIGMA_API}/images/${fileKey}?${params.toString()}`
-  const response = await fetchImpl(url, {
-    headers: { 'X-Figma-Token': options.token },
-  })
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
   if (!response.ok) {
     throw new Error(`Figma 渲染请求失败：${response.status} ${response.statusText}`)
   }

@@ -221,6 +221,7 @@ export {
   type FigmaClientOptions,
   type FigmaRenderOptions,
   type FigmaRenderResult,
+  type FigmaTransportOptions,
 } from './design/sources/figma.js'
 export {
   buildAndroidResources,
