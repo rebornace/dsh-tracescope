@@ -87,6 +87,7 @@ function VisualComparePanel({ repoInput, auth }) {
   const [selectedKey, setSelectedKey] = (0, import_react.useState)("");
   const [data, setData] = (0, import_react.useState)(null);
   const [error, setError] = (0, import_react.useState)("");
+  const [designNodeName, setDesignNodeName] = (0, import_react.useState)("");
   const setFigmaUrl = (value) => {
     setFigmaUrlState(value);
     writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim());
@@ -103,6 +104,7 @@ function VisualComparePanel({ repoInput, auth }) {
     setData(null);
     setPhase("idle");
     setError("");
+    setDesignNodeName("");
   }, [repoInput]);
   const basePayload = () => ({
     repoPath: repoInput,
@@ -113,6 +115,7 @@ function VisualComparePanel({ repoInput, auth }) {
   async function locate() {
     setError("");
     setData(null);
+    setDesignNodeName("");
     if (!figmaUrl.trim() || !figmaToken.trim()) {
       setError("请填写设计稿链接和访问 Token");
       return;
@@ -123,6 +126,7 @@ function VisualComparePanel({ repoInput, auth }) {
       const list = res.candidates || [];
       setCandidates(list);
       setPhase("matched");
+      setDesignNodeName(typeof res.designNodeName === "string" ? res.designNodeName : "");
       if (list.length) {
         const first = list[0];
         setSelectedKey(candidateKey(first));
@@ -238,7 +242,25 @@ function VisualComparePanel({ repoInput, auth }) {
           children: busy ? "对比中…" : "开始对比所选页面"
         }
       )
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { ...S.hint, color: "#9a6700", marginTop: 10 }, children: "未能在仓库中定位到与设计稿对应的页面。请确认所选仓库根目录正确，或检查设计稿中的文案是否与界面一致。" }) : null,
+    ] }) : designNodeName ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { ...S.hint, color: "#9a6700", marginTop: 10, lineHeight: 1.7 }, children: [
+      "当前链接指向的节点「",
+      designNodeName,
+      "」是一个",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "空白图层（不含任何文案或控件）" }),
+      "， 无法对应到代码页面。",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+      "请在 Figma 中点击真正的",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "画板 / 界面 Frame" }),
+      "（通常包含整屏内容，而非某个矩形、图片等子元素）， 右键选择「Copy link to selection」后重新粘贴。"
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { ...S.hint, color: "#9a6700", marginTop: 10, lineHeight: 1.7 }, children: [
+      "未能在仓库中定位到与设计稿对应的页面。请确认：",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+      "1）所选代码文件夹根目录正确；",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+      "2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+      "3）设计稿中的文案与界面实际文案一致。"
+    ] }) : null,
     error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { color: "#b42318", margin: "8px 0 0", fontSize: 12 }, children: error }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CompareView, { data })
   ] });

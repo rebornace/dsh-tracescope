@@ -108,6 +108,7 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
   const [selectedKey, setSelectedKey] = useState('')
   const [data, setData] = useState<CompareData | null>(null)
   const [error, setError] = useState('')
+  const [designNodeName, setDesignNodeName] = useState('')
 
   const setFigmaUrl = (value: string) => {
     setFigmaUrlState(value)
@@ -128,6 +129,7 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
     setData(null)
     setPhase('idle')
     setError('')
+    setDesignNodeName('')
   }, [repoInput])
 
   const basePayload = () => ({
@@ -140,6 +142,7 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
   async function locate() {
     setError('')
     setData(null)
+    setDesignNodeName('')
     if (!figmaUrl.trim() || !figmaToken.trim()) {
       setError('请填写设计稿链接和访问 Token')
       return
@@ -150,6 +153,7 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
       const list = (res.candidates || []) as MatchCandidate[]
       setCandidates(list)
       setPhase('matched')
+      setDesignNodeName(typeof res.designNodeName === 'string' ? res.designNodeName : '')
       if (list.length) {
         const first = list[0]!
         setSelectedKey(candidateKey(first))
@@ -274,10 +278,24 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
               {busy ? '对比中…' : '开始对比所选页面'}
             </button>
           </div>
+        ) : designNodeName ? (
+          <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
+            当前链接指向的节点「{designNodeName}」是一个<strong>空白图层（不含任何文案或控件）</strong>，
+            无法对应到代码页面。
+            <br />
+            请在 Figma 中点击真正的<strong>画板 / 界面 Frame</strong>（通常包含整屏内容，而非某个矩形、图片等子元素），
+            右键选择「Copy link to selection」后重新粘贴。
+          </div>
         ) : (
-          <p style={{ ...S.hint, color: '#9a6700', marginTop: 10 }}>
-            未能在仓库中定位到与设计稿对应的页面。请确认所选仓库根目录正确，或检查设计稿中的文案是否与界面一致。
-          </p>
+          <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
+            未能在仓库中定位到与设计稿对应的页面。请确认：
+            <br />
+            1）所选代码文件夹根目录正确；
+            <br />
+            2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；
+            <br />
+            3）设计稿中的文案与界面实际文案一致。
+          </div>
         )
       ) : null}
 

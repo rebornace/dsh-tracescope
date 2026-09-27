@@ -15,6 +15,7 @@ import {
   resolveGitRepo,
   type DesignDoc,
   discoverAllPages,
+  designFingerprint,
 } from '@rebornace/tracescope-core'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -80,14 +81,50 @@ export async function loadDesign(body: Record<string, unknown>): Promise<DesignD
   return await fetchFigmaDoc(figmaUrl, undefined, { token: figmaToken })
 }
 
+/**
+ * A design node carries no locatable content when it has neither text nor any
+ * child controls (e.g. the user copied a link to a bare rectangle/shape layer
+ * instead of the actual screen frame). Matching such a node can only ever
+ * produce structural-coincidence noise, so we flag it up front.
+ */
+function describeEmptyDesign(design: DesignDoc): { empty: boolean; nodeName: string } {
+  const fp = designFingerprint(design)
+  return { empty: fp.texts.length === 0 && fp.controlCount === 0, nodeName: design.root.name }
+}
+
+export interface MatchDesignResult {
+  candidates: Array<{
+    adapterId: string
+    platform: string
+    kindLabel: string
+    relativePath: string
+    precise: boolean
+    score: number
+    reasons: string[]
+  }>
+  /** True when the linked node has no texts/controls (e.g. a shape layer). */
+  designEmpty?: boolean
+  /** Name of the linked design node, shown when it is empty. */
+  designNodeName?: string
+}
+
 /** Locate candidate code pages for the design screen, best first. */
 export async function matchDesignToRepo(
   body: Record<string, unknown>,
-): Promise<{ candidates: unknown[] }> {
+): Promise<MatchDesignResult> {
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   if (!repoInput) throw new Error('缺少 repoPath')
   const ctx = await resolveVisualRepo(repoInput, body)
   const design = await loadDesign(body)
+  const { empty, nodeName } = describeEmptyDesign(design)
+
+  // An empty node (shape/rectangle) can never match a real screen. Skip the
+  // noisy scoring pass and report the precise cause so the user picks the
+  // actual frame instead of being told "no page found in the repository".
+  if (empty) {
+    return { candidates: [], designEmpty: true, designNodeName: nodeName }
+  }
+
   const matches = await locatePagesForDesign(design, ctx.checkoutPath)
   return {
     candidates: matches.map((m) => ({
