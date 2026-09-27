@@ -1065,6 +1065,18 @@
       return /^https:\/\/codeup\.aliyun\.com\//i.test(String(value || '').trim())
     }
 
+    /** True when input looks like a remote git URL (vs. a local folder path). */
+    function isGitRemoteInput(value) {
+      var s = String(value || '').trim()
+      if (!s) return false
+      if (/^https?:\/\//i.test(s)) return true
+      if (/^git@[^:\s]+:/.test(s)) return true
+      if (/^ssh:\/\//i.test(s)) return true
+      if (/^git:\/\//i.test(s)) return true
+      if (/^(github\.com|gitlab\.com|gitee\.com|coding\.net)\//i.test(s)) return true
+      return false
+    }
+
 
 
     function TraceScopePanelBody() {
@@ -1082,6 +1094,9 @@
       var _settingsOpen = useState(!initialRepo)
       var settingsOpen = _settingsOpen[0]
       var setSettingsOpen = _settingsOpen[1]
+      // Local folder vs. remote URL — derived live from the current input so the
+      // form can hide remote-only concerns (auth / access mode) for local repos.
+      var isRemote = isGitRemoteInput(repoPath)
       var _autoOpen = useState(isAutoOpenEnabled())
       var autoOpen = _autoOpen[0]
       var setAutoOpen = _autoOpen[1]
@@ -1917,44 +1932,50 @@
             return
           }
           var codeupToken = codeupRequestToken()
-          if (authMode === 'token' || accessMode === 'codeup') {
-            if (!codeupToken && !yxTokenSaved) {
-              setError('请选择「个人访问令牌」并填写令牌。填一次会记在本机。')
+          // Local folders carry no credentials — skip every remote auth guard.
+          if (isRemote) {
+            if (authMode === 'token' || accessMode === 'codeup') {
+              if (!codeupToken && !yxTokenSaved) {
+                setError('请选择「个人访问令牌」并填写令牌。填一次会记在本机。')
+                setSettingsOpen(true)
+                setRemoteAuthMode('token')
+                return
+              }
+            } else if (authMode === 'https') {
+              if (!usableSecret(authToken)) {
+                setError('私有仓请填写 HTTPS 用户名和密码 / Token')
+                setSettingsOpen(true)
+                return
+              }
+            } else if (authMode === 'ssh') {
+              if (!authKey.trim()) {
+                setError('请填写 SSH 私钥文件的本机绝对路径')
+                return
+              }
+            } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
+              setError('私有仓库请使用「个人访问令牌」')
               setSettingsOpen(true)
               setRemoteAuthMode('token')
               return
             }
-          } else if (authMode === 'https') {
-            if (!usableSecret(authToken)) {
-              setError('私有仓请填写 HTTPS 用户名和密码 / Token')
-              setSettingsOpen(true)
-              return
-            }
-          } else if (authMode === 'ssh') {
-            if (!authKey.trim()) {
-              setError('请填写 SSH 私钥文件的本机绝对路径')
-              return
-            }
-          } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
-            setError('私有仓库请使用「个人访问令牌」')
-            setSettingsOpen(true)
-            setRemoteAuthMode('token')
-            return
           }
+          // A local folder always reads via local git with no credentials,
+          // regardless of any access-mode/auth values left over from a remote URL.
+          var effectiveAccessMode = isRemote ? accessMode : 'git'
           localStorage.setItem(REPO_PATH_KEY, repoPath.trim())
-          localStorage.setItem(ACCESS_MODE_KEY, accessMode)
+          localStorage.setItem(ACCESS_MODE_KEY, effectiveAccessMode)
           rememberRepo(repoPath.trim())
           persistAuth()
-          if (!beginBusy(accessMode === 'codeup' ? '正在通过远端 API 读取版本…' : '正在同步仓库版本…')) return
+          if (!beginBusy(effectiveAccessMode === 'codeup' ? '正在通过远端 API 读取版本…' : '正在同步仓库版本…')) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
             fetch: forceFetch === false ? false : true,
             refName: opts && opts.refName ? opts.refName : undefined,
-            auth: buildAuthPayload(),
-            accessMode: accessMode,
+            auth: isRemote ? buildAuthPayload() : { mode: 'none' },
+            accessMode: effectiveAccessMode,
             codeup:
-              accessMode === 'codeup'
+              effectiveAccessMode === 'codeup'
                 ? {
                     endpoint: yxEndpoint,
                     token: codeupRequestToken(),
@@ -3286,12 +3307,12 @@
                       jsxs('label', {
                         style: styles.label,
                         children: [
-                          '仓库路径 / 远端地址',
+                          '本地文件夹路径 / 远端仓库地址',
                           jsx('input', {
                             style: styles.input,
                             value: repoPath,
                             disabled: busy,
-                            placeholder: 'C:\\work\\app 或 https://github.com/org/repo.git',
+                            placeholder: '本地项目文件夹，或 https://github.com/org/repo.git',
                             onChange: function (e) {
                               setRepoPath(e.target.value)
                             },
@@ -3299,10 +3320,15 @@
                               if (repoPath.trim()) rememberRepo(repoPath.trim())
                             },
                           }),
+                          jsx('span', {
+                            style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
+                            children:
+                              '支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。',
+                          }),
                         ],
                       }),
-                      mode === 'functional' &&
-                      jsxs('label', {
+                      mode === 'functional' && isRemote
+                      ? jsxs('label', {
                         style: styles.label,
                         children: [
                           '读取方式',
@@ -3333,7 +3359,8 @@
                                 : '同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。',
                           }),
                         ],
-                      }),
+                      })
+                      : null,
                       jsxs('div', {
                         style: Object.assign({}, styles.row, { marginBottom: 8 }),
                         children: [
@@ -3381,6 +3408,14 @@
                             : null,
                         ],
                       }),
+                      // Local folders need no credentials; show a compact, neutral note.
+                      !isRemote
+                        ? jsx('p', {
+                            style: { margin: '0 0 4px', color: '#0f6e56', fontSize: 12, lineHeight: 1.45 },
+                            children: '本地文件夹：直接读取，无需填写认证。',
+                          })
+                        : null,
+                      isRemote &&
                       jsxs('div', {
                         style: {
                           display: 'grid',
@@ -3430,7 +3465,7 @@
                             : jsx('div', { children: null }),
                         ],
                       }),
-                      authMode === 'token'
+                      isRemote && authMode === 'token'
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
@@ -3460,7 +3495,7 @@
                             ],
                           })
                         : null,
-                      authMode === 'https'
+                      isRemote && authMode === 'https'
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
@@ -3487,7 +3522,7 @@
                             ],
                           })
                         : null,
-                      authMode === 'ssh'
+                      isRemote && authMode === 'ssh'
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
@@ -3495,7 +3530,7 @@
                               jsx('input', {
                                 style: styles.input,
                                 value: authKey,
-                                placeholder: '例如 C:\\Users\\you\\.ssh\\id_ed25519',
+                                placeholder: '本机 SSH 私钥文件路径，如 ~/.ssh/id_ed25519',
                                 onChange: function (e) {
                                   setAuthKey(e.target.value)
                                 },
@@ -3503,7 +3538,7 @@
                             ],
                           })
                         : null,
-                      authMode !== 'none'
+                      isRemote && authMode !== 'none'
                         ? jsxs('label', {
                             style: {
                               display: 'flex',

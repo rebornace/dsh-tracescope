@@ -1415,6 +1415,16 @@ function usableSecret(value) {
 function isCodeupHttps(value) {
   return /^https:\/\/codeup\.aliyun\.com\//i.test(String(value || "").trim());
 }
+function isGitRemoteInput(value) {
+  var s = String(value || "").trim();
+  if (!s) return false;
+  if (/^https?:\/\//i.test(s)) return true;
+  if (/^git@[^:\s]+:/.test(s)) return true;
+  if (/^ssh:\/\//i.test(s)) return true;
+  if (/^git:\/\//i.test(s)) return true;
+  if (/^(github\.com|gitlab\.com|gitee\.com|coding\.net)\//i.test(s)) return true;
+  return false;
+}
 function TraceScopePanelBody() {
   var initialRepo = localStorage.getItem(REPO_PATH_KEY) || "";
   var _repo = useState2(initialRepo);
@@ -1430,6 +1440,7 @@ function TraceScopePanelBody() {
   var _settingsOpen = useState2(!initialRepo);
   var settingsOpen = _settingsOpen[0];
   var setSettingsOpen = _settingsOpen[1];
+  var isRemote = isGitRemoteInput(repoPath);
   var _autoOpen = useState2(isAutoOpenEnabled());
   var autoOpen = _autoOpen[0];
   var setAutoOpen = _autoOpen[1];
@@ -2173,43 +2184,46 @@ function TraceScopePanelBody() {
         return;
       }
       var codeupToken = codeupRequestToken();
-      if (authMode === "token" || accessMode === "codeup") {
-        if (!codeupToken && !yxTokenSaved) {
-          setError("请选择「个人访问令牌」并填写令牌。填一次会记在本机。");
+      if (isRemote) {
+        if (authMode === "token" || accessMode === "codeup") {
+          if (!codeupToken && !yxTokenSaved) {
+            setError("请选择「个人访问令牌」并填写令牌。填一次会记在本机。");
+            setSettingsOpen(true);
+            setRemoteAuthMode("token");
+            return;
+          }
+        } else if (authMode === "https") {
+          if (!usableSecret(authToken)) {
+            setError("私有仓请填写 HTTPS 用户名和密码 / Token");
+            setSettingsOpen(true);
+            return;
+          }
+        } else if (authMode === "ssh") {
+          if (!authKey.trim()) {
+            setError("请填写 SSH 私钥文件的本机绝对路径");
+            return;
+          }
+        } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
+          setError("私有仓库请使用「个人访问令牌」");
           setSettingsOpen(true);
           setRemoteAuthMode("token");
           return;
         }
-      } else if (authMode === "https") {
-        if (!usableSecret(authToken)) {
-          setError("私有仓请填写 HTTPS 用户名和密码 / Token");
-          setSettingsOpen(true);
-          return;
-        }
-      } else if (authMode === "ssh") {
-        if (!authKey.trim()) {
-          setError("请填写 SSH 私钥文件的本机绝对路径");
-          return;
-        }
-      } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
-        setError("私有仓库请使用「个人访问令牌」");
-        setSettingsOpen(true);
-        setRemoteAuthMode("token");
-        return;
       }
+      var effectiveAccessMode = isRemote ? accessMode : "git";
       localStorage.setItem(REPO_PATH_KEY, repoPath.trim());
-      localStorage.setItem(ACCESS_MODE_KEY, accessMode);
+      localStorage.setItem(ACCESS_MODE_KEY, effectiveAccessMode);
       rememberRepo(repoPath.trim());
       persistAuth();
-      if (!beginBusy(accessMode === "codeup" ? "正在通过远端 API 读取版本…" : "正在同步仓库版本…")) return;
+      if (!beginBusy(effectiveAccessMode === "codeup" ? "正在通过远端 API 读取版本…" : "正在同步仓库版本…")) return;
       apiPost("/tracescope/v1/commits", {
         repoPath: repoPath.trim(),
         limit: 80,
         fetch: forceFetch === false ? false : true,
         refName: opts && opts.refName ? opts.refName : void 0,
-        auth: buildAuthPayload(),
-        accessMode,
-        codeup: accessMode === "codeup" ? {
+        auth: isRemote ? buildAuthPayload() : { mode: "none" },
+        accessMode: effectiveAccessMode,
+        codeup: effectiveAccessMode === "codeup" ? {
           endpoint: yxEndpoint,
           token: codeupRequestToken(),
           organizationId: yxOrg.trim()
@@ -3327,22 +3341,26 @@ function TraceScopePanelBody() {
               jsxs2("label", {
                 style: styles.label,
                 children: [
-                  "仓库路径 / 远端地址",
+                  "本地文件夹路径 / 远端仓库地址",
                   jsx2("input", {
                     style: styles.input,
                     value: repoPath,
                     disabled: busy,
-                    placeholder: "C:\\work\\app 或 https://github.com/org/repo.git",
+                    placeholder: "本地项目文件夹，或 https://github.com/org/repo.git",
                     onChange: function(e) {
                       setRepoPath(e.target.value);
                     },
                     onBlur: function() {
                       if (repoPath.trim()) rememberRepo(repoPath.trim());
                     }
+                  }),
+                  jsx2("span", {
+                    style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
+                    children: "支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。"
                   })
                 ]
               }),
-              mode === "functional" && jsxs2("label", {
+              mode === "functional" && isRemote ? jsxs2("label", {
                 style: styles.label,
                 children: [
                   "读取方式",
@@ -3371,7 +3389,7 @@ function TraceScopePanelBody() {
                     children: accessMode === "codeup" ? "不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。" : "同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。"
                   })
                 ]
-              }),
+              }) : null,
               jsxs2("div", {
                 style: Object.assign({}, styles.row, { marginBottom: 8 }),
                 children: [
@@ -3415,7 +3433,12 @@ function TraceScopePanelBody() {
                   }) : null
                 ]
               }),
-              jsxs2("div", {
+              // Local folders need no credentials; show a compact, neutral note.
+              !isRemote ? jsx2("p", {
+                style: { margin: "0 0 4px", color: "#0f6e56", fontSize: 12, lineHeight: 1.45 },
+                children: "本地文件夹：直接读取，无需填写认证。"
+              }) : null,
+              isRemote && jsxs2("div", {
                 style: {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
@@ -3462,7 +3485,7 @@ function TraceScopePanelBody() {
                   }) : jsx2("div", { children: null })
                 ]
               }),
-              authMode === "token" ? jsxs2("label", {
+              isRemote && authMode === "token" ? jsxs2("label", {
                 style: styles.label,
                 children: [
                   "个人访问令牌",
@@ -3487,7 +3510,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              authMode === "https" ? jsxs2("label", {
+              isRemote && authMode === "https" ? jsxs2("label", {
                 style: styles.label,
                 children: [
                   "密码 / Token",
@@ -3511,21 +3534,21 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              authMode === "ssh" ? jsxs2("label", {
+              isRemote && authMode === "ssh" ? jsxs2("label", {
                 style: styles.label,
                 children: [
                   "私钥绝对路径",
                   jsx2("input", {
                     style: styles.input,
                     value: authKey,
-                    placeholder: "例如 C:\\Users\\you\\.ssh\\id_ed25519",
+                    placeholder: "本机 SSH 私钥文件路径，如 ~/.ssh/id_ed25519",
                     onChange: function(e) {
                       setAuthKey(e.target.value);
                     }
                   })
                 ]
               }) : null,
-              authMode !== "none" ? jsxs2("label", {
+              isRemote && authMode !== "none" ? jsxs2("label", {
                 style: {
                   display: "flex",
                   alignItems: "center",
