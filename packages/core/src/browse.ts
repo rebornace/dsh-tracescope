@@ -5,13 +5,9 @@
  * panel renders its own picker and asks the host (which has full disk access)
  * to enumerate volumes and the subfolders of a given path.
  */
-import { execFile } from 'node:child_process'
-import { readdir } from 'node:fs/promises'
+import { access, readdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
 
 export interface DirEntry {
   name: string
@@ -27,38 +23,26 @@ export interface BrowseResult {
   dirs: DirEntry[]
 }
 
+/**
+ * Enumerate Windows drive letters by probing the filesystem directly (A–Z).
+ *
+ * This needs no external process: in a packaged Electron/DSH environment the
+ * `PATH` may be trimmed so `powershell.exe`/`wmic` cannot spawn (which used to
+ * silently degrade to only `C:\`), and `wmic` is removed on newer Windows.
+ * Probing `X:\` is fast, deterministic and only reports drives this process
+ * can actually access.
+ */
 async function listWindowsVolumes(): Promise<string[]> {
-  // `wmic` is removed on newer Windows; prefer PowerShell, fall back to wmic.
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-Command',
-        "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-PSDrive -PSProvider FileSystem | ForEach-Object { $_.Root }",
-      ],
-      { windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+  const checks: Promise<string | null>[] = []
+  for (let code = 65; code <= 90; code += 1) {
+    const root = `${String.fromCharCode(code)}:\\`
+    checks.push(
+      access(root)
+        .then(() => root)
+        .catch(() => null),
     )
-    const drives = stdout
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter((s) => /^[A-Za-z]:[\\/]/.test(s))
-    if (drives.length) return drives.map((d) => d.toUpperCase())
-  } catch {
-    /* fall through to wmic */
   }
-  try {
-    const { stdout } = await execFileAsync('wmic', ['logicaldisk', 'get', 'name'], {
-      windowsHide: true,
-    })
-    return stdout
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter((s) => /^[A-Za-z]:$/.test(s))
-      .map((s) => s.toUpperCase() + '\\')
-  } catch {
-    return ['C:\\']
-  }
+  return (await Promise.all(checks)).filter((v): v is string => v !== null)
 }
 
 /** Volume roots on Windows, or the single filesystem root on POSIX. */
