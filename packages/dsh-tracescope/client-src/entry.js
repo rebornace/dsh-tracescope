@@ -1212,12 +1212,9 @@
 
       function openPicker() {
         setPickerOpen(true)
-        // Start at the current data root's parent if available, else volume root.
-        var start = ''
-        if (dataDirInfo && dataDirInfo.dataRoot) {
-          start = dataDirInfo.dataRoot
-        }
-        browsePath(start)
+        // Always start at the volume ("此电脑") list so every drive is reachable;
+        // starting inside the current C:\ data dir used to trap users on C:.
+        browsePath('')
       }
 
       function closePicker() {
@@ -3772,12 +3769,17 @@
                         jsx('button', {
                           type: 'button',
                           style: Object.assign({}, styles.secondary, { padding: '4px 10px' }),
+                          // Enabled anywhere except the synthetic volume list itself.
                           disabled:
-                            pickerLoading || !pickerBrowse || pickerBrowse.parent === null,
+                            pickerLoading ||
+                            !pickerBrowse ||
+                            (pickerBrowse.isRoot && pickerBrowse.parent === null),
                           onClick: function () {
-                            if (pickerBrowse && pickerBrowse.parent !== null) {
+                            if (!pickerBrowse) return
+                            if (pickerBrowse.parent !== null) {
                               browsePath(pickerBrowse.parent)
-                            } else if (pickerBrowse && pickerBrowse.isRoot === false) {
+                            } else {
+                              // At a drive root: climb back to the volume list.
                               browsePath('')
                             }
                           },
