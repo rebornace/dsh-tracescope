@@ -1,12 +1,11 @@
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { YunxiaoConfig } from './yunxiao.js'
 import { normalizeYunxiaoEndpoint } from './yunxiao.js'
+import { dataRootSync } from './paths.js'
 
 function configPath(cacheRoot?: string): string {
-  const root = cacheRoot ?? path.join(os.homedir(), '.tracescope')
-  return path.join(root, 'yunxiao.json')
+  return path.join(dataRootSync(cacheRoot), 'yunxiao.json')
 }
 
 function normalizeConfig(raw: unknown): YunxiaoConfig | null {

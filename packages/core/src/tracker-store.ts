@@ -1,15 +1,15 @@
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { TrackerConfig, TrackerProvider } from './issue-tracker.js'
 import { isTrackerConfigReady } from './issue-tracker.js'
+import { dataRootSync } from './paths.js'
 import { normalizeYunxiaoEndpoint, type YunxiaoConfig } from './yunxiao.js'
 import { loadYunxiaoConfig } from './yunxiao-store.js'
 
 const MASKED_SECRET = '••••••••'
 
 function tracescopeRoot(cacheRoot?: string): string {
-  return cacheRoot ?? path.join(os.homedir(), '.tracescope')
+  return dataRootSync(cacheRoot)
 }
 
 function trackerPath(cacheRoot?: string): string {

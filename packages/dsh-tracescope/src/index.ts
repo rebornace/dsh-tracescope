@@ -13,6 +13,7 @@ import { registerAnalyzeRoutes } from './routes/analyze.js'
 import { registerReportRoutes } from './routes/report.js'
 import { registerTrackerRoutes } from './routes/tracker.js'
 import { registerAuthRoutes } from './routes/auth.js'
+import { registerDataDirRoutes } from './routes/data-dir.js'
 import { registerYunxiaoCatalogRoutes } from './routes/yunxiao-catalog.js'
 import { registerJobsRoutes } from './routes/jobs.js'
 import { registerVisualRoutes } from './routes/visual.js'
@@ -34,6 +35,7 @@ export function apply(ctx: Context) {
   registerReportRoutes(ctx)
   registerTrackerRoutes(ctx)
   registerAuthRoutes(ctx)
+  registerDataDirRoutes(ctx)
   registerYunxiaoCatalogRoutes(ctx)
   registerJobsRoutes(ctx)
 

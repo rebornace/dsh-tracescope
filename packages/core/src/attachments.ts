@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { ReportAttachment } from './types.js'
+import { dataRootSync } from './paths.js'
 
 export const MAX_REPORT_ATTACHMENTS = 8
 /** Base64 JSON upload soft cap (~40MB decoded). */
@@ -11,7 +11,7 @@ export const MAX_ATTACHMENT_UPLOAD_BYTES = 40 * 1024 * 1024
 export const MAX_ATTACHMENT_LOCAL_BYTES = 200 * 1024 * 1024
 
 function tracescopeRoot(cacheRoot?: string): string {
-  return cacheRoot ?? path.join(os.homedir(), '.tracescope')
+  return dataRootSync(cacheRoot)
 }
 
 export function reportAttachmentsDir(reportKey: string, cacheRoot?: string): string {

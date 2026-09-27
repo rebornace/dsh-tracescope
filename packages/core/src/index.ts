@@ -59,6 +59,17 @@ export {
   type ResolveGitRepoOptions,
 } from './repo.js'
 export {
+  changeDataRoot,
+  dataRootSync,
+  defaultDataRoot,
+  directorySize,
+  envDataRoot,
+  pointerFilePath,
+  resolveDataRoot,
+  setDataRootOverride,
+  type ChangeDataRootResult,
+} from './paths.js'
+export {
   adaptRemoteUrlForAuth,
   buildGitAuthEnv,
   parseGitAuth,

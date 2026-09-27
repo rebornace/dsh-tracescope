@@ -1,11 +1,10 @@
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { parseGitAuth, type GitAuth } from './auth.js'
+import { dataRootSync } from './paths.js'
 
 function authStorePath(cacheRoot?: string): string {
-  const root = cacheRoot ?? path.join(os.homedir(), '.tracescope')
-  return path.join(root, 'auth.json')
+  return path.join(dataRootSync(cacheRoot), 'auth.json')
 }
 
 export type StoredGitAuth = Exclude<GitAuth, { mode: 'none' }>
