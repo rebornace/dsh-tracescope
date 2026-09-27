@@ -59,7 +59,7 @@ export function parseAndroidDimension(
   return { value: Number(match[1]), unit: (match[2] ?? 'px').toLowerCase() }
 }
 
-function normalizeAndroidColor(
+export function normalizeAndroidColor(
   raw: string | undefined,
   resources: AndroidResources,
 ): HexColor | UnresolvedValue | undefined {
