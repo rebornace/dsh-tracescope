@@ -1547,6 +1547,9 @@ function TraceScopePanelBody() {
   var _pickerOpen = useState2(false);
   var pickerOpen = _pickerOpen[0];
   var setPickerOpen = _pickerOpen[1];
+  var _pickerPurpose = useState2("data");
+  var pickerPurpose = _pickerPurpose[0];
+  var setPickerPurpose = _pickerPurpose[1];
   var _pickerBrowse = useState2(null);
   var pickerBrowse = _pickerBrowse[0];
   var setPickerBrowse = _pickerBrowse[1];
@@ -1569,6 +1572,12 @@ function TraceScopePanelBody() {
     });
   }
   function openPicker() {
+    setPickerPurpose("data");
+    setPickerOpen(true);
+    browsePath("");
+  }
+  function openRepoPicker() {
+    setPickerPurpose("repo");
     setPickerOpen(true);
     browsePath("");
   }
@@ -1587,6 +1596,16 @@ function TraceScopePanelBody() {
     var chosen = effectivePickerPath();
     if (!chosen) {
       setChatHint("请先进入并选择一个文件夹");
+      return;
+    }
+    if (pickerPurpose === "repo") {
+      setRepoPath(chosen);
+      rememberRepo(chosen);
+      try {
+        localStorage.setItem(REPO_PATH_KEY, chosen);
+      } catch (_e) {
+      }
+      closePicker();
       return;
     }
     setDataDirDraft(chosen);
@@ -3742,7 +3761,10 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx2("strong", { style: { fontSize: 13 }, children: "选择数据存放目录" }),
+                jsx2("strong", {
+                  style: { fontSize: 13 },
+                  children: pickerPurpose === "repo" ? "选择代码文件夹" : "选择数据存放目录"
+                }),
                 jsx2("button", {
                   type: "button",
                   style: Object.assign({}, styles.miniBtn, { padding: "2px 8px" }),
@@ -4021,22 +4043,34 @@ function TraceScopePanelBody() {
               jsxs2("label", {
                 style: styles.label,
                 children: [
-                  "本地文件夹路径 / 远端仓库地址",
-                  jsx2("input", {
-                    style: styles.input,
-                    value: repoPath,
-                    disabled: busy,
-                    placeholder: "本地项目文件夹，或 https://github.com/org/repo.git",
-                    onChange: function(e) {
-                      setRepoPath(e.target.value);
-                    },
-                    onBlur: function() {
-                      if (repoPath.trim()) rememberRepo(repoPath.trim());
-                    }
+                  mode === "ui" ? "代码文件夹路径 / 远端代码库地址" : "本地文件夹路径 / 远端仓库地址",
+                  jsxs2("div", {
+                    style: Object.assign({}, styles.row, { alignItems: "stretch" }),
+                    children: [
+                      jsx2("input", {
+                        style: Object.assign({}, styles.input, { flex: 1, marginBottom: 0 }),
+                        value: repoPath,
+                        disabled: busy,
+                        placeholder: mode === "ui" ? "普通代码文件夹即可（无需 git），或 https://…" : "本地项目文件夹，或 https://github.com/org/repo.git",
+                        onChange: function(e) {
+                          setRepoPath(e.target.value);
+                        },
+                        onBlur: function() {
+                          if (repoPath.trim()) rememberRepo(repoPath.trim());
+                        }
+                      }),
+                      mode === "ui" ? jsx2("button", {
+                        type: "button",
+                        style: styles.btn,
+                        disabled: busy,
+                        onClick: openRepoPicker,
+                        children: "浏览…"
+                      }) : null
+                    ]
                   }),
                   jsx2("span", {
                     style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
-                    children: "支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。"
+                    children: mode === "ui" ? "UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。" : "支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。"
                   })
                 ]
               }),
@@ -4083,7 +4117,22 @@ function TraceScopePanelBody() {
                       setSettingsOpen(false);
                     },
                     children: "保存并加载版本"
-                  }) : null,
+                  }) : jsx2("button", {
+                    type: "button",
+                    style: styles.primary,
+                    disabled: busy || !repoPath.trim(),
+                    onClick: function() {
+                      if (!repoPath.trim()) return;
+                      var chosen = repoPath.trim();
+                      rememberRepo(chosen);
+                      try {
+                        localStorage.setItem(REPO_PATH_KEY, chosen);
+                      } catch (_e) {
+                      }
+                      setSettingsOpen(false);
+                    },
+                    children: isRemote ? "使用此代码库" : "使用此文件夹"
+                  }),
                   repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx2("button", {
                     type: "button",
                     style: styles.btn,
