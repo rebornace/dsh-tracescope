@@ -2672,6 +2672,7 @@ function TraceScopePanelBody() {
     function() {
       if (!authHydrated) return;
       if (!repoPath.trim()) return;
+      if (mode !== "functional") return;
       if ((authMode === "token" || accessMode === "codeup") && !codeupRequestToken() && !yxTokenSaved) {
         return;
       }
@@ -2685,8 +2686,8 @@ function TraceScopePanelBody() {
       }
       loadCommits(true);
     },
-    // Sync when the repo, access mode, or (for the Codeup fallback) token becomes available.
-    [authHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authToken, authMode]
+    // Sync when the repo, mode, access mode, or (for the Codeup fallback) token becomes available.
+    [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode]
   );
   var selectedRelatedWorkItems = useCallback(
     function() {
@@ -4059,13 +4060,13 @@ function TraceScopePanelBody() {
                           if (repoPath.trim()) rememberRepo(repoPath.trim());
                         }
                       }),
-                      mode === "ui" ? jsx2("button", {
+                      jsx2("button", {
                         type: "button",
                         style: styles.btn,
                         disabled: busy,
                         onClick: openRepoPicker,
                         children: "浏览…"
-                      }) : null
+                      })
                     ]
                   }),
                   jsx2("span", {
