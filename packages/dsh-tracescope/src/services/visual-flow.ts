@@ -21,14 +21,18 @@ import {
   fetchFigmaFileInventory,
   fetchFigmaDocsBatch,
   mapInventoryPages,
+  loadAndroidProjectResources,
+  buildAndroidRenderContext,
+  renderAndroidLayout,
+  hifiTreeToDesignDoc,
   type DesignPageMapping,
   type FigmaCanvasSummary,
+  type HifiRenderNode,
 } from '@rebornace/tracescope-core'
-import type {
-  DesignNode,
-  VisualCompareResult,
-} from '@rebornace/tracescope-core'
-import { stat } from 'node:fs/promises'
+import type { DesignNode, VisualCompareResult } from '@rebornace/tracescope-core'
+import type { Context } from '../dsh-shims.js'
+import { completeWithHostLlm, extractJsonBlock } from './llm-helper.js'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { resolveRequestGitAuth } from './request-auth.js'
 
@@ -386,4 +390,268 @@ export async function matchAllDesignPages(
     pages,
     totals,
   }
+}
+
+// ---------------------------------------------------------------------------
+// High-fidelity comparison
+// ---------------------------------------------------------------------------
+
+interface HifiWireNode {
+  id: string
+  name: string
+  kind: string
+  text?: string
+  imageUrl?: string
+  x: number
+  y: number
+  width: number
+  height: number
+  dynamic?: boolean
+  aiInferred?: boolean
+  /** Human-readable AI summary for a runtime surface (best effort). */
+  aiNote?: string
+  style: HifiRenderNode['style']
+  children: HifiWireNode[]
+}
+
+function serializeHifi(node: HifiRenderNode): HifiWireNode {
+  return {
+    id: node.id,
+    name: node.name,
+    kind: node.kind,
+    text: node.text,
+    imageUrl: node.imageUrl,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    dynamic: node.dynamic,
+    aiInferred: node.aiInferred,
+    aiNote: (node as unknown as { aiNote?: string }).aiNote,
+    style: node.style,
+    children: node.children.map(serializeHifi),
+  }
+}
+
+export interface HifiCompareResult {
+  page: { adapterId: string; kindLabel: string; relativePath: string }
+  /** Common viewport (design frame size) used for both sides. */
+  viewport: { width: number; height: number }
+  designImageUrl?: string
+  /** High-fidelity trees for the two sides. */
+  designHifiTree: HifiWireNode
+  codeHifiTree: HifiWireNode
+  /** Status message when AI inference ran (success or degradation reason). */
+  aiInferenceNote?: string
+  /** Deterministic diff computed over the aligned trees. */
+  result: {
+    diffs: Array<Record<string, unknown>>
+    unmatched: Array<Record<string, unknown>>
+    comparedPairs: number
+  }
+}
+
+/**
+ * Render both the design screen and the chosen Android layout at high fidelity
+ * using the design frame as a shared viewport, then run the deterministic
+ * compare engine over the aligned trees. `useAI` is wired separately.
+ */
+export async function compareHighFidelity(
+  body: Record<string, unknown>,
+  hostCtx: Context,
+): Promise<HifiCompareResult> {
+  const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
+  const adapterId = String(body.adapterId ?? '').trim()
+  const relativePath = String(body.relativePath ?? '').trim()
+  const useAI = body.useAI === true
+  if (!repoInput || !adapterId || !relativePath) {
+    throw new Error('缺少 repoPath / adapterId / relativePath')
+  }
+
+  const ctx = await resolveVisualRepo(repoInput, body)
+  const design = await loadDesign(body)
+
+  // Viewport = design frame size (fall back to a phone default).
+  const db = design.root.box
+  const viewportWidth = typeof db.width === 'number' ? db.width : 390
+  const viewportHeight = typeof db.height === 'number' ? db.height : 844
+
+  // Resource index + merged render context for the project.
+  const resources = await loadAndroidProjectResources(ctx.checkoutPath)
+  const built = await buildAndroidRenderContext(ctx.checkoutPath, resources)
+
+  const layoutFile = path.join(ctx.checkoutPath, relativePath)
+  const layoutXml = await readFileSafe(layoutFile)
+
+  const codeHifi = await renderAndroidLayout({
+    layoutXml,
+    width: viewportWidth,
+    height: viewportHeight,
+    context: built.context,
+    resolveLayout: built.resolveLayout,
+  })
+
+  // Design side: convert the Figma doc (already absolute) into a hifi-shaped
+  // tree by reusing the normalized design directly.
+  const designHifi = designDocToHifi(design)
+
+  // Run deterministic compare over DesignDoc views of both trees.
+  const codeDoc = hifiTreeToDesignDoc(codeHifi.root)
+  const result = compareVisualDocs(design, codeDoc)
+
+  // Optional AI: infer what runtime-populated surfaces (lists/pagers) contain,
+  // purely as a labelled best-effort hint. Never feeds into auto diff decisions.
+  let aiInferenceNote: string | undefined
+  const aiNotes = new Map<string, string>()
+  if (useAI) {
+    try {
+      const notes = await inferDynamicRegionsWithAI(hostCtx, codeHifi.root, design)
+      for (const [id, note] of notes) aiNotes.set(id, note)
+      aiInferenceNote = '已用大模型推断动态区域内容（标记为 AI 推断，需人工确认）'
+    } catch (error) {
+      aiInferenceNote = `AI 推断未成功：${(error as Error).message}`
+    }
+  }
+
+  const codeHifiTree = serializeHifi(codeHifi.root)
+  if (aiNotes.size) applyAiNotes(codeHifiTree, aiNotes)
+
+  // Best-effort design raster for the reference panel.
+  let designImageUrl: string | undefined
+  try {
+    const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
+      token: String(body.figmaToken ?? '').trim(),
+      scale: 2,
+    })
+    designImageUrl = rendered.url
+  } catch {
+    designImageUrl = undefined
+  }
+
+  return {
+    page: { adapterId, kindLabel: 'Android XML', relativePath },
+    viewport: { width: viewportWidth, height: viewportHeight },
+    designImageUrl,
+    designHifiTree: designHifi,
+    codeHifiTree,
+    aiInferenceNote,
+    result: {
+      diffs: result.diffs as unknown as Array<Record<string, unknown>>,
+      unmatched: result.unmatched as unknown as Array<Record<string, unknown>>,
+      comparedPairs: result.comparedPairs,
+    },
+  }
+}
+
+/** Walk a serialized hifi tree and attach AI notes / inferred flags. */
+function applyAiNotes(root: HifiWireNode, notes: Map<string, string>): void {
+  const note = notes.get(root.id)
+  if (note) {
+    root.aiNote = note
+    root.aiInferred = true
+  }
+  for (const child of root.children) applyAiNotes(child, notes)
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic-region AI inference
+// ---------------------------------------------------------------------------
+
+function collectDesignTexts(design: DesignDoc): string[] {
+  const texts: string[] = []
+  const visit = (n: DesignNode) => {
+    if (n.text) texts.push(n.text)
+    for (const child of n.children) visit(child)
+  }
+  visit(design.root)
+  return texts
+}
+
+function collectDynamicNodes(node: HifiRenderNode, out: HifiRenderNode[] = []): HifiRenderNode[] {
+  if (node.dynamic) out.push(node)
+  for (const child of node.children) collectDynamicNodes(child, out)
+  return out
+}
+
+/**
+ * Ask the model to summarise what each runtime-populated surface on the code
+ * side most likely contains, using the design's visible copy as evidence. The
+ * output is a short per-region hint only — never fabricated rendered content.
+ */
+async function inferDynamicRegionsWithAI(
+  hostCtx: Context,
+  codeRoot: HifiRenderNode,
+  design: DesignDoc,
+): Promise<Map<string, string>> {
+  const dynamicNodes = collectDynamicNodes(codeRoot)
+  if (!dynamicNodes.length) return new Map()
+
+  const designTexts = collectDesignTexts(design).slice(0, 60)
+  const regions = dynamicNodes.slice(0, 6).map((n, i) => ({
+    index: i,
+    id: n.id,
+    name: n.name,
+    size: `${Math.round(n.width)}x${Math.round(n.height)}`,
+  }))
+
+  const system =
+    '你是资深 Android UI 工程师。根据界面设计稿可见文案，推断代码中由运行时数据填充的区域（如 RecyclerView/ViewPager）最可能包含什么内容。只输出简短中文摘要（每个 20 字内），不要编造具体用户名或精确数值。'
+  const user = `设计稿可见文案：\n${designTexts.join('、') || '（无静态文案）'}\n\n待推断区域：\n${JSON.stringify(regions, null, 2)}\n\n只输出 JSON：{"regions":[{"index":0,"note":"..."}]}。`
+
+  const raw = await completeWithHostLlm(hostCtx, [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ])
+
+  const notes = new Map<string, string>()
+  try {
+    const parsed = JSON.parse(extractJsonBlock(raw)) as {
+      regions?: Array<{ index?: number; note?: string }>
+    }
+    for (const r of parsed.regions ?? []) {
+      const idx = Number(r.index)
+      const node = dynamicNodes[idx]
+      if (node && typeof r.note === 'string' && r.note.trim()) {
+        notes.set(node.id, r.note.trim())
+      }
+    }
+  } catch {
+    throw new Error('无法解析 AI 返回的区域摘要')
+  }
+  return notes
+}
+
+async function readFileSafe(file: string): Promise<string> {
+  try {
+    return await readFile(file, 'utf8')
+  } catch {
+    throw new Error(`无法读取布局文件：${file}`)
+  }
+}
+
+/** Convert a normalized design doc into the hifi wire shape. */
+function designDocToHifi(design: DesignDoc): HifiWireNode {
+  function convert(n: DesignNode): HifiWireNode {
+    return {
+      id: n.id,
+      name: n.name,
+      kind: n.kind,
+      text: n.text,
+      x: typeof n.box.x === 'number' ? n.box.x : 0,
+      y: typeof n.box.y === 'number' ? n.box.y : 0,
+      width: typeof n.box.width === 'number' ? n.box.width : 0,
+      height: typeof n.box.height === 'number' ? n.box.height : 0,
+      style: {
+        backgroundColor:
+          typeof n.style.backgroundColor === 'string' ? n.style.backgroundColor : undefined,
+        color: typeof n.style.color === 'string' ? n.style.color : undefined,
+        fontSize: typeof n.style.fontSize === 'number' ? n.style.fontSize : undefined,
+        fontWeight: typeof n.style.fontWeight === 'number' ? n.style.fontWeight : undefined,
+        borderRadius:
+          typeof n.style.cornerRadius === 'number' ? n.style.cornerRadius : undefined,
+      },
+      children: n.children.map(convert),
+    }
+  }
+  return convert(design.root)
 }

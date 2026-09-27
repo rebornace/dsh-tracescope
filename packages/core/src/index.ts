@@ -277,6 +277,11 @@ export {
   type HifiNodeKind,
 } from './design/android-layout-engine.js'
 export {
+  buildAndroidRenderContext,
+  type BuiltAndroidRenderContext,
+} from './design/android-render-context.js'
+export { hifiTreeToDesignDoc } from './design/hifi-to-design-doc.js'
+export {
   classifyCodePage,
   classifyDesignPage,
   mapInventoryPages,
