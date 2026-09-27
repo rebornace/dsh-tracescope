@@ -3312,7 +3312,7 @@ function TraceScopePanelBody() {
                       jsx2("span", { children: "进入会话时自动展开 TraceScope" }),
                       jsx2("span", {
                         style: { color: "#6b645a", fontSize: 12, fontWeight: 400, lineHeight: 1.4 },
-                        children: "关闭后仅在你从右侧栏主动选择时打开，适合频繁使用、不想被自动切换的用户。"
+                        children: "关闭后进入会话将保持侧栏当前状态、不自动切换，需要 TraceScope 时再从右侧栏手动打开。"
                       })
                     ]
                   })
