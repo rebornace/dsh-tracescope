@@ -76,7 +76,7 @@ function renderItems(container, items) {
           <h3>${escapeHtml(item.displayName)}</h3>
           <div class="badges">
             <span class="badge ${escapeHtml(item.risk)}">风险 ${escapeHtml(item.risk)}</span>
-            <span class="badge">${item.kind === 'direct' ? '直接变更' : '可能波及'}</span>
+            <span class="badge">${item.kind === 'direct' ? '直接项' : '可能波及'}</span>
           </div>
         </div>
         <div class="status-group" data-id="${escapeHtml(item.id)}">

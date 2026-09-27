@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TraceScope 变更验证</title>
+    <title>TraceScope 验证助手</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="top">
       <div>
         <p class="eyebrow">TraceScope</p>
-        <h1>变更验证助手</h1>
+        <h1>验证助手</h1>
         <p class="sub">选仓库、选两个版本，一键生成需要验证的功能清单。不用敲命令。</p>
       </div>
       <div class="status-pill" id="serverStatus">连接中…</div>
@@ -61,7 +61,7 @@
         </details>
 
         <div class="actions">
-          <button type="button" id="btnAnalyze" class="primary" disabled>生成变更验证清单</button>
+          <button type="button" id="btnAnalyze" class="primary" disabled>生成验证清单</button>
           <p class="error" id="formError" hidden></p>
         </div>
       </section>
@@ -69,7 +69,7 @@
       <section class="card" id="reportSection" hidden>
         <div class="report-head">
           <div>
-            <h2>2. 变更验证清单</h2>
+            <h2>2. 验证清单</h2>
             <p class="meta" id="reportMeta"></p>
           </div>
           <div class="row">
@@ -80,7 +80,7 @@
         </div>
 
         <div class="tabs">
-          <button type="button" class="tab active" data-tab="direct">直接变更</button>
+          <button type="button" class="tab active" data-tab="direct">直接项</button>
           <button type="button" class="tab" data-tab="ripple">可能波及</button>
         </div>
 
@@ -93,8 +93,8 @@
       <section class="card" id="visualSection">
         <h2>3. UI 走查：设计稿 ↔ 代码</h2>
         <p class="meta">
-          从 Figma 拉取设计标注，和 Android XML / iOS xib 里的实现做确定性对比，
-          自动列出尺寸、间距、颜色、字号等差异。无需把 App 跑起来，也不依赖模型。
+          从 Figma 拉取设计标注，和 Android XML / iOS xib 里的实现做规则对比，
+          自动列出尺寸、间距、颜色、字号等差异。无需把 App 跑起来，也不依赖 AI。
         </p>
 
         <label class="field">

@@ -294,13 +294,13 @@
       var base = (meta && meta.baseCommit) || report.baseCommit || ''
       var head = (meta && meta.headCommit) || report.headCommit || ''
       var lines = [
-        '# TraceScope 变更验证报告',
+        '# TraceScope 验证报告',
         '',
         '- 仓库：`' + repo + '`',
         '- 稳定基线：`' + base + '`',
         '- 待测提交：`' + head + '`',
         '- 生成时间：' + (report.generatedAt || ''),
-        '- 模型对比：' + (report.modelEnriched ? '是' : '否（确定性分析）'),
+        '- AI 分析：' + (report.modelEnriched ? '是' : '否（规则分析）'),
         '- 变更文件数：' + ((report.changedFiles || []).length),
         '',
       ]
@@ -338,7 +338,7 @@
           lines.push('')
         })
       }
-      renderSection('直接变更', report.direct || [])
+      renderSection('直接项', report.direct || [])
       renderSection('可能波及（依赖扩散）', report.ripple || [])
       if (report.attachments && report.attachments.length) {
         lines.push('## 任务附件', '')
@@ -399,6 +399,41 @@
       return lines.join('\n')
     }
 
+    /**
+     * Resolve the active session id.
+     *
+     * Older builds exposed `.current` directly on the sessions snapshot; newer
+     * desktop builds removed it and track the visible ("main-view") session
+     * separately. Mirror that rule here: prefer a session retained by the main
+     * view, else fall back to the first available session.
+     */
+    function resolveCurrentSessionId(sessions) {
+      var list = sessions && sessions.list
+      if (!list || typeof list.getSnapshot !== 'function') return null
+      var snap = list.getSnapshot()
+      if (snap && snap.current) {
+        var c = snap.current
+        if (typeof c === 'string') return c
+        return c.id || c.key || null
+      }
+      var byId = snap && snap.byId
+      var ids = Array.isArray(snap && snap.ids) ? snap.ids : null
+      if (byId && typeof byId === 'object') {
+        var ordered = ids || Object.keys(byId)
+        for (var i = 0; i < ordered.length; i += 1) {
+          var rec = byId[ordered[i]]
+          var retained = rec && rec.retainedBy && rec.retainedBy.mainView
+          if ((retained || 0) > 0) return ordered[i]
+        }
+      }
+      if (ids && ids.length) return ids[0]
+      if (byId) {
+        var keys = Object.keys(byId)
+        if (keys.length) return keys[0]
+      }
+      return null
+    }
+
     function fillComposerDraft(prompt) {
       try {
         var sessions =
@@ -408,13 +443,13 @@
         if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') {
           throw new Error('找不到会话列表服务，请确认已打开会话页')
         }
-        var current = sessions.list.getSnapshot().current
-        if (!current) throw new Error('请先打开并选中一个会话，再点「模型对话分析」')
+        var sessionId = resolveCurrentSessionId(sessions)
+        if (!sessionId) throw new Error('请先打开并选中一个会话，再点「AI 智能分析」')
         var input = conversation && conversation.input
         if (!input || typeof input.shell !== 'function') {
           throw new Error('找不到会话输入框服务')
         }
-        var shell = input.shell(current)
+        var shell = input.shell(sessionId)
         if (!shell || typeof shell.setDraft !== 'function') {
           throw new Error('无法写入当前会话输入框')
         }
@@ -837,7 +872,7 @@
                       jsx('span', { style: styles.badge, children: '风险 ' + item.risk }),
                       jsx('span', {
                         style: styles.badge,
-                        children: item.kind === 'direct' ? '直接变更' : '可能波及',
+                        children: item.kind === 'direct' ? '直接项' : '可能波及',
                       }),
                     ],
                   }),
@@ -2084,7 +2119,7 @@
         var cleared = clearComposerDraft()
         setChatHint(
           cleared.ok
-            ? '已取消等待并清空会话输入框草稿，可重新点「模型对话分析」。'
+            ? '已取消等待并清空会话输入框草稿，可重新点「AI 智能分析」。'
             : '已取消等待。清空草稿失败：' + (cleared.error || '未知错误') + '（可手动清空输入框）',
         )
       }
@@ -2094,7 +2129,7 @@
         setReport(uniquifyReportIds(stored.report))
         setTab('direct')
         setHistoryId(stored.id || '')
-        var sourceLabel = stored.source === 'model' ? '模型分析' : '确定性'
+        var sourceLabel = stored.source === 'model' ? 'AI 分析' : '规则分析'
         var prefix = opts && opts.fromHistory ? '已打开历史任务' : '已加载该版本对比的清单'
         setChatHint(
           prefix +
@@ -2126,7 +2161,7 @@
               } else {
                 setReport(null)
                 setHistoryId('')
-                setChatHint('当前版本对比尚无已存清单，请「生成变更验证清单」或「模型对话分析」。')
+                setChatHint('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。')
               }
             })
             .catch(function (err) {
@@ -2268,7 +2303,7 @@
             } else {
               setReport(null)
               setHistoryId('')
-              setChatHint('当前版本对比尚无已存清单，请「生成变更验证清单」或「模型对话分析」。')
+              setChatHint('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。')
             }
           })
           .catch(function () {
@@ -2309,7 +2344,7 @@
               if (data.status === 'published' && data.report) {
                 setReport(uniquifyReportIds(data.report))
                 setTab('direct')
-                setChatHint('清单已更新并持久化到本机（来自会话模型分析）')
+                setChatHint('清单已更新并持久化到本机（来自 AI 分析）')
                 refreshHistory()
                 if (pollRef.current) {
                   clearInterval(pollRef.current)
@@ -2517,7 +2552,7 @@
           }
           function runAnalyze() {
             persistAuth()
-            if (!beginBusy('正在生成变更验证清单…')) return
+            if (!beginBusy('正在生成验证清单…')) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/analyze', {
               repoPath: repoPath.trim(),
@@ -2542,10 +2577,10 @@
               viewingHistoryRef.current = null
               setChatHint(
                 accessMode === 'codeup'
-                  ? '已通过远端 API 生成直接变更清单（无静态波及）。需要模型看 diff 时点「模型对话分析」。'
+                  ? '已通过远端 API 生成直接项清单（无静态波及）。需要 AI 深度分析时点「AI 智能分析」。'
                   : related.length
                     ? '已生成清单（含 ' + related.length + ' 条关联敏捷任务种子），并保存到本机。'
-                    : '已生成确定性清单并保存到本机。需要模型互动分析时点「模型对话分析」。',
+                    : '已按规则生成清单并保存到本机。需要 AI 深度分析时点「AI 智能分析」。',
               )
               refreshHistory()
             })
@@ -2560,7 +2595,7 @@
             setConfirmDlg({
               title: '重新生成清单？',
               message:
-                '当前版本对比已有变更验证清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。',
+                '当前版本对比已有验证清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。',
               confirmLabel: '重新生成',
               danger: false,
               onConfirm: runAnalyze,
@@ -2598,7 +2633,7 @@
           }
           function runChat() {
             persistAuth()
-            if (!beginBusy('正在准备模型对话分析…')) return
+            if (!beginBusy('正在准备AI 智能分析…')) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/jobs', {
               repoPath: repoPath.trim(),
@@ -2656,9 +2691,9 @@
           // Only warn when overwriting a previous model-produced checklist.
           if (report && report.modelEnriched) {
             setConfirmDlg({
-              title: '重新发起模型分析？',
+              title: '重新发起 AI 智能分析？',
               message:
-                '当前版本对比已有模型分析清单。重新发起后，Agent publish 将覆盖现有清单与勾选进度。',
+                '当前版本对比已有 AI 分析清单。重新发起后，Agent publish 将覆盖现有清单与勾选进度。',
               confirmLabel: '继续分析',
               danger: false,
               onConfirm: runChat,
@@ -2862,7 +2897,7 @@
       var uploadTaskFiles = useCallback(
         function (files) {
           if (!report) {
-            setChatHint('请先生成变更验证清单，再上传任务附件')
+            setChatHint('请先生成验证清单，再上传任务附件')
             return
           }
           var list = (files || []).filter(Boolean)
@@ -2958,7 +2993,7 @@
       var uploadTaskLocalPath = useCallback(
         function () {
           if (!report) {
-            setChatHint('请先生成变更验证清单，再上传任务附件')
+            setChatHint('请先生成验证清单，再上传任务附件')
             return
           }
           var localPath = taskAttachPath.trim()
@@ -3408,7 +3443,7 @@
               var items = (data && data.items) || []
               setWiItems(items)
               setWiSelected({})
-              setWiHint('已拉取 ' + items.length + ' 条，可多选后生成变更验证清单')
+              setWiHint('已拉取 ' + items.length + ' 条，可多选后生成验证清单')
             })
             .catch(function (err) {
               setWiHint(err.message || String(err))
@@ -4873,7 +4908,7 @@
                       jsx('p', {
                         style: { margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '勾选工作项类型后拉取任务，再多选任务。生成变更验证清单 / 模型对话分析时会把它们写入清单与提示。',
+                          '勾选工作项类型后拉取任务，再多选任务。生成验证清单 / AI 智能分析时会把它们写入清单与提示。',
                       }),
                       jsxs('div', {
                         style: Object.assign({}, styles.row, {
@@ -5061,7 +5096,7 @@
                     style: styles.primary,
                     disabled: busy || !baseCommit || !headCommit,
                     onClick: analyze,
-                    children: '生成变更验证清单',
+                    children: '生成验证清单',
                   }),
                   jsx('button', {
                     type: 'button',
@@ -5077,7 +5112,7 @@
                       }
                     },
                     children:
-                      jobId && jobStatus === 'pending' ? '取消等待并清空草稿' : '模型对话分析',
+                      jobId && jobStatus === 'pending' ? '取消等待并清空草稿' : 'AI 智能分析',
                   }),
                   jsx('button', {
                     type: 'button',
@@ -5167,7 +5202,7 @@
                               ' · ' +
                               (h.savedAt || '').replace('T', ' ').slice(0, 16) +
                               ' · ' +
-                              (h.source === 'model' ? '模型' : '确定性') +
+                              (h.source === 'model' ? 'AI' : '规则') +
                               ' · ' +
                               shortSha(h.baseCommit) +
                               '→' +
@@ -5501,7 +5536,7 @@
                       ' · 波及 ' +
                       (report.ripple || []).length +
                       ' · ' +
-                      (report.modelEnriched ? '会话模型分析' : '确定性分析'),
+                      (report.modelEnriched ? 'AI 分析' : '规则分析'),
                   }),
                   jsx('p', {
                     style: { margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 },
@@ -5735,7 +5770,7 @@
                           if (busy) return
                           setTab('direct')
                         },
-                        children: '直接变更',
+                        children: '直接项',
                       }),
                       jsx('button', {
                         type: 'button',
@@ -5940,7 +5975,7 @@
                 return 'TraceScope'
               },
               description: function () {
-                return '对比版本、变更验证清单与模型分析（新建会话后也可从右侧栏打开）'
+                return '对比版本、验证清单与 AI 智能分析（新建会话后也可从右侧栏打开）'
               },
             },
           ],

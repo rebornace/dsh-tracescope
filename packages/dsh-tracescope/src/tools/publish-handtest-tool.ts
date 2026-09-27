@@ -50,7 +50,7 @@ export function registerPublishHandtestTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已发布变更验证清单')
+          return toolText(v.summary || '已发布验证清单')
         },
       },
       async execute(args: Record<string, unknown>) {
@@ -101,11 +101,11 @@ export function registerPublishHandtestTool(ctx: Context) {
           source: 'model',
         })
         const summary = [
-          `已发布变更验证清单到 TraceScope 面板（任务 ${jobId}）`,
-          `并已持久化到本机，重启后同一仓库与两版本会自动恢复（再次「模型对话分析」并 publish 才会覆盖）。`,
+          `已发布验证清单到 TraceScope 面板（任务 ${jobId}）`,
+          `并已持久化到本机，重启后同一仓库与两版本会自动恢复（再次「AI 智能分析」并 publish 才会覆盖）。`,
           `直接 ${report.direct.length} · 波及 ${report.ripple.length}`,
           '',
-          '## 直接变更',
+          '## 直接项',
           ...report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
           '',
           '## 可能波及',

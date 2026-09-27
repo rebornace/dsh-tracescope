@@ -23,11 +23,11 @@ export function buildChatAnalysisPrompt(input: {
               : ''
             return `${idx + 1}. ${cat}${item.subject}（id: ${item.id}）${desc}`
           }),
-          '生成清单时：为上述工作项各保留至少一条可勾选验证项，并与本次 diff 变更对齐。',
+          '生成清单时：为上述工作项各保留至少一条可勾选验证项，并与本次 diff 改动对齐。',
         ]
 
   return [
-    `请帮我做 TraceScope 变更影响与验证范围分析（任务 ID: ${input.jobId}）。`,
+    `请帮我做 TraceScope 验证范围与影响分析（任务 ID: ${input.jobId}）。`,
     '',
     `仓库：${input.repoPath}`,
     `稳定版本（base）：${input.baseCommit}`,
@@ -41,10 +41,10 @@ export function buildChatAnalysisPrompt(input: {
     '1. 先用 tracescope_list_commits / tracescope_get_diff / tracescope_analyze_impact 了解两个版本之间的真实变更（按需分片拉 diff，不要一次塞爆）。',
     '2. 按用户可感知的功能 / 场景合并问题；可指出静态分析可能漏掉的回归与波及面。',
     '3. 有不确定的范围先问我，再继续。',
-    '4. 最终必须调用 tracescope_publish_handtest，把完整变更验证清单写入任务（不要只口头总结）。',
+    '4. 最终必须调用 tracescope_publish_handtest，把完整验证清单写入任务（不要只口头总结）。',
     '   - jobId 必须原样传入：' + input.jobId,
     '   - items 为 JSON 数组，每项含 displayName、kind(direct|ripple)、risk(high|medium|low)、files、suggestedSteps、evidence。',
     '',
-    '完成后我会在右侧 TraceScope 面板自动刷新变更验证清单。',
+    '完成后我会在右侧 TraceScope 面板自动刷新验证清单。',
   ].join('\n')
 }
