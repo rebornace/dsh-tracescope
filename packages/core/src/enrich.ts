@@ -20,12 +20,12 @@ const MAX_COMMITS_IN_PROMPT = 20
 
 const SYSTEM = [
   '你是资深移动端 / 客户端测试专家。',
-  '下面给出两个 git 版本之间的提交摘要与 unified diff。请像做发布前手测评审一样对比差异。',
+  '下面给出两个 git 版本之间的提交摘要与 unified diff。请像做发布前变更验证评审一样对比差异。',
   '要求：',
   '1. 按用户可感知的功能 / 场景组织条目，合并同一功能的多文件改动，不要逐文件罗列。',
   '2. 可指出 diff 中隐含的回归与波及面（即便确定性规则没标出）。',
   '3. 不要编造 diff 中完全看不到证据的功能；不确定时写在 evidence 里说明依据。',
-  '4. suggestedSteps 写 2～4 条可执行手测短句。',
+  '4. suggestedSteps 写 2～4 条可执行验证短句。',
   '5. 只输出一个 JSON 数组，不要 Markdown，不要解释。格式：',
   '[{"displayName":"登录","kind":"direct","risk":"high","files":["a.kt"],"suggestedSteps":["打开登录页","提交后确认进首页"],"evidence":"LoginActivity 校验逻辑变更"}]',
   'kind 仅用 direct（本批 diff 直接改到）或 ripple（推断波及）；risk 仅用 high|medium|low。',

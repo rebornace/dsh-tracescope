@@ -174,7 +174,7 @@ export function registerReportRoutes(ctx: Context) {
       }
       const key = handtestReportKey(repoPath, baseCommit, headCommit)
       let stored = await loadHandtestReport(repoPath, baseCommit, headCommit)
-      if (!stored) throw new Error('请先生成手测清单，再上传任务附件')
+      if (!stored) throw new Error('请先生成变更验证清单，再上传任务附件')
 
       if (action === 'list') {
         return {

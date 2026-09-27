@@ -32,7 +32,7 @@ function renderItem(item: ScopeItem, idx: number): string {
     files || '  - （无）',
     `- 证据：`,
     evidence || '  - （无）',
-    `- 建议手测：`,
+    `- 建议验证：`,
     steps,
     '',
   ].join('\n')
@@ -62,7 +62,7 @@ function renderFailFeedback(report: ImpactReport): string[] {
 
 export function exportReportMarkdown(report: ImpactReport): string {
   const lines = [
-    `# TraceScope 手测范围报告`,
+    `# TraceScope 变更验证报告`,
     '',
     `- 仓库：\`${report.repoPath}\``,
     `- 稳定基线：\`${report.baseCommit}\``,
