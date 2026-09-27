@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { VisualDiffBoard } from './VisualDiffBoard.js'
 import { PageMappingOverview } from './PageMappingOverview.js'
+import { HifiCompareBoard } from './HifiCompareBoard.js'
 
 interface MatchCandidate {
   adapterId: string
@@ -111,6 +112,8 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
   const [data, setData] = useState<CompareData | null>(null)
   const [error, setError] = useState('')
   const [designNodeName, setDesignNodeName] = useState('')
+  const [hifiData, setHifiData] = useState<unknown>(null)
+  const [useAI, setUseAI] = useState(false)
 
   const setFigmaUrl = (value: string) => {
     setFigmaUrlState(value)
@@ -184,17 +187,19 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
   ) {
     setError('')
     setData(null)
+    setHifiData(null)
     setBusy(true)
     try {
-      const res = await post('/tracescope/v1/visual-compare', {
+      const res = await post('/tracescope/v1/hifi-compare', {
         repoPath: repoInput,
         auth,
         figmaUrl: nodeUrl(designId),
         figmaToken: figmaToken.trim(),
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
+        useAI,
       })
-      setData(res as CompareData)
+      setHifiData(res)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -254,6 +259,16 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
           placeholder="figd_..."
           onChange={(e) => setFigmaToken(e.target.value)}
         />
+      </label>
+
+      <label style={{ ...S.row, gap: 6, fontSize: 12, color: '#5f584c', margin: '2px 0 8px' }}>
+        <input
+          type="checkbox"
+          checked={useAI}
+          disabled={busy}
+          onChange={(e) => setUseAI(e.target.checked)}
+        />
+        本次生成启用 AI 辅助（仅用于推断列表/分页等动态区域，会标注为「AI 推断」，不参与自动判定）
       </label>
 
       <div style={{ marginTop: 2 }}>
@@ -378,6 +393,7 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
         </div>
       ) : null}
       {data && data.precise && data.result ? <VisualDiffBoard data={data} /> : null}
+      {hifiData ? <HifiCompareBoard data={hifiData as never} /> : null}
     </section>
   )
 }
