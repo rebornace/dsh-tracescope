@@ -178,5 +178,25 @@ export function matchPages(
     return match
   })
 
-  return scored.filter((m) => m.score >= minScore).sort((a, b) => b.score - a.score)
+  const ranked = scored.sort((a, b) => b.score - a.score)
+  const passing = ranked.filter((m) => m.score >= minScore)
+  if (passing.length) return passing
+
+  // An explicitly provided threshold is honored exactly (even when empty);
+  // the best-guess fallback below only applies to the default ranking.
+  if (options.minScore !== undefined) return []
+
+  // With the default threshold nothing passed. Avoid a dead end on a codebase
+  // that clearly has pages when — and only when — the top result still carries
+  // a weak but real signal (a text/name hit produces ~0.12+; pure control-count
+  // coincidence alone maxes around 0.1). Surface the best guesses flagged as
+  // low confidence so the user can confirm. Truly unrelated pages (score below
+  // the fallback floor) still produce no matches.
+  const FALLBACK_MIN_SCORE = 0.12
+  const FALLBACK_LIMIT = 8
+  const guesses = ranked.filter((m) => m.score >= FALLBACK_MIN_SCORE).slice(0, FALLBACK_LIMIT)
+  for (const guess of guesses) {
+    guess.reasons = ['低置信度，请核对', ...guess.reasons]
+  }
+  return guesses
 }
