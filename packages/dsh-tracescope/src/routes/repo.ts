@@ -12,9 +12,11 @@ import {
 } from '../services/request-auth.js'
 import { loadCodeupHistory, loadRepoHistory } from '../services/repo-history.js'
 import {
+  isGitRemoteUrl,
   parseGitAuth,
   resolveGitRepo,
 } from '@rebornace/tracescope-core'
+import { stat } from 'node:fs/promises'
 
 export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
@@ -25,6 +27,27 @@ export function registerRepoRoutes(ctx: Context) {
       name: 'tracescope',
       chatDrivenModel: true,
     }),
+  })
+
+  // Lightweight path probe: does the local folder exist / is it a directory?
+  // No Git involved. Used on open to detect stale remembered paths so the UI
+  // can prompt the user to re-browse instead of failing later.
+  registerRoute(ctx, {
+    path: '/tracescope/v1/path-check',
+    method: 'GET',
+    run: async (body) => {
+      const target = String(body.path ?? '').trim()
+      if (!target) return { exists: false, isDirectory: false, remote: false }
+      if (isGitRemoteUrl(target)) {
+        return { exists: true, isDirectory: false, remote: true, path: target }
+      }
+      try {
+        const st = await stat(target)
+        return { exists: true, isDirectory: st.isDirectory(), remote: false, path: target }
+      } catch {
+        return { exists: false, isDirectory: false, remote: false, path: target }
+      }
+    },
   })
 
   registerRoute(ctx, {

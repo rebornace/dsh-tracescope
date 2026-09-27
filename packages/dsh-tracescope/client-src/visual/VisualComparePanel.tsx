@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface MatchCandidate {
   adapterId: string
@@ -70,15 +70,65 @@ export interface VisualComparePanelProps {
   auth?: unknown
 }
 
+// Persist the design connection per code folder so reopening the panel (or the
+// app) does not force re-entering the Figma link/token.
+const UI_CONFIG_PREFIX = 'tracescope.ui.'
+const UI_CONFIG_FIGMA_URL = 'figmaUrl'
+const UI_CONFIG_FIGMA_TOKEN = 'figmaToken'
+
+function uiStorageKey(repoInput: string, field: string) {
+  return UI_CONFIG_PREFIX + field + ':' + repoInput.trim()
+}
+
+function readUiConfig(repoInput: string, field: string) {
+  try {
+    return localStorage.getItem(uiStorageKey(repoInput, field)) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function writeUiConfig(repoInput: string, field: string, value: string) {
+  try {
+    if (value) localStorage.setItem(uiStorageKey(repoInput, field), value)
+    else localStorage.removeItem(uiStorageKey(repoInput, field))
+  } catch {
+    /* storage unavailable: session-only */
+  }
+}
+
 export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps) {
-  const [figmaUrl, setFigmaUrl] = useState('')
-  const [figmaToken, setFigmaToken] = useState('')
+  const [figmaUrl, setFigmaUrlState] = useState(() => readUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
+  const [figmaToken, setFigmaTokenState] = useState(() =>
+    readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN),
+  )
   const [busy, setBusy] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'matched'>('idle')
   const [candidates, setCandidates] = useState<MatchCandidate[]>([])
   const [selectedKey, setSelectedKey] = useState('')
   const [data, setData] = useState<CompareData | null>(null)
   const [error, setError] = useState('')
+
+  const setFigmaUrl = (value: string) => {
+    setFigmaUrlState(value)
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim())
+  }
+  const setFigmaToken = (value: string) => {
+    setFigmaTokenState(value)
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim())
+  }
+
+  // Reload this folder's saved design connection when the code folder changes,
+  // and clear the previous folder's match/compare results.
+  useEffect(() => {
+    setFigmaUrlState(readUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
+    setFigmaTokenState(readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN))
+    setCandidates([])
+    setSelectedKey('')
+    setData(null)
+    setPhase('idle')
+    setError('')
+  }, [repoInput])
 
   const basePayload = () => ({
     repoPath: repoInput,
