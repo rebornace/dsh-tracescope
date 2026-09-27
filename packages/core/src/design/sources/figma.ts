@@ -223,3 +223,61 @@ export async function fetchFigmaDoc(
   if (!entry) throw new Error(`Figma 节点 ${resolvedNodeId} 不存在或无权限`)
   return normalizeFigmaTree(entry, options.scale ?? 1)
 }
+
+export interface FigmaRenderOptions {
+  token: string
+  /** Render scale (default 2 for a crisp preview). */
+  scale?: number
+  format?: 'png' | 'jpg' | 'svg'
+  fetchImpl?: typeof fetch
+}
+
+export interface FigmaRenderResult {
+  /** Short-lived S3 URL of the rendered image (expires after ~30 days). */
+  url: string
+  /** Node id the image was rendered for. */
+  nodeId: string
+}
+
+/**
+ * Ask Figma to server-side render a node to an image. This produces the exact
+ * visual of the design (images, effects, fonts included) without an LLM or any
+ * local rendering. The returned URL is temporary, so call it on demand and do
+ * not persist it long term.
+ */
+export async function renderFigmaNode(
+  fileKeyOrUrl: string,
+  nodeId: string | undefined,
+  options: FigmaRenderOptions,
+): Promise<FigmaRenderResult> {
+  let fileKey = fileKeyOrUrl
+  let resolvedNodeId = nodeId
+  if (/^https?:\/\//.test(fileKeyOrUrl)) {
+    const parsed = parseFigmaUrl(fileKeyOrUrl)
+    fileKey = parsed.fileKey
+    resolvedNodeId = parsed.nodeId
+  }
+  if (!resolvedNodeId) throw new Error('需要 Figma node id 才能渲染')
+
+  const fetchImpl = options.fetchImpl ?? fetch
+  const params = new URLSearchParams({
+    ids: resolvedNodeId,
+    format: options.format ?? 'png',
+    scale: String(options.scale ?? 2),
+  })
+  const url = `${FIGMA_API}/images/${fileKey}?${params.toString()}`
+  const response = await fetchImpl(url, {
+    headers: { 'X-Figma-Token': options.token },
+  })
+  if (!response.ok) {
+    throw new Error(`Figma 渲染请求失败：${response.status} ${response.statusText}`)
+  }
+  const payload = (await response.json()) as {
+    err?: unknown
+    images?: Record<string, string | null>
+  }
+  if (payload.err) throw new Error(`Figma 渲染错误：${JSON.stringify(payload.err)}`)
+  const imageUrl = payload.images?.[resolvedNodeId]
+  if (!imageUrl) throw new Error('Figma 未返回该节点的渲染图（可能选中了不可渲染的元素）')
+  return { url: imageUrl, nodeId: resolvedNodeId }
+}

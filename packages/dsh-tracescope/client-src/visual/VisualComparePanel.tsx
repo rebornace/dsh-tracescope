@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { VisualDiffBoard } from './VisualDiffBoard.js'
 
 interface MatchCandidate {
   adapterId: string
@@ -10,15 +11,46 @@ interface MatchCandidate {
   reasons: string[]
 }
 
+interface WireNode {
+  id: string
+  name: string
+  kind: string
+  text?: string
+  box: { x?: number; y?: number; width?: number; height?: number }
+  style: {
+    backgroundColor?: string
+    color?: string
+    fontSize?: number
+    fontWeight?: number
+    cornerRadius?: number
+  }
+  children: WireNode[]
+}
+
+interface VisualDiff {
+  designNodeId: string
+  codeNodeId?: string
+  nodeName: string
+  property: string
+  expected: unknown
+  actual?: unknown
+  severity: 'high' | 'medium' | 'low'
+  needsReview?: boolean
+}
+
 interface CompareData {
   page: { adapterId: string; kindLabel: string; relativePath: string; precise: boolean }
   precise: boolean
   reason?: string
   result?: {
-    diffs: Array<Record<string, unknown>>
-    unmatched: Array<Record<string, unknown>>
+    diffs: VisualDiff[]
+    unmatched: Array<{ id: string; name: string; side: 'design' | 'code'; text?: string }>
     comparedPairs: number
   }
+  designImageUrl?: string
+  frameBox?: { x: number; y: number; width: number; height: number }
+  designTree?: WireNode
+  codeTree?: WireNode
 }
 
 async function post(path: string, body: unknown) {
@@ -32,37 +64,6 @@ async function post(path: string, body: unknown) {
   const data = text ? JSON.parse(text) : {}
   if (!r.ok) throw new Error(data.error || '请求失败')
   return data
-}
-
-const PROPERTY_LABELS: Record<string, string> = {
-  width: '宽度',
-  height: '高度',
-  marginTop: '上外边距',
-  marginRight: '右外边距',
-  marginBottom: '下外边距',
-  marginLeft: '左外边距',
-  paddingTop: '上内边距',
-  paddingRight: '右内边距',
-  paddingBottom: '下内边距',
-  paddingLeft: '左内边距',
-  backgroundColor: '背景色',
-  borderWidth: '边框宽',
-  borderColor: '边框色',
-  cornerRadius: '圆角',
-  opacity: '不透明度',
-  fontFamily: '字体',
-  fontSize: '字号',
-  fontWeight: '字重',
-  lineHeight: '行高',
-  letterSpacing: '字间距',
-  color: '文字颜色',
-}
-
-function VisualValue({ value }: { value: unknown }) {
-  if (value && typeof value === 'object' && 'unresolved' in value) {
-    return <span style={{ color: '#9a6700' }}>待确认：{String((value as { raw: string }).raw)}</span>
-  }
-  return <span>{String(value)}</span>
 }
 
 export interface VisualComparePanelProps {
@@ -303,7 +304,26 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
         <p style={{ color: '#b42318', margin: '8px 0 0', fontSize: 12 }}>{error}</p>
       ) : null}
 
-      <CompareView data={data} />
+      {data && !data.precise ? (
+        <div
+          style={{
+            marginTop: 12,
+            border: '1px solid var(--dsh-border,#ddd4c5)',
+            borderRadius: 10,
+            padding: 10,
+            background: '#faf7f0',
+            fontSize: 12,
+            color: '#7a5b13',
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>{data.page.kindLabel}</strong> · {data.page.relativePath}
+          <div style={{ marginTop: 4 }}>
+            {data.reason || '该实现以代码方式构建界面，当前版本暂不支持属性级对比。'}
+          </div>
+        </div>
+      ) : null}
+      {data && data.precise && data.result ? <VisualDiffBoard data={data} /> : null}
     </section>
   )
 }
@@ -350,163 +370,3 @@ const S = {
   },
 }
 
-function CompareView({ data }: { data: CompareData | null }) {
-  if (!data) return null
-
-  // Locator-only implementations: the page was found but cannot be diffed yet.
-  if (!data.precise) {
-    return (
-      <div
-        style={{
-          marginTop: 12,
-          border: '1px solid var(--dsh-border,#ddd4c5)',
-          borderRadius: 10,
-          padding: 10,
-          background: '#faf7f0',
-          fontSize: 12,
-          color: '#7a5b13',
-          lineHeight: 1.5,
-        }}
-      >
-        <strong>{data.page.kindLabel}</strong> · {data.page.relativePath}
-        <div style={{ marginTop: 4 }}>
-          {data.reason ||
-            '该实现以代码方式构建界面，当前版本暂不支持属性级对比。'}
-        </div>
-      </div>
-    )
-  }
-
-  const result = data.result
-  if (!result) return null
-
-  const sevCounts: Record<string, number> = { high: 0, medium: 0, low: 0 }
-  const byNode: Record<string, { name: string; rows: Array<Record<string, unknown>> }> = {}
-  const groups: Array<{ name: string; rows: Array<Record<string, unknown>> }> = []
-  for (const d of result.diffs) {
-    const key = String(d.designNodeId)
-    if (!byNode[key]) {
-      byNode[key] = { name: String(d.nodeName), rows: [] }
-      groups.push(byNode[key]!)
-    }
-    byNode[key]!.rows.push(d)
-    const sev = String(d.severity)
-    sevCounts[sev] = (sevCounts[sev] || 0) + 1
-  }
-  const sevColor: Record<string, string> = {
-    high: '#b42318',
-    medium: '#9a6700',
-    low: '#0f6e56',
-  }
-
-  return (
-    <div style={{ marginTop: 12 }}>
-      <p style={{ color: '#6b645a', fontSize: 12, lineHeight: 1.5 }}>
-        {data.page.kindLabel} · 对比节点对 {result.comparedPairs} · 差异{' '}
-        {result.diffs.length}（高 {sevCounts.high} / 中 {sevCounts.medium} / 低{' '}
-        {sevCounts.low}）· 未匹配 {result.unmatched.length}
-      </p>
-
-      {groups.length === 0 && result.unmatched.length === 0 ? (
-        <p style={{ color: '#0f6e56' }}>没有发现差异。</p>
-      ) : null}
-
-      {groups.map((g, gi) => (
-        <div
-          key={gi}
-          style={{
-            border: '1px solid var(--dsh-border,#ddd4c5)',
-            borderRadius: 10,
-            padding: 10,
-            marginBottom: 8,
-            background: '#fff',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 8,
-              marginBottom: 6,
-            }}
-          >
-            <strong>{g.name}</strong>
-            <span style={{ fontSize: 12, color: '#6b645a' }}>{g.rows.length} 项差异</span>
-          </div>
-          {g.rows.map((d, ri) => {
-            const property = String(d.property)
-            return (
-              <div
-                key={ri}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  border: '1px solid #ece5d8',
-                  borderLeft: '4px solid ' + sevColor[String(d.severity)],
-                  borderRadius: 8,
-                  padding: '4px 8px',
-                  marginBottom: 4,
-                  fontSize: 12,
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>{PROPERTY_LABELS[property] || property}</span>
-                <span
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
-                >
-                  <VisualValue value={d.expected} />
-                  <span style={{ color: '#0f6e56' }}>→</span>
-                  {d.actual === undefined ? (
-                    <span style={{ color: '#b42318', fontWeight: 700 }}>
-                      {d.needsReview ? '需确认' : '缺失'}
-                    </span>
-                  ) : (
-                    <VisualValue value={d.actual} />
-                  )}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      ))}
-
-      {result.unmatched.length ? (
-        <details
-          style={{
-            border: '1px dashed var(--dsh-border,#ddd4c5)',
-            borderRadius: 10,
-            padding: '8px 10px',
-          }}
-        >
-          <summary style={{ cursor: 'pointer', color: '#0f6e56', fontWeight: 600 }}>
-            未匹配元素（{result.unmatched.length}）
-          </summary>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12 }}>
-            {result.unmatched.map((u, i) => (
-              <li key={i}>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    fontSize: 11,
-                    borderRadius: 999,
-                    padding: '1px 7px',
-                    marginRight: 4,
-                    background: '#efe8da',
-                  }}
-                >
-                  {u.side === 'design' ? '仅设计稿' : '仅代码'}
-                </span>
-                {String(u.name)}
-                {u.text ? '（' + String(u.text) + '）' : ''}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-    </div>
-  )
-}
-
-export { PROPERTY_LABELS, VisualValue }

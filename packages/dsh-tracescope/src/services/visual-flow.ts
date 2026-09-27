@@ -6,7 +6,6 @@
  * where the new "design screen -> find the page -> compare" flow lives.
  */
 import {
-  compareDesignWithPage,
   ensureReadableCheckout,
   fetchFigmaDoc,
   isGitRemoteUrl,
@@ -16,6 +15,13 @@ import {
   type DesignDoc,
   discoverAllPages,
   designFingerprint,
+  renderFigmaNode,
+  getPlatformAdapter,
+  compareVisualDocs,
+} from '@rebornace/tracescope-core'
+import type {
+  DesignNode,
+  VisualCompareResult,
 } from '@rebornace/tracescope-core'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -139,6 +145,47 @@ export async function matchDesignToRepo(
   }
 }
 
+/** JSON-safe node carrying only what the visual renderer needs. */
+export interface WireNode {
+  id: string
+  name: string
+  kind: string
+  text?: string
+  box: { x?: number; y?: number; width?: number; height?: number }
+  style: {
+    backgroundColor?: string
+    color?: string
+    fontSize?: number
+    fontWeight?: number
+    cornerRadius?: number
+  }
+  children: WireNode[]
+}
+
+function serializeNode(node: DesignNode): WireNode {
+  const { backgroundColor, color, fontSize, fontWeight, cornerRadius } = node.style
+  return {
+    id: node.id,
+    name: node.name,
+    kind: node.kind,
+    text: node.text,
+    box: {
+      x: typeof node.box.x === 'number' ? node.box.x : undefined,
+      y: typeof node.box.y === 'number' ? node.box.y : undefined,
+      width: typeof node.box.width === 'number' ? node.box.width : undefined,
+      height: typeof node.box.height === 'number' ? node.box.height : undefined,
+    },
+    style: {
+      backgroundColor: typeof backgroundColor === 'string' ? backgroundColor : undefined,
+      color: typeof color === 'string' ? color : undefined,
+      fontSize: typeof fontSize === 'number' ? fontSize : undefined,
+      fontWeight: typeof fontWeight === 'number' ? fontWeight : undefined,
+      cornerRadius: typeof cornerRadius === 'number' ? cornerRadius : undefined,
+    },
+    children: node.children.map(serializeNode),
+  }
+}
+
 export interface CompareOutcome {
   page: {
     adapterId: string
@@ -147,8 +194,16 @@ export interface CompareOutcome {
     precise: boolean
   }
   precise: boolean
-  result?: import('@rebornace/tracescope-core').VisualCompareResult
   reason?: string
+  result?: VisualCompareResult
+  /** Temporary Figma render of the design frame (precise comparisons only). */
+  designImageUrl?: string
+  /** Absolute frame box, used to convert node coords for image overlay. */
+  frameBox?: { x: number; y: number; width: number; height: number }
+  /** Design tree (absolute coords) keyed for diff -> box lookup. */
+  designTree?: WireNode
+  /** Code tree rendered as blocks on the right side. */
+  codeTree?: WireNode
 }
 
 /** Compare the design against a specific matched page. */
@@ -171,16 +226,61 @@ export async function compareDesignAgainstPage(
   )
   if (!page) throw new Error('所选页面已不存在，请重新匹配')
 
-  const outcome = await compareDesignWithPage(design, page)
+  const pageMeta = {
+    adapterId: page.adapterId,
+    kindLabel: page.kindLabel,
+    relativePath: page.relativePath,
+    precise: page.precise,
+  }
+
+  // Locator-only implementations (Compose/SwiftUI) report why instead of
+  // producing a misleading diff; nothing to render.
+  if (!page.precise) {
+    return {
+      page: pageMeta,
+      precise: false,
+      reason: `${page.kindLabel} 页面已定位，但该实现以代码方式构建界面，当前版本暂不支持属性级对比。`,
+    }
+  }
+
+  // Build the code-side normalized tree and run the deterministic diff once.
+  const adapter = getPlatformAdapter(adapterId)
+  if (!adapter?.toDesignDoc) {
+    return { page: pageMeta, precise: false, reason: '该页面缺少可用的对比适配器。' }
+  }
+  const codeDoc = await adapter.toDesignDoc(page)
+  const result = compareVisualDocs(design, codeDoc)
+
+  // Render the design frame to a real image so differences can be overlaid on
+  // the exact visual. Best effort: a render failure should not discard the
+  // structural diff, the panel falls back to the block view.
+  let designImageUrl: string | undefined
+  try {
+    const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
+      token: String(body.figmaToken ?? '').trim(),
+      scale: 2,
+    })
+    designImageUrl = rendered.url
+  } catch {
+    designImageUrl = undefined
+  }
+
+  const { x, y, width, height } = design.root.box
+  const frameBox =
+    typeof x === 'number' &&
+    typeof y === 'number' &&
+    typeof width === 'number' &&
+    typeof height === 'number'
+      ? { x, y, width, height }
+      : undefined
+
   return {
-    page: {
-      adapterId: page.adapterId,
-      kindLabel: page.kindLabel,
-      relativePath: page.relativePath,
-      precise: page.precise,
-    },
-    precise: outcome.precise,
-    result: outcome.result,
-    reason: outcome.reason,
+    page: pageMeta,
+    precise: true,
+    result,
+    designImageUrl,
+    frameBox,
+    designTree: serializeNode(design.root),
+    codeTree: serializeNode(codeDoc.root),
   }
 }
