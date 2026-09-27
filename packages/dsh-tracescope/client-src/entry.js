@@ -3105,12 +3105,49 @@
               })
             : null,
           jsxs('div', {
-            style: styles.row,
+            style: Object.assign({}, styles.row, {
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 8,
+            }),
             children: [
-              jsx('strong', { children: 'TraceScope 测试工作台' }),
-              jsx('span', {
-                style: { color: busy ? '#0f6e56' : '#6b645a' },
-                children: busy ? busyMessage || '处理中…' : health,
+              jsxs('div', {
+                style: { display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 },
+                children: [
+                  jsx('strong', { children: 'TraceScope 测试工作台' }),
+                  jsx('span', {
+                    style: { color: busy ? '#0f6e56' : '#6b645a', fontSize: 12 },
+                    children: busy ? busyMessage || '处理中…' : health,
+                  }),
+                ],
+              }),
+              // Global preference — compact, independent of the repo/feature cards.
+              jsxs('label', {
+                title:
+                  '进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。',
+                style: {
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  flex: '0 0 auto',
+                  margin: 0,
+                  fontSize: 11,
+                  color: '#6b645a',
+                  cursor: busy ? 'default' : 'pointer',
+                  userSelect: 'none',
+                },
+                children: [
+                  jsx('input', {
+                    type: 'checkbox',
+                    checked: autoOpen,
+                    disabled: busy,
+                    onChange: function (e) {
+                      toggleAutoOpen(e.target.checked)
+                    },
+                    style: { margin: 0, cursor: busy ? 'default' : 'pointer' },
+                  }),
+                  '自动展开',
+                ],
               }),
             ],
           }),
@@ -3246,36 +3283,6 @@
                       borderTop: '1px solid var(--dsh-border, #ddd4c5)',
                     },
                     children: [
-                      jsxs('label', {
-                        style: Object.assign({}, styles.row, {
-                          alignItems: 'center',
-                          gap: 8,
-                          marginBottom: 10,
-                          cursor: 'pointer',
-                          fontWeight: 500,
-                        }),
-                        children: [
-                          jsx('input', {
-                            type: 'checkbox',
-                            checked: autoOpen,
-                            disabled: busy,
-                            onChange: function (e) {
-                              toggleAutoOpen(e.target.checked)
-                            },
-                            style: { margin: 0, cursor: 'pointer' },
-                          }),
-                          jsxs('span', {
-                            style: { display: 'flex', flexDirection: 'column', minWidth: 0 },
-                            children: [
-                              jsx('span', { children: '进入会话时自动展开 TraceScope' }),
-                              jsx('span', {
-                                style: { color: '#6b645a', fontSize: 12, fontWeight: 400, lineHeight: 1.4 },
-                                children: '关闭后进入会话将保持侧栏当前状态、不自动切换，需要 TraceScope 时再从右侧栏手动打开。',
-                              }),
-                            ],
-                          }),
-                        ],
-                      }),
                       jsxs('label', {
                         style: styles.label,
                         children: [
