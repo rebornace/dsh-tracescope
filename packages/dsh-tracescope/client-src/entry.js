@@ -2558,6 +2558,43 @@
         [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode],
       )
 
+      // On open, validate the remembered local path once. If it no longer exists,
+      // prune it from the saved list and prompt the user to browse — without
+      // this, a stale (deleted) folder keeps being selected and every action
+      // fails with "本地文件夹不存在".
+      var initialCheckRef = useRef(false)
+      useEffect(function () {
+        if (initialCheckRef.current) return
+        initialCheckRef.current = true
+        var p = (localStorage.getItem(REPO_PATH_KEY) || '').trim()
+        if (!p) return
+        if (isGitRemoteInput(p)) return
+        apiGet('/tracescope/v1/path-check', { path: p })
+          .then(function (res) {
+            if (res && res.exists && res.isDirectory) return
+            // Stale local path: prune from remembered list.
+            var kept = readRepoList().filter(function (r) {
+              return r !== p
+            })
+            writeRepoList(kept)
+            setRepoList(kept)
+            setRepoPath('')
+            try {
+              localStorage.removeItem(REPO_PATH_KEY)
+            } catch (_e) {}
+            setResolved(null)
+            setSettingsOpen(true)
+            setChatHint(
+              '上次使用的代码文件夹已不存在（可能被移动或删除）：' +
+                p +
+                '。请点「浏览…」重新选择。',
+            )
+          })
+          .catch(function () {
+            /* non-fatal: let the action surface a clear error */
+          })
+      }, [])
+
       var selectedRelatedWorkItems = useCallback(
         function () {
           return (wiItems || []).filter(function (it) {

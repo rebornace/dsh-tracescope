@@ -59,15 +59,51 @@ function VisualValue({ value }) {
   }
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: String(value) });
 }
+function uiStorageKey(repoInput, field) {
+  return UI_CONFIG_PREFIX + field + ":" + repoInput.trim();
+}
+function readUiConfig(repoInput, field) {
+  try {
+    return localStorage.getItem(uiStorageKey(repoInput, field)) ?? "";
+  } catch {
+    return "";
+  }
+}
+function writeUiConfig(repoInput, field, value) {
+  try {
+    if (value) localStorage.setItem(uiStorageKey(repoInput, field), value);
+    else localStorage.removeItem(uiStorageKey(repoInput, field));
+  } catch {
+  }
+}
 function VisualComparePanel({ repoInput, auth }) {
-  const [figmaUrl, setFigmaUrl] = (0, import_react.useState)("");
-  const [figmaToken, setFigmaToken] = (0, import_react.useState)("");
+  const [figmaUrl, setFigmaUrlState] = (0, import_react.useState)(() => readUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
+  const [figmaToken, setFigmaTokenState] = (0, import_react.useState)(
+    () => readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
+  );
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [phase, setPhase] = (0, import_react.useState)("idle");
   const [candidates, setCandidates] = (0, import_react.useState)([]);
   const [selectedKey, setSelectedKey] = (0, import_react.useState)("");
   const [data, setData] = (0, import_react.useState)(null);
   const [error, setError] = (0, import_react.useState)("");
+  const setFigmaUrl = (value) => {
+    setFigmaUrlState(value);
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim());
+  };
+  const setFigmaToken = (value) => {
+    setFigmaTokenState(value);
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim());
+  };
+  (0, import_react.useEffect)(() => {
+    setFigmaUrlState(readUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
+    setFigmaTokenState(readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN));
+    setCandidates([]);
+    setSelectedKey("");
+    setData(null);
+    setPhase("idle");
+    setError("");
+  }, [repoInput]);
   const basePayload = () => ({
     repoPath: repoInput,
     auth,
@@ -380,7 +416,7 @@ function CompareView({ data }) {
     ) : null
   ] });
 }
-var import_react, import_jsx_runtime, PROPERTY_LABELS, S;
+var import_react, import_jsx_runtime, PROPERTY_LABELS, UI_CONFIG_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, S;
 var init_VisualComparePanel = __esm({
   "client-src/visual/VisualComparePanel.tsx"() {
     "use strict";
@@ -409,6 +445,9 @@ var init_VisualComparePanel = __esm({
       letterSpacing: "字间距",
       color: "文字颜色"
     };
+    UI_CONFIG_PREFIX = "tracescope.ui.";
+    UI_CONFIG_FIGMA_URL = "figmaUrl";
+    UI_CONFIG_FIGMA_TOKEN = "figmaToken";
     S = {
       card: {
         border: "1px solid var(--dsh-border,#ddd4c5)",
@@ -456,7 +495,7 @@ var jsxRuntime = require("react/jsx-runtime");
 var jsx2 = jsxRuntime.jsx;
 var jsxs2 = jsxRuntime.jsxs;
 var useState2 = React.useState;
-var useEffect = React.useEffect;
+var useEffect2 = React.useEffect;
 var useCallback = React.useCallback;
 var useRef = React.useRef;
 var VisualComparePanel2 = (init_VisualComparePanel(), __toCommonJS(VisualComparePanel_exports)).VisualComparePanel;
@@ -2041,7 +2080,7 @@ function TraceScopePanelBody() {
       whAuth
     };
   }
-  useEffect(
+  useEffect2(
     function() {
       var repo = repoPath.trim();
       if (!repo || restoringProfileRef.current) {
@@ -2079,7 +2118,7 @@ function TraceScopePanelBody() {
       whAuth
     ]
   );
-  useEffect(
+  useEffect2(
     function() {
       if (!pendingTrackerSyncRef.current) return;
       var repo = repoPath.trim();
@@ -2176,7 +2215,7 @@ function TraceScopePanelBody() {
       );
     }
   }
-  useEffect(function() {
+  useEffect2(function() {
     apiGet("/tracescope/v1/health").then(function() {
       setHealth("已连接");
     }).catch(function() {
@@ -2277,11 +2316,11 @@ function TraceScopePanelBody() {
       setYxHydrated(true);
     });
   }, []);
-  useEffect(function() {
+  useEffect2(function() {
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "none" || authMode === "https") setRemoteAuthMode("token");
   }, [repoPath, accessMode]);
-  useEffect(function() {
+  useEffect2(function() {
     if (!yxHydrated) return;
     if (authMode === "token" && !rememberAuth) return;
     var token = usableSecret(yxToken);
@@ -2309,14 +2348,14 @@ function TraceScopePanelBody() {
       clearTimeout(handle);
     };
   }, [yxHydrated, yxToken, yxEndpoint, yxOrg, authMode, rememberAuth, repoPath, accessMode, trackerProvider]);
-  useEffect(function() {
+  useEffect2(function() {
     if (!authHydrated || !yxHydrated) return;
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "ssh") return;
     if (yxTokenSaved || usableSecret(yxToken)) return;
     setSettingsOpen(true);
   }, [authHydrated, yxHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authMode]);
-  useEffect(function() {
+  useEffect2(function() {
     if (!authHydrated) return;
     persistAuth();
   }, [authHydrated, rememberAuth, authMode, authUser, authToken, authKey, yxToken, repoPath]);
@@ -2484,7 +2523,7 @@ function TraceScopePanelBody() {
     },
     [repoPath]
   );
-  useEffect(function() {
+  useEffect2(function() {
     if (!repoPath.trim() || !baseCommit || !headCommit) {
       if (!viewingHistoryRef.current) {
         setReport(null);
@@ -2527,10 +2566,10 @@ function TraceScopePanelBody() {
       cancelled = true;
     };
   }, [repoPath, baseCommit, headCommit]);
-  useEffect(function() {
+  useEffect2(function() {
     refreshHistory();
   }, [refreshHistory]);
-  useEffect(function() {
+  useEffect2(function() {
     return function() {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -2538,7 +2577,7 @@ function TraceScopePanelBody() {
       }
     };
   }, []);
-  useEffect(function() {
+  useEffect2(function() {
     if (!jobId || jobStatus === "published" || jobStatus === "error") {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -2668,7 +2707,7 @@ function TraceScopePanelBody() {
     },
     [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxTokenSaved, yxEndpoint, yxOrg]
   );
-  useEffect(
+  useEffect2(
     function() {
       if (!authHydrated) return;
       if (!repoPath.trim()) return;
@@ -2689,6 +2728,33 @@ function TraceScopePanelBody() {
     // Sync when the repo, mode, access mode, or (for the Codeup fallback) token becomes available.
     [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode]
   );
+  var initialCheckRef = useRef(false);
+  useEffect2(function() {
+    if (initialCheckRef.current) return;
+    initialCheckRef.current = true;
+    var p = (localStorage.getItem(REPO_PATH_KEY) || "").trim();
+    if (!p) return;
+    if (isGitRemoteInput(p)) return;
+    apiGet("/tracescope/v1/path-check", { path: p }).then(function(res) {
+      if (res && res.exists && res.isDirectory) return;
+      var kept = readRepoList().filter(function(r) {
+        return r !== p;
+      });
+      writeRepoList(kept);
+      setRepoList(kept);
+      setRepoPath("");
+      try {
+        localStorage.removeItem(REPO_PATH_KEY);
+      } catch (_e) {
+      }
+      setResolved(null);
+      setSettingsOpen(true);
+      setChatHint(
+        "上次使用的代码文件夹已不存在（可能被移动或删除）：" + p + "。请点「浏览…」重新选择。"
+      );
+    }).catch(function() {
+    });
+  }, []);
   var selectedRelatedWorkItems = useCallback(
     function() {
       return (wiItems || []).filter(function(it) {
