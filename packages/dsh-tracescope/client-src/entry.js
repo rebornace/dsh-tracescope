@@ -2655,12 +2655,17 @@
               .then(function (data) {
                 setJobId(data.jobId)
                 setJobStatus(data.status || 'pending')
+                var warningPrefix =
+                  data.resolved && data.resolved.fetchWarning
+                    ? '⚠ ' + data.resolved.fetchWarning + '\n'
+                    : ''
                 var filled = fillComposerDraft(data.prompt || '')
                 if (filled.ok) {
                   setChatHint(
-                    (related.length
-                      ? '已把 ' + related.length + ' 条敏捷任务写入提示。'
-                      : '') +
+                    warningPrefix +
+                      (related.length
+                        ? '已把 ' + related.length + ' 条敏捷任务写入提示。'
+                        : '') +
                       '已填入当前会话输入框（任务 ID 见下方，可复制给模型确认）。请核对后发送；Agent publish 后清单会刷新。未发送可再点按钮取消并清空草稿。',
                   )
                 } else {

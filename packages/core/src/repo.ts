@@ -18,6 +18,12 @@ export type ResolvedRepo = {
   remoteUrl?: string
   /** Whether a fetch/clone ran during this resolve. */
   synced: boolean
+  /**
+   * Non-fatal remote-sync warning for a local work tree: the fetch failed
+   * (offline / 403 / no credentials) so analysis proceeds from local commits.
+   * Undefined when sync succeeded or was not attempted.
+   */
+  fetchWarning?: string
   /** Auth mode used (never includes secrets). */
   authMode: 'none' | 'https' | 'ssh'
 }
@@ -302,9 +308,19 @@ export async function resolveGitRepo(
   }
 
   let synced = false
+  let fetchWarning: string | undefined
   if (options.fetch === true) {
-    await gitFetchAll(repoPath, auth)
-    synced = true
+    // Best-effort sync for a LOCAL work tree: the user may be offline, lack
+    // remote credentials, or analyze commits that are already present locally.
+    // A fetch failure must not abort analysis — fall back to local commits.
+    try {
+      await gitFetchAll(repoPath, auth)
+      synced = true
+    } catch (error) {
+      fetchWarning =
+        '远端同步失败，已改用本地已有提交离线分析：' +
+        (error instanceof Error ? error.message : String(error))
+    }
   }
 
   return {
@@ -312,6 +328,7 @@ export async function resolveGitRepo(
     repoPath,
     source: 'local',
     synced,
+    fetchWarning,
     authMode: mode,
   }
 }
