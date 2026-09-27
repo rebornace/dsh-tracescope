@@ -262,6 +262,21 @@ export {
   type FigmaPageSummary,
 } from './design/sources/figma.js'
 export {
+  loadAndroidProjectResources,
+  type AndroidProjectResources,
+  type AndroidModuleResources,
+  type AndroidValueResources,
+  type ParsedDrawable,
+} from './design/android-resources.js'
+export {
+  renderAndroidLayout,
+  nodeKindOf,
+  type AndroidRenderContext,
+  type HifiLayoutResult,
+  type HifiRenderNode,
+  type HifiNodeKind,
+} from './design/android-layout-engine.js'
+export {
   classifyCodePage,
   classifyDesignPage,
   mapInventoryPages,
