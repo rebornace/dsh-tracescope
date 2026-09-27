@@ -1544,11 +1544,7 @@ function TraceScopePanelBody() {
   }
   function openPicker() {
     setPickerOpen(true);
-    var start = "";
-    if (dataDirInfo && dataDirInfo.dataRoot) {
-      start = dataDirInfo.dataRoot;
-    }
-    browsePath(start);
+    browsePath("");
   }
   function closePicker() {
     setPickerOpen(false);
@@ -3765,11 +3761,13 @@ function TraceScopePanelBody() {
                 jsx2("button", {
                   type: "button",
                   style: Object.assign({}, styles.secondary, { padding: "4px 10px" }),
-                  disabled: pickerLoading || !pickerBrowse || pickerBrowse.parent === null,
+                  // Enabled anywhere except the synthetic volume list itself.
+                  disabled: pickerLoading || !pickerBrowse || pickerBrowse.isRoot && pickerBrowse.parent === null,
                   onClick: function() {
-                    if (pickerBrowse && pickerBrowse.parent !== null) {
+                    if (!pickerBrowse) return;
+                    if (pickerBrowse.parent !== null) {
                       browsePath(pickerBrowse.parent);
-                    } else if (pickerBrowse && pickerBrowse.isRoot === false) {
+                    } else {
                       browsePath("");
                     }
                   },
