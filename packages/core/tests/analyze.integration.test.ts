@@ -5,6 +5,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { analyzeImpact } from '../src/analyze.js'
 import { exportReportMarkdown } from '../src/export.js'
+import { resolveGitRepo } from '../src/repo.js'
 
 function git(cwd: string, args: string[]) {
   execFileSync('git', args, { cwd, stdio: 'pipe' })
@@ -118,6 +119,39 @@ class PayActivity {
     }).then((report) => {
       expect(report.changedFiles.some((f) => f.includes('PayActivity.kt'))).toBe(true)
       expect(report.ripple.some((i) => i.files.some((f) => f.includes('HomeActivity.kt')))).toBe(true)
+    })
+  })
+
+  it('degrades to offline analysis when a local work tree fetch fails', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'tracescope-local-'))
+    const src = path.join(root, 'app/src/main/java/com/example/home')
+    mkdirSync(src, { recursive: true })
+    writeFileSync(
+      path.join(src, 'HomeActivity.kt'),
+      `package com.example.home\nclass HomeActivity {}\n`,
+    )
+    git(root, ['init'])
+    git(root, ['config', 'user.email', 'test@example.com'])
+    git(root, ['config', 'user.name', 'Test'])
+    git(root, ['add', '.'])
+    git(root, ['commit', '-m', 'base'])
+
+    // A non-existent remote: fetch fails deterministically and offline.
+    const brokenRemote = path.join(root, 'no-such-remote.git')
+    git(root, ['remote', 'add', 'origin', brokenRemote])
+
+    // With fetch:true the failure must be swallowed, not thrown.
+    return resolveGitRepo(root, { fetch: true }).then((resolved) => {
+      expect(resolved.source).toBe('local')
+      expect(resolved.synced).toBe(false)
+      expect(resolved.fetchWarning).toBeTruthy()
+      expect(resolved.fetchWarning).toContain('离线分析')
+
+      // Without fetch requested there is no warning.
+      return resolveGitRepo(root, { fetch: false }).then((noFetch) => {
+        expect(noFetch.synced).toBe(false)
+        expect(noFetch.fetchWarning).toBeUndefined()
+      })
     })
   })
 })
