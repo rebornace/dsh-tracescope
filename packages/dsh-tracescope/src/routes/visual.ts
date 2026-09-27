@@ -7,6 +7,7 @@ import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
 import {
   compareDesignAgainstPage,
+  matchAllDesignPages,
   matchDesignToRepo,
 } from '../services/visual-flow.js'
 
@@ -24,6 +25,14 @@ export function registerVisualRoutes(ctx: Context) {
     method: 'POST',
     run: async (body) => {
       return await compareDesignAgainstPage(body)
+    },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/match-all',
+    method: 'POST',
+    run: async (body) => {
+      return await matchAllDesignPages(body)
     },
   })
 }

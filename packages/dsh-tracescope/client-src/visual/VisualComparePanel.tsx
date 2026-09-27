@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { VisualDiffBoard } from './VisualDiffBoard.js'
+import { PageMappingOverview } from './PageMappingOverview.js'
 
 interface MatchCandidate {
   adapterId: string
@@ -166,6 +167,41 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
     }
   }
 
+  /** Build a node-specific Figma URL from a whole-file URL + node id. */
+  function nodeUrl(designId: string): string {
+    try {
+      const u = new URL(figmaUrl)
+      u.searchParams.set('node-id', designId.replace(/:/g, '-'))
+      return u.toString()
+    } catch {
+      return figmaUrl
+    }
+  }
+
+  async function compareFromOverview(
+    designId: string,
+    codeFile: { adapterId: string; relativePath: string },
+  ) {
+    setError('')
+    setData(null)
+    setBusy(true)
+    try {
+      const res = await post('/tracescope/v1/visual-compare', {
+        repoPath: repoInput,
+        auth,
+        figmaUrl: nodeUrl(designId),
+        figmaToken: figmaToken.trim(),
+        adapterId: codeFile.adapterId,
+        relativePath: codeFile.relativePath,
+      })
+      setData(res as CompareData)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function compare() {
     setError('')
     const c = candidates.find((x) => candidateKey(x) === selectedKey)
@@ -220,85 +256,103 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
         />
       </label>
 
-      <button type="button" style={S.primary} disabled={busy} onClick={locate}>
-        {busy && phase === 'idle' ? '定位中…' : '自动定位页面'}
-      </button>
+      <div style={{ marginTop: 2 }}>
+        <PageMappingOverview
+          repoInput={repoInput}
+          figmaUrl={figmaUrl}
+          figmaToken={figmaToken}
+          auth={auth}
+          busy={busy}
+          onScanStateChange={setBusy}
+          onCompare={compareFromOverview}
+        />
+      </div>
 
-      {phase === 'matched' ? (
-        candidates.length ? (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ ...S.row, justifyContent: 'space-between' }}>
-              <span style={{ fontWeight: 600 }}>匹配的页面（默认最佳，可切换）</span>
+      <details style={{ marginTop: 10 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b645a' }}>
+          高级：仅定位当前链接选中的单个节点
+        </summary>
+
+        <button type="button" style={{ ...S.primary, marginTop: 8 }} disabled={busy} onClick={locate}>
+          {busy && phase === 'idle' ? '定位中…' : '自动定位当前节点'}
+        </button>
+
+        {phase === 'matched' ? (
+          candidates.length ? (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ ...S.row, justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 600 }}>匹配的页面（默认最佳，可切换）</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                {candidates.map((c) => {
+                  const key = candidateKey(c)
+                  const checked = key === selectedKey
+                  return (
+                    <label
+                      key={key}
+                      style={{
+                        border: '1px solid ' + (checked ? '#0f6e56' : 'var(--dsh-border,#ddd4c5)'),
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        cursor: 'pointer',
+                        background: checked ? '#f2f8f5' : '#fff',
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ ...S.row, justifyContent: 'space-between' }}>
+                        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            type="radio"
+                            name="visual-page"
+                            checked={checked}
+                            onChange={() => setSelectedKey(key)}
+                          />
+                          <strong>
+                            {c.kindLabel} · {Math.round(c.score * 100)}%
+                          </strong>
+                          {!c.precise ? (
+                            <span style={S.badge}>暂不支持精确对比</span>
+                          ) : null}
+                        </span>
+                      </div>
+                      <div style={{ color: '#6b645a', marginTop: 4 }}>{c.relativePath}</div>
+                      {c.reasons.length ? (
+                        <div style={{ color: '#8a7f70', marginTop: 2 }}>{c.reasons.join('；')}</div>
+                      ) : null}
+                    </label>
+                  )
+                })}
+              </div>
+              <button
+                type="button"
+                style={{ ...S.primary, marginTop: 10 }}
+                disabled={busy}
+                onClick={compare}
+              >
+                {busy ? '对比中…' : '开始对比所选页面'}
+              </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              {candidates.map((c) => {
-                const key = candidateKey(c)
-                const checked = key === selectedKey
-                return (
-                  <label
-                    key={key}
-                    style={{
-                      border: '1px solid ' + (checked ? '#0f6e56' : 'var(--dsh-border,#ddd4c5)'),
-                      borderRadius: 8,
-                      padding: '8px 10px',
-                      cursor: 'pointer',
-                      background: checked ? '#f2f8f5' : '#fff',
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ ...S.row, justifyContent: 'space-between' }}>
-                      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                        <input
-                          type="radio"
-                          name="visual-page"
-                          checked={checked}
-                          onChange={() => setSelectedKey(key)}
-                        />
-                        <strong>
-                          {c.kindLabel} · {Math.round(c.score * 100)}%
-                        </strong>
-                        {!c.precise ? (
-                          <span style={S.badge}>暂不支持精确对比</span>
-                        ) : null}
-                      </span>
-                    </div>
-                    <div style={{ color: '#6b645a', marginTop: 4 }}>{c.relativePath}</div>
-                    {c.reasons.length ? (
-                      <div style={{ color: '#8a7f70', marginTop: 2 }}>{c.reasons.join('；')}</div>
-                    ) : null}
-                  </label>
-                )
-              })}
+          ) : designNodeName ? (
+            <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
+              当前链接指向的节点「{designNodeName}」是一个<strong>空白图层（不含任何文案或控件）</strong>，
+              无法对应到代码页面。
+              <br />
+              请在 Figma 中点击真正的<strong>画板 / 界面 Frame</strong>（通常包含整屏内容，而非某个矩形、图片等子元素），
+              右键选择「Copy link to selection」后重新粘贴。
             </div>
-            <button
-              type="button"
-              style={{ ...S.primary, marginTop: 10 }}
-              disabled={busy}
-              onClick={compare}
-            >
-              {busy ? '对比中…' : '开始对比所选页面'}
-            </button>
-          </div>
-        ) : designNodeName ? (
-          <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
-            当前链接指向的节点「{designNodeName}」是一个<strong>空白图层（不含任何文案或控件）</strong>，
-            无法对应到代码页面。
-            <br />
-            请在 Figma 中点击真正的<strong>画板 / 界面 Frame</strong>（通常包含整屏内容，而非某个矩形、图片等子元素），
-            右键选择「Copy link to selection」后重新粘贴。
-          </div>
-        ) : (
-          <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
-            未能在仓库中定位到与设计稿对应的页面。请确认：
-            <br />
-            1）所选代码文件夹根目录正确；
-            <br />
-            2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；
-            <br />
-            3）设计稿中的文案与界面实际文案一致。
-          </div>
-        )
-      ) : null}
+          ) : (
+            <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
+              未能在仓库中定位到与设计稿对应的页面。请确认：
+              <br />
+              1）所选代码文件夹根目录正确；
+              <br />
+              2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；
+              <br />
+              3）设计稿中的文案与界面实际文案一致。
+            </div>
+          )
+        ) : null}
+      </details>
 
       {error ? (
         <p style={{ color: '#b42318', margin: '8px 0 0', fontSize: 12 }}>{error}</p>

@@ -254,6 +254,23 @@ export {
   getPlatformAdapter,
   type PlatformAdapter,
 } from './design/registry.js'
+export {
+  fetchFigmaFileInventory,
+  fetchFigmaDocsBatch,
+  type FigmaFileInventory,
+  type FigmaCanvasSummary,
+  type FigmaPageSummary,
+} from './design/sources/figma.js'
+export {
+  classifyCodePage,
+  classifyDesignPage,
+  mapInventoryPages,
+  PAGE_KIND_LABEL,
+  type PageKind,
+  type DesignPageMapping,
+  type PageMappingCandidate,
+  type InventoryMappingOptions,
+} from './design/page-inventory.js'
 export type {
   AdapterId,
   CodePage,

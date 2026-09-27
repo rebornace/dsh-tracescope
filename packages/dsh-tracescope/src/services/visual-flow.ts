@@ -18,6 +18,11 @@ import {
   renderFigmaNode,
   getPlatformAdapter,
   compareVisualDocs,
+  fetchFigmaFileInventory,
+  fetchFigmaDocsBatch,
+  mapInventoryPages,
+  type DesignPageMapping,
+  type FigmaCanvasSummary,
 } from '@rebornace/tracescope-core'
 import type {
   DesignNode,
@@ -282,5 +287,103 @@ export async function compareDesignAgainstPage(
     frameBox,
     designTree: serializeNode(design.root),
     codeTree: serializeNode(codeDoc.root),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Whole-file page mapping overview
+// ---------------------------------------------------------------------------
+
+export interface MatchAllResult {
+  /** All code layout files, for manual search when auto match is weak/none. */
+  codeFiles: Array<{
+    adapterId: string
+    kindLabel: string
+    relativePath: string
+    precise: boolean
+  }>
+  canvases: Array<{
+    id: string
+    name: string
+    componentLibrary: boolean
+  }>
+  pages: Array<{
+    canvasId: string
+    canvasName: string
+    mapping: {
+      designId: string
+      designName: string
+      kind: string
+      status: DesignPageMapping['status']
+      candidates: DesignPageMapping['candidates']
+    }
+  }>
+  totals: { pages: number; matched: number; weak: number; none: number }
+}
+
+/**
+ * Scan the whole Figma file, classify every design page and code page, and
+ * return the design-page -> code-file mapping overview grouped by canvas.
+ * The client lets the user confirm or change each suggestion.
+ */
+export async function matchAllDesignPages(
+  body: Record<string, unknown>,
+): Promise<MatchAllResult> {
+  const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
+  const figmaUrl = String(body.figmaUrl ?? '').trim()
+  const figmaToken = String(body.figmaToken ?? '').trim()
+  if (!repoInput) throw new Error('缺少 repoPath')
+  if (!figmaUrl || !figmaToken) throw new Error('需要设计稿链接和访问 Token')
+
+  const ctx = await resolveVisualRepo(repoInput, body)
+  const inventory = await fetchFigmaFileInventory(figmaUrl, { token: figmaToken })
+
+  // Batch fetch every page doc (one request keeps this fast).
+  const ids = inventory.pages.map((p) => p.id)
+  const docs = await fetchFigmaDocsBatch(inventory.fileKey, ids, { token: figmaToken })
+
+  const codePages = await discoverAllPages(ctx.checkoutPath)
+  const pageInput = inventory.pages
+    .filter((s) => docs.has(s.id))
+    .map((summary) => ({ summary, doc: docs.get(summary.id)! }))
+  const mappings = mapInventoryPages(pageInput, codePages)
+
+  // Map design id -> canvas for grouping.
+  const canvasOf = new Map<string, FigmaCanvasSummary>()
+  for (const canvas of inventory.canvases) {
+    for (const p of canvas.pages) canvasOf.set(p.id, canvas)
+  }
+
+  const totals = { pages: mappings.length, matched: 0, weak: 0, none: 0 }
+  const pages = mappings.map((m) => {
+    totals[m.status] += 1
+    const canvas = canvasOf.get(m.designId)
+    return {
+      canvasId: canvas?.id ?? '',
+      canvasName: canvas?.name ?? '',
+      mapping: {
+        designId: m.designId,
+        designName: m.designName,
+        kind: m.kind,
+        status: m.status,
+        candidates: m.candidates,
+      },
+    }
+  })
+
+  return {
+    codeFiles: codePages.map((p) => ({
+      adapterId: p.adapterId,
+      kindLabel: p.kindLabel,
+      relativePath: p.relativePath,
+      precise: p.precise,
+    })),
+    canvases: inventory.canvases.map((c) => ({
+      id: c.id,
+      name: c.name,
+      componentLibrary: c.componentLibrary,
+    })),
+    pages,
+    totals,
   }
 }
