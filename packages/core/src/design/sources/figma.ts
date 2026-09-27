@@ -243,14 +243,21 @@ export function normalizeFigmaTree(root: FigmaNode, scale = 1): DesignDoc {
   return { root: convertNode(root, scale), scale, source: 'figma' }
 }
 
-/** Parse a Figma URL and return the file key plus node id (normalised to `a:b`). */
-export function parseFigmaUrl(input: string): { fileKey: string; nodeId: string } {
+/** Extract just the file key from a Figma file/design URL. */
+export function parseFigmaFileKey(input: string): string {
   const url = new URL(input)
   const parts = url.pathname.split('/').filter(Boolean)
   // /design/<fileKey>/... or /file/<fileKey>/...
   const keyIndex = parts.findIndex((p) => p === 'design' || p === 'file')
-  const fileKey = keyIndex >= 0 ? parts[keyIndex + 1] : ''
+  const fileKey = keyIndex >= 0 ? parts[keyIndex + 1] ?? '' : ''
   if (!fileKey) throw new Error('无法从链接解析 Figma file key')
+  return fileKey
+}
+
+/** Parse a Figma URL and return the file key plus node id (normalised to `a:b`). */
+export function parseFigmaUrl(input: string): { fileKey: string; nodeId: string } {
+  const fileKey = parseFigmaFileKey(input)
+  const url = new URL(input)
   const rawId = url.searchParams.get('node-id')
   if (!rawId) throw new Error('链接缺少 node-id')
   return { fileKey, nodeId: rawId.replace(/-/g, ':') }
@@ -338,4 +345,127 @@ export async function renderFigmaNode(
   const imageUrl = payload.images?.[resolvedNodeId]
   if (!imageUrl) throw new Error('Figma 未返回该节点的渲染图（可能选中了不可渲染的元素）')
   return { url: imageUrl, nodeId: resolvedNodeId }
+}
+
+// ---------------------------------------------------------------------------
+// Whole-file page inventory
+// ---------------------------------------------------------------------------
+
+export interface FigmaPageSummary {
+  id: string
+  name: string
+  type: string
+  box: { x: number; y: number; width: number; height: number }
+}
+
+export interface FigmaCanvasSummary {
+  id: string
+  name: string
+  pages: FigmaPageSummary[]
+  /** True when this canvas is a component/icon library, not app screens. */
+  componentLibrary: boolean
+}
+
+export interface FigmaFileInventory {
+  fileKey: string
+  canvases: FigmaCanvasSummary[]
+  /** Flattened list of real (non-library) pages. */
+  pages: FigmaPageSummary[]
+}
+
+// Top-level elements that represent actual pages. A GROUP (e.g. the
+// auto-generated "External Symbols" placeholder) is not a selectable screen.
+const PAGE_NODE_TYPES = new Set(['FRAME', 'INSTANCE', 'COMPONENT'])
+
+// Ignore sub-120px helper/placeholder elements even when top level.
+const MIN_PAGE_EDGE = 120
+
+function toPageSummary(node: FigmaNode): FigmaPageSummary | null {
+  if (!PAGE_NODE_TYPES.has(node.type)) return null
+  const b = node.absoluteBoundingBox
+  if (!b) return null
+  if (b.width < MIN_PAGE_EDGE && b.height < MIN_PAGE_EDGE) return null
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    box: { x: b.x, y: b.y, width: b.width, height: b.height },
+  }
+}
+
+/** A canvas is treated as a component library when its children are mostly
+ * COMPONENT / COMPONENT_SET nodes (the design-system / icon sheet). */
+function isComponentLibraryCanvas(nodes: FigmaNode[]): boolean {
+  if (!nodes.length) return false
+  const components = nodes.filter((n) => n.type === 'COMPONENT' || n.type === 'COMPONENT_SET').length
+  return components / nodes.length >= 0.6 && nodes.length >= 10
+}
+
+/**
+ * Fetch the file's top-level structure (document -> canvases -> top pages) and
+ * return every app page grouped by canvas, excluding the component library.
+ */
+export async function fetchFigmaFileInventory(
+  fileKeyOrUrl: string,
+  options: FigmaTransportOptions & { token: string; fetchImpl?: typeof fetch },
+): Promise<FigmaFileInventory> {
+  const fileKey = /^https?:\/\//.test(fileKeyOrUrl)
+    ? parseFigmaFileKey(fileKeyOrUrl)
+    : fileKeyOrUrl
+
+  const url = `${FIGMA_API}/files/${fileKey}?depth=2`
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
+  if (!response.ok) {
+    throw new Error(`Figma 文件请求失败：${response.status} ${response.statusText}`)
+  }
+  const payload = (await response.json()) as { document?: FigmaNode }
+  const doc = payload.document
+  if (!doc) throw new Error('Figma 文件结构为空')
+
+  const canvases: FigmaCanvasSummary[] = []
+  const pages: FigmaPageSummary[] = []
+  for (const canvasNode of doc.children ?? []) {
+    const children = canvasNode.children ?? []
+    const componentLibrary = isComponentLibraryCanvas(canvasNode.children ?? [])
+    const pageSummaries = children
+      .map(toPageSummary)
+      .filter((p): p is FigmaPageSummary => p !== null)
+    canvases.push({
+      id: canvasNode.id,
+      name: canvasNode.name,
+      pages: pageSummaries,
+      componentLibrary,
+    })
+    if (!componentLibrary) pages.push(...pageSummaries)
+  }
+
+  return { fileKey, canvases, pages }
+}
+
+/**
+ * Fetch several node documents in one request and normalise each. Batching
+ * keeps whole-file inventory mapping to a handful of requests instead of one
+ * per page. Nodes that fail to normalise are omitted.
+ */
+export async function fetchFigmaDocsBatch(
+  fileKey: string,
+  nodeIds: string[],
+  options: FigmaTransportOptions & { token: string; fetchImpl?: typeof fetch; scale?: number },
+): Promise<Map<string, DesignDoc>> {
+  const result = new Map<string, DesignDoc>()
+  if (!nodeIds.length) return result
+  const url = `${FIGMA_API}/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeIds.join(','))}`
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
+  if (!response.ok) {
+    throw new Error(`Figma 批量节点请求失败：${response.status} ${response.statusText}`)
+  }
+  const payload = (await response.json()) as {
+    nodes?: Record<string, { document?: FigmaNode }>
+  }
+  const scale = options.scale ?? 1
+  for (const id of nodeIds) {
+    const entry = payload.nodes?.[id]?.document
+    if (entry) result.set(id, normalizeFigmaTree(entry, scale))
+  }
+  return result
 }
