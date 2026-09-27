@@ -1178,6 +1178,71 @@
       var _dataDirBusy = useState(false)
       var dataDirBusy = _dataDirBusy[0]
       var setDataDirBusy = _dataDirBusy[1]
+      // Visual folder picker state.
+      var _pickerOpen = useState(false)
+      var pickerOpen = _pickerOpen[0]
+      var setPickerOpen = _pickerOpen[1]
+      var _pickerBrowse = useState(null)
+      var pickerBrowse = _pickerBrowse[0]
+      var setPickerBrowse = _pickerBrowse[1]
+      var _pickerLoading = useState(false)
+      var pickerLoading = _pickerLoading[0]
+      var setPickerLoading = _pickerLoading[1]
+      var _pickerSelected = useState('')
+      var pickerSelected = _pickerSelected[0]
+      var setPickerSelected = _pickerSelected[1]
+
+      function browsePath(target) {
+        setPickerLoading(true)
+        var qs = target ? '?path=' + encodeURIComponent(target) : ''
+        apiGet('/tracescope/v1/browse' + qs)
+          .then(function (data) {
+            setPickerBrowse(data)
+            // Navigating clears a highlighted subfolder; the displayed directory
+            // itself becomes the effective selection (see effectivePickerPath).
+            setPickerSelected('')
+          })
+          .catch(function (err) {
+            setChatHint('浏览目录失败：' + (err.message || String(err)))
+          })
+          .finally(function () {
+            setPickerLoading(false)
+          })
+      }
+
+      function openPicker() {
+        setPickerOpen(true)
+        // Start at the current data root's parent if available, else volume root.
+        var start = ''
+        if (dataDirInfo && dataDirInfo.dataRoot) {
+          start = dataDirInfo.dataRoot
+        }
+        browsePath(start)
+      }
+
+      function closePicker() {
+        setPickerOpen(false)
+        setPickerBrowse(null)
+        setPickerSelected('')
+      }
+
+      function effectivePickerPath() {
+        var highlighted = String(pickerSelected || '').trim()
+        if (highlighted) return highlighted
+        // Default to the currently displayed directory (unless at volume root).
+        if (pickerBrowse && !pickerBrowse.isRoot) return pickerBrowse.path
+        return ''
+      }
+
+      function confirmPicker() {
+        var chosen = effectivePickerPath()
+        if (!chosen) {
+          setChatHint('请先进入并选择一个文件夹')
+          return
+        }
+        setDataDirDraft(chosen)
+        closePicker()
+      }
 
       function refreshDataDir() {
         return apiGet('/tracescope/v1/data-dir')
@@ -3561,18 +3626,40 @@
                   borderRadius: 10,
                 },
                 children: [
-                  jsxs('label', {
-                    style: { margin: 0, fontSize: 12, color: '#5d564c', display: 'flex', flexDirection: 'column', gap: 4 },
+                  jsx('div', {
+                    style: { fontSize: 12, color: '#5d564c' },
+                    children: '数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）',
+                  }),
+                  jsxs('div', {
+                    style: Object.assign({}, styles.row, { gap: 6 }),
                     children: [
-                      '数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）',
-                      jsx('input', {
-                        style: styles.input,
-                        value: dataDirDraft,
-                        disabled: dataDirBusy,
-                        placeholder: dataDirInfo ? dataDirInfo.defaultRoot : '',
-                        onChange: function (e) {
-                          setDataDirDraft(e.target.value)
+                      jsx('div', {
+                        title: dataDirDraft,
+                        style: {
+                          flex: 1,
+                          minWidth: 0,
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          border: '1px solid var(--dsh-border, #ddd4c5)',
+                          background: '#fff',
+                          color: dataDirDraft ? 'var(--dsh-fg, #1c1915)' : '#9b948a',
+                          fontSize: 12,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          direction: 'rtl',
+                          textAlign: 'left',
                         },
+                        children:
+                          dataDirDraft ||
+                          (dataDirInfo ? dataDirInfo.defaultRoot : '点击右侧浏览选择目录'),
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        style: Object.assign({}, styles.secondary, { flex: '0 0 auto' }),
+                        disabled: dataDirBusy,
+                        onClick: openPicker,
+                        children: '浏览…',
                       }),
                     ],
                   }),
@@ -3606,6 +3693,223 @@
                         ],
                       }),
                 ],
+              })
+            : null,
+          // Visual folder picker modal.
+          pickerOpen
+            ? jsxs('div', {
+                style: styles.modalBackdrop,
+                onClick: function (e) {
+                  if (e.target === e.currentTarget) closePicker()
+                },
+                children: jsxs('div', {
+                  style: {
+                    width: 'min(440px, 100%)',
+                    maxHeight: '80vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: 'var(--dsh-card, #fffdf8)',
+                    border: '1px solid var(--dsh-border, #ddd4c5)',
+                    borderRadius: 12,
+                    boxShadow: '0 12px 40px rgba(28,25,21,0.25)',
+                    overflow: 'hidden',
+                  },
+                  children: [
+                    jsxs('div', {
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderBottom: '1px solid var(--dsh-border, #ddd4c5)',
+                      },
+                      children: [
+                        jsx('strong', { style: { fontSize: 13 }, children: '选择数据存放目录' }),
+                        jsx('button', {
+                          type: 'button',
+                          style: Object.assign({}, styles.miniBtn, { padding: '2px 8px' }),
+                          onClick: closePicker,
+                          children: '×',
+                        }),
+                      ],
+                    }),
+                    // Quick places.
+                    pickerBrowse && Array.isArray(pickerBrowse.quick)
+                      ? jsx('div', {
+                          style: {
+                            display: 'flex',
+                            gap: 6,
+                            flexWrap: 'wrap',
+                            padding: '8px 12px',
+                            borderBottom: '1px solid var(--dsh-border, #ddd4c5)',
+                          },
+                          children: pickerBrowse.quick.map(function (q) {
+                            return jsx(
+                              'button',
+                              {
+                                type: 'button',
+                                style: styles.miniBtn,
+                                onClick: function () {
+                                  browsePath(q.path)
+                                },
+                                children: q.name,
+                              },
+                              'q-' + q.path,
+                            )
+                          }),
+                        })
+                      : null,
+                    // Current path + up navigation.
+                    jsxs('div', {
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--dsh-border, #ddd4c5)',
+                      },
+                      children: [
+                        jsx('button', {
+                          type: 'button',
+                          style: Object.assign({}, styles.secondary, { padding: '4px 10px' }),
+                          disabled:
+                            pickerLoading || !pickerBrowse || pickerBrowse.parent === null,
+                          onClick: function () {
+                            if (pickerBrowse && pickerBrowse.parent !== null) {
+                              browsePath(pickerBrowse.parent)
+                            } else if (pickerBrowse && pickerBrowse.isRoot === false) {
+                              browsePath('')
+                            }
+                          },
+                          children: '↑ 上级',
+                        }),
+                        jsx('div', {
+                          title: pickerBrowse ? pickerBrowse.path : '',
+                          style: {
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 12,
+                            color: '#5d564c',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          },
+                          children: pickerBrowse
+                            ? pickerBrowse.isRoot
+                              ? '此电脑 / 磁盘'
+                              : pickerBrowse.path
+                            : '加载中…',
+                        }),
+                      ],
+                    }),
+                    // Folder list.
+                    jsx('div', {
+                      style: { flex: 1, overflowY: 'auto', padding: 6, minHeight: 180 },
+                      children: pickerLoading
+                        ? jsx('div', {
+                            style: { padding: 16, textAlign: 'center', color: '#8a8378', fontSize: 12 },
+                            children: '正在读取…',
+                          })
+                        : pickerBrowse && !pickerBrowse.dirs.length
+                          ? jsx('div', {
+                              style: { padding: 16, textAlign: 'center', color: '#8a8378', fontSize: 12 },
+                              children: '该目录下没有子文件夹，可直接选择当前目录。',
+                            })
+                          : (pickerBrowse ? pickerBrowse.dirs : []).map(function (d) {
+                              var active = pickerSelected === d.path
+                              return jsx(
+                                'button',
+                                {
+                                  type: 'button',
+                                  title: active ? '已选中（双击进入）' : '单击选中，双击进入',
+                                  onClick: function () {
+                                    // Single click selects the folder (native-like).
+                                    setPickerSelected(d.path)
+                                  },
+                                  onDoubleClick: function () {
+                                    browsePath(d.path)
+                                  },
+                                  style: {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '7px 8px',
+                                    marginBottom: 2,
+                                    borderRadius: 8,
+                                    border: '1px solid ' + (active ? 'var(--dsh-accent,#0f6e56)' : 'transparent'),
+                                    background: active ? 'var(--dsh-accent-soft,#efe8da)' : 'transparent',
+                                    cursor: 'pointer',
+                                    fontSize: 12,
+                                  },
+                                  children: [
+                                    jsx('span', {
+                                      style: { flex: '0 0 auto', color: '#b98f3f' },
+                                      children: '📁',
+                                    }),
+                                    jsx('span', { style: { flex: 1, minWidth: 0 }, children: d.name }),
+                                  ],
+                                },
+                                'd-' + d.path,
+                              )
+                            }),
+                    }),
+                    // Footer.
+                    jsxs('div', {
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 12px',
+                        borderTop: '1px solid var(--dsh-border, #ddd4c5)',
+                      },
+                      children: [
+                        jsx('div', {
+                          style: {
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 12,
+                            color: '#5d564c',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          },
+                          title: effectivePickerPath(),
+                          children: (function () {
+                            var p = effectivePickerPath()
+                            return p ? '将使用：' + p : '请进入并选择一个文件夹'
+                          })(),
+                        }),
+                        jsx('button', {
+                          type: 'button',
+                          style: styles.secondary,
+                          disabled:
+                            pickerLoading || !pickerBrowse || pickerBrowse.isRoot,
+                          onClick: function () {
+                            // Select the currently displayed folder itself.
+                            if (pickerBrowse && !pickerBrowse.isRoot) {
+                              setPickerSelected(pickerBrowse.path)
+                            }
+                          },
+                          children: '选当前目录',
+                        }),
+                        jsx('button', {
+                          type: 'button',
+                          style: styles.secondary,
+                          onClick: closePicker,
+                          children: '取消',
+                        }),
+                        jsx('button', {
+                          type: 'button',
+                          style: styles.primary,
+                          onClick: confirmPicker,
+                          children: '确定',
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
               })
             : null,
           // Top-level mode switch — always reachable, before/after repo setup.

@@ -70,6 +70,14 @@ export {
   type ChangeDataRootResult,
 } from './paths.js'
 export {
+  browseRoot,
+  listDirectories,
+  listVolumes,
+  quickPlaces,
+  type BrowseResult,
+  type DirEntry,
+} from './browse.js'
+export {
   adaptRemoteUrlForAuth,
   buildGitAuthEnv,
   parseGitAuth,

@@ -6,10 +6,13 @@
 import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
 import {
+  browseRoot,
   changeDataRoot,
   defaultDataRoot,
   directorySize,
   envDataRoot,
+  listDirectories,
+  quickPlaces,
   resolveDataRoot,
 } from '@rebornace/tracescope-core'
 
@@ -40,6 +43,17 @@ export function registerDataDirRoutes(ctx: Context) {
       const result = await changeDataRoot(target)
       const sizeBytes = await directorySize(result.dataRoot)
       return { ok: true, ...result, sizeBytes }
+    },
+  })
+
+  // Visual folder picker data: volumes / subfolders of a given directory.
+  registerRoute(ctx, {
+    path: '/tracescope/v1/browse',
+    method: 'GET',
+    run: async (body) => {
+      const target = typeof body.path === 'string' ? body.path.trim() : ''
+      const result = target ? await listDirectories(target) : await browseRoot()
+      return { ...result, quick: quickPlaces() }
     },
   })
 }
