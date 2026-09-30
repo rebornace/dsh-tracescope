@@ -81,6 +81,44 @@ describe('lanhu annotation normalize', () => {
     expect(doc.root.children[0]?.text).toBe('你好')
     expect(doc.root.children[0]?.style.fontSize).toBe(16)
   })
+
+  it('extracts text from textInfo / value / children schemas', () => {
+    const doc = normalizeLanhuAnnotation(
+      {
+        ArtboardScale: 2,
+        info: [
+          {
+            id: 'board',
+            name: '登录',
+            frame: { left: 0, top: 0, width: 375, height: 812 },
+            children: [
+              {
+                type: 'textLayer',
+                name: 'btn',
+                textInfo: { text: '立即登录', size: 16 },
+                frame: { left: 20, top: 100, width: 120, height: 40 },
+              },
+              {
+                type: 'text',
+                name: 'hint',
+                text: { value: '忘记密码' },
+                frame: { left: 20, top: 160, width: 100, height: 24 },
+              },
+            ],
+          },
+        ],
+      },
+      { name: '登录页', imageId: 'img-login' },
+    )
+    const texts: string[] = []
+    const walk = (n: { text?: string; children: Array<{ text?: string; children: unknown[] }> }) => {
+      if (n.text) texts.push(n.text)
+      for (const c of n.children) walk(c as typeof n)
+    }
+    walk(doc.root)
+    expect(texts).toEqual(expect.arrayContaining(['立即登录', '忘记密码']))
+    expect(doc.root.box.width).toBe(375)
+  })
 })
 
 describe('lanhu fetch', () => {

@@ -1047,21 +1047,34 @@ async function matchAllLanhuPages(
   const codePages = await discoverAllPages(ctx.checkoutPath)
   const pageInput = inventory.pages
     .filter((s) => docs.has(s.id))
-    .map((summary) => ({
-      summary: {
-        id: summary.id,
-        name: summary.name,
-        type: summary.type,
-        box: summary.box,
-      },
-      doc: docs.get(summary.id)!,
-    }))
+    .map((summary) => {
+      const doc = docs.get(summary.id)!
+      const box = {
+        x: Number(doc.root.box.x) || 0,
+        y: Number(doc.root.box.y) || 0,
+        width: Number(doc.root.box.width) || summary.box.width || 390,
+        height: Number(doc.root.box.height) || summary.box.height || 844,
+      }
+      return {
+        summary: {
+          id: summary.id,
+          name: summary.name || doc.root.name,
+          type: summary.type,
+          box,
+        },
+        doc,
+      }
+    })
   if (!pageInput.length) {
     throw new Error('未能解析任何蓝湖设计稿标注（请确认 Cookie 有效且稿件已生成标注）')
   }
-  const mappings = mapInventoryPages(pageInput, codePages)
+  const mappings = mapInventoryPages(pageInput, codePages, {
+    // Lanhu titles / sparse text need a slightly lower floor than Figma.
+    weakFloor: 0.08,
+    minScore: 0.12,
+  })
   const totals = { pages: mappings.length, matched: 0, weak: 0, none: 0 }
-  const boxOf = new Map(inventory.pages.map((p) => [p.id, p.box]))
+  const boxOf = new Map(pageInput.map((p) => [p.summary.id, p.summary.box]))
 
   const pages = mappings.map((m) => {
     totals[m.status] += 1
