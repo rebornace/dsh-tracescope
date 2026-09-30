@@ -38,6 +38,11 @@ export interface VisualComparePanelProps {
     confirmLabel?: string
     onConfirm: (value: string | Record<string, string> | void) => void
   }) => void
+  /** Collaboration platform readiness from host settings. */
+  trackerReady?: boolean
+  trackerProvider?: string
+  /** Open host「仓库配置」so the user can finish tracker setup. */
+  onOpenTrackerSettings?: () => void
 }
 
 // Persist design connection: shared global default + optional per-repo override.
@@ -211,6 +216,9 @@ export function VisualComparePanel({
   auth,
   onSendToChat,
   openConfirmDialog,
+  trackerReady,
+  trackerProvider,
+  onOpenTrackerSettings,
 }: VisualComparePanelProps) {
   const [figmaUrl, setFigmaUrlState] = useState(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
   const [figmaToken, setFigmaTokenState] = useState(() =>
@@ -848,6 +856,12 @@ export function VisualComparePanel({
           }
           onSendToChat={onSendToChat}
           openConfirmDialog={openConfirmDialog}
+          repoInput={repoInput}
+          designUrl={figmaUrl}
+          trackerReady={trackerReady}
+          trackerProvider={trackerProvider}
+          onOpenTrackerSettings={onOpenTrackerSettings}
+          onActionHint={(message) => setError(message)}
           onAiAnalyze={(file) => {
             const designId = String(
               (hifiData as { designHifiTree?: { id?: string } } | null)?.designHifiTree?.id ?? '',

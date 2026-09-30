@@ -2,9 +2,7 @@
  * Bounded-concurrency + batched thumbnail loader.
  *
  * Cards coalesce into short batches so many visible frames become one or a few
- * Figma `/images` calls (via `/page-thumbnails`), instead of one render per card.
- * A client memory cache avoids repeat work when scrolling / rescan hits the
- * same nodes again.
+ * `/page-thumbnails` calls, instead of one render per card.
  */
 
 const MAX_CONCURRENCY = 2
@@ -70,8 +68,18 @@ export async function queueThumbnail<T>(task: Task<T>): Promise<T> {
   throw lastError instanceof Error ? lastError : new Error(String(lastError))
 }
 
+/** Figma node ids use `a:b`; Lanhu image ids are UUIDs — do not rewrite hyphens. */
+function isLanhuDesignUrl(url: string): boolean {
+  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url)
+}
+
+function normalizeNodeId(designUrl: string, nodeId: string): string {
+  if (isLanhuDesignUrl(designUrl)) return nodeId.trim()
+  return nodeId.trim().replace(/-/g, ':')
+}
+
 function cacheKey(figmaUrl: string, figmaToken: string, nodeId: string): string {
-  return `${figmaToken.slice(0, 12)}|${figmaUrl}|${nodeId.replace(/-/g, ':')}`
+  return `${figmaToken.slice(0, 12)}|${figmaUrl}|${normalizeNodeId(figmaUrl, nodeId)}`
 }
 
 const urlCache = new Map<string, string>()
@@ -118,12 +126,12 @@ function flushBucket(bucket: BatchBucket): void {
   const waiters = bucket.waiters.splice(0)
   if (!waiters.length) return
 
-  const nodeIds = [...new Set(waiters.map((w) => w.nodeId.replace(/-/g, ':')))]
+  const nodeIds = [...new Set(waiters.map((w) => normalizeNodeId(bucket.figmaUrl, w.nodeId)))]
 
   void queueThumbnail(() => postThumbnails(bucket.figmaUrl, bucket.figmaToken, nodeIds))
     .then((urls) => {
       for (const w of waiters) {
-        const normalized = w.nodeId.replace(/-/g, ':')
+        const normalized = normalizeNodeId(bucket.figmaUrl, w.nodeId)
         const url = urls[normalized] || urls[w.nodeId]
         if (url) urlCache.set(w.cacheKey, url)
         w.resolve(url)
