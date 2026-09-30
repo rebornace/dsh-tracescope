@@ -823,7 +823,22 @@ export function VisualComparePanel({
 
       <p style={{ ...S.hint, margin: '2px 0 8px' }}>
         「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。
+        蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。
       </p>
+
+      {error ? (
+        <p
+          style={{
+            color: error.startsWith('✓') ? '#0f6e56' : '#b42318',
+            margin: '0 0 8px',
+            fontSize: 12,
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {error}
+        </p>
+      ) : null}
 
       <div style={{ marginTop: 2 }}>
         <PageMappingOverview
@@ -844,9 +859,6 @@ export function VisualComparePanel({
         />
       </div>
 
-      {error ? (
-        <p style={{ color: '#b42318', margin: '8px 0 0', fontSize: 12 }}>{error}</p>
-      ) : null}
       {hifiData ? (
         <div
           style={{
