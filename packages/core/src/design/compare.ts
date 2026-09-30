@@ -54,12 +54,24 @@ const STRING_PROPERTIES: VisualProperty[] = ['fontFamily']
 
 /** High-impact properties drive the top severity for a node mismatch. */
 const HIGH_PROPERTIES = new Set<VisualProperty>([
-  'width',
-  'height',
   'backgroundColor',
   'color',
   'fontSize',
 ])
+
+/** Raw tokens that mean "size is dynamic / device-driven", not a fixed artboard px. */
+const DYNAMIC_SIZE_RAW =
+  /^(match_parent|fill_parent|wrap_content|matchparent|fillparent|wrapcontent|match|wrap|0dp|0\.0?dp|fill|flex|flex[-_]?1|1fr|100%|stretch|auto|content)$/i
+
+/** Relative tolerance for width/height: artboard vs device is expected to vary. */
+const SIZE_RELATIVE_TOLERANCE = 0.35
+
+function isDynamicSizeValue(v: ComparedValue | undefined): boolean {
+  if (!v) return false
+  const raw = isUnresolved(v) ? String(v.raw || '').trim() : String(v).trim()
+  if (!raw) return false
+  return DYNAMIC_SIZE_RAW.test(raw)
+}
 
 function flatten(node: DesignNode, out: DesignNode[] = []): DesignNode[] {
   out.push(node)
@@ -313,6 +325,8 @@ function getNodeValue(
   property: VisualProperty,
   borrowLeafTypography = false,
 ): ComparedValue | undefined {
+  if (property === 'text') return node.text
+  if (property === 'controlCount') return undefined
   if (property === 'width' || property === 'height') {
     const v = node.box[property]
     return typeof v === 'number' ? v : undefined
@@ -322,7 +336,7 @@ function getNodeValue(
     const borrowed = leafTypography(node, property)
     if (borrowed !== undefined) return borrowed
   }
-  return node.style[property] as ComparedValue | undefined
+  return node.style[property as keyof typeof node.style] as ComparedValue | undefined
 }
 
 function comparePair(design: DesignNode, code: DesignNode, merged: boolean): DesignDiff[] {
@@ -340,6 +354,13 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     const actual = getNodeValue(code, property, false)
     if (expected === undefined && actual === undefined) continue
     if (isUnresolved(expected) || isUnresolved(actual)) {
+      // Dynamic layout sizes vs fixed artboard sizes are expected on real devices.
+      if (
+        (property === 'width' || property === 'height') &&
+        (isDynamicSizeValue(expected) || isDynamicSizeValue(actual))
+      ) {
+        continue
+      }
       diffs.push({
         designNodeId: design.id,
         codeNodeId: code.id,
@@ -429,7 +450,30 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     }
 
     // Numeric length.
-    const delta = Math.abs(Number(expected) - Number(actual))
+    const expN = Number(expected)
+    const actN = Number(actual)
+    const delta = Math.abs(expN - actN)
+    if (delta <= NUMERIC_TOLERANCE) continue
+
+    // Width / height: design artboards use fixed px; phones vary. Responsive
+    // stretch is not a visual bug — skip within tolerance, else soft review only.
+    if (property === 'width' || property === 'height') {
+      const scale = Math.max(Math.abs(expN), Math.abs(actN), 1)
+      const rel = delta / scale
+      if (rel <= SIZE_RELATIVE_TOLERANCE) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
     if (delta > NUMERIC_TOLERANCE) {
       diffs.push({
         designNodeId: design.id,

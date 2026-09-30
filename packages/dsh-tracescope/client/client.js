@@ -31,378 +31,125 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// client-src/visual/VisualDiffBoard.tsx
-function isUnresolvedValue(v) {
-  return !!v && typeof v === "object" && "unresolved" in v;
+// client-src/visual/thumb-queue.ts
+function pump() {
+  while (active < MAX_CONCURRENCY) {
+    const next = pending.shift();
+    if (!next) return;
+    active += 1;
+    next();
+  }
 }
-function ValueView({ value }) {
-  if (isUnresolvedValue(value)) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-    "待确认：",
-    value.raw
-  ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: String(value) });
+function release() {
+  active -= 1;
+  pump();
 }
-function flattenTree(root) {
-  const map = /* @__PURE__ */ new Map();
-  const walk = (n) => {
-    map.set(n.id, n);
-    n.children.forEach(walk);
-  };
-  if (root) walk(root);
-  return map;
-}
-function useContainerWidth() {
-  const ref = (0, import_react.useRef)(null);
-  const [width, setWidth] = (0, import_react.useState)(0);
-  (0, import_react.useEffect)(() => {
-    const el = ref.current;
-    if (!el) return;
-    const update = () => setWidth(el.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return { ref, width };
-}
-function VisualDiffBoard({ data }) {
-  const { result, frameBox, designImageUrl, designTree, codeTree } = data;
-  const designNodes = (0, import_react.useMemo)(() => flattenTree(designTree), [designTree]);
-  const codeNodes = (0, import_react.useMemo)(() => flattenTree(codeTree), [codeTree]);
-  const diffsByDesign = (0, import_react.useMemo)(() => {
-    const map = /* @__PURE__ */ new Map();
-    for (const d of result.diffs) {
-      const list = map.get(d.designNodeId) ?? [];
-      list.push(d);
-      map.set(d.designNodeId, list);
-    }
-    return map;
-  }, [result.diffs]);
-  const orderedNodeIds = (0, import_react.useMemo)(
-    () => [...diffsByDesign.keys()],
-    [diffsByDesign]
-  );
-  const rank = { high: 3, medium: 2, low: 1 };
-  const topSeverity = (list) => list.reduce(
-    (acc, d) => rank[d.severity] > rank[acc] ? d.severity : acc,
-    "low"
-  );
-  const [selectedId, setSelectedId] = (0, import_react.useState)("");
-  (0, import_react.useEffect)(() => {
-    setSelectedId(orderedNodeIds[0] ?? "");
-  }, [orderedNodeIds]);
-  const selectedDiffs = selectedId ? diffsByDesign.get(selectedId) ?? [] : [];
-  const selectedCodeId = selectedDiffs.find((d) => d.codeNodeId)?.codeNodeId;
-  const { ref: stageHostRef, width: hostWidth } = useContainerWidth();
-  const frameW = frameBox?.width ?? 390;
-  const frameH = frameBox?.height ?? 800;
-  const fit = hostWidth ? Math.min(1, hostWidth / frameW) : 1;
-  const sevCounts = { high: 0, medium: 0, low: 0 };
-  for (const d of result.diffs) sevCounts[d.severity] += 1;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 12 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          fontSize: 12,
-          color: "#5f584c",
-          marginBottom: 8
+function enqueue(task) {
+  return new Promise((resolve, reject) => {
+    pending.push(() => {
+      task().then(
+        (value) => {
+          release();
+          resolve(value);
         },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-            "对比节点对 ",
-            result.comparedPairs
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: SEV_COLOR.high }, children: [
-            "高 ",
-            sevCounts.high
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: SEV_COLOR.medium }, children: [
-            "中 ",
-            sevCounts.medium
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: SEV_COLOR.low }, children: [
-            "低 ",
-            sevCounts.low
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-            "未匹配 ",
-            result.unmatched.length
-          ] })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColumnTitle, { children: "设计稿" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { ref: stageHostRef, style: { width: "100%" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "div",
-          {
-            style: {
-              position: "relative",
-              width: frameW * fit,
-              height: frameH * fit,
-              background: "#f1ede4",
-              borderRadius: 8,
-              overflow: "hidden"
-            },
-            children: [
-              designImageUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "img",
-                {
-                  src: designImageUrl,
-                  alt: "design",
-                  style: { width: frameW * fit, height: frameH * fit, display: "block" }
-                }
-              ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { padding: 8, fontSize: 11, color: "#8a7f70" }, children: "设计图渲染失败，仅显示结构差异。" }),
-              frameBox ? orderedNodeIds.map((id) => {
-                const node = designNodes.get(id);
-                if (!node) return null;
-                const { x, y, width, height } = node.box;
-                if (typeof x !== "number" || typeof y !== "number" || typeof width !== "number" || typeof height !== "number")
-                  return null;
-                const sev = topSeverity(diffsByDesign.get(id) ?? []);
-                const active = id === selectedId;
-                return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "button",
-                  {
-                    type: "button",
-                    onClick: () => setSelectedId(id),
-                    title: `${node.name} · ${diffsByDesign.get(id)?.length ?? 0} 项差异`,
-                    style: {
-                      position: "absolute",
-                      left: (x - frameBox.x) * fit,
-                      top: (y - frameBox.y) * fit,
-                      width: width * fit,
-                      height: height * fit,
-                      border: `2px solid ${SEV_COLOR[sev]}`,
-                      background: active ? SEV_COLOR[sev] + "22" : SEV_COLOR[sev] + "0d",
-                      boxShadow: active ? `0 0 0 2px ${SEV_COLOR[sev]}55` : "none",
-                      cursor: "pointer",
-                      padding: 0
-                    }
-                  },
-                  id
-                );
-              }) : null
-            ]
-          }
-        ) })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColumnTitle, { children: "代码实现" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "div",
-          {
-            style: {
-              border: "1px solid var(--dsh-border,#ddd4c5)",
-              borderRadius: 8,
-              padding: 6,
-              height: frameH * fit,
-              overflow: "auto",
-              background: "#fff"
-            },
-            children: codeTree ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-              CodeBlocks,
-              {
-                node: codeTree,
-                selectedCodeId,
-                onSelectCode: (codeId) => {
-                  const entry = orderedNodeIds.find(
-                    (id) => diffsByDesign.get(id)?.some((d) => d.codeNodeId === codeId)
-                  );
-                  if (entry) setSelectedId(entry);
-                }
-              }
-            ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, color: "#8a7f70" }, children: "无代码结构。" })
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          marginTop: 10,
-          border: "1px solid var(--dsh-border,#ddd4c5)",
-          borderRadius: 10,
-          padding: 10,
-          background: "#fff"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { style: { fontSize: 13 }, children: selectedDiffs.length ? selectedDiffs[0].nodeName : "差异明细" }),
-          selectedCodeId ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { marginLeft: 8, fontSize: 12, color: "#6b645a" }, children: [
-            "代码节点：",
-            codeNodes.get(selectedCodeId)?.name ?? selectedCodeId
-          ] }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }, children: selectedDiffs.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              style: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-                flexWrap: "wrap",
-                border: "1px solid #efe8da",
-                borderLeft: "4px solid " + SEV_COLOR[d.severity],
-                borderRadius: 8,
-                padding: "5px 8px",
-                fontSize: 12
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontWeight: 600 }, children: [
-                  PROPERTY_LABELS[d.property] ?? d.property,
-                  d.needsReview ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: REVIEW_BADGE, children: "需确认" }) : null
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", gap: 6, alignItems: "center" }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ValueView, { value: d.expected }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#9a917f" }, children: "→" }),
-                  d.actual === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#d92d20", fontWeight: 700 }, children: "缺失" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ValueView, { value: d.actual })
-                ] })
-              ]
-            },
-            i
-          )) })
-        ]
-      }
-    ),
-    result.unmatched.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "details",
-      {
-        style: {
-          marginTop: 8,
-          border: "1px dashed var(--dsh-border,#ddd4c5)",
-          borderRadius: 10,
-          padding: "8px 10px",
-          fontSize: 12
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { style: { cursor: "pointer", color: "#0f6e56", fontWeight: 600 }, children: [
-            "未匹配元素（",
-            result.unmatched.length,
-            "）"
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: { margin: "6px 0 0", paddingLeft: 18 }, children: result.unmatched.map((u, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: SIDE_TAG, children: u.side === "design" ? "仅设计稿" : "仅代码" }),
-            u.name,
-            u.text ? `（${u.text}）` : ""
-          ] }, i)) })
-        ]
-      }
-    ) : null
-  ] });
+        (err) => {
+          release();
+          reject(err);
+        }
+      );
+    });
+    pump();
+  });
 }
-function ColumnTitle({ children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "div",
-    {
-      style: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#5f584c",
-        marginBottom: 4
-      },
-      children
+async function queueThumbnail(task) {
+  let lastError;
+  for (let tryIndex = 0; tryIndex < MAX_TRIES; tryIndex += 1) {
+    try {
+      return await enqueue(task);
+    } catch (err) {
+      lastError = err;
+      if (tryIndex < MAX_TRIES - 1) {
+        await sleep(400 * 2 ** tryIndex + Math.floor(Math.random() * 200));
+      }
     }
-  );
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
-function CodeBlocks({ node, depth = 0, selectedCodeId, onSelectCode }) {
-  const active = selectedCodeId === node.id;
-  const w = node.box.width;
-  const h = node.box.height;
-  const bg = node.style.backgroundColor;
-  const isText = node.kind === "text";
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    "div",
-    {
-      onClick: (e) => {
-        e.stopPropagation();
-        onSelectCode(node.id);
-      },
-      style: {
-        border: "1px solid " + (active ? "#0f6e56" : "#d9d2c4"),
-        outline: active ? "2px solid #0f6e5655" : "none",
-        borderRadius: 6,
-        padding: 4,
-        margin: 2,
-        minHeight: 18,
-        width: typeof w === "number" ? `${Math.min(100, w / 414 * 100)}%` : "100%",
-        maxHeight: h ? Math.min(160, h) : void 0,
-        overflow: "hidden",
-        background: bg && !isUnresolvedValue(bg) ? bg : isText ? "#faf7f0" : "#fcfaf6",
-        cursor: "pointer"
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: "#8a7f70", lineHeight: 1.2 }, children: isText ? node.text || node.name : node.name }),
-        node.children.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", flexDirection: "column" }, children: node.children.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          CodeBlocks,
-          {
-            node: c,
-            depth: depth + 1,
-            selectedCodeId,
-            onSelectCode
-          },
-          c.id
-        )) }) : null
-      ]
+function cacheKey(figmaUrl, figmaToken, nodeId) {
+  return `${figmaToken.slice(0, 12)}|${figmaUrl}|${nodeId.replace(/-/g, ":")}`;
+}
+async function postThumbnails(figmaUrl, figmaToken, nodeIds) {
+  const r = await fetch("/tracescope/v1/page-thumbnails", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ figmaUrl, figmaToken, nodeIds })
+  });
+  const text = await r.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!r.ok) throw new Error(data.error || "缩略图批量请求失败");
+  return data.urls || {};
+}
+function flushBucket(bucket) {
+  if (openBucket === bucket) openBucket = null;
+  if (bucket.timer) {
+    clearTimeout(bucket.timer);
+    bucket.timer = null;
+  }
+  const waiters = bucket.waiters.splice(0);
+  if (!waiters.length) return;
+  const nodeIds = [...new Set(waiters.map((w) => w.nodeId.replace(/-/g, ":")))];
+  void queueThumbnail(() => postThumbnails(bucket.figmaUrl, bucket.figmaToken, nodeIds)).then((urls) => {
+    for (const w of waiters) {
+      const normalized = w.nodeId.replace(/-/g, ":");
+      const url = urls[normalized] || urls[w.nodeId];
+      if (url) urlCache.set(w.cacheKey, url);
+      w.resolve(url);
     }
-  );
+  }).catch((err) => {
+    for (const w of waiters) w.reject(err);
+  });
 }
-var import_react, import_jsx_runtime, SEV_COLOR, PROPERTY_LABELS, REVIEW_BADGE, SIDE_TAG;
-var init_VisualDiffBoard = __esm({
-  "client-src/visual/VisualDiffBoard.tsx"() {
+function requestPageThumbnail(opts) {
+  const key = cacheKey(opts.figmaUrl, opts.figmaToken, opts.nodeId);
+  const cached = urlCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  return new Promise((resolve, reject) => {
+    if (openBucket && (openBucket.figmaUrl !== opts.figmaUrl || openBucket.figmaToken !== opts.figmaToken)) {
+      flushBucket(openBucket);
+    }
+    if (!openBucket) {
+      openBucket = {
+        figmaUrl: opts.figmaUrl,
+        figmaToken: opts.figmaToken,
+        waiters: [],
+        timer: null
+      };
+    }
+    openBucket.waiters.push({
+      nodeId: opts.nodeId,
+      resolve,
+      reject,
+      cacheKey: key
+    });
+    if (!openBucket.timer) {
+      const bucket = openBucket;
+      openBucket.timer = setTimeout(() => flushBucket(bucket), BATCH_WINDOW_MS);
+    }
+  });
+}
+var MAX_CONCURRENCY, MAX_TRIES, BATCH_WINDOW_MS, active, pending, sleep, urlCache, openBucket;
+var init_thumb_queue = __esm({
+  "client-src/visual/thumb-queue.ts"() {
     "use strict";
-    import_react = require("react");
-    import_jsx_runtime = require("react/jsx-runtime");
-    SEV_COLOR = {
-      high: "#d92d20",
-      medium: "#dc8a05",
-      low: "#1a9b6e"
-    };
-    PROPERTY_LABELS = {
-      width: "宽度",
-      height: "高度",
-      marginTop: "上外边距",
-      marginRight: "右外边距",
-      marginBottom: "下外边距",
-      marginLeft: "左外边距",
-      paddingTop: "上内边距",
-      paddingRight: "右内边距",
-      paddingBottom: "下内边距",
-      paddingLeft: "左内边距",
-      backgroundColor: "背景色",
-      borderWidth: "边框宽",
-      borderColor: "边框色",
-      cornerRadius: "圆角",
-      opacity: "不透明度",
-      fontFamily: "字体",
-      fontSize: "字号",
-      fontWeight: "字重",
-      lineHeight: "行高",
-      letterSpacing: "字间距",
-      color: "文字颜色"
-    };
-    REVIEW_BADGE = {
-      fontSize: 10,
-      color: "#9a6700",
-      background: "#fef0c7",
-      borderRadius: 999,
-      padding: "1px 6px",
-      marginLeft: 6,
-      fontWeight: 400
-    };
-    SIDE_TAG = {
-      display: "inline-block",
-      fontSize: 10,
-      borderRadius: 999,
-      padding: "1px 6px",
-      marginRight: 4,
-      background: "#efe8da"
-    };
+    MAX_CONCURRENCY = 2;
+    MAX_TRIES = 3;
+    BATCH_WINDOW_MS = 80;
+    active = 0;
+    pending = [];
+    sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    urlCache = /* @__PURE__ */ new Map();
+    openBucket = null;
   }
 });
 
@@ -410,11 +157,25 @@ var init_VisualDiffBoard = __esm({
 function storageKey(repoInput, figmaUrl) {
   return "tracescope.map.selections:" + repoInput.trim() + ":" + figmaUrl.trim();
 }
+function formatSavedAt(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function loadSelections(repoInput, figmaUrl) {
   try {
     return JSON.parse(localStorage.getItem(storageKey(repoInput, figmaUrl)) ?? "{}");
   } catch {
     return {};
+  }
+}
+function parseNodeIdFromFigmaUrl(url) {
+  try {
+    const raw = new URL(url.trim()).searchParams.get("node-id");
+    return raw ? raw.replace(/-/g, ":") : "";
+  } catch {
+    return "";
   }
 }
 async function post(path, body) {
@@ -425,8 +186,23 @@ async function post(path, body) {
     body: JSON.stringify(body)
   });
   const text = await r.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!r.ok) throw new Error(data.error || "请求失败");
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      text ? `服务器返回非 JSON（HTTP ${r.status}）：${text.slice(0, 120)}` : `请求失败（HTTP ${r.status}）`
+    );
+  }
+  if (!r.ok) {
+    const detail = String(data.error || "").trim();
+    if (r.status === 405) {
+      throw new Error(
+        detail || "请求失败（HTTP 405）：插件路由未加载或方法不匹配，请完全退出并重启 DeepSeek Harness 后再试"
+      );
+    }
+    throw new Error(detail || `请求失败（HTTP ${r.status}）`);
+  }
   return data;
 }
 function PageMappingOverview({
@@ -435,22 +211,50 @@ function PageMappingOverview({
   figmaToken,
   auth,
   busy,
+  activeDesignId,
   onScanStateChange,
-  onCompare
+  onDesignLinkUsed,
+  onCompare,
+  onAiAnalyze,
+  onAiRematch,
+  rematchApply
 }) {
-  const [overview, setOverview] = (0, import_react2.useState)(null);
-  const [selections, setSelections] = (0, import_react2.useState)(
+  const [overview, setOverview] = (0, import_react.useState)(null);
+  const [selections, setSelections] = (0, import_react.useState)(
     () => loadSelections(repoInput, figmaUrl)
   );
-  const [confirmed, setConfirmed] = (0, import_react2.useState)({});
-  const [openId, setOpenId] = (0, import_react2.useState)("");
-  const [search, setSearch] = (0, import_react2.useState)("");
-  const [localError, setLocalError] = (0, import_react2.useState)("");
-  (0, import_react2.useEffect)(() => {
+  const [confirmed, setConfirmed] = (0, import_react.useState)({});
+  const [statusFilter, setStatusFilter] = (0, import_react.useState)("all");
+  const [query, setQuery] = (0, import_react.useState)("");
+  const [collapsed, setCollapsed] = (0, import_react.useState)({});
+  const [localError, setLocalError] = (0, import_react.useState)("");
+  const [scanning, setScanning] = (0, import_react.useState)(false);
+  const [elapsed, setElapsed] = (0, import_react.useState)(0);
+  const [rematchingId, setRematchingId] = (0, import_react.useState)("");
+  (0, import_react.useEffect)(() => {
+    if (!scanning) return;
+    const started = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1e3)), 1e3);
+    return () => clearInterval(id);
+  }, [scanning]);
+  async function requestRematchPrompt(designId) {
+    setLocalError("");
+    setRematchingId(designId);
+    try {
+      await onAiRematch(designId, selections[designId]);
+    } catch (err) {
+      setLocalError(err.message || "准备推荐提示词失败");
+    } finally {
+      setRematchingId("");
+    }
+  }
+  (0, import_react.useEffect)(() => {
     setOverview(null);
     setSelections(loadSelections(repoInput, figmaUrl));
     setConfirmed({});
-    setOpenId("");
+    setStatusFilter("all");
+    setQuery("");
   }, [repoInput, figmaUrl]);
   function persist(next) {
     setSelections(next);
@@ -459,39 +263,92 @@ function PageMappingOverview({
     } catch {
     }
   }
-  async function scan() {
+  async function scan(force, scope = "auto") {
     setLocalError("");
     if (!figmaUrl.trim() || !figmaToken.trim()) {
       setLocalError("请填写设计稿链接和访问 Token");
       return;
     }
-    onScanStateChange(true);
+    const linkNodeId = parseNodeIdFromFigmaUrl(figmaUrl);
+    const effectiveScope = scope === "file" ? "file" : linkNodeId ? "node" : "file";
+    const busyMsg = effectiveScope === "node" ? "正在定位链接中的设计页并匹配代码…" : "正在扫描整个设计文件、建立页面映射…";
+    onScanStateChange(true, busyMsg);
+    setScanning(true);
     try {
       const res = await post("/tracescope/v1/match-all", {
         repoPath: repoInput,
         figmaUrl: figmaUrl.trim(),
         figmaToken: figmaToken.trim(),
-        auth
+        auth,
+        force,
+        scope: effectiveScope
       });
       setOverview(res);
+      onDesignLinkUsed?.(figmaUrl.trim());
+      const warmIds = res.pages.slice(0, 24).map((p) => p.mapping.designId);
+      if (warmIds.length) {
+        void Promise.allSettled(
+          warmIds.map(
+            (nodeId) => requestPageThumbnail({
+              figmaUrl: figmaUrl.trim(),
+              figmaToken: figmaToken.trim(),
+              nodeId
+            })
+          )
+        );
+      }
       const next = { ...selections };
       for (const p of res.pages) {
         const top = p.mapping.candidates[0];
         if (!next[p.mapping.designId] && top) {
-          next[p.mapping.designId] = {
-            adapterId: top.adapterId,
-            relativePath: top.relativePath
-          };
+          next[p.mapping.designId] = { adapterId: top.adapterId, relativePath: top.relativePath };
         }
       }
       persist(next);
     } catch (err) {
       setLocalError(err.message);
     } finally {
+      setScanning(false);
       onScanStateChange(false);
     }
   }
-  const codeFileMap = (0, import_react2.useMemo)(() => {
+  (0, import_react.useEffect)(() => {
+    let cancelled = false;
+    async function tryLoadCache() {
+      if (!figmaUrl.trim() || !figmaToken.trim() || !repoInput.trim()) return;
+      setLocalError("");
+      setScanning(true);
+      try {
+        const res = await post("/tracescope/v1/match-all", {
+          repoPath: repoInput,
+          figmaUrl: figmaUrl.trim(),
+          figmaToken: figmaToken.trim(),
+          auth,
+          force: false
+        });
+        if (cancelled) return;
+        if (res.fromCache) {
+          setOverview(res);
+          const next = { ...selections };
+          for (const p of res.pages) {
+            const top = p.mapping.candidates[0];
+            if (!next[p.mapping.designId] && top) {
+              next[p.mapping.designId] = { adapterId: top.adapterId, relativePath: top.relativePath };
+            }
+          }
+          persist(next);
+        }
+      } catch {
+      } finally {
+        if (!cancelled) setScanning(false);
+      }
+    }
+    void tryLoadCache();
+    return () => {
+      cancelled = true;
+    };
+  }, [repoInput, figmaUrl, figmaToken]);
+  const codeFileMap = (0, import_react.useMemo)(() => {
     const m = /* @__PURE__ */ new Map();
     overview?.codeFiles.forEach((f) => m.set(f.adapterId + "::" + f.relativePath, f));
     return m;
@@ -499,162 +356,489 @@ function PageMappingOverview({
   function choose(designId, file, auto = false) {
     persist({ ...selections, [designId]: file });
     if (!auto) setConfirmed({ ...confirmed, [designId]: true });
-    setOpenId("");
-    setSearch("");
   }
-  const groups = (0, import_react2.useMemo)(() => {
+  (0, import_react.useEffect)(() => {
+    if (!rematchApply || !overview) return;
+    const { designId, candidates, note } = rematchApply;
+    if (!designId || !candidates.length) return;
+    const mapped = candidates.map((c) => {
+      const known = codeFileMap.get(c.adapterId + "::" + c.relativePath);
+      return {
+        adapterId: c.adapterId,
+        relativePath: c.relativePath,
+        kindLabel: c.kindLabel || known?.kindLabel || c.adapterId,
+        precise: c.precise ?? known?.precise ?? false,
+        score: typeof c.score === "number" ? c.score : 0.8,
+        reasons: c.reason ? [`AI：${c.reason}`] : ["AI 推荐"]
+      };
+    });
+    setOverview((prev) => {
+      if (!prev) return prev;
+      const knownKeys = new Set(prev.codeFiles.map((f) => f.adapterId + "::" + f.relativePath));
+      const extraFiles = [];
+      for (const m of mapped) {
+        const key = m.adapterId + "::" + m.relativePath;
+        if (knownKeys.has(key)) continue;
+        knownKeys.add(key);
+        extraFiles.push({
+          adapterId: m.adapterId,
+          relativePath: m.relativePath,
+          kindLabel: m.kindLabel,
+          precise: m.precise
+        });
+      }
+      return {
+        ...prev,
+        codeFiles: extraFiles.length ? [...prev.codeFiles, ...extraFiles] : prev.codeFiles,
+        pages: prev.pages.map((p) => {
+          if (p.mapping.designId !== designId) return p;
+          const topScore = mapped[0]?.score ?? 0;
+          const status = mapped.length === 0 ? "none" : topScore >= 0.45 ? "matched" : "weak";
+          return {
+            ...p,
+            mapping: {
+              ...p.mapping,
+              status,
+              candidates: mapped
+            }
+          };
+        })
+      };
+    });
+    const top = mapped[0];
+    if (top) {
+      choose(designId, { adapterId: top.adapterId, relativePath: top.relativePath });
+    }
+    setLocalError(
+      (note ? `✓ ${note}` : "✓ 已写回 AI 文件推荐并选中 Top1") + "。若仍不对，可在会话继续纠正后再次写回。"
+    );
+  }, [rematchApply?.token]);
+  const groups = (0, import_react.useMemo)(() => {
     if (!overview) return [];
+    const q = query.trim().toLowerCase();
     const byCanvas = /* @__PURE__ */ new Map();
     for (const p of overview.pages) {
+      if (statusFilter !== "all" && p.mapping.status !== statusFilter) continue;
+      const selectedFile = selections[p.mapping.designId];
+      const selPath = codeFileMap.get(
+        (selectedFile?.adapterId ?? "") + "::" + (selectedFile?.relativePath ?? "")
+      )?.relativePath;
+      if (q) {
+        const hit = p.mapping.designName.toLowerCase().includes(q) || (selPath ?? "").toLowerCase().includes(q);
+        if (!hit) continue;
+      }
       const g = byCanvas.get(p.canvasId) ?? { name: p.canvasName, items: [] };
       g.items.push(p);
       byCanvas.set(p.canvasId, g);
     }
     return [...byCanvas.entries()].map(([id, v]) => ({ id, ...v }));
-  }, [overview]);
-  const filteredCodeFiles = (0, import_react2.useMemo)(() => {
-    const q = search.trim().toLowerCase();
-    if (!q || !overview) return [];
-    return overview.codeFiles.filter((f) => f.relativePath.toLowerCase().includes(q)).slice(0, 40);
-  }, [search, overview]);
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: OV.scan, disabled: busy, onClick: scan, children: busy ? "扫描中…" : overview ? "重新扫描整个设计文件" : "扫描整个设计文件，自动映射页面" }),
-    localError ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: OV.error, children: localError }) : null,
-    overview ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 10 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: OV.summary, children: [
+  }, [overview, statusFilter, query, selections, codeFileMap]);
+  const linkHasNodeId = !!parseNodeIdFromFigmaUrl(figmaUrl);
+  const scanScope = overview?.scope;
+  const isNodeScope = scanScope === "node" || !overview && linkHasNodeId;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { margin: "0 0 8px", fontSize: 12, color: "#6b645a", lineHeight: 1.55 }, children: linkHasNodeId ? "链接含 node-id：扫描会优先定位当前页（较快）。若要一次处理文件内全部页面，可用下方「扫描整个设计文件」。" : "链接未指定页面：扫描会读取设计文件内全部页面并自动映射。若只想对某一页，请在 Figma 复制带 node-id 的画板链接。" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "button",
+      {
+        type: "button",
+        style: OV.scan,
+        disabled: busy || scanning,
+        onClick: () => void scan(!!overview, "auto"),
+        children: scanning ? isNodeScope ? `定位中… ${elapsed}s` : `扫描中… ${elapsed}s（页面较多时约需 20–40 秒，请勿关闭）` : overview ? linkHasNodeId ? "重新扫描（当前链接页面）" : "重新扫描设计稿" : linkHasNodeId ? "扫描当前链接页面" : "扫描设计稿，自动映射页面"
+      }
+    ),
+    linkHasNodeId ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "button",
+      {
+        type: "button",
+        style: { ...OV.scanSecondary, marginTop: 6 },
+        disabled: busy || scanning,
+        onClick: () => void scan(true, "file"),
+        children: scanning && overview?.scope === "file" ? `全文件扫描中… ${elapsed}s` : "扫描整个设计文件"
+      }
+    ) : null,
+    localError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "p",
+      {
+        style: {
+          ...OV.error,
+          color: localError.startsWith("✓") || localError.startsWith("ℹ") ? "#0f6e56" : "#b42318"
+        },
+        children: localError
+      }
+    ) : null,
+    overview ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.summary, children: [
+        overview.scope === "node" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+          "单页模式（链接 node-id）· ",
+          overview.pages[0]?.mapping.designName || "当前节点",
+          " ·"
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "全文件 · " }),
         "共 ",
         overview.totals.pages,
         " 个页面 ·",
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: STATUS_DOT.matched }, children: [
-          " 高置信 ",
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: STATUS_META.matched.dot }, children: [
+          " 已匹配 ",
           overview.totals.matched
         ] }),
         " ·",
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: STATUS_DOT.weak }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: STATUS_META.weak.dot }, children: [
           " 待确认 ",
           overview.totals.weak
         ] }),
         " ·",
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: STATUS_DOT.none }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: STATUS_META.none.dot }, children: [
           " 未匹配 ",
           overview.totals.none
-        ] })
+        ] }),
+        overview.fromCache && overview.savedAt ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { marginLeft: 6, color: "#8a7a5c" }, children: [
+          "· 读取自缓存（",
+          formatSavedAt(overview.savedAt),
+          "），点上方按钮可重新扫描"
+        ] }) : null
       ] }),
-      groups.map((g) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: OV.canvasCard, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: OV.canvasTitle, children: g.name }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { display: "flex", flexDirection: "column" }, children: g.items.map(({ mapping }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          PageRow,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.chipRow, children: FILTERS.map((f) => {
+        const count = f.id === "all" ? overview.totals.pages : overview.totals[f.id];
+        const on = statusFilter === f.id;
+        return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "button",
           {
-            mapping,
-            selected: selections[mapping.designId],
-            isConfirmed: !!confirmed[mapping.designId],
-            open: openId === mapping.designId,
-            search: openId === mapping.designId ? search : "",
-            filteredCodeFiles: openId === mapping.designId ? filteredCodeFiles : [],
-            onToggle: () => {
-              setOpenId(openId === mapping.designId ? "" : mapping.designId);
-              setSearch("");
+            type: "button",
+            onClick: () => setStatusFilter(f.id),
+            style: {
+              ...OV.chip,
+              background: on ? "#0f6e56" : "#fff",
+              color: on ? "#fff" : "#5f584c",
+              borderColor: on ? "#0f6e56" : "#d9d2c4"
             },
-            onSearchChange: setSearch,
-            onChoose: (file) => choose(mapping.designId, file),
-            onCompare: () => {
-              const file = selections[mapping.designId];
-              if (file) onCompare(mapping.designId, file);
-            },
-            codeFileMap
+            children: [
+              f.label,
+              " ",
+              count
+            ]
           },
-          mapping.designId
-        )) })
-      ] }, g.id))
+          f.id
+        );
+      }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          style: OV.search,
+          value: query,
+          placeholder: "搜索页面名称或已选代码文件…",
+          onChange: (e) => setQuery(e.target.value)
+        }
+      ),
+      groups.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.emptyHint, children: "没有符合条件的页面。" }) : null,
+      groups.map((g) => {
+        const isCollapsed = !!collapsed[g.id];
+        return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.canvasCard, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "button",
+            {
+              type: "button",
+              style: OV.canvasHeader,
+              onClick: () => setCollapsed({ ...collapsed, [g.id]: !isCollapsed }),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isCollapsed ? "▸" : "▾" }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: g.name || "未命名画布" }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.canvasCount, children: g.items.length })
+              ]
+            }
+          ),
+          isCollapsed ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.grid, children: g.items.map(({ mapping, thumbnailUrl, aspect }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            PageCard,
+            {
+              mapping,
+              aspect,
+              figmaUrl,
+              figmaToken,
+              selected: selections[mapping.designId],
+              isActive: activeDesignId === mapping.designId,
+              isConfirmed: !!confirmed[mapping.designId],
+              allCodeFiles: overview.codeFiles,
+              codeFileMap,
+              onChoose: (file) => choose(mapping.designId, file),
+              onCompare: () => {
+                const file = selections[mapping.designId];
+                if (file) onCompare(mapping.designId, file);
+              },
+              onAiAnalyze: () => {
+                const file = selections[mapping.designId];
+                if (file) onAiAnalyze(mapping.designId, file);
+              },
+              onAiRematch: () => {
+                void requestRematchPrompt(mapping.designId);
+              },
+              rematching: rematchingId === mapping.designId,
+              busy: busy || scanning || !!rematchingId
+            },
+            mapping.designId
+          )) })
+        ] }, g.id);
+      })
     ] }) : null
   ] });
 }
-function PageRow({
+function PageCard({
   mapping,
+  aspect,
+  figmaUrl,
+  figmaToken,
   selected,
+  isActive,
   isConfirmed,
-  open,
-  search,
-  filteredCodeFiles,
-  onToggle,
-  onSearchChange,
+  allCodeFiles,
+  codeFileMap,
   onChoose,
   onCompare,
-  codeFileMap
+  onAiAnalyze,
+  onAiRematch,
+  rematching,
+  busy: cardBusy
 }) {
-  const selFile = selected ? codeFileMap.get(selected.adapterId + "::" + selected.relativePath) : void 0;
+  const [pickerOpen, setPickerOpen] = (0, import_react.useState)(false);
+  const [fileQuery, setFileQuery] = (0, import_react.useState)("");
+  const [thumbState, setThumbState] = (0, import_react.useState)("idle");
+  const [thumbUrl, setThumbUrl] = (0, import_react.useState)("");
+  const [thumbNonce, setThumbNonce] = (0, import_react.useState)(0);
+  const status = STATUS_META[mapping.status];
   const badge = KIND_BADGE[mapping.kind];
   const selCandidate = mapping.candidates.find(
     (c) => selected && c.adapterId === selected.adapterId && c.relativePath === selected.relativePath
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: OV.row, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { width: 8, height: 8, borderRadius: 99, background: STATUS_DOT[mapping.status], display: "inline-block" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { ...OV.kindBadge, background: badge.bg }, children: badge.label }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { style: { fontSize: 12 }, children: mapping.designName })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: OV.selectedBox, onClick: onToggle, children: selFile ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { title: selFile.relativePath, children: [
-      isConfirmed ? "✓ " : "",
-      selFile.relativePath.split("/").pop(),
-      selCandidate ? ` · ${Math.round(selCandidate.score * 100)}%` : ""
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: "#b42318" }, children: "未选择，点此指定 →" }) }),
-    open ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: OV.picker, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: OV.pickerLabel, children: "自动建议" }),
-      mapping.candidates.length ? mapping.candidates.map((c) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-        "button",
-        {
-          type: "button",
-          style: OV.pickItem,
-          onClick: () => onChoose({ adapterId: c.adapterId, relativePath: c.relativePath }),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
-              Math.round(c.score * 100),
-              "%"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { flex: 1, textAlign: "left", color: "#3f3a30" }, children: c.relativePath })
-          ]
-        },
-        c.adapterId + c.relativePath
-      )) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: OV.pickerLabel, children: "无自动建议，请在下方搜索。" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "input",
-        {
-          style: OV.searchInput,
-          value: search,
-          placeholder: "在全部布局文件中搜索…",
-          onChange: (e) => onSearchChange(e.target.value)
+  const selFile = selected ? codeFileMap.get(selected.adapterId + "::" + selected.relativePath) || (selCandidate ? {
+    adapterId: selCandidate.adapterId,
+    relativePath: selCandidate.relativePath,
+    kindLabel: selCandidate.kindLabel,
+    precise: selCandidate.precise
+  } : {
+    adapterId: selected.adapterId,
+    relativePath: selected.relativePath,
+    kindLabel: selected.adapterId,
+    precise: false
+  }) : void 0;
+  const [thumbEl, setThumbEl] = (0, import_react.useState)(null);
+  (0, import_react.useEffect)(() => {
+    if (!thumbEl || thumbState !== "idle") return;
+    if (typeof IntersectionObserver === "undefined") {
+      setThumbState("loading");
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setThumbState("loading");
+            io.disconnect();
+          }
         }
-      ),
-      filteredCodeFiles.map((f) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "button",
-        {
-          type: "button",
-          style: OV.pickItem,
-          onClick: () => onChoose({ adapterId: f.adapterId, relativePath: f.relativePath }),
-          children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { flex: 1, textAlign: "left", color: "#3f3a30" }, children: f.relativePath })
-        },
-        f.adapterId + f.relativePath
-      ))
-    ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: OV.compareBtn, disabled: !selected, onClick: onCompare, children: "对比" }) })
-  ] });
+      },
+      { rootMargin: "200px" }
+    );
+    io.observe(thumbEl);
+    return () => io.disconnect();
+  }, [thumbEl, thumbState]);
+  (0, import_react.useEffect)(() => {
+    if (thumbState !== "loading" || thumbUrl) return;
+    let cancelled = false;
+    requestPageThumbnail({
+      figmaUrl,
+      figmaToken,
+      nodeId: mapping.designId
+    }).then((url) => {
+      if (cancelled) return;
+      if (url) {
+        setThumbUrl(url);
+        setThumbState("done");
+      } else {
+        setThumbState("error");
+      }
+    }).catch(() => {
+      if (!cancelled) setThumbState("error");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [thumbState, thumbUrl, thumbNonce, figmaUrl, figmaToken, mapping.designId]);
+  function retryThumb(auto = false) {
+    if (auto && thumbNonce >= 1) {
+      setThumbState("error");
+      return;
+    }
+    setThumbUrl("");
+    setThumbState("loading");
+    setThumbNonce((n) => n + 1);
+  }
+  const fileResults = (0, import_react.useMemo)(() => {
+    const q = fileQuery.trim().toLowerCase();
+    const list = q ? allCodeFiles.filter((f) => f.relativePath.toLowerCase().includes(q)) : allCodeFiles;
+    return list.slice(0, 30);
+  }, [fileQuery, allCodeFiles]);
+  const thumbHeight = 150 / aspect;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    "div",
+    {
+      style: {
+        ...OV.card,
+        ...isActive ? {
+          borderColor: "#0f6e56",
+          boxShadow: "0 0 0 2px rgba(15,110,86,0.35)"
+        } : null
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: setThumbEl, style: { ...OV.thumbWrap, height: Math.min(thumbHeight, 230) }, children: [
+          thumbState === "done" && thumbUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "img",
+            {
+              src: thumbUrl,
+              alt: mapping.designName,
+              style: OV.thumbImg,
+              onError: () => retryThumb(true)
+            }
+          ) : thumbState === "loading" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.thumbFallback, children: "缩略图加载中…" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.thumbRetry, onClick: retryThumb, children: "缩略图加载失败，点此重试" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { ...OV.statusTag, color: status.dot }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...OV.statusDot, background: status.dot } }),
+            status.label
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...OV.kindTag, background: badge.bg, color: badge.fg }, children: badge.label }),
+          isActive ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "span",
+            {
+              style: {
+                position: "absolute",
+                right: 6,
+                bottom: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#fff",
+                background: "#0f6e56",
+                borderRadius: 99,
+                padding: "2px 8px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+              },
+              children: "正在查看"
+            }
+          ) : null
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.cardName, title: mapping.designName, children: mapping.designName }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.fileBox, onClick: () => setPickerOpen(!pickerOpen), children: selFile ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { title: selFile.relativePath, children: [
+          isConfirmed ? "✓ " : "",
+          selFile.relativePath.split("/").pop(),
+          selCandidate ? ` · ${Math.round(selCandidate.score * 100)}%` : ""
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#b42318" }, children: "点此指定代码文件 →" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            style: OV.rematchLink,
+            disabled: cardBusy,
+            onClick: onAiRematch,
+            title: "生成推荐提示词并填入当前会话；可核对后发送，也可继续对话纠正错误推荐",
+            children: rematching ? "准备中…" : "AI 推荐文件"
+          }
+        ),
+        pickerOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.picker, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerLabel, children: "自动建议" }),
+          mapping.candidates.length ? mapping.candidates.slice(0, 8).map((c) => {
+            const active2 = !!selected && c.adapterId === selected.adapterId && c.relativePath === selected.relativePath;
+            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+              "button",
+              {
+                type: "button",
+                style: {
+                  ...OV.pickItem,
+                  ...active2 ? { borderColor: "#0f6e56", background: "#f2f8f5" } : null
+                },
+                onClick: () => {
+                  onChoose({ adapterId: c.adapterId, relativePath: c.relativePath });
+                  setPickerOpen(false);
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: "#0f6e56", fontWeight: 700 }, children: [
+                    Math.round(c.score * 100),
+                    "%"
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickPath, children: c.relativePath }),
+                  active2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#0f6e56", fontWeight: 700 }, children: "已选" }) : null
+                ]
+              },
+              c.adapterId + c.relativePath
+            );
+          }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerLabel, children: "无自动建议，请搜索。" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              style: OV.fileSearch,
+              value: fileQuery,
+              placeholder: "在全部布局文件中搜索…",
+              onChange: (e) => setFileQuery(e.target.value)
+            }
+          ),
+          fileResults.map((f) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              style: OV.pickItem,
+              onClick: () => {
+                onChoose({ adapterId: f.adapterId, relativePath: f.relativePath });
+                setPickerOpen(false);
+              },
+              children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickPath, children: f.relativePath })
+            },
+            f.adapterId + f.relativePath
+          ))
+        ] }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.actionRow, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              style: OV.compareBtn,
+              disabled: !selected || cardBusy,
+              onClick: onCompare,
+              children: "界面对比"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              style: OV.aiBtn,
+              disabled: !selected || cardBusy,
+              onClick: onAiAnalyze,
+              children: "AI 协助分析"
+            }
+          )
+        ] })
+      ]
+    }
+  );
 }
-var import_react2, import_jsx_runtime2, KIND_BADGE, STATUS_DOT, OV;
+var import_react, import_jsx_runtime, KIND_BADGE, STATUS_META, FILTERS, OV;
 var init_PageMappingOverview = __esm({
   "client-src/visual/PageMappingOverview.tsx"() {
     "use strict";
-    import_react2 = require("react");
-    import_jsx_runtime2 = require("react/jsx-runtime");
+    import_react = require("react");
+    init_thumb_queue();
+    import_jsx_runtime = require("react/jsx-runtime");
     KIND_BADGE = {
-      screen: { label: "整屏", bg: "#e7f0fb" },
-      "list-item": { label: "列表项", bg: "#ece8fa" },
-      dialog: { label: "弹窗", bg: "#fdeede" }
+      screen: { label: "整屏", bg: "#e7f0fb", fg: "#1d4e89" },
+      "list-item": { label: "列表项", bg: "#ece8fa", fg: "#4a3aa0" },
+      dialog: { label: "弹窗", bg: "#fdeede", fg: "#9a5b06" }
     };
-    STATUS_DOT = {
-      matched: "#1a9b6e",
-      weak: "#dc8a05",
-      none: "#d92d20"
+    STATUS_META = {
+      matched: { dot: "#1a9b6e", label: "已匹配" },
+      weak: { dot: "#dc8a05", label: "待确认" },
+      none: { dot: "#d92d20", label: "未匹配" }
     };
+    FILTERS = [
+      { id: "all", label: "全部" },
+      { id: "matched", label: "已匹配" },
+      { id: "weak", label: "待确认" },
+      { id: "none", label: "未匹配" }
+    ];
     OV = {
       scan: {
         width: "100%",
@@ -666,47 +850,171 @@ var init_PageMappingOverview = __esm({
         fontWeight: 600,
         cursor: "pointer"
       },
+      scanSecondary: {
+        width: "100%",
+        padding: "7px 12px",
+        borderRadius: 8,
+        border: "1px solid #0f6e56",
+        background: "#fff",
+        color: "#0f6e56",
+        fontWeight: 600,
+        cursor: "pointer",
+        fontSize: 12
+      },
       error: { color: "#b42318", fontSize: 12, marginTop: 6 },
-      summary: { fontSize: 12, color: "#5f584c", marginBottom: 8 },
+      summary: { fontSize: 12, color: "#5f584c", marginBottom: 8, lineHeight: 1.6 },
+      chipRow: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 },
+      chip: {
+        fontSize: 11,
+        borderRadius: 99,
+        padding: "3px 10px",
+        border: "1px solid #d9d2c4",
+        cursor: "pointer",
+        fontWeight: 600
+      },
+      search: {
+        width: "100%",
+        boxSizing: "border-box",
+        padding: "6px 9px",
+        border: "1px solid #d9d2c4",
+        borderRadius: 8,
+        fontSize: 12,
+        marginBottom: 8
+      },
+      emptyHint: { fontSize: 12, color: "#8a7f70", padding: "8px 0" },
       canvasCard: {
-        border: "1px solid var(--dsh-border,#ddd4c5)",
+        border: "1px solid #e3dccc",
         borderRadius: 10,
-        marginBottom: 8,
+        marginBottom: 10,
         overflow: "hidden",
         background: "#fff"
       },
-      canvasTitle: {
+      canvasHeader: {
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
         fontSize: 12,
         fontWeight: 600,
-        padding: "6px 10px",
+        padding: "7px 10px",
         background: "#f6f2e9",
-        color: "#5f584c"
+        color: "#5f584c",
+        border: "none",
+        cursor: "pointer",
+        textAlign: "left"
       },
-      row: {
-        borderTop: "1px solid #f0eadd",
-        padding: "8px 10px",
+      canvasCount: {
+        marginLeft: "auto",
+        fontSize: 11,
+        background: "#e7e0d0",
+        color: "#5f584c",
+        borderRadius: 99,
+        padding: "0 8px"
+      },
+      grid: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+        gap: 10,
+        padding: 10
+      },
+      card: {
+        border: "1px solid #e8e1d3",
+        borderRadius: 10,
+        padding: 7,
         display: "flex",
         flexDirection: "column",
-        gap: 6
+        gap: 6,
+        background: "#fff"
       },
-      kindBadge: {
+      thumbWrap: {
+        position: "relative",
+        borderRadius: 7,
+        overflow: "hidden",
+        background: "#f4f1ea",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center"
+      },
+      thumbImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+      thumbFallback: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        color: "#8a7f70",
+        padding: 6,
+        textAlign: "center"
+      },
+      thumbRetry: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        color: "#b42318",
+        background: "transparent",
+        border: "none",
+        padding: 6,
+        cursor: "pointer",
+        textAlign: "center"
+      },
+      statusTag: {
+        position: "absolute",
+        top: 4,
+        left: 4,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
         fontSize: 10,
-        borderRadius: 999,
-        padding: "1px 7px",
-        color: "#3f3a30"
+        fontWeight: 700,
+        background: "rgba(255,255,255,0.92)",
+        borderRadius: 99,
+        padding: "1px 6px"
       },
-      selectedBox: {
-        textAlign: "left",
+      statusDot: { width: 6, height: 6, borderRadius: 99, display: "inline-block" },
+      kindTag: {
+        position: "absolute",
+        top: 4,
+        right: 4,
+        fontSize: 10,
+        fontWeight: 600,
+        borderRadius: 99,
+        padding: "1px 6px"
+      },
+      cardName: {
         fontSize: 12,
+        fontWeight: 600,
+        color: "#33302a",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      fileBox: {
+        textAlign: "left",
+        fontSize: 11,
         border: "1px solid #d9d2c4",
-        borderRadius: 8,
-        padding: "5px 8px",
+        borderRadius: 7,
+        padding: "5px 7px",
         background: "#fcfaf6",
         cursor: "pointer",
         color: "#3f3a30",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap"
+      },
+      rematchLink: {
+        alignSelf: "flex-start",
+        border: "none",
+        background: "transparent",
+        color: "#0f6e56",
+        fontSize: 11,
+        padding: "0 2px",
+        cursor: "pointer",
+        textDecoration: "underline",
+        fontWeight: 600
       },
       picker: {
         display: "flex",
@@ -717,325 +1025,1127 @@ var init_PageMappingOverview = __esm({
         padding: 6,
         background: "#fdfbf7"
       },
-      pickerLabel: { fontSize: 11, color: "#8a7f70" },
+      pickerLabel: { fontSize: 10, color: "#8a7f70" },
       pickItem: {
         display: "flex",
-        gap: 8,
+        gap: 6,
         alignItems: "center",
-        fontSize: 11,
+        fontSize: 10,
         border: "1px solid #ece5d8",
         borderRadius: 6,
-        padding: "4px 8px",
+        padding: "4px 6px",
         background: "#fff",
-        cursor: "pointer",
-        color: "#0f6e56",
-        fontWeight: 600
+        cursor: "pointer"
       },
-      searchInput: {
-        padding: "5px 8px",
+      pickPath: {
+        flex: 1,
+        textAlign: "left",
+        color: "#3f3a30",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      fileSearch: {
+        padding: "4px 7px",
         border: "1px solid #d9d2c4",
         borderRadius: 6,
-        fontSize: 12
+        fontSize: 11
+      },
+      actionRow: {
+        display: "flex",
+        gap: 6,
+        marginTop: 2
       },
       compareBtn: {
+        flex: 1,
         fontSize: 12,
-        padding: "4px 14px",
+        padding: "6px 4px",
+        borderRadius: 7,
+        border: "1px solid #0f6e56",
+        background: "#0f6e56",
+        color: "#fff",
+        fontWeight: 600,
+        cursor: "pointer",
+        whiteSpace: "nowrap"
+      },
+      aiBtn: {
+        flex: 1,
+        fontSize: 12,
+        padding: "6px 4px",
         borderRadius: 7,
         border: "1px solid #0f6e56",
         background: "#fff",
         color: "#0f6e56",
         fontWeight: 600,
-        cursor: "pointer"
+        cursor: "pointer",
+        whiteSpace: "nowrap"
       }
-    };
-  }
-});
-
-// client-src/visual/HifiScreen.tsx
-function gradientCss(g) {
-  if (!g.startColor && !g.endColor) return void 0;
-  const cssAngle = (g.angle + 90) % 360;
-  const stops = [g.startColor, g.centerColor, g.endColor].filter(Boolean).join(", ");
-  return `linear-gradient(${cssAngle}deg, ${stops})`;
-}
-function nodeBaseStyle(node) {
-  const s = {
-    position: "absolute",
-    left: node.x,
-    top: node.y,
-    width: node.width,
-    height: node.height,
-    boxSizing: "border-box"
-  };
-  const st = node.style;
-  if (st.backgroundColor) s.background = st.backgroundColor;
-  if (st.gradient) {
-    const g = gradientCss(st.gradient);
-    if (g) s.background = g;
-  }
-  if (st.borderRadius) s.borderRadius = st.borderRadius;
-  if (st.borderWidth) {
-    s.borderStyle = "solid";
-    s.borderWidth = st.borderWidth;
-    s.borderColor = st.borderColor;
-  }
-  if (typeof st.opacity === "number") s.opacity = st.opacity;
-  if (st.color) s.color = st.color;
-  if (st.fontSize) s.fontSize = st.fontSize;
-  if (st.fontWeight) s.fontWeight = st.fontWeight;
-  if (st.textAlign) s.textAlign = st.textAlign === "right" ? "right" : "center";
-  return s;
-}
-function diffsByNode(diffs, side) {
-  const map = /* @__PURE__ */ new Map();
-  for (const d of diffs) {
-    const id = side === "design" ? d.designNodeId : d.codeNodeId;
-    if (!id) continue;
-    const list = map.get(id) ?? [];
-    list.push(d);
-    map.set(id, list);
-  }
-  return map;
-}
-function HifiScreen({
-  root,
-  width,
-  height,
-  side,
-  diffs,
-  activeNodeId,
-  onSelectNode
-}) {
-  const diffIndex = diffsByNode(diffs, side);
-  function renderNode(node) {
-    const nodeDiffs = diffIndex.get(node.id) ?? [];
-    const worst = nodeDiffs.reduce(
-      (acc, d) => {
-        if (!acc) return d.severity;
-        const rank = { high: 3, medium: 2, low: 1 };
-        return rank[d.severity] > rank[acc] ? d.severity : acc;
-      },
-      null
-    );
-    const isActive = activeNodeId === node.id;
-    const outline = worst ? `2px solid ${SEVERITY_COLOR[worst]}` : isActive ? "2px solid #0f6e56" : void 0;
-    const base = nodeBaseStyle(node);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-      "div",
-      {
-        style: { ...base, outline, outlineOffset: -1 },
-        onClick: (e) => {
-          e.stopPropagation();
-          onSelectNode(node.id);
-        },
-        title: node.name,
-        children: [
-          node.kind === "image" && node.imageUrl ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-            "img",
-            {
-              src: node.imageUrl,
-              alt: node.name,
-              style: { width: "100%", height: "100%", display: "block", objectFit: side === "design" ? "fill" : "cover" }
-            }
-          ) : null,
-          node.kind === "text" && node.text ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { display: "inline-block", padding: "0 2px", lineHeight: 1.3 }, children: node.text }) : null,
-          node.dynamic ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-            "div",
-            {
-              style: {
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px dashed #b9a98a",
-                borderRadius: 4,
-                background: "repeating-linear-gradient(45deg,#f3ede1,#f3ede1 8px,#efe7d6 8px,#efe7d6 16px)",
-                color: "#8a7a5c",
-                fontSize: 11
-              },
-              children: "运行时动态区域"
-            }
-          ) : null,
-          node.aiInferred ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: 0,
-                left: 0,
-                background: "#6d4bd6",
-                color: "#fff",
-                fontSize: 9,
-                padding: "1px 5px",
-                borderRadius: "0 0 6px 0",
-                maxWidth: "100%"
-              },
-              title: node.aiNote,
-              children: [
-                "AI 推断",
-                node.aiNote ? `：${node.aiNote}` : ""
-              ]
-            }
-          ) : null,
-          node.children.map(renderNode)
-        ]
-      },
-      node.id
-    );
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-    "div",
-    {
-      style: {
-        position: "relative",
-        width,
-        height,
-        overflow: "hidden",
-        background: "#fff"
-      },
-      children: renderNode(root)
-    }
-  );
-}
-var import_jsx_runtime3, SEVERITY_COLOR;
-var init_HifiScreen = __esm({
-  "client-src/visual/HifiScreen.tsx"() {
-    "use strict";
-    import_jsx_runtime3 = require("react/jsx-runtime");
-    SEVERITY_COLOR = {
-      high: "#e5484d",
-      medium: "#f5a623",
-      low: "#4c9aff"
     };
   }
 });
 
 // client-src/visual/HifiCompareBoard.tsx
-function fmt(v) {
-  if (v === void 0 || v === null) return "—";
-  if (typeof v === "number") return String(Math.round(v * 10) / 10);
-  return String(v);
+function formatHifiSavedAt(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-function HifiCompareBoard({ data }) {
-  const [activeId, setActiveId] = (0, import_react3.useState)("");
-  const diffs = data.result.diffs;
-  const sortedDiffs = (0, import_react3.useMemo)(
-    () => [...diffs].sort(
-      (a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]
-    ),
-    [diffs]
+function diffStoreKey(data) {
+  return `tracescope.diff.edits:${data.page.adapterId}:${data.page.relativePath}:${data.designHifiTree?.id || data.designName || ""}`;
+}
+function loadDiffOverrides(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}");
+  } catch {
+    return {};
+  }
+}
+function loadHiddenLayers(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key + ":hidden") || "[]");
+    return Array.isArray(raw) ? raw.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+function HifiCompareBoard({
+  data,
+  findings,
+  onAiAnalyze,
+  onRegenerate,
+  openConfirmDialog
+}) {
+  const [activeDesignId, setActiveDesignId] = (0, import_react2.useState)("");
+  const [chatNote, setChatNote] = (0, import_react2.useState)("");
+  const [sourceFilter, setSourceFilter] = (0, import_react2.useState)("all");
+  const storeKey = (0, import_react2.useMemo)(() => diffStoreKey(data), [data]);
+  const [overrides, setOverrides] = (0, import_react2.useState)(
+    () => loadDiffOverrides(storeKey)
   );
-  const computedScale = (0, import_react3.useMemo)(() => {
-    const available = 300;
-    const s = Math.min(1, available / data.viewport.width);
-    return s;
+  const [hiddenLayerIds, setHiddenLayerIds] = (0, import_react2.useState)(() => loadHiddenLayers(storeKey));
+  const [pickHint, setPickHint] = (0, import_react2.useState)("");
+  const [layerBusy, setLayerBusy] = (0, import_react2.useState)(false);
+  const userEraseRef = (0, import_react2.useRef)(false);
+  const eraseDoneHintRef = (0, import_react2.useRef)("已删除图层（可点「恢复已删除图层」撤销）。");
+  (0, import_react2.useEffect)(() => {
+    setOverrides(loadDiffOverrides(storeKey));
+    setHiddenLayerIds(loadHiddenLayers(storeKey));
+    setActiveDesignId("");
+  }, [storeKey]);
+  (0, import_react2.useEffect)(() => {
+    try {
+      localStorage.setItem(storeKey, JSON.stringify(overrides));
+    } catch {
+    }
+  }, [storeKey, overrides]);
+  (0, import_react2.useEffect)(() => {
+    try {
+      localStorage.setItem(storeKey + ":hidden", JSON.stringify(hiddenLayerIds));
+    } catch {
+    }
+  }, [storeKey, hiddenLayerIds]);
+  const diffs = data.result.diffs;
+  const designBoxById = (0, import_react2.useMemo)(() => {
+    const map = /* @__PURE__ */ new Map();
+    const walk = (n) => {
+      map.set(n.id, {
+        x: n.x,
+        y: n.y,
+        width: n.width,
+        height: n.height,
+        name: n.name,
+        kind: n.kind,
+        text: n.text
+      });
+      for (const c of n.children) walk(c);
+    };
+    walk(data.designHifiTree);
+    return map;
+  }, [data.designHifiTree]);
+  const aiFindings = findings?.findings ?? [];
+  const unifiedItems = (0, import_react2.useMemo)(() => {
+    const compact = (id) => id.replace(/[^0-9]/g, "");
+    const absorbed = /* @__PURE__ */ new Set();
+    const items = [];
+    for (const f of aiFindings) {
+      const designId = (f.nodeId ?? "").trim();
+      const haystack = `${f.title} ${f.location ?? ""} ${f.expected ?? ""} ${f.actual ?? ""} ${f.suggestion ?? ""}`.toLowerCase();
+      let codeId = "";
+      diffs.forEach((d, idx) => {
+        if (!designId || !d.designNodeId) return;
+        if (compact(d.designNodeId) !== compact(designId)) return;
+        if (propertyCovered(d.property, haystack)) {
+          absorbed.add(idx);
+          if (!codeId && d.codeNodeId) codeId = d.codeNodeId;
+        }
+      });
+      items.push({
+        key: "ai-" + items.length,
+        source: "ai",
+        severity: f.severity,
+        headline: f.title,
+        location: f.location,
+        expected: f.expected,
+        actual: f.actual,
+        codeSource: f.codeSource,
+        suggestion: f.suggestion,
+        designId,
+        codeId
+      });
+    }
+    diffs.forEach((d, idx) => {
+      if (absorbed.has(idx)) return;
+      items.push({
+        key: "rule-" + idx,
+        source: "rule",
+        severity: d.severity,
+        headline: `${PROP_LABEL[d.property] ?? d.property} · ${d.nodeName}`,
+        expected: d.expected === void 0 ? void 0 : String(d.expected),
+        actual: d.actual === void 0 ? void 0 : String(d.actual),
+        designId: d.designNodeId ?? "",
+        codeId: d.codeNodeId ?? "",
+        needsReview: d.needsReview
+      });
+    });
+    items.sort((a, b) => {
+      const rank = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+      if (rank !== 0) return rank;
+      if (a.source !== b.source) return a.source === "ai" ? -1 : 1;
+      return 0;
+    });
+    return items;
+  }, [aiFindings, diffs]);
+  const displayItems = (0, import_react2.useMemo)(() => {
+    return unifiedItems.map((item) => {
+      const o = overrides[item.key];
+      if (!o) return item;
+      return {
+        ...item,
+        headline: o.headline ?? item.headline,
+        expected: o.expected ?? item.expected,
+        actual: o.actual ?? item.actual,
+        note: o.note,
+        deleted: !!o.deleted
+      };
+    }).filter((item) => !item.deleted);
+  }, [unifiedItems, overrides]);
+  const deletedItems = (0, import_react2.useMemo)(() => {
+    return unifiedItems.map((item) => {
+      const o = overrides[item.key];
+      if (!o?.deleted) return null;
+      return {
+        ...item,
+        headline: o.headline ?? item.headline,
+        expected: o.expected ?? item.expected,
+        actual: o.actual ?? item.actual,
+        note: o.note,
+        deleted: true
+      };
+    }).filter((item) => item != null);
+  }, [unifiedItems, overrides]);
+  const aiCount = displayItems.filter((i) => i.source === "ai").length;
+  const ruleCount = displayItems.filter((i) => i.source === "rule").length;
+  const visibleItems = displayItems.filter(
+    (i) => sourceFilter === "all" || i.source === sourceFilter
+  );
+  const markerDiffs = (0, import_react2.useMemo)(() => {
+    const fromRules = displayItems.filter((i) => i.designId && designBoxById.has(i.designId)).map((i) => ({
+      designId: i.designId,
+      severity: i.severity,
+      key: i.key
+    }));
+    const best = /* @__PURE__ */ new Map();
+    for (const m of fromRules) {
+      const prev = best.get(m.designId);
+      if (!prev || SEVERITY_RANK[m.severity] > SEVERITY_RANK[prev.severity]) {
+        best.set(m.designId, m);
+      }
+    }
+    return [...best.values()];
+  }, [displayItems, designBoxById]);
+  const visibleNoteMasks = (0, import_react2.useMemo)(() => {
+    const hidden = new Set(hiddenLayerIds);
+    const auto = (data.designNoteMasks ?? []).filter((m) => !m.nodeId || !hidden.has(m.nodeId));
+    const manual = [];
+    for (const id of hiddenLayerIds) {
+      const box = designBoxById.get(id);
+      if (!box || box.width <= 0 || box.height <= 0) continue;
+      if (id === data.designHifiTree.id) continue;
+      const autoHit = (data.designNoteMasks ?? []).find((m) => m.nodeId === id);
+      manual.push({
+        text: box.text || box.name || id,
+        nodeId: id,
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        maskColor: autoHit?.maskColor || "transparent"
+      });
+    }
+    const byId = /* @__PURE__ */ new Map();
+    for (const m of auto) {
+      const key = m.nodeId || `${m.x},${m.y},${m.width},${m.height}`;
+      byId.set(key, m);
+    }
+    for (const m of manual) {
+      const key = m.nodeId || `${m.x},${m.y},${m.width},${m.height}`;
+      byId.set(key, m);
+    }
+    return [...byId.values()];
+  }, [data.designNoteMasks, hiddenLayerIds, designBoxById, data.designHifiTree.id]);
+  const pickBoxes = (0, import_react2.useMemo)(() => {
+    const map = new Map(designBoxById);
+    for (const m of data.designNoteMasks ?? []) {
+      if (!m.nodeId || map.has(m.nodeId)) continue;
+      map.set(m.nodeId, {
+        x: m.x,
+        y: m.y,
+        width: m.width,
+        height: m.height,
+        name: m.text,
+        kind: "text",
+        text: m.text
+      });
+    }
+    return map;
+  }, [designBoxById, data.designNoteMasks]);
+  const computedScale = (0, import_react2.useMemo)(() => {
+    const available = 360;
+    return Math.min(1, available / data.viewport.width);
   }, [data.viewport.width]);
   const w = data.viewport.width * computedScale;
   const h = data.viewport.height * computedScale;
-  function diffIds(d) {
-    return { design: d.designNodeId ?? "", code: d.codeNodeId ?? "" };
+  function selectItem(designId) {
+    setActiveDesignId(designId);
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { marginTop: 12 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+  function clearMarkers() {
+    setActiveDesignId("");
+  }
+  function patchOverride(key, patch) {
+    setOverrides((prev) => {
+      const next = { ...prev, [key]: { ...prev[key], ...patch } };
+      if (patch.deleted === false && !patch.note && !patch.headline && !patch.expected && !patch.actual) {
+      }
+      return next;
+    });
+  }
+  function hideLayer(nodeId) {
+    if (!nodeId) return;
+    userEraseRef.current = true;
+    eraseDoneHintRef.current = "已删除图层（可点「恢复已删除图层」撤销）。";
+    setLayerBusy(true);
+    setPickHint("正在删除图层…");
+    setHiddenLayerIds((prev) => prev.includes(nodeId) ? prev : [...prev, nodeId]);
+  }
+  function findLayerAt(x, y) {
+    let bestId = "";
+    let bestArea = Number.POSITIVE_INFINITY;
+    for (const [id, box] of pickBoxes) {
+      if (hiddenLayerIds.includes(id)) continue;
+      if (id === data.designHifiTree.id) continue;
+      if (x < box.x || y < box.y || x > box.x + box.width || y > box.y + box.height) continue;
+      const area = Math.max(1, box.width * box.height);
+      if (area < bestArea) {
+        bestArea = area;
+        bestId = id;
+      }
+    }
+    return bestId;
+  }
+  function sendToChat() {
+    if (typeof onAiAnalyze !== "function") {
+      setChatNote("当前客户端不支持 AI 协助分析，请手动把布局源码与设计稿链接发给会话。");
+      return;
+    }
+    onAiAnalyze({
+      adapterId: data.page.adapterId,
+      relativePath: data.page.relativePath
+    });
+    setChatNote("正在读取代码源码、把分析提示填入当前会话输入框…");
+  }
+  const modeLabel = data.compareMode === "heuristic" ? "启发式静态" : data.compareMode === "exact" ? "属性级" : null;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 12 }, children: [
+    data.fromCache && data.savedAt ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
       "div",
       {
         style: {
           display: "flex",
-          gap: 10,
-          alignItems: "flex-start",
-          flexWrap: "wrap"
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          fontSize: 11,
+          color: "#8a7a5c",
+          background: "#f7f2e9",
+          border: "1px solid #e6ddcb",
+          borderRadius: 6,
+          padding: "4px 8px",
+          marginBottom: 8
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: COL.title, children: "设计稿" }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { ...COL.frame, width: w, height: h }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { transform: `scale(${computedScale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              HifiScreen,
-              {
-                root: data.designHifiTree,
-                width: data.viewport.width,
-                height: data.viewport.height,
-                side: "design",
-                diffs,
-                activeNodeId: activeId,
-                onSelectNode: setActiveId
-              }
-            ) }) })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+            "读取自缓存（",
+            formatHifiSavedAt(data.savedAt),
+            "），可直接查看；如需最新结果请重新生成。"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: COL.title, children: "代码高保真渲染" }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { ...COL.frame, width: w, height: h }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { transform: `scale(${computedScale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              HifiScreen,
-              {
-                root: data.codeHifiTree,
-                width: data.viewport.width,
-                height: data.viewport.height,
-                side: "code",
-                diffs,
-                activeNodeId: activeId,
-                onSelectNode: setActiveId
-              }
-            ) }) })
-          ] })
+          onRegenerate ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: onRegenerate, children: "重新生成" }) : null
         ]
       }
-    ),
-    data.aiInferenceNote ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: COL.aiNote, children: data.aiInferenceNote }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { marginTop: 10 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { style: { fontSize: 12 }, children: [
-        "差异清单（",
-        sortedDiffs.length,
-        "，点击可在界面上定位）"
+    ) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginBottom: 6, fontSize: 12, color: "#5f584c" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "设计稿对照" }),
+      modeLabel ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "span",
+        {
+          style: {
+            marginLeft: 8,
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#0f6e56",
+            background: "#e3f1ea",
+            borderRadius: 4,
+            padding: "1px 6px"
+          },
+          children: modeLabel
+        }
+      ) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { marginLeft: 8, color: "#8a7f70" }, children: [
+        data.page.kindLabel ?? data.page.adapterId,
+        " · ",
+        data.page.relativePath
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { fontSize: 11, color: "#8a7f70", marginBottom: 6 }, children: [
+      "自动删除识别到的设计师备注；也可点击图上图层继续删除（从渲染图中擦除该区域像素，不是盖白块）。",
+      hiddenLayerIds.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          style: { ...COL.clearBtn, marginLeft: 8, padding: "1px 8px" },
+          onClick: () => {
+            userEraseRef.current = true;
+            eraseDoneHintRef.current = "已恢复图层。";
+            setLayerBusy(true);
+            setPickHint("正在恢复图层…");
+            setHiddenLayerIds([]);
+          },
+          children: [
+            "恢复已删除图层（",
+            hiddenLayerIds.length,
+            "）"
+          ]
+        }
+      ) : null
+    ] }),
+    pickHint ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: 11, color: "#0f6e56", marginBottom: 6 }, children: pickHint }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { ...COL.frame, width: w, height: h }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { transform: `scale(${computedScale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      RasterDesignView,
+      {
+        imageUrl: data.designImageUrl,
+        viewport: data.viewport,
+        eraseRegions: visibleNoteMasks,
+        busy: layerBusy,
+        hotspot: activeDesignId ? designBoxById.get(activeDesignId) : void 0,
+        hotspotColor: markerDiffs.find((m) => m.designId === activeDesignId) ? SEVERITY_TEXT[markerDiffs.find((m) => m.designId === activeDesignId).severity] : "#0f6e56",
+        onBusyChange: (busy) => {
+          setLayerBusy(busy);
+          if (!busy && userEraseRef.current) {
+            userEraseRef.current = false;
+            setPickHint(eraseDoneHintRef.current);
+          }
+        },
+        onPick: (x, y) => {
+          const id = findLayerAt(x, y);
+          if (!id) {
+            setPickHint("未点中可删除图层，请点文字/标注区域。");
+            return;
+          }
+          const box = pickBoxes.get(id);
+          const label = box?.text || box?.name || id;
+          if (window.confirm(`从对照图中删除图层「${label}」？
+（擦除该区域像素；可随时恢复）`)) {
+            hideLayer(id);
+          }
+        }
+      }
+    ) }) }),
+    data.aiInferenceNote ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: COL.aiNote, children: data.aiInferenceNote }) : null,
+    chatNote ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: COL.chatNote, children: chatNote }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            flexWrap: "wrap"
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { style: { fontSize: 12 }, children: [
+              "差异清单（",
+              visibleItems.length,
+              "，点击可在设计稿上定位）"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, flexShrink: 0 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.aiBtn, onClick: sendToChat, children: "AI 协助分析" }),
+              onRegenerate ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: onRegenerate, children: "重新生成" }) : null,
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: clearMarkers, children: "清除高亮" })
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        FilterTabs,
+        {
+          filter: sourceFilter,
+          onChange: setSourceFilter,
+          aiCount,
+          ruleCount
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }, children: [
+        visibleItems.slice(0, 80).map((item) => {
+          const isActive = item.designId && activeDesignId === item.designId;
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            UnifiedCard,
+            {
+              item,
+              active: !!isActive,
+              onSelect: () => selectItem(item.designId),
+              onDelete: () => patchOverride(item.key, { deleted: true }),
+              onOpenEditor: (mode) => {
+                if (typeof openConfirmDialog !== "function") {
+                  setChatNote(
+                    "当前宿主不支持弹窗输入。请更新插件后重试，或在 DeepSeek Harness 桌面端使用。"
+                  );
+                  return;
+                }
+                if (mode === "note") {
+                  openConfirmDialog({
+                    title: "添加备注",
+                    message: item.headline,
+                    inputLabel: "备注",
+                    inputValue: item.note || "",
+                    multiline: true,
+                    confirmLabel: "保存备注",
+                    onConfirm: (value) => {
+                      patchOverride(item.key, { note: String(value ?? "").trim() });
+                    }
+                  });
+                  return;
+                }
+                openConfirmDialog({
+                  title: "编辑差异",
+                  message: item.headline,
+                  fields: [
+                    { key: "headline", label: "标题", value: item.headline },
+                    { key: "expected", label: "设计稿期望", value: item.expected || "" },
+                    { key: "actual", label: "实际值", value: item.actual || "" }
+                  ],
+                  confirmLabel: "保存",
+                  onConfirm: (value) => {
+                    const map = value && typeof value === "object" ? value : {};
+                    patchOverride(item.key, {
+                      headline: map.headline ?? item.headline,
+                      expected: map.expected ?? item.expected,
+                      actual: map.actual ?? item.actual
+                    });
+                  }
+                });
+              }
+            },
+            item.key
+          );
+        }),
+        visibleItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: 12, color: "#8a7f70", padding: "6px 2px" }, children: "当前筛选下没有差异项。" }) : null
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }, children: sortedDiffs.slice(0, 60).map((d, i) => {
-        const ids = diffIds(d);
-        const isActive = activeId === ids.design || activeId === ids.code;
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-          "button",
+      deletedItems.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 12 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
           {
-            type: "button",
-            onClick: () => setActiveId(ids.design || ids.code),
             style: {
-              textAlign: "left",
-              fontSize: 12,
-              border: "1px solid " + (isActive ? "#0f6e56" : "#e6dfd0"),
-              background: isActive ? "#f2f8f5" : "#fff",
-              borderRadius: 7,
-              padding: "5px 8px",
-              cursor: "pointer"
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 6
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { style: { color: SEVERITY_TEXT[d.severity], fontWeight: 700 }, children: [
-                "[",
-                SEVERITY_LABEL[d.severity],
-                "]"
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { style: { fontSize: 12, color: "#8a7f70" }, children: [
+                "已删除（误报）· ",
+                deletedItems.length
               ] }),
-              " ",
-              PROP_LABEL[d.property] ?? d.property,
-              " · ",
-              d.nodeName,
-              "： 期望 ",
-              fmt(d.expected),
-              " / 实际 ",
-              fmt(d.actual),
-              d.needsReview ? "（需人工确认）" : ""
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: COL.clearBtn,
+                  onClick: () => {
+                    setOverrides((prev) => {
+                      const next = { ...prev };
+                      for (const item of deletedItems) {
+                        const cur = next[item.key];
+                        if (!cur) continue;
+                        const { deleted: _d, ...rest } = cur;
+                        if (rest.note || rest.headline || rest.expected || rest.actual) {
+                          next[item.key] = rest;
+                        } else {
+                          delete next[item.key];
+                        }
+                      }
+                      return next;
+                    });
+                  },
+                  children: "全部恢复"
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { display: "flex", flexDirection: "column", gap: 5 }, children: deletedItems.slice(0, 40).map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
+          {
+            style: {
+              fontSize: 12,
+              lineHeight: 1.5,
+              border: "1px dashed #d9d2c4",
+              background: "#faf8f4",
+              borderRadius: 8,
+              padding: "6px 8px",
+              color: "#8a7f70",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { minWidth: 0 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { textDecoration: "line-through" }, children: item.headline }),
+                item.note ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { fontSize: 11, marginTop: 2 }, children: [
+                  "备注：",
+                  item.note
+                ] }) : null
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: COL.miniBtn,
+                  onClick: () => {
+                    setOverrides((prev) => {
+                      const cur = prev[item.key];
+                      if (!cur) return prev;
+                      const { deleted: _d, ...rest } = cur;
+                      const next = { ...prev };
+                      if (rest.note || rest.headline || rest.expected || rest.actual) {
+                        next[item.key] = rest;
+                      } else {
+                        delete next[item.key];
+                      }
+                      return next;
+                    });
+                  },
+                  children: "恢复"
+                }
+              )
             ]
           },
-          i
-        );
-      }) })
+          `del-${item.key}`
+        )) })
+      ] }) : null
     ] })
   ] });
 }
-var import_react3, import_jsx_runtime4, SEVERITY_RANK, SEVERITY_LABEL, PROP_LABEL, SEVERITY_TEXT, COL;
+function propertyCovered(property, aiText) {
+  const tokens = {
+    width: ["宽度", "宽", "width"],
+    height: ["高度", "高", "height"],
+    marginTop: ["上间距", "上边距", "顶部间距", "margin-top"],
+    marginBottom: ["下间距", "下边距", "底部间距", "margin-bottom"],
+    marginLeft: ["左间距", "左边距", "margin-left"],
+    marginRight: ["右间距", "右边距", "margin-right"],
+    paddingTop: ["上内边距", "padding-top"],
+    paddingBottom: ["下内边距", "padding-bottom"],
+    paddingLeft: ["左内边距", "padding-left"],
+    paddingRight: ["右内边距", "padding-right"],
+    backgroundColor: ["背景色", "背景", "background"],
+    color: ["文字颜色", "字色", "颜色", "color"],
+    fontSize: ["字号", "字体大小", "font-size"],
+    cornerRadius: ["圆角", "圆弧", "弧度", "corner", "radius"],
+    borderWidth: ["边框粗细", "描边粗细", "border"],
+    borderColor: ["边框颜色", "描边颜色", "border"],
+    fontWeight: ["字重", "粗细", "font-weight"],
+    opacity: ["透明度", "opacity"],
+    text: ["文案", "文字", "文本", "text"],
+    controlCount: ["控件", "组件", "control"]
+  };
+  const keys = tokens[property];
+  if (!keys) return false;
+  return keys.some((k) => aiText.includes(k.toLowerCase()));
+}
+function FilterTabs({
+  filter,
+  onChange,
+  aiCount,
+  ruleCount
+}) {
+  const tabs = [
+    ["all", `全部 ${aiCount + ruleCount}`],
+    ["ai", `AI 确权 ${aiCount}`],
+    ["rule", `规则比对 ${ruleCount}`]
+  ];
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { display: "flex", gap: 6, marginTop: 8 }, children: tabs.map(([id, label]) => {
+    const active2 = filter === id;
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "button",
+      {
+        type: "button",
+        onClick: () => onChange(id),
+        style: {
+          fontSize: 11,
+          borderRadius: 999,
+          padding: "2px 10px",
+          cursor: "pointer",
+          border: "1px solid " + (active2 ? "#0f6e56" : "#d9d2c4"),
+          background: active2 ? "#0f6e56" : "#fff",
+          color: active2 ? "#fff" : "#5f584c"
+        },
+        children: label
+      },
+      id
+    );
+  }) });
+}
+function UnifiedCard({
+  item,
+  active: active2,
+  onSelect,
+  onDelete,
+  onOpenEditor
+}) {
+  const isAi = item.source === "ai";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    "div",
+    {
+      style: {
+        textAlign: "left",
+        fontSize: 12,
+        lineHeight: 1.6,
+        border: "1px solid " + (active2 ? "#0f6e56" : isAi ? "#cfe0d8" : "#e6dfd0"),
+        background: active2 ? "#f2f8f5" : isAi ? "#f7fbf9" : "#fff",
+        borderRadius: 8,
+        padding: "6px 8px"
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
+          {
+            role: "button",
+            tabIndex: 0,
+            onClick: onSelect,
+            onKeyDown: (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect();
+              }
+            },
+            style: {
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              cursor: "pointer",
+              color: "inherit"
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: SEVERITY_TEXT[item.severity], fontWeight: 700 }, children: [
+                  "[",
+                  SEVERITY_LABEL[item.severity],
+                  "]"
+                ] }),
+                " ",
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "span",
+                  {
+                    style: {
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: isAi ? "#0f6e56" : "#8a7f70",
+                      background: isAi ? "#e3f1ea" : "#f1ede3",
+                      borderRadius: 4,
+                      padding: "0 5px",
+                      marginRight: 4
+                    },
+                    children: isAi ? "AI 确权" : "规则比对"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: item.headline }),
+                item.location ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: "#7a8a82", fontWeight: 400 }, children: [
+                  " · ",
+                  item.location
+                ] }) : null,
+                item.needsReview ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: "#9a6700" }, children: "（需人工确认）" }) : null
+              ] }),
+              item.expected ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { color: "#335047" }, children: [
+                "设计稿：",
+                item.expected
+              ] }) : null,
+              item.actual ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { color: "#8a4b33" }, children: [
+                "实际：",
+                item.actual
+              ] }) : null,
+              item.codeSource ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { color: "#8a7f60", wordBreak: "break-all" }, children: [
+                "代码来源：",
+                item.codeSource
+              ] }) : null,
+              item.suggestion ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { color: "#0f6e56" }, children: [
+                "修改建议：",
+                item.suggestion
+              ] }) : null,
+              item.note ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { color: "#5f584c" }, children: [
+                "备注：",
+                item.note
+              ] }) : null
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              style: COL.miniBtn,
+              onClick: (e) => {
+                e.stopPropagation();
+                if (window.confirm("确认删除这条差异？删除后视为误报，仅本机记住，可在下方恢复。"))
+                  onDelete();
+              },
+              children: "删除"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              style: COL.miniBtn,
+              onClick: (e) => {
+                e.stopPropagation();
+                onOpenEditor("note");
+              },
+              children: "备注"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              style: COL.miniBtn,
+              onClick: (e) => {
+                e.stopPropagation();
+                onOpenEditor("edit");
+              },
+              children: "编辑"
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+function isOpaqueCssColor(color) {
+  if (!color) return false;
+  const c = color.trim().toLowerCase();
+  if (!c || c === "transparent" || c === "rgba(0,0,0,0)" || c === "#00000000") return false;
+  return true;
+}
+function sampleRingColor(ctx, x, y, w, h, imgW, imgH) {
+  const pad = 2;
+  const points = [];
+  for (let i = 0; i <= 4; i += 1) {
+    const t = i / 4;
+    points.push([x + w * t, Math.max(0, y - pad)]);
+    points.push([x + w * t, Math.min(imgH - 1, y + h + pad)]);
+    points.push([Math.max(0, x - pad), y + h * t]);
+    points.push([Math.min(imgW - 1, x + w + pad), y + h * t]);
+  }
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (const [px, py] of points) {
+    const ix = Math.round(Math.min(imgW - 1, Math.max(0, px)));
+    const iy = Math.round(Math.min(imgH - 1, Math.max(0, py)));
+    try {
+      const d = ctx.getImageData(ix, iy, 1, 1).data;
+      r += d[0] ?? 0;
+      g += d[1] ?? 0;
+      b += d[2] ?? 0;
+      n += 1;
+    } catch {
+    }
+  }
+  if (!n) return "#ffffff";
+  return `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})`;
+}
+function regionKey(r) {
+  return `${r.nodeId || ""}|${Math.round(r.x)}|${Math.round(r.y)}|${Math.round(r.width)}|${Math.round(r.height)}`;
+}
+function loadProxiedDesignImage(imageUrl) {
+  if (!imageUrl) return Promise.resolve("");
+  if (imageUrl.startsWith("data:")) return Promise.resolve(imageUrl);
+  const hit = proxyImageCache.get(imageUrl);
+  if (hit) return hit;
+  const pending2 = fetch(`/tracescope/v1/proxy-image?url=${encodeURIComponent(imageUrl)}`, {
+    credentials: "same-origin"
+  }).then(async (r) => {
+    const data = await r.json();
+    if (!r.ok || !data.dataUrl) throw new Error(data.error || "图片代理失败");
+    return data.dataUrl;
+  }).catch((err) => {
+    proxyImageCache.delete(imageUrl);
+    throw err;
+  });
+  proxyImageCache.set(imageUrl, pending2);
+  return pending2;
+}
+function loadHtmlImage(src) {
+  return new Promise((resolve, reject) => {
+    const el = new Image();
+    if (!src.startsWith("data:")) el.crossOrigin = "anonymous";
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("设计稿图片加载失败"));
+    el.src = src;
+  });
+}
+function paintRegionsOnCanvas(ctx, canvas, regions, logicalSize) {
+  const sx = canvas.width / Math.max(1, logicalSize.width);
+  const sy = canvas.height / Math.max(1, logicalSize.height);
+  for (const region of regions) {
+    const x = Math.max(0, Math.floor(region.x * sx));
+    const y = Math.max(0, Math.floor(region.y * sy));
+    const w = Math.max(1, Math.ceil(region.width * sx));
+    const h = Math.max(1, Math.ceil(region.height * sy));
+    const fill = isOpaqueCssColor(region.maskColor) ? region.maskColor : sampleRingColor(ctx, x, y, w, h, canvas.width, canvas.height);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w, h);
+  }
+}
+async function eraseRegionsFromImage(imageUrl, regions, logicalSize) {
+  if (!regions.length) {
+    eraseSession = null;
+    return imageUrl;
+  }
+  const source = await loadProxiedDesignImage(imageUrl);
+  const keys = regions.map(regionKey);
+  const keySet = new Set(keys);
+  if (eraseSession && eraseSession.imageUrl === imageUrl && eraseSession.keys.every((k) => keySet.has(k)) && keys.length >= eraseSession.keys.length) {
+    const prevSet = new Set(eraseSession.keys);
+    const added = regions.filter((r) => !prevSet.has(regionKey(r)));
+    if (added.length === 0 && keys.length === eraseSession.keys.length) {
+      return eraseSession.resultUrl;
+    }
+    const canvas2 = eraseSession.canvas;
+    const ctx2 = canvas2.getContext("2d");
+    if (ctx2 && added.length) {
+      paintRegionsOnCanvas(ctx2, canvas2, added, logicalSize);
+      const resultUrl2 = canvas2.toDataURL("image/jpeg", 0.92);
+      eraseSession = { imageUrl, keys, canvas: canvas2, resultUrl: resultUrl2 };
+      return resultUrl2;
+    }
+  }
+  const img = await loadHtmlImage(source);
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return imageUrl;
+  ctx.drawImage(img, 0, 0);
+  paintRegionsOnCanvas(ctx, canvas, regions, logicalSize);
+  let resultUrl;
+  try {
+    resultUrl = canvas.toDataURL("image/jpeg", 0.92);
+  } catch {
+    return imageUrl;
+  }
+  eraseSession = { imageUrl, keys, canvas, resultUrl };
+  return resultUrl;
+}
+function RasterDesignView({
+  imageUrl,
+  viewport,
+  eraseRegions,
+  busy,
+  hotspot,
+  hotspotColor,
+  onPick,
+  onBusyChange
+}) {
+  const [displayUrl, setDisplayUrl] = (0, import_react2.useState)(imageUrl || "");
+  const [erasing, setErasing] = (0, import_react2.useState)(false);
+  const regionsSig = JSON.stringify(
+    (eraseRegions ?? []).map((r) => [r.nodeId, r.x, r.y, r.width, r.height, r.maskColor])
+  );
+  (0, import_react2.useEffect)(() => {
+    if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+      void loadProxiedDesignImage(imageUrl).catch(() => void 0);
+    }
+  }, [imageUrl]);
+  (0, import_react2.useEffect)(() => {
+    let cancelled = false;
+    if (!imageUrl) {
+      setDisplayUrl("");
+      onBusyChange?.(false);
+      return;
+    }
+    const regions = eraseRegions ?? [];
+    if (!regions.length) {
+      setDisplayUrl(imageUrl);
+      setErasing(false);
+      onBusyChange?.(false);
+      return;
+    }
+    setErasing(true);
+    onBusyChange?.(true);
+    (async () => {
+      try {
+        const url = await eraseRegionsFromImage(imageUrl, regions, viewport);
+        if (!cancelled) setDisplayUrl(url);
+      } catch {
+        if (!cancelled) setDisplayUrl(imageUrl);
+      } finally {
+        if (!cancelled) {
+          setErasing(false);
+          onBusyChange?.(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl, viewport.width, viewport.height, regionsSig]);
+  if (!imageUrl) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "div",
+      {
+        style: {
+          width: viewport.width,
+          height: viewport.height,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#8a7f70",
+          fontSize: 12
+        },
+        children: "官方渲染图加载失败，请重新生成或检查 Figma 链接"
+      }
+    );
+  }
+  const showBusy = erasing || !!busy;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    "div",
+    {
+      style: {
+        position: "relative",
+        width: viewport.width,
+        height: viewport.height,
+        overflow: "hidden",
+        cursor: onPick && !showBusy ? "crosshair" : "default"
+      },
+      onClick: (e) => {
+        if (!onPick || showBusy) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width * viewport.width;
+        const y = (e.clientY - rect.top) / rect.height * viewport.height;
+        onPick(x, y);
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "img",
+          {
+            src: displayUrl || imageUrl,
+            alt: "",
+            style: {
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              display: "block",
+              pointerEvents: "none",
+              filter: showBusy ? "brightness(0.72)" : void 0
+            }
+          }
+        ),
+        showBusy ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(16,24,40,0.38)",
+              pointerEvents: "none",
+              zIndex: 2
+            },
+            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "div",
+              {
+                style: {
+                  background: "#fff",
+                  color: "#101828",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  boxShadow: "0 8px 24px rgba(16,24,40,0.2)",
+                  textAlign: "center",
+                  lineHeight: 1.5
+                },
+                children: [
+                  "正在删除图层…",
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: 11, fontWeight: 500, color: "#667085", marginTop: 2 }, children: "首次稍慢，之后会更快" })
+                ]
+              }
+            )
+          }
+        ) : null,
+        hotspot ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: hotspot.x,
+              top: hotspot.y,
+              width: hotspot.width,
+              height: hotspot.height,
+              border: `2px solid ${hotspotColor ?? "#0f6e56"}`,
+              boxSizing: "border-box",
+              pointerEvents: "none",
+              zIndex: 1
+            }
+          }
+        ) : null
+      ]
+    }
+  );
+}
+var import_react2, import_jsx_runtime2, SEVERITY_RANK, SEVERITY_LABEL, SEVERITY_TEXT, PROP_LABEL, proxyImageCache, eraseSession, COL;
 var init_HifiCompareBoard = __esm({
   "client-src/visual/HifiCompareBoard.tsx"() {
     "use strict";
-    import_react3 = require("react");
-    init_HifiScreen();
-    import_jsx_runtime4 = require("react/jsx-runtime");
+    import_react2 = require("react");
+    import_jsx_runtime2 = require("react/jsx-runtime");
     SEVERITY_RANK = { high: 3, medium: 2, low: 0 };
     SEVERITY_LABEL = { high: "高", medium: "中", low: "低" };
+    SEVERITY_TEXT = {
+      high: "#d92d20",
+      medium: "#dc8a05",
+      low: "#2f62b9"
+    };
     PROP_LABEL = {
       width: "宽度",
       height: "高度",
@@ -1054,15 +2164,13 @@ var init_HifiCompareBoard = __esm({
       borderWidth: "边框粗细",
       borderColor: "边框颜色",
       fontWeight: "字重",
-      opacity: "透明度"
+      opacity: "透明度",
+      text: "文案",
+      controlCount: "控件规模"
     };
-    SEVERITY_TEXT = {
-      high: "#d92d20",
-      medium: "#dc8a05",
-      low: "#2f62b9"
-    };
+    proxyImageCache = /* @__PURE__ */ new Map();
+    eraseSession = null;
     COL = {
-      title: { fontSize: 12, fontWeight: 600, color: "#5f584c", marginBottom: 4 },
       frame: {
         border: "1px solid var(--dsh-border,#ddd4c5)",
         borderRadius: 8,
@@ -1077,7 +2185,192 @@ var init_HifiCompareBoard = __esm({
         border: "1px solid #ddd2f4",
         borderRadius: 8,
         padding: "6px 10px"
+      },
+      chatNote: {
+        marginTop: 8,
+        fontSize: 12,
+        color: "#0f6e56",
+        background: "#eef7f2",
+        border: "1px solid #cfe6da",
+        borderRadius: 8,
+        padding: "6px 10px"
+      },
+      aiBtn: {
+        fontSize: 11,
+        borderRadius: 7,
+        border: "1px solid #0f6e56",
+        background: "#0f6e56",
+        color: "#fff",
+        padding: "3px 10px",
+        cursor: "pointer",
+        flexShrink: 0
+      },
+      clearBtn: {
+        fontSize: 11,
+        borderRadius: 7,
+        border: "1px solid #d9d2c4",
+        background: "#fff",
+        color: "#5f584c",
+        padding: "3px 10px",
+        cursor: "pointer",
+        flexShrink: 0
+      },
+      editInput: {
+        width: "100%",
+        boxSizing: "border-box",
+        fontSize: 12,
+        padding: "6px 8px",
+        borderRadius: 6,
+        border: "1px solid #d9d2c4",
+        fontFamily: "inherit",
+        marginTop: 4
+      },
+      miniBtn: {
+        fontSize: 11,
+        padding: "2px 8px",
+        borderRadius: 4,
+        border: "1px solid #d9d2c4",
+        background: "#fff",
+        cursor: "pointer",
+        color: "#5f584c"
+      },
+      modalBackdrop: {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(16, 24, 40, 0.45)",
+        zIndex: 1e5,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16
+      },
+      modalPanel: {
+        width: "min(420px, 100%)",
+        background: "#fff",
+        borderRadius: 12,
+        border: "1px solid #d9d2c4",
+        padding: 14,
+        boxShadow: "0 12px 40px rgba(16,24,40,0.18)"
+      },
+      modalLabel: {
+        display: "flex",
+        flexDirection: "column",
+        fontSize: 12,
+        color: "#5f584c"
       }
+    };
+  }
+});
+
+// client-src/visual/LoadingOverlay.tsx
+function LoadingOverlay({ message, elapsedSeconds }) {
+  const spinnerCss = "@keyframes tracescope-loading-spin{to{transform:rotate(360deg)}}";
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("style", { children: spinnerCss }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+      "div",
+      {
+        role: "status",
+        "aria-live": "polite",
+        "aria-busy": "true",
+        style: O.backdrop,
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        onMouseDown: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: O.banner, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+            "svg",
+            {
+              style: O.spinner,
+              viewBox: "0 0 28 28",
+              width: "28",
+              height: "28",
+              "aria-hidden": "true",
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "circle",
+                  {
+                    cx: "14",
+                    cy: "14",
+                    r: "11",
+                    fill: "none",
+                    stroke: "#e4ddd0",
+                    strokeWidth: "3"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "circle",
+                  {
+                    cx: "14",
+                    cy: "14",
+                    r: "11",
+                    fill: "none",
+                    stroke: "#0f6e56",
+                    strokeWidth: "3",
+                    strokeLinecap: "round",
+                    strokeDasharray: "52 100",
+                    style: O.spinnerArc
+                  }
+                )
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: O.title, children: "加载中，请稍候" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: O.message, children: message || "正在处理请求，网络较慢时请勿重复操作。" }),
+          typeof elapsedSeconds === "number" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: O.elapsed, children: [
+            "已用时 ",
+            elapsedSeconds,
+            " 秒"
+          ] }) : null
+        ] })
+      }
+    )
+  ] });
+}
+var import_jsx_runtime3, O;
+var init_LoadingOverlay = __esm({
+  "client-src/visual/LoadingOverlay.tsx"() {
+    "use strict";
+    import_jsx_runtime3 = require("react/jsx-runtime");
+    O = {
+      backdrop: {
+        position: "fixed",
+        inset: 0,
+        zIndex: 1e4,
+        background: "rgba(28, 25, 21, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        cursor: "wait"
+      },
+      banner: {
+        maxWidth: 380,
+        width: "100%",
+        borderRadius: 12,
+        padding: "16px 18px",
+        background: "var(--dsh-card, #fffdf8)",
+        border: "1px solid var(--dsh-border, #ddd4c5)",
+        boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+        textAlign: "center"
+      },
+      spinner: {
+        display: "block",
+        margin: "0 auto 10px"
+      },
+      spinnerArc: {
+        // Rotate the arc around the circle's own center so it stays a perfect ring.
+        transformOrigin: "14px 14px",
+        animation: "tracescope-loading-spin 0.8s linear infinite"
+      },
+      title: { fontWeight: 700, marginBottom: 6, fontSize: 14 },
+      message: { color: "#6b645a", fontSize: 12, lineHeight: 1.5 },
+      elapsed: { marginTop: 8, fontSize: 11, color: "#8a7f70" }
     };
   }
 });
@@ -1099,37 +2392,142 @@ async function post2(path, body) {
   if (!r.ok) throw new Error(data.error || "请求失败");
   return data;
 }
-function uiStorageKey(repoInput, field) {
+function uiRepoKey(repoInput, field) {
   return UI_CONFIG_PREFIX + field + ":" + repoInput.trim();
 }
-function readUiConfig(repoInput, field) {
+function uiGlobalKey(field) {
+  return UI_CONFIG_GLOBAL_PREFIX + field;
+}
+function readStorage(key) {
   try {
-    return localStorage.getItem(uiStorageKey(repoInput, field)) ?? "";
+    return localStorage.getItem(key);
   } catch {
-    return "";
+    return null;
   }
+}
+function writeStorage(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+  }
+}
+function hasRepoUiConfig(repoInput) {
+  return readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null;
+}
+function readRepoUiConfig(repoInput, field) {
+  return readStorage(uiRepoKey(repoInput, field)) ?? "";
+}
+function readGlobalUiConfig(field) {
+  return readStorage(uiGlobalKey(field)) ?? "";
+}
+function resolveUiConfig(repoInput, field) {
+  if (hasRepoUiConfig(repoInput)) return readRepoUiConfig(repoInput, field);
+  return readGlobalUiConfig(field);
 }
 function writeUiConfig(repoInput, field, value) {
+  const trimmed = value.trim();
+  writeStorage(uiRepoKey(repoInput, field), trimmed);
+  writeStorage(uiGlobalKey(field), trimmed);
+}
+function clearUiConfigField(repoInput, field) {
+  writeStorage(uiRepoKey(repoInput, field), "");
+  writeStorage(uiGlobalKey(field), "");
+}
+function labelForFigmaUrl(url) {
   try {
-    if (value) localStorage.setItem(uiStorageKey(repoInput, field), value);
-    else localStorage.removeItem(uiStorageKey(repoInput, field));
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const name2 = parts.length >= 3 ? decodeURIComponent(parts[2].replace(/-/g, " ")) : "";
+    const node = u.searchParams.get("node-id") || "";
+    if (name2 && node) return `${name2} · node ${node}`;
+    if (name2) return name2;
+    if (node) return `node ${node}`;
+    return u.hostname + u.pathname;
+  } catch {
+    return url.slice(0, 48);
+  }
+}
+function isLikelyFigmaUrl(url) {
+  try {
+    const u = new URL(url.trim());
+    return u.hostname.includes("figma.com") && /\/(design|file|proto)\//.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+function readSavedLinks() {
+  try {
+    const raw = localStorage.getItem(SAVED_LINKS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x) => x && typeof x.url === "string" && x.url.trim());
+  } catch {
+    return [];
+  }
+}
+function writeSavedLinks(list) {
+  try {
+    localStorage.setItem(SAVED_LINKS_KEY, JSON.stringify(list.slice(0, MAX_SAVED_LINKS)));
   } catch {
   }
 }
-function VisualComparePanel({ repoInput, auth }) {
-  const [figmaUrl, setFigmaUrlState] = (0, import_react4.useState)(() => readUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
-  const [figmaToken, setFigmaTokenState] = (0, import_react4.useState)(
-    () => readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
+function rememberSavedLink(url) {
+  const trimmed = url.trim();
+  if (!isLikelyFigmaUrl(trimmed)) return readSavedLinks();
+  const next = [
+    { url: trimmed, label: labelForFigmaUrl(trimmed), savedAt: (/* @__PURE__ */ new Date()).toISOString() },
+    ...readSavedLinks().filter((x) => x.url !== trimmed)
+  ].slice(0, MAX_SAVED_LINKS);
+  writeSavedLinks(next);
+  return next;
+}
+function removeSavedLink(url) {
+  const next = readSavedLinks().filter((x) => x.url !== url);
+  writeSavedLinks(next);
+  return next;
+}
+function VisualComparePanel({
+  repoInput,
+  auth,
+  onSendToChat,
+  openConfirmDialog
+}) {
+  const [figmaUrl, setFigmaUrlState] = (0, import_react3.useState)(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
+  const [figmaToken, setFigmaTokenState] = (0, import_react3.useState)(
+    () => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
   );
-  const [busy, setBusy] = (0, import_react4.useState)(false);
-  const [phase, setPhase] = (0, import_react4.useState)("idle");
-  const [candidates, setCandidates] = (0, import_react4.useState)([]);
-  const [selectedKey, setSelectedKey] = (0, import_react4.useState)("");
-  const [data, setData] = (0, import_react4.useState)(null);
-  const [error, setError] = (0, import_react4.useState)("");
-  const [designNodeName, setDesignNodeName] = (0, import_react4.useState)("");
-  const [hifiData, setHifiData] = (0, import_react4.useState)(null);
-  const [useAI, setUseAI] = (0, import_react4.useState)(false);
+  const [savedLinks, setSavedLinks] = (0, import_react3.useState)(() => readSavedLinks());
+  const [busy, setBusy] = (0, import_react3.useState)(false);
+  const [busyMessage, setBusyMessage] = (0, import_react3.useState)("");
+  const [busyStartedAt, setBusyStartedAt] = (0, import_react3.useState)(0);
+  const [elapsed, setElapsed] = (0, import_react3.useState)(0);
+  function beginBusy(message) {
+    setBusyMessage(message);
+    setBusyStartedAt(Date.now());
+    setElapsed(0);
+    setBusy(true);
+  }
+  function endBusy() {
+    setBusy(false);
+    setBusyMessage("");
+    setBusyStartedAt(0);
+    setElapsed(0);
+  }
+  (0, import_react3.useEffect)(() => {
+    if (!busy || !busyStartedAt) return;
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - busyStartedAt) / 1e3)), 1e3);
+    return () => clearInterval(id);
+  }, [busy, busyStartedAt]);
+  const [error, setError] = (0, import_react3.useState)("");
+  const [hifiData, setHifiData] = (0, import_react3.useState)(null);
+  const [activeDesignId, setActiveDesignId] = (0, import_react3.useState)("");
+  const [activeCodeFile, setActiveCodeFile] = (0, import_react3.useState)(null);
+  const [findingsMap, setFindingsMap] = (0, import_react3.useState)({});
+  const [pendingJob, setPendingJob] = (0, import_react3.useState)(null);
+  const [rematchApply, setRematchApply] = (0, import_react3.useState)(null);
+  const rematchTokenRef = (0, import_react3.useRef)(0);
   const setFigmaUrl = (value) => {
     setFigmaUrlState(value);
     writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim());
@@ -1138,47 +2536,114 @@ function VisualComparePanel({ repoInput, auth }) {
     setFigmaTokenState(value);
     writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim());
   };
-  (0, import_react4.useEffect)(() => {
-    setFigmaUrlState(readUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
-    setFigmaTokenState(readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN));
-    setCandidates([]);
-    setSelectedKey("");
-    setData(null);
-    setPhase("idle");
+  const clearFigmaUrl = () => {
+    setFigmaUrlState("");
+    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_URL);
+  };
+  const clearFigmaToken = () => {
+    setFigmaTokenState("");
+    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_TOKEN);
+  };
+  const saveCurrentLink = () => {
+    if (!figmaUrl.trim()) return;
+    setSavedLinks(rememberSavedLink(figmaUrl));
+  };
+  const applySavedLink = (url) => {
+    setFigmaUrl(url);
+  };
+  const deleteSavedLink = (url) => {
+    const next = removeSavedLink(url);
+    setSavedLinks(next);
+    if (figmaUrl.trim() === url.trim()) clearFigmaUrl();
+  };
+  const onDesignLinkUsed = (url) => {
+    setSavedLinks(rememberSavedLink(url));
+  };
+  (0, import_react3.useEffect)(() => {
+    if (hasRepoUiConfig(repoInput)) {
+      setFigmaUrlState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
+      setFigmaTokenState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN));
+    } else {
+      setFigmaUrlState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_URL));
+      setFigmaTokenState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN));
+    }
     setError("");
-    setDesignNodeName("");
+    setHifiData(null);
+    setActiveDesignId("");
+    setActiveCodeFile(null);
+    setFindingsMap({});
+    setPendingJob(null);
+    setRematchApply(null);
   }, [repoInput]);
-  const basePayload = () => ({
-    repoPath: repoInput,
-    auth,
-    figmaUrl: figmaUrl.trim(),
-    figmaToken: figmaToken.trim()
-  });
-  async function locate() {
-    setError("");
-    setData(null);
-    setDesignNodeName("");
-    if (!figmaUrl.trim() || !figmaToken.trim()) {
-      setError("请填写设计稿链接和访问 Token");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await post2("/tracescope/v1/match-page", basePayload());
-      const list = res.candidates || [];
-      setCandidates(list);
-      setPhase("matched");
-      setDesignNodeName(typeof res.designNodeName === "string" ? res.designNodeName : "");
-      if (list.length) {
-        const first = list[0];
-        setSelectedKey(candidateKey(first));
+  (0, import_react3.useEffect)(() => {
+    if (!pendingJob) return;
+    let timer = null;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const MAX_WAIT_MS = 18e4;
+    const tick = async () => {
+      try {
+        const res = await post2("/tracescope/v1/visual-job", { id: pendingJob.jobId });
+        if (cancelled) return;
+        const status = res.status;
+        if (status === "published") {
+          if (pendingJob.kind === "rematch") {
+            const rematch = res.rematch;
+            const picks = (rematch?.picks ?? []).filter((p) => p && p.relativePath).map((p) => ({
+              adapterId: String(p.adapterId || "android-xml"),
+              relativePath: String(p.relativePath),
+              kindLabel: p.kindLabel,
+              score: p.score,
+              reason: p.reason
+            }));
+            if (picks.length) {
+              rematchTokenRef.current += 1;
+              setRematchApply({
+                designId: pendingJob.designId,
+                candidates: picks,
+                note: rematch?.note,
+                token: rematchTokenRef.current
+              });
+              setError(
+                `✓ AI 已写回文件推荐（${picks[0].relativePath}）。可在会话继续纠正后再次写回。`
+              );
+            }
+          } else {
+            const findings = res.findings;
+            if (findings) {
+              setFindingsMap((prev) => ({
+                ...prev,
+                [pendingJob.designId]: {
+                  findings: findings.findings ?? [],
+                  renderPatch: findings.renderPatch,
+                  summary: findings.summary,
+                  savedAt: findings.savedAt || (/* @__PURE__ */ new Date()).toISOString()
+                }
+              }));
+            }
+          }
+          setPendingJob(null);
+          return;
+        }
+        if (status === "error") {
+          setPendingJob(null);
+          return;
+        }
+      } catch {
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+      if (cancelled) return;
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        setPendingJob(null);
+        return;
+      }
+      timer = setTimeout(tick, 2e3);
+    };
+    timer = setTimeout(tick, 2500);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [pendingJob]);
   function nodeUrl(designId) {
     try {
       const u = new URL(figmaUrl);
@@ -1188,11 +2653,7 @@ function VisualComparePanel({ repoInput, auth }) {
       return figmaUrl;
     }
   }
-  async function compareFromOverview(designId, codeFile) {
-    setError("");
-    setData(null);
-    setHifiData(null);
-    setBusy(true);
+  async function runHifiCompare(designId, codeFile, force = false) {
     try {
       const res = await post2("/tracescope/v1/hifi-compare", {
         repoPath: repoInput,
@@ -1201,80 +2662,314 @@ function VisualComparePanel({ repoInput, auth }) {
         figmaToken: figmaToken.trim(),
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
-        useAI
+        useAI: false,
+        force
       });
       setHifiData(res);
+      setActiveDesignId(designId);
+      setActiveCodeFile(codeFile);
+      try {
+        const f = await post2("/tracescope/v1/visual-findings-load", {
+          repoPath: repoInput,
+          figmaUrl: nodeUrl(designId),
+          designId,
+          adapterId: codeFile.adapterId,
+          relativePath: codeFile.relativePath
+        });
+        const report = f.report;
+        if (f.found && report) {
+          setFindingsMap((prev) => ({
+            ...prev,
+            [designId]: {
+              findings: report.findings ?? [],
+              renderPatch: report.renderPatch,
+              summary: report.summary,
+              savedAt: report.savedAt || (/* @__PURE__ */ new Date()).toISOString()
+            }
+          }));
+        }
+      } catch {
+      }
+      return {
+        ok: true,
+        designImageUrl: res.designImageUrl
+      };
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
+      return { ok: false, error: err.message };
     }
   }
-  async function compare() {
+  async function compareFromOverview(designId, codeFile, force = false) {
     setError("");
-    const c = candidates.find((x) => candidateKey(x) === selectedKey);
-    if (!c) {
-      setError("请选择要对比的页面");
-      return;
-    }
-    setBusy(true);
+    setHifiData(null);
+    setActiveDesignId("");
+    setActiveCodeFile(null);
+    beginBusy(force ? "正在重新生成界面对比…" : "正在对比设计稿与代码，并生成标注…");
     try {
-      const res = await post2("/tracescope/v1/visual-compare", {
-        ...basePayload(),
-        adapterId: c.adapterId,
-        relativePath: c.relativePath
-      });
-      setData(res);
-    } catch (err) {
-      setData(null);
-      setError(err.message);
+      const result = await runHifiCompare(designId, codeFile, force);
+      if (!result.ok) setError(result.error);
+      else if (!result.designImageUrl) {
+        setError(
+          "界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查 Figma 链接/Token 后重试「界面对比」。"
+        );
+      }
     } finally {
-      setBusy(false);
+      endBusy();
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { style: S.card, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "UI 走查：设计稿 ↔ 代码" }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: S.hint, children: "连接设计稿后，系统会在当前仓库中自动定位对应的页面（同一页面可能存在多种技术实现）， 再与所选实现进行确定性对比，自动列出尺寸、间距、颜色、字号等差异。无需运行应用，也不依赖模型。" }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: S.label, children: [
+  async function aiAnalyzeFromOverview(designId, codeFile) {
+    setError("");
+    const boardReady = !!hifiData && activeDesignId === designId && activeCodeFile?.adapterId === codeFile.adapterId && activeCodeFile?.relativePath === codeFile.relativePath;
+    if (!boardReady) {
+      const proceed = window.confirm(
+        "尚未对该页完成「界面对比」。\n\n继续将先生成界面对比（可能需要几十秒到数分钟），再准备 AI 分析提示词；整体耗时与 token 消耗都会更高。\n\n若设计稿渲染图加载失败，分析质量会明显下降。\n\n是否仍要继续？"
+      );
+      if (!proceed) {
+        setError("已取消 AI 协助分析。建议先点「界面对比」，确认设计稿渲染成功后再分析。");
+        return;
+      }
+    }
+    beginBusy(boardReady ? "正在准备 AI 协助分析…" : "正在生成界面对比，随后准备 AI 协助分析…");
+    try {
+      let designImageUrl = boardReady ? hifiData?.designImageUrl : void 0;
+      if (!boardReady) {
+        const compared = await runHifiCompare(designId, codeFile, false);
+        if (!compared.ok) {
+          setError(
+            `界面对比失败，已中止 AI 协助分析，避免无效 token 消耗。
+原因：${compared.error}`
+          );
+          return;
+        }
+        designImageUrl = compared.designImageUrl;
+        setBusyMessage("正在准备 AI 协助分析…");
+      }
+      if (!designImageUrl) {
+        const proceedWithoutRaster = window.confirm(
+          "设计稿官方渲染图加载失败（或尚未可用）。\n\n没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n建议先检查 Figma 链接与 Token，重新「界面对比」成功后再分析。\n\n是否仍要继续？"
+        );
+        if (!proceedWithoutRaster) {
+          setError(
+            "已取消：请先确认设计稿渲染图可加载（界面对比左侧出现设计图），再使用「AI 协助分析」。"
+          );
+          return;
+        }
+      }
+      const res = await post2("/tracescope/v1/code-visual-prompt", {
+        repoPath: repoInput,
+        auth,
+        figmaUrl: nodeUrl(designId),
+        figmaToken: figmaToken.trim(),
+        adapterId: codeFile.adapterId,
+        relativePath: codeFile.relativePath
+      });
+      const prompt = res.prompt;
+      const jobId = res.jobId;
+      const promptDesignImage = res.designImageUrl;
+      if (!designImageUrl && !promptDesignImage) {
+        const proceed = window.confirm(
+          "准备提示词时仍未拿到设计稿渲染图。继续发送可能导致效果差且浪费 token。\n\n是否仍要填入会话？"
+        );
+        if (!proceed) {
+          setError("已取消填入提示词。请修复设计稿渲染后再试。");
+          return;
+        }
+      }
+      if (typeof onSendToChat !== "function" || !prompt) {
+        setError("无法准备 AI 协助分析，请重试。");
+        return;
+      }
+      const sent = onSendToChat(prompt);
+      if (!sent.ok) {
+        setError(
+          (sent.error || "无法写入会话输入框") + "；请确认已打开并选中一个会话，或重新点击「AI 协助分析」。"
+        );
+        return;
+      }
+      if (jobId) setPendingJob({ jobId, designId, kind: "findings" });
+      setError(
+        designImageUrl || promptDesignImage ? "✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。" : "✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。"
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      endBusy();
+    }
+  }
+  async function aiRematchFromOverview(designId, codeFile) {
+    setError("");
+    beginBusy("正在准备「AI 推荐文件」提示词…");
+    try {
+      if (!figmaUrl.trim() || !figmaToken.trim()) {
+        setError("请先填写设计稿链接与 Token");
+        return;
+      }
+      const res = await post2("/tracescope/v1/match-page", {
+        repoPath: repoInput,
+        auth,
+        figmaUrl: figmaUrl.trim(),
+        figmaToken: figmaToken.trim(),
+        designId,
+        rematchPrompt: true,
+        adapterId: codeFile?.adapterId,
+        relativePath: codeFile?.relativePath
+      });
+      const prompt = res.prompt;
+      const jobId = res.jobId;
+      if (typeof onSendToChat !== "function" || !prompt) {
+        setError("无法准备推荐提示词，请重试。");
+        return;
+      }
+      const sent = onSendToChat(prompt);
+      if (!sent.ok) {
+        setError(
+          (sent.error || "无法写入会话输入框") + "；请确认已打开并选中一个会话，核对提示词后再发送。写回后侧栏会自动更新选中文件。"
+        );
+        return;
+      }
+      if (jobId) setPendingJob({ jobId, designId, kind: "rematch" });
+      setError(
+        "✓ 已将「AI 推荐文件」提示词填入当前会话。请核对后发送；模型调用 tracescope_publish_page_rematch 后，侧栏会自动选中推荐文件。可继续对话纠正并再次写回。"
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      endBusy();
+    }
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { style: S.card, children: [
+    busy ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LoadingOverlay, { message: busyMessage, elapsedSeconds: elapsed }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "UI 走查：设计稿 ↔ 代码" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("p", { style: S.hint, children: [
+      "粘贴 Figma 链接与 Token 后扫描：链接带 ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { children: "node-id" }),
+      " 时优先定位该页（若节点下有多块画板会拆成多张卡片）；否则扫描整个设计文件。 链接与 Token 会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。"
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { style: S.label, children: [
       "设计稿链接",
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "input",
-        {
-          style: S.input,
-          value: figmaUrl,
-          disabled: busy,
-          placeholder: "https://www.figma.com/design/...?node-id=0-3046",
-          onChange: (e) => setFigmaUrl(e.target.value)
-        }
-      )
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "input",
+          {
+            style: { ...S.input, flex: 1, marginTop: 0 },
+            value: figmaUrl,
+            disabled: busy,
+            placeholder: "https://www.figma.com/design/...?node-id=0-3046",
+            onChange: (e) => setFigmaUrl(e.target.value),
+            onBlur: () => {
+              if (isLikelyFigmaUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl));
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "button",
+          {
+            type: "button",
+            style: S.miniBtn,
+            disabled: busy || !figmaUrl.trim(),
+            title: "保存到常用链接",
+            onClick: saveCurrentLink,
+            children: "保存"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "button",
+          {
+            type: "button",
+            style: S.miniBtn,
+            disabled: busy || !figmaUrl.trim(),
+            title: "清空当前链接",
+            onClick: clearFigmaUrl,
+            children: "删除"
+          }
+        )
+      ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: S.label, children: [
+    savedLinks.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { margin: "0 0 8px", fontSize: 12 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { color: "#667085", marginBottom: 4 }, children: "常用设计稿链接" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("ul", { style: { listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }, children: savedLinks.map((item) => {
+        const active2 = item.url.trim() === figmaUrl.trim();
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          "li",
+          {
+            style: {
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              padding: "4px 6px",
+              borderRadius: 6,
+              background: active2 ? "#eef6ff" : "#f8fafc",
+              border: `1px solid ${active2 ? "#b2d4ff" : "#e4e7ec"}`
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "button",
+                {
+                  type: "button",
+                  disabled: busy,
+                  onClick: () => applySavedLink(item.url),
+                  title: item.url,
+                  style: {
+                    flex: 1,
+                    textAlign: "left",
+                    border: "none",
+                    background: "transparent",
+                    cursor: busy ? "default" : "pointer",
+                    padding: 0,
+                    fontSize: 12,
+                    color: "#101828",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                  },
+                  children: item.label || item.url
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: S.miniBtn,
+                  disabled: busy,
+                  title: "从常用列表删除",
+                  onClick: () => deleteSavedLink(item.url),
+                  children: "×"
+                }
+              )
+            ]
+          },
+          item.url
+        );
+      }) })
+    ] }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { style: S.label, children: [
       "访问 Token",
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "input",
-        {
-          style: S.input,
-          type: "password",
-          value: figmaToken,
-          disabled: busy,
-          placeholder: "figd_...",
-          onChange: (e) => setFigmaToken(e.target.value)
-        }
-      )
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "input",
+          {
+            style: { ...S.input, flex: 1, marginTop: 0 },
+            type: "password",
+            value: figmaToken,
+            disabled: busy,
+            placeholder: "figd_...",
+            onChange: (e) => setFigmaToken(e.target.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "button",
+          {
+            type: "button",
+            style: S.miniBtn,
+            disabled: busy || !figmaToken.trim(),
+            title: "清除已保存的 Token",
+            onClick: clearFigmaToken,
+            children: "清除"
+          }
+        )
+      ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...S.row, gap: 6, fontSize: 12, color: "#5f584c", margin: "2px 0 8px" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "input",
-        {
-          type: "checkbox",
-          checked: useAI,
-          disabled: busy,
-          onChange: (e) => setUseAI(e.target.checked)
-        }
-      ),
-      "本次生成启用 AI 辅助（仅用于推断列表/分页等动态区域，会标注为「AI 推断」，不参与自动判定）"
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { marginTop: 2 }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { marginTop: 2 }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       PageMappingOverview,
       {
         repoInput,
@@ -1282,126 +2977,87 @@ function VisualComparePanel({ repoInput, auth }) {
         figmaToken,
         auth,
         busy,
-        onScanStateChange: setBusy,
-        onCompare: compareFromOverview
+        activeDesignId,
+        onScanStateChange: (next, message) => next ? beginBusy(message || "正在扫描设计稿…") : endBusy(),
+        onDesignLinkUsed,
+        onCompare: compareFromOverview,
+        onAiAnalyze: aiAnalyzeFromOverview,
+        onAiRematch: aiRematchFromOverview,
+        rematchApply
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("details", { style: { marginTop: 10 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("summary", { style: { cursor: "pointer", fontSize: 12, color: "#6b645a" }, children: "高级：仅定位当前链接选中的单个节点" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: { ...S.primary, marginTop: 8 }, disabled: busy, onClick: locate, children: busy && phase === "idle" ? "定位中…" : "自动定位当前节点" }),
-      phase === "matched" ? candidates.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { ...S.row, justifyContent: "space-between" }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontWeight: 600 }, children: "匹配的页面（默认最佳，可切换）" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }, children: candidates.map((c) => {
-          const key = candidateKey(c);
-          const checked = key === selectedKey;
-          return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-            "label",
-            {
-              style: {
-                border: "1px solid " + (checked ? "#0f6e56" : "var(--dsh-border,#ddd4c5)"),
-                borderRadius: 8,
-                padding: "8px 10px",
-                cursor: "pointer",
-                background: checked ? "#f2f8f5" : "#fff",
-                fontSize: 12
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { ...S.row, justifyContent: "space-between" }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { display: "inline-flex", gap: 8, alignItems: "center" }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-                    "input",
-                    {
-                      type: "radio",
-                      name: "visual-page",
-                      checked,
-                      onChange: () => setSelectedKey(key)
-                    }
-                  ),
-                  /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("strong", { children: [
-                    c.kindLabel,
-                    " · ",
-                    Math.round(c.score * 100),
-                    "%"
-                  ] }),
-                  !c.precise ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: S.badge, children: "暂不支持精确对比" }) : null
-                ] }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { color: "#6b645a", marginTop: 4 }, children: c.relativePath }),
-                c.reasons.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { color: "#8a7f70", marginTop: 2 }, children: c.reasons.join("；") }) : null
-              ]
-            },
-            key
-          );
-        }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "button",
-          {
-            type: "button",
-            style: { ...S.primary, marginTop: 10 },
-            disabled: busy,
-            onClick: compare,
-            children: busy ? "对比中…" : "开始对比所选页面"
-          }
-        )
-      ] }) : designNodeName ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...S.hint, color: "#9a6700", marginTop: 10, lineHeight: 1.7 }, children: [
-        "当前链接指向的节点「",
-        designNodeName,
-        "」是一个",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "空白图层（不含任何文案或控件）" }),
-        "， 无法对应到代码页面。",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("br", {}),
-        "请在 Figma 中点击真正的",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "画板 / 界面 Frame" }),
-        "（通常包含整屏内容，而非某个矩形、图片等子元素）， 右键选择「Copy link to selection」后重新粘贴。"
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...S.hint, color: "#9a6700", marginTop: 10, lineHeight: 1.7 }, children: [
-        "未能在仓库中定位到与设计稿对应的页面。请确认：",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("br", {}),
-        "1）所选代码文件夹根目录正确；",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("br", {}),
-        "2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("br", {}),
-        "3）设计稿中的文案与界面实际文案一致。"
-      ] }) : null
-    ] }),
-    error ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { color: "#b42318", margin: "8px 0 0", fontSize: 12 }, children: error }) : null,
-    data && !data.precise ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+    error ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { color: "#b42318", margin: "8px 0 0", fontSize: 12 }, children: error }) : null,
+    hifiData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       "div",
       {
         style: {
-          marginTop: 12,
-          border: "1px solid var(--dsh-border,#ddd4c5)",
+          marginTop: 14,
+          padding: "10px 12px",
+          border: "1px solid #0f6e56",
           borderRadius: 10,
-          padding: 10,
-          background: "#faf7f0",
+          background: "#f2f8f5",
           fontSize: 12,
-          color: "#7a5b13",
-          lineHeight: 1.5
+          color: "#0d4a3a",
+          lineHeight: 1.6
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: data.page.kindLabel }),
-          " · ",
-          data.page.relativePath,
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { marginTop: 4 }, children: data.reason || "该实现以代码方式构建界面，当前版本暂不支持属性级对比。" })
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { fontWeight: 700, fontSize: 13 }, children: [
+            "当前对比：",
+            String(
+              hifiData?.designHifiTree?.name ?? ""
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { marginTop: 2, color: "#3f6b5c", wordBreak: "break-all" }, children: [
+            "设计稿 ↔ 代码文件：",
+            activeCodeFile?.relativePath ?? hifiData?.page?.relativePath ?? ""
+          ] })
         ]
       }
     ) : null,
-    data && data.precise && data.result ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(VisualDiffBoard, { data }) : null,
-    hifiData ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(HifiCompareBoard, { data: hifiData }) : null
+    hifiData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      HifiCompareBoard,
+      {
+        data: hifiData,
+        findings: activeDesignId ? findingsMap[activeDesignId] : void 0,
+        onSendToChat,
+        openConfirmDialog,
+        onAiAnalyze: (file) => {
+          const designId = String(
+            hifiData?.designHifiTree?.id ?? ""
+          );
+          if (designId) aiAnalyzeFromOverview(designId, file);
+          else setError("无法确定当前设计节点，请重新进行界面对比。");
+        },
+        onRegenerate: () => {
+          const tree = hifiData;
+          const designId = String(tree?.designHifiTree?.id ?? "");
+          const adapterId = String(tree?.page?.adapterId ?? "");
+          const relativePath = String(tree?.page?.relativePath ?? "");
+          if (designId && adapterId && relativePath) {
+            void compareFromOverview(designId, { adapterId, relativePath }, true);
+          } else {
+            setError("无法确定当前页面，请重新进行界面对比。");
+          }
+        }
+      }
+    ) : null
   ] });
 }
-function candidateKey(c) {
-  return c.adapterId + "::" + c.relativePath;
-}
-var import_react4, import_jsx_runtime5, UI_CONFIG_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, S;
+var import_react3, import_jsx_runtime4, UI_CONFIG_PREFIX, UI_CONFIG_GLOBAL_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, SAVED_LINKS_KEY, MAX_SAVED_LINKS, S;
 var init_VisualComparePanel = __esm({
   "client-src/visual/VisualComparePanel.tsx"() {
     "use strict";
-    import_react4 = require("react");
-    init_VisualDiffBoard();
+    import_react3 = require("react");
     init_PageMappingOverview();
     init_HifiCompareBoard();
-    import_jsx_runtime5 = require("react/jsx-runtime");
+    init_LoadingOverlay();
+    import_jsx_runtime4 = require("react/jsx-runtime");
     UI_CONFIG_PREFIX = "tracescope.ui.";
+    UI_CONFIG_GLOBAL_PREFIX = "tracescope.ui.global.";
     UI_CONFIG_FIGMA_URL = "figmaUrl";
     UI_CONFIG_FIGMA_TOKEN = "figmaToken";
+    SAVED_LINKS_KEY = "tracescope.ui.savedFigmaLinks";
+    MAX_SAVED_LINKS = 12;
     S = {
       card: {
         border: "1px solid var(--dsh-border,#ddd4c5)",
@@ -1420,6 +3076,17 @@ var init_VisualComparePanel = __esm({
         borderRadius: 8,
         fontSize: 13,
         boxSizing: "border-box"
+      },
+      miniBtn: {
+        flexShrink: 0,
+        padding: "6px 10px",
+        borderRadius: 8,
+        border: "1px solid #d0d5dd",
+        background: "#fff",
+        color: "#344054",
+        fontSize: 12,
+        cursor: "pointer",
+        whiteSpace: "nowrap"
       },
       primary: {
         padding: "7px 12px",
@@ -1446,12 +3113,12 @@ var init_VisualComparePanel = __esm({
 var __tracescopeExports = {};
 var React = require("react");
 var jsxRuntime = require("react/jsx-runtime");
-var jsx6 = jsxRuntime.jsx;
-var jsxs6 = jsxRuntime.jsxs;
-var useState5 = React.useState;
+var jsx5 = jsxRuntime.jsx;
+var jsxs5 = jsxRuntime.jsxs;
+var useState4 = React.useState;
 var useEffect4 = React.useEffect;
 var useCallback = React.useCallback;
-var useRef2 = React.useRef;
+var useRef3 = React.useRef;
 var VisualComparePanel2 = (init_VisualComparePanel(), __toCommonJS(VisualComparePanel_exports)).VisualComparePanel;
 var TAB_ID = "@rebornace/dsh-tracescope";
 var AUTO_OPEN_KEY = "tracescope.autoOpen";
@@ -1463,6 +3130,7 @@ function isAutoOpenEnabled() {
   }
 }
 var hostCtx = null;
+var activeBusyAbort = null;
 var styles = {
   root: {
     display: "flex",
@@ -1590,14 +3258,22 @@ var styles = {
     boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
     textAlign: "center"
   },
-  busySpinner: {
-    width: 22,
-    height: 22,
+  busySpinnerSvg: {
+    display: "block",
+    width: 28,
+    height: 28,
     margin: "0 auto 10px",
-    borderRadius: "50%",
-    border: "3px solid #efe8da",
-    borderTopColor: "#0f6e56",
-    animation: "tracescope-spin 0.8s linear infinite"
+    overflow: "visible"
+  },
+  busyCancel: {
+    marginTop: 12,
+    border: "1px solid var(--dsh-border, #ddd4c5)",
+    borderRadius: 999,
+    padding: "6px 14px",
+    cursor: "pointer",
+    background: "#fff",
+    color: "#5f584c",
+    fontSize: 12
   },
   modalCard: {
     width: "min(420px, 100%)",
@@ -1618,8 +3294,8 @@ var styles = {
     fontWeight: 700
   }
 };
-function statusBtnStyle(kind, active) {
-  if (!active) return styles.statusBtn;
+function statusBtnStyle(kind, active2) {
+  if (!active2) return styles.statusBtn;
   if (kind === "pass") {
     return Object.assign({}, styles.statusBtn, {
       background: "#0f6e56",
@@ -1678,12 +3354,19 @@ function apiGet(path, params) {
     });
   });
 }
+function isAbortError(err) {
+  if (!err) return false;
+  if (err.name === "AbortError") return true;
+  var msg = String(err.message || err || "");
+  return /aborted|AbortError|The user aborted/i.test(msg);
+}
 function apiPost(path, body) {
   return fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: activeBusyAbort ? activeBusyAbort.signal : void 0
   }).then(function(r) {
     return r.text().then(function(text) {
       var data = {};
@@ -2024,12 +3707,12 @@ function fileToBase64(file) {
 function StatusButtons(props) {
   var status = props.status || "pending";
   var locked = Boolean(props.disabled);
-  return jsxs6("div", {
+  return jsxs5("div", {
     style: Object.assign({}, styles.row, { gap: 6 }),
     children: ["pass", "fail", "skip", "pending"].map(function(s) {
       var label = s === "pass" ? "通过" : s === "fail" ? "失败" : s === "skip" ? "跳过" : "重置";
-      var active = status === s;
-      return jsx6(
+      var active2 = status === s;
+      return jsx5(
         "button",
         {
           type: "button",
@@ -2037,15 +3720,15 @@ function StatusButtons(props) {
           title: s === "pass" ? "标记为验证通过" : s === "fail" ? "标记为验证失败" : s === "skip" ? "本轮不测，标记跳过" : "清除结果，恢复为待测",
           style: Object.assign(
             {},
-            statusBtnStyle(s, active),
+            statusBtnStyle(s, active2),
             locked ? { opacity: 0.55, cursor: "not-allowed" } : null
           ),
-          "aria-pressed": active ? "true" : "false",
+          "aria-pressed": active2 ? "true" : "false",
           onClick: function() {
             if (locked) return;
             props.onChange(s);
           },
-          children: active && s !== "pending" ? "✓ " + label : label
+          children: active2 && s !== "pending" ? "✓ " + label : label
         },
         s
       );
@@ -2072,7 +3755,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   (refs || []).forEach(function(r) {
     if (!r || !r.name) return;
     var prefix = r.kind === "remote" ? "远端 " : r.kind === "tag" ? "标签 " : "";
-    var option = jsx6(
+    var option = jsx5(
       "option",
       {
         value: r.name,
@@ -2085,7 +3768,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   });
   (commits || []).forEach(function(c) {
     commitOpts.push(
-      jsx6(
+      jsx5(
         "option",
         {
           value: c.sha,
@@ -2097,14 +3780,14 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   });
   var groups = [];
   if (branchOpts.length) {
-    groups.push(jsx6("optgroup", { label: "分支", children: branchOpts }, "g-branch"));
+    groups.push(jsx5("optgroup", { label: "分支", children: branchOpts }, "g-branch"));
   }
   if (tagOpts.length) {
-    groups.push(jsx6("optgroup", { label: "标签", children: tagOpts }, "g-tag"));
+    groups.push(jsx5("optgroup", { label: "标签", children: tagOpts }, "g-tag"));
   }
   if (commitOpts.length) {
     groups.push(
-      jsx6(
+      jsx5(
         "optgroup",
         {
           label: commitRefLabel ? "近期提交 · " + commitRefLabel : "近期提交",
@@ -2115,7 +3798,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
     );
   }
   if (!groups.length) {
-    groups.push(jsx6("option", { value: "", children: emptyLabel }, "empty"));
+    groups.push(jsx5("option", { value: "", children: emptyLabel }, "empty"));
   }
   return groups;
 }
@@ -2191,29 +3874,29 @@ function ItemCard(props) {
   var st = item.status || "pending";
   var note = item.testerNote || "";
   var shots = item.testerScreenshots || [];
-  var fileRef = useRef2(null);
-  return jsxs6("article", {
+  var fileRef = useRef3(null);
+  return jsxs5("article", {
     style: Object.assign({}, styles.item, {
       borderLeft: "4px solid",
       borderLeftColor: st === "pass" ? "#0f6e56" : st === "fail" ? "#b42318" : st === "skip" ? "#b54708" : "#ddd4c5",
       opacity: locked ? 0.72 : 1
     }),
     children: [
-      jsxs6("div", {
+      jsxs5("div", {
         style: { display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
         children: [
-          jsxs6("div", {
+          jsxs5("div", {
             children: [
-              jsx6("div", { style: { fontWeight: 700 }, children: item.displayName }),
-              jsxs6("div", {
+              jsx5("div", { style: { fontWeight: 700 }, children: item.displayName }),
+              jsxs5("div", {
                 style: { marginTop: 4 },
                 children: [
-                  jsx6("span", {
+                  jsx5("span", {
                     style: Object.assign({}, styles.badge, statusBadgeStyle(st)),
                     children: statusLabel(st)
                   }),
-                  jsx6("span", { style: styles.badge, children: "风险 " + item.risk }),
-                  jsx6("span", {
+                  jsx5("span", { style: styles.badge, children: "风险 " + item.risk }),
+                  jsx5("span", {
                     style: styles.badge,
                     children: item.kind === "direct" ? "直接项" : "可能波及"
                   })
@@ -2221,7 +3904,7 @@ function ItemCard(props) {
               })
             ]
           }),
-          jsx6(StatusButtons, {
+          jsx5(StatusButtons, {
             status: st,
             disabled: locked,
             onChange: function(s) {
@@ -2231,20 +3914,20 @@ function ItemCard(props) {
           })
         ]
       }),
-      jsx6("ol", {
+      jsx5("ol", {
         style: { margin: "8px 0 0", paddingLeft: 18, color: "#6b645a" },
         children: (item.suggestedSteps || []).map(function(step, idx) {
-          return jsx6("li", { children: step }, idx);
+          return jsx5("li", { children: step }, idx);
         })
       }),
-      st === "fail" ? jsxs6("div", {
+      st === "fail" ? jsxs5("div", {
         style: { marginTop: 10 },
         children: [
-          jsx6("div", {
+          jsx5("div", {
             style: { fontWeight: 600, marginBottom: 4, color: "#b42318" },
             children: "失败备注（给开发）"
           }),
-          jsx6("textarea", {
+          jsx5("textarea", {
             style: Object.assign({}, styles.input, {
               minHeight: 72,
               resize: "vertical",
@@ -2299,7 +3982,7 @@ function ItemCard(props) {
               );
             }
           }),
-          jsxs6("div", {
+          jsxs5("div", {
             style: Object.assign({}, styles.row, {
               marginTop: 8,
               alignItems: "center",
@@ -2307,7 +3990,7 @@ function ItemCard(props) {
               gap: 8
             }),
             children: [
-              jsx6("input", {
+              jsx5("input", {
                 ref: fileRef,
                 type: "file",
                 accept: "image/*",
@@ -2332,15 +4015,15 @@ function ItemCard(props) {
                     return;
                   }
                   var next = shots.slice();
-                  var pending = picked.length;
+                  var pending2 = picked.length;
                   picked.forEach(function(file) {
                     compressImageToShot(
                       file,
                       file.name,
                       function(shot) {
                         next.push(shot);
-                        pending -= 1;
-                        if (pending <= 0) {
+                        pending2 -= 1;
+                        if (pending2 <= 0) {
                           props.onScreenshots(
                             listKind,
                             itemIndex,
@@ -2351,9 +4034,9 @@ function ItemCard(props) {
                         }
                       },
                       function(msg) {
-                        pending -= 1;
+                        pending2 -= 1;
                         props.onShotHint && props.onShotHint(msg);
-                        if (pending <= 0 && next.length > shots.length) {
+                        if (pending2 <= 0 && next.length > shots.length) {
                           props.onScreenshots(
                             listKind,
                             itemIndex,
@@ -2367,7 +4050,7 @@ function ItemCard(props) {
                   });
                 }
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: styles.btn,
                 disabled: locked || shots.length >= MAX_SHOTS,
@@ -2377,13 +4060,13 @@ function ItemCard(props) {
                 },
                 children: "添加截图"
               }),
-              jsx6("span", {
+              jsx5("span", {
                 style: { fontSize: 12, color: "#6b645a" },
                 children: "已附 " + shots.length + "/" + MAX_SHOTS + " · 支持粘贴或选文件（自动压缩）"
               })
             ]
           }),
-          shots.length ? jsx6("div", {
+          shots.length ? jsx5("div", {
             style: {
               display: "flex",
               flexWrap: "wrap",
@@ -2391,7 +4074,7 @@ function ItemCard(props) {
               marginTop: 8
             },
             children: shots.map(function(shot) {
-              return jsxs6(
+              return jsxs5(
                 "div",
                 {
                   style: {
@@ -2403,7 +4086,7 @@ function ItemCard(props) {
                     background: "#fff"
                   },
                   children: [
-                    jsx6("img", {
+                    jsx5("img", {
                       src: shot.dataUrl,
                       alt: shot.name,
                       title: shot.name,
@@ -2414,7 +4097,7 @@ function ItemCard(props) {
                         objectFit: "cover"
                       }
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, {
                         position: "absolute",
@@ -2442,7 +4125,7 @@ function ItemCard(props) {
                       },
                       children: "×"
                     }),
-                    jsx6("div", {
+                    jsx5("div", {
                       style: {
                         fontSize: 10,
                         padding: "2px 4px",
@@ -2462,18 +4145,18 @@ function ItemCard(props) {
           }) : null
         ]
       }) : null,
-      jsxs6("details", {
+      jsxs5("details", {
         style: { marginTop: 8 },
         children: [
-          jsx6("summary", { children: "查看证据" }),
-          jsx6("ul", {
+          jsx5("summary", { children: "查看证据" }),
+          jsx5("ul", {
             children: (item.files || []).map(function(f) {
-              return jsx6("li", { children: jsx6("code", { children: f }) }, f);
+              return jsx5("li", { children: jsx5("code", { children: f }) }, f);
             })
           }),
-          jsx6("ul", {
+          jsx5("ul", {
             children: (item.evidence || []).map(function(e, idx) {
-              return jsx6("li", { children: e.detail }, idx);
+              return jsx5("li", { children: e.detail }, idx);
             })
           })
         ]
@@ -2501,21 +4184,21 @@ function isGitRemoteInput(value) {
 }
 function TraceScopePanelBody() {
   var initialRepo = localStorage.getItem(REPO_PATH_KEY) || "";
-  var _repo = useState5(initialRepo);
+  var _repo = useState4(initialRepo);
   var repoPath = _repo[0];
   var setRepoPath = _repo[1];
-  var _repoList = useState5(function() {
+  var _repoList = useState4(function() {
     var list = readRepoList();
     if (initialRepo && list.indexOf(initialRepo) === -1) list = writeRepoList([initialRepo].concat(list));
     return list;
   });
   var repoList = _repoList[0];
   var setRepoList = _repoList[1];
-  var _settingsOpen = useState5(!initialRepo);
+  var _settingsOpen = useState4(!initialRepo);
   var settingsOpen = _settingsOpen[0];
   var setSettingsOpen = _settingsOpen[1];
   var isRemote = isGitRemoteInput(repoPath);
-  var _autoOpen = useState5(isAutoOpenEnabled());
+  var _autoOpen = useState4(isAutoOpenEnabled());
   var autoOpen = _autoOpen[0];
   var setAutoOpen = _autoOpen[1];
   function toggleAutoOpen(next) {
@@ -2525,31 +4208,31 @@ function TraceScopePanelBody() {
     } catch (_e) {
     }
   }
-  var _dataDirOpen = useState5(false);
+  var _dataDirOpen = useState4(false);
   var dataDirOpen = _dataDirOpen[0];
   var setDataDirOpen = _dataDirOpen[1];
-  var _dataDir = useState5(null);
+  var _dataDir = useState4(null);
   var dataDirInfo = _dataDir[0];
   var setDataDirInfo = _dataDir[1];
-  var _dataDirDraft = useState5("");
+  var _dataDirDraft = useState4("");
   var dataDirDraft = _dataDirDraft[0];
   var setDataDirDraft = _dataDirDraft[1];
-  var _dataDirBusy = useState5(false);
+  var _dataDirBusy = useState4(false);
   var dataDirBusy = _dataDirBusy[0];
   var setDataDirBusy = _dataDirBusy[1];
-  var _pickerOpen = useState5(false);
+  var _pickerOpen = useState4(false);
   var pickerOpen = _pickerOpen[0];
   var setPickerOpen = _pickerOpen[1];
-  var _pickerPurpose = useState5("data");
+  var _pickerPurpose = useState4("data");
   var pickerPurpose = _pickerPurpose[0];
   var setPickerPurpose = _pickerPurpose[1];
-  var _pickerBrowse = useState5(null);
+  var _pickerBrowse = useState4(null);
   var pickerBrowse = _pickerBrowse[0];
   var setPickerBrowse = _pickerBrowse[1];
-  var _pickerLoading = useState5(false);
+  var _pickerLoading = useState4(false);
   var pickerLoading = _pickerLoading[0];
   var setPickerLoading = _pickerLoading[1];
-  var _pickerSelected = useState5("");
+  var _pickerSelected = useState4("");
   var pickerSelected = _pickerSelected[0];
   var setPickerSelected = _pickerSelected[1];
   function browsePath(target) {
@@ -2643,10 +4326,10 @@ function TraceScopePanelBody() {
     });
   }
   var ACCESS_MODE_KEY = "tracescope.accessMode";
-  var _accessMode = useState5(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
+  var _accessMode = useState4(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
   var accessMode = _accessMode[0];
   var setAccessMode = _accessMode[1];
-  var _copyFlash = useState5("");
+  var _copyFlash = useState4("");
   var copyFlash = _copyFlash[0];
   var setCopyFlash = _copyFlash[1];
   var YX_AUTH_KEY = "tracescope.yunxiaoAuth";
@@ -2656,134 +4339,135 @@ function TraceScopePanelBody() {
   } catch (_e) {
     savedYx = null;
   }
-  var _yxEndpoint = useState5(
+  var _yxEndpoint = useState4(
     savedYx && savedYx.endpoint || "https://openapi-rdc.aliyuncs.com"
   );
   var yxEndpoint = _yxEndpoint[0];
   var setYxEndpoint = _yxEndpoint[1];
-  var _yxToken = useState5(savedYx && savedYx.token || "");
+  var _yxToken = useState4(savedYx && savedYx.token || "");
   var yxToken = _yxToken[0];
   var setYxToken = _yxToken[1];
-  var _yxTokenSaved = useState5(Boolean(savedYx && savedYx.token));
+  var _yxTokenSaved = useState4(Boolean(savedYx && savedYx.token));
   var yxTokenSaved = _yxTokenSaved[0];
   var setYxTokenSaved = _yxTokenSaved[1];
-  var _yxHydrated = useState5(false);
+  var _yxHydrated = useState4(false);
   var yxHydrated = _yxHydrated[0];
   var setYxHydrated = _yxHydrated[1];
-  var _yxOrg = useState5("");
+  var _yxOrg = useState4("");
   var yxOrg = _yxOrg[0];
   var setYxOrg = _yxOrg[1];
-  var _yxSpace = useState5("");
+  var _yxSpace = useState4("");
   var yxSpace = _yxSpace[0];
   var setYxSpace = _yxSpace[1];
-  var _yxType = useState5("");
+  var _yxType = useState4("");
   var yxType = _yxType[0];
   var setYxType = _yxType[1];
-  var _yxAssignee = useState5("");
+  var _yxAssignee = useState4("");
   var yxAssignee = _yxAssignee[0];
   var setYxAssignee = _yxAssignee[1];
-  var _yxOrgs = useState5([]);
+  var _yxOrgs = useState4([]);
   var yxOrgs = _yxOrgs[0];
   var setYxOrgs = _yxOrgs[1];
-  var _yxProjects = useState5([]);
+  var _yxProjects = useState4([]);
   var yxProjects = _yxProjects[0];
   var setYxProjects = _yxProjects[1];
-  var _yxTypes = useState5([]);
+  var _yxTypes = useState4([]);
   var yxTypes = _yxTypes[0];
   var setYxTypes = _yxTypes[1];
-  var _yxMembers = useState5([]);
+  var _yxMembers = useState4([]);
   var yxMembers = _yxMembers[0];
   var setYxMembers = _yxMembers[1];
-  var _yxCatalogHint = useState5("");
+  var _yxCatalogHint = useState4("");
   var yxCatalogHint = _yxCatalogHint[0];
   var setYxCatalogHint = _yxCatalogHint[1];
-  var _yxDebugLog = useState5(false);
+  var _yxDebugLog = useState4(false);
   var yxDebugLog = _yxDebugLog[0];
   var setYxDebugLog = _yxDebugLog[1];
-  var _yxRequestLog = useState5("");
+  var _yxRequestLog = useState4("");
   var yxRequestLog = _yxRequestLog[0];
   var setYxRequestLog = _yxRequestLog[1];
-  var _trackerProvider = useState5("none");
+  var _trackerProvider = useState4("none");
   var trackerProvider = _trackerProvider[0];
   var setTrackerProvider = _trackerProvider[1];
-  var _ghToken = useState5("");
+  var _ghToken = useState4("");
   var ghToken = _ghToken[0];
   var setGhToken = _ghToken[1];
-  var _ghOwner = useState5("");
+  var _ghOwner = useState4("");
   var ghOwner = _ghOwner[0];
   var setGhOwner = _ghOwner[1];
-  var _ghRepo = useState5("");
+  var _ghRepo = useState4("");
   var ghRepo = _ghRepo[0];
   var setGhRepo = _ghRepo[1];
-  var _ghLabels = useState5("bug");
+  var _ghLabels = useState4("bug");
   var ghLabels = _ghLabels[0];
   var setGhLabels = _ghLabels[1];
-  var _glHost = useState5("https://gitlab.com");
+  var _glHost = useState4("https://gitlab.com");
   var glHost = _glHost[0];
   var setGlHost = _glHost[1];
-  var _glToken = useState5("");
+  var _glToken = useState4("");
   var glToken = _glToken[0];
   var setGlToken = _glToken[1];
-  var _glProject = useState5("");
+  var _glProject = useState4("");
   var glProject = _glProject[0];
   var setGlProject = _glProject[1];
-  var _glLabels = useState5("bug");
+  var _glLabels = useState4("bug");
   var glLabels = _glLabels[0];
   var setGlLabels = _glLabels[1];
-  var _whUrl = useState5("");
+  var _whUrl = useState4("");
   var whUrl = _whUrl[0];
   var setWhUrl = _whUrl[1];
-  var _whAuth = useState5("");
+  var _whAuth = useState4("");
   var whAuth = _whAuth[0];
   var setWhAuth = _whAuth[1];
-  var _trackerReady = useState5(false);
+  var _trackerReady = useState4(false);
   var trackerReady = _trackerReady[0];
   var setTrackerReady = _trackerReady[1];
-  var _wiCats = useState5({ Req: true, Bug: true, Task: true, Risk: false, Topic: false });
+  var _wiCats = useState4({ Req: true, Bug: true, Task: true, Risk: false, Topic: false });
   var wiCats = _wiCats[0];
   var setWiCats = _wiCats[1];
-  var _wiItems = useState5([]);
+  var _wiItems = useState4([]);
   var wiItems = _wiItems[0];
   var setWiItems = _wiItems[1];
-  var _wiSelected = useState5({});
+  var _wiSelected = useState4({});
   var wiSelected = _wiSelected[0];
   var setWiSelected = _wiSelected[1];
-  var _wiHint = useState5("");
+  var _wiHint = useState4("");
   var wiHint = _wiHint[0];
   var setWiHint = _wiHint[1];
-  var _resolved = useState5(null);
+  var _resolved = useState4(null);
   var resolved = _resolved[0];
   var setResolved = _resolved[1];
-  var _commits = useState5([]);
+  var _commits = useState4([]);
   var commits = _commits[0];
   var setCommits = _commits[1];
-  var _refs = useState5([]);
+  var _refs = useState4([]);
   var refs = _refs[0];
   var setRefs = _refs[1];
-  var _base = useState5("");
+  var _base = useState4("");
   var baseCommit = _base[0];
   var setBaseCommit = _base[1];
-  var _head = useState5("");
+  var _head = useState4("");
   var headCommit = _head[0];
   var setHeadCommit = _head[1];
-  var _branchQuery = useState5("");
+  var _branchQuery = useState4("");
   var branchQuery = _branchQuery[0];
   var setBranchQuery = _branchQuery[1];
-  var _branchPickerOpen = useState5(false);
+  var _branchPickerOpen = useState4(false);
   var branchPickerOpen = _branchPickerOpen[0];
   var setBranchPickerOpen = _branchPickerOpen[1];
-  var _commitListRef = useState5("");
+  var _commitListRef = useState4("");
   var commitListRef = _commitListRef[0];
   var setCommitListRef = _commitListRef[1];
-  var _report = useState5(null);
+  var _report = useState4(null);
   var report = _report[0];
   var setReport = _report[1];
-  var _tab = useState5("direct");
+  var _tab = useState4("direct");
   var tab = _tab[0];
   var setTab = _tab[1];
   var MODE_KEY = "tracescope.mode";
-  var _mode = useState5(
-    localStorage.getItem(MODE_KEY) === "ui" ? "ui" : "functional"
+  var _savedMode = localStorage.getItem(MODE_KEY);
+  var _mode = useState4(
+    _savedMode === "ui" ? _savedMode : "functional"
   );
   var mode = _mode[0];
   var setMode = _mode[1];
@@ -2794,18 +4478,22 @@ function TraceScopePanelBody() {
     } catch (_e) {
     }
   }
-  var _error = useState5("");
+  var _error = useState4("");
   var error = _error[0];
   var setError = _error[1];
-  var _busy = useState5(false);
+  var _busy = useState4(false);
   var busy = _busy[0];
   var setBusy = _busy[1];
-  var _busyMessage = useState5("");
+  var _busyMessage = useState4("");
   var busyMessage = _busyMessage[0];
   var setBusyMessage = _busyMessage[1];
-  var busyRef = useRef2(false);
-  var busyMsgRef = useRef2("");
-  var _health = useState5("检查中…");
+  var _busyElapsed = useState4(0);
+  var busyElapsed = _busyElapsed[0];
+  var setBusyElapsed = _busyElapsed[1];
+  var busyRef = useRef3(false);
+  var busyMsgRef = useRef3("");
+  var busyBaseMsgRef = useRef3("");
+  var _health = useState4("检查中…");
   var health = _health[0];
   var setHealth = _health[1];
   var AUTH_KEY = "tracescope.auth";
@@ -2833,22 +4521,22 @@ function TraceScopePanelBody() {
   if ((initialAuthMode === "https" || initialAuthMode === "none") && (/^https:\/\/codeup\.aliyun\.com\//i.test(String(initialRepo || "").trim()) || localStorage.getItem(ACCESS_MODE_KEY) === "codeup")) {
     initialAuthMode = "token";
   }
-  var _authMode = useState5(initialAuthMode);
+  var _authMode = useState4(initialAuthMode);
   var authMode = _authMode[0];
   var setAuthMode = _authMode[1];
-  var _authUser = useState5(savedAuth && savedAuth.username || "git");
+  var _authUser = useState4(savedAuth && savedAuth.username || "git");
   var authUser = _authUser[0];
   var setAuthUser = _authUser[1];
-  var _authToken = useState5(savedAuth && savedAuth.token || "");
+  var _authToken = useState4(savedAuth && savedAuth.token || "");
   var authToken = _authToken[0];
   var setAuthToken = _authToken[1];
-  var _authKey = useState5(savedAuth && savedAuth.privateKeyPath || "");
+  var _authKey = useState4(savedAuth && savedAuth.privateKeyPath || "");
   var authKey = _authKey[0];
   var setAuthKey = _authKey[1];
-  var _rememberAuth = useState5(true);
+  var _rememberAuth = useState4(true);
   var rememberAuth = _rememberAuth[0];
   var setRememberAuth = _rememberAuth[1];
-  var _chatHint = useState5("");
+  var _chatHint = useState4("");
   var chatHint = _chatHint[0];
   var setChatHint = _chatHint[1];
   function beginBusy(message) {
@@ -2861,15 +4549,36 @@ function TraceScopePanelBody() {
     var text = message || "处理中，请稍候…";
     busyRef.current = true;
     busyMsgRef.current = text;
+    busyBaseMsgRef.current = text;
+    setBusyElapsed(0);
     setBusy(true);
     setBusyMessage(text);
+    try {
+      activeBusyAbort = new AbortController();
+    } catch (_abort) {
+      activeBusyAbort = null;
+    }
     return true;
   }
   function endBusy() {
     busyRef.current = false;
     busyMsgRef.current = "";
+    busyBaseMsgRef.current = "";
+    activeBusyAbort = null;
     setBusy(false);
     setBusyMessage("");
+    setBusyElapsed(0);
+  }
+  function cancelBusy() {
+    var ctrl = activeBusyAbort;
+    if (ctrl) {
+      try {
+        ctrl.abort();
+      } catch (_e) {
+      }
+    }
+    endBusy();
+    setChatHint("已取消当前操作。可调整版本后重试「生成验证清单」。");
   }
   function updateBusyMessage(message) {
     if (!busyRef.current) return;
@@ -2877,33 +4586,71 @@ function TraceScopePanelBody() {
     busyMsgRef.current = text;
     setBusyMessage(text);
   }
-  var _jobId = useState5("");
+  useEffect4(
+    function() {
+      if (!busy) {
+        setBusyElapsed(0);
+        return void 0;
+      }
+      var started = Date.now();
+      var tick = setInterval(function() {
+        if (!busyRef.current) return;
+        var sec = Math.floor((Date.now() - started) / 1e3);
+        setBusyElapsed(sec);
+        var base = busyBaseMsgRef.current || "";
+        if (sec === 20) {
+          if (/生成验证清单/.test(base)) {
+            updateBusyMessage(
+              "正在分析版本差异与波及范围…（已用时 20 秒；大仓库或首次同步可能需要 1–3 分钟）"
+            );
+          } else if (/同步仓库|远端 API 读取/.test(base)) {
+            updateBusyMessage("仍在同步版本信息…（已用时 20 秒；网络较慢时请稍候）");
+          } else if (/AI 智能分析/.test(base)) {
+            updateBusyMessage("仍在准备 AI 分析提示…（已用时 20 秒）");
+          }
+        } else if (sec === 60) {
+          updateBusyMessage(
+            (base.replace(/…$/, "") || "仍在处理中") + "（已用时 60 秒）。若确认网络/仓库无响应，可点「取消」后重试。"
+          );
+        } else if (sec === 180) {
+          updateBusyMessage(
+            "已等待超过 3 分钟，可能卡住了。建议取消后检查仓库路径、鉴权或网络再试。"
+          );
+        }
+      }, 1e3);
+      return function() {
+        clearInterval(tick);
+      };
+    },
+    [busy]
+  );
+  var _jobId = useState4("");
   var jobId = _jobId[0];
   var setJobId = _jobId[1];
-  var _jobStatus = useState5("");
+  var _jobStatus = useState4("");
   var jobStatus = _jobStatus[0];
   var setJobStatus = _jobStatus[1];
-  var _history = useState5([]);
+  var _history = useState4([]);
   var history = _history[0];
   var setHistory = _history[1];
-  var _historyId = useState5("");
+  var _historyId = useState4("");
   var historyId = _historyId[0];
   var setHistoryId = _historyId[1];
-  var _confirmDlg = useState5(null);
+  var _confirmDlg = useState4(null);
   var confirmDlg = _confirmDlg[0];
   var setConfirmDlg = _confirmDlg[1];
-  var pollRef = useRef2(null);
-  var skipPairLoadRef = useRef2(false);
-  var skipAutoSyncRef = useRef2(false);
-  var noteTimersRef = useRef2({});
-  var viewingHistoryRef = useRef2(null);
-  var reportRef = useRef2(null);
+  var pollRef = useRef3(null);
+  var skipPairLoadRef = useRef3(false);
+  var skipAutoSyncRef = useRef3(false);
+  var noteTimersRef = useRef3({});
+  var viewingHistoryRef = useRef3(null);
+  var reportRef = useRef3(null);
   reportRef.current = report;
-  var taskAttachRef = useRef2(null);
-  var _taskAttachPath = useState5("");
+  var taskAttachRef = useRef3(null);
+  var _taskAttachPath = useState4("");
   var taskAttachPath = _taskAttachPath[0];
   var setTaskAttachPath = _taskAttachPath[1];
-  var _authHydrated = useState5(false);
+  var _authHydrated = useState4(false);
   var authHydrated = _authHydrated[0];
   var setAuthHydrated = _authHydrated[1];
   function buildAuthPayload() {
@@ -2929,8 +4676,8 @@ function TraceScopePanelBody() {
   function codeupRequestToken() {
     return authMode === "token" ? usableSecret(yxToken) : authMode === "https" ? usableSecret(authToken) : usableSecret(yxToken);
   }
-  var restoringProfileRef = useRef2(false);
-  var pendingTrackerSyncRef = useRef2(false);
+  var restoringProfileRef = useRef3(false);
+  var pendingTrackerSyncRef = useRef3(false);
   function defaultYxEndpoint() {
     return "https://openapi-rdc.aliyuncs.com";
   }
@@ -3391,6 +5138,7 @@ function TraceScopePanelBody() {
           setChatHint("当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。");
         }
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -3437,6 +5185,7 @@ function TraceScopePanelBody() {
           applyStoredReport(data.stored, { fromHistory: true });
         }
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -3654,6 +5403,7 @@ function TraceScopePanelBody() {
           );
         }
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -3682,7 +5432,7 @@ function TraceScopePanelBody() {
     // Sync when the repo, mode, access mode, or (for the Codeup fallback) token becomes available.
     [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode]
   );
-  var initialCheckRef = useRef2(false);
+  var initialCheckRef = useRef3(false);
   useEffect4(function() {
     if (initialCheckRef.current) return;
     initialCheckRef.current = true;
@@ -3751,6 +5501,7 @@ function TraceScopePanelBody() {
           );
           refreshHistory();
         }).catch(function(err) {
+          if (isAbortError(err)) return;
           setError(err.message || String(err));
         }).finally(function() {
           endBusy();
@@ -3835,6 +5586,7 @@ function TraceScopePanelBody() {
             }
           }
         }).catch(function(err) {
+          if (isAbortError(err)) return;
           setError(err.message || String(err));
         }).finally(function() {
           endBusy();
@@ -3893,6 +5645,7 @@ function TraceScopePanelBody() {
             setChatHint("已删除该历史任务。");
             refreshHistory();
           }).catch(function(err) {
+            if (isAbortError(err)) return;
             setError(err.message || String(err));
           }).finally(function() {
             endBusy();
@@ -4079,6 +5832,7 @@ function TraceScopePanelBody() {
             next();
           }).catch(function(err) {
             endBusy();
+            if (isAbortError(err)) return;
             setError(err.message || String(err));
           });
           return;
@@ -4113,6 +5867,7 @@ function TraceScopePanelBody() {
           next();
         }).catch(function(err) {
           endBusy();
+          if (isAbortError(err)) return;
           setError(err.message || String(err));
         });
       }
@@ -4146,6 +5901,7 @@ function TraceScopePanelBody() {
         setTaskAttachPath("");
         setChatHint("已从本机路径添加附件");
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -4172,6 +5928,7 @@ function TraceScopePanelBody() {
         });
         setChatHint("已移除任务附件");
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -4214,6 +5971,7 @@ function TraceScopePanelBody() {
         }, 1500);
         setChatHint("已开始下载「" + att.name + "」");
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -4329,6 +6087,7 @@ function TraceScopePanelBody() {
           data && data.ready ? "协作平台配置已保存，可将失败反馈一键提交。" : trackerProvider === "none" ? "已清除协作平台配置。" : "配置已写入，但仍不完整，请检查必填项。"
         );
       }).catch(function(err) {
+        if (isAbortError(err)) return;
         setError(err.message || String(err));
       }).finally(function() {
         endBusy();
@@ -4571,6 +6330,7 @@ function TraceScopePanelBody() {
             }
             setChatHint(tip);
           }).catch(function(err) {
+            if (isAbortError(err)) return;
             setError(err.message || String(err));
           }).finally(function() {
             endBusy();
@@ -4581,13 +6341,13 @@ function TraceScopePanelBody() {
     [report, repoPath, baseCommit, headCommit, trackerReady, trackerProvider]
   );
   var items = report ? (tab === "direct" ? report.direct : report.ripple) || [] : [];
-  return jsxs6("div", {
+  return jsxs5("div", {
     style: styles.root,
     children: [
-      jsx6("style", {
+      jsx5("style", {
         children: "@keyframes tracescope-spin{to{transform:rotate(360deg)}}"
       }),
-      busy ? jsx6("div", {
+      busy ? jsx5("div", {
         style: styles.busyOverlay,
         role: "status",
         "aria-live": "polite",
@@ -4600,40 +6360,84 @@ function TraceScopePanelBody() {
           e.preventDefault();
           e.stopPropagation();
         },
-        children: jsxs6("div", {
+        children: jsxs5("div", {
           style: styles.busyBanner,
           children: [
-            jsx6("div", { style: styles.busySpinner, "aria-hidden": "true" }),
-            jsx6("div", {
+            jsxs5("svg", {
+              style: styles.busySpinnerSvg,
+              viewBox: "0 0 28 28",
+              width: 28,
+              height: 28,
+              "aria-hidden": "true",
+              children: [
+                jsx5("circle", {
+                  cx: 14,
+                  cy: 14,
+                  r: 11,
+                  fill: "none",
+                  stroke: "#e4ddd0",
+                  strokeWidth: 3
+                }),
+                jsx5("circle", {
+                  cx: 14,
+                  cy: 14,
+                  r: 11,
+                  fill: "none",
+                  stroke: "#0f6e56",
+                  strokeWidth: 3,
+                  strokeLinecap: "round",
+                  strokeDasharray: "52 100",
+                  style: {
+                    transformOrigin: "14px 14px",
+                    animation: "tracescope-spin 0.8s linear infinite"
+                  }
+                })
+              ]
+            }),
+            jsx5("div", {
               style: { fontWeight: 700, marginBottom: 6 },
               children: "加载中，请稍候"
             }),
-            jsx6("div", {
+            jsx5("div", {
               style: { color: "#6b645a", fontSize: 12, lineHeight: 1.45 },
               children: busyMessage || "正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。"
+            }),
+            jsx5("div", {
+              style: { marginTop: 8, fontSize: 11, color: "#8a7f70" },
+              children: "已用时 " + busyElapsed + " 秒"
+            }),
+            jsx5("button", {
+              type: "button",
+              style: styles.busyCancel,
+              onClick: function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                cancelBusy();
+              },
+              children: "取消"
             })
           ]
         })
       }) : null,
-      jsxs6("div", {
+      jsxs5("div", {
         style: Object.assign({}, styles.row, {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: 8
         }),
         children: [
-          jsxs6("div", {
+          jsxs5("div", {
             style: { display: "flex", flexDirection: "column", minWidth: 0, gap: 2 },
             children: [
-              jsx6("strong", { children: "TraceScope 测试工作台" }),
-              jsx6("span", {
+              jsx5("strong", { children: "TraceScope 测试工作台" }),
+              jsx5("span", {
                 style: { color: busy ? "#0f6e56" : "#6b645a", fontSize: 12 },
                 children: busy ? busyMessage || "处理中…" : health
               })
             ]
           }),
           // Global preferences — compact, independent of the repo/feature cards.
-          jsxs6("div", {
+          jsxs5("div", {
             style: {
               display: "inline-flex",
               alignItems: "center",
@@ -4641,7 +6445,7 @@ function TraceScopePanelBody() {
               flex: "0 0 auto"
             },
             children: [
-              jsxs6("label", {
+              jsxs5("label", {
                 title: "进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。",
                 style: {
                   display: "inline-flex",
@@ -4654,7 +6458,7 @@ function TraceScopePanelBody() {
                   userSelect: "none"
                 },
                 children: [
-                  jsx6("input", {
+                  jsx5("input", {
                     type: "checkbox",
                     checked: autoOpen,
                     disabled: busy,
@@ -4666,7 +6470,7 @@ function TraceScopePanelBody() {
                   "自动展开"
                 ]
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 title: "自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘",
                 disabled: busy,
@@ -4681,7 +6485,7 @@ function TraceScopePanelBody() {
         ]
       }),
       // Compact data-directory editor (global preference), inline under header.
-      dataDirOpen ? jsxs6("div", {
+      dataDirOpen ? jsxs5("div", {
         style: {
           display: "flex",
           flexDirection: "column",
@@ -4693,14 +6497,14 @@ function TraceScopePanelBody() {
           borderRadius: 10
         },
         children: [
-          jsx6("div", {
+          jsx5("div", {
             style: { fontSize: 12, color: "#5d564c" },
             children: "数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）"
           }),
-          jsxs6("div", {
+          jsxs5("div", {
             style: Object.assign({}, styles.row, { gap: 6 }),
             children: [
-              jsx6("div", {
+              jsx5("div", {
                 title: dataDirDraft,
                 style: {
                   flex: 1,
@@ -4719,7 +6523,7 @@ function TraceScopePanelBody() {
                 },
                 children: dataDirDraft || (dataDirInfo ? dataDirInfo.defaultRoot : "点击右侧浏览选择目录")
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: Object.assign({}, styles.secondary, { flex: "0 0 auto" }),
                 disabled: dataDirBusy,
@@ -4728,13 +6532,13 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          dataDirInfo && dataDirInfo.envLocked ? jsx6("p", {
+          dataDirInfo && dataDirInfo.envLocked ? jsx5("p", {
             style: { margin: 0, color: "#9a6a1f", fontSize: 12 },
             children: "当前目录由环境变量 TRACESCOPE_HOME 指定（" + dataDirInfo.envRoot + "），请修改环境变量后重启，无法在此更改。"
-          }) : jsxs6("div", {
+          }) : jsxs5("div", {
             style: Object.assign({}, styles.row, { justifyContent: "flex-end" }),
             children: [
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: styles.secondary,
                 disabled: dataDirBusy,
@@ -4743,7 +6547,7 @@ function TraceScopePanelBody() {
                 },
                 children: "取消"
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: styles.primary,
                 disabled: dataDirBusy,
@@ -4755,12 +6559,12 @@ function TraceScopePanelBody() {
         ]
       }) : null,
       // Visual folder picker modal.
-      pickerOpen ? jsxs6("div", {
+      pickerOpen ? jsxs5("div", {
         style: styles.modalBackdrop,
         onClick: function(e) {
           if (e.target === e.currentTarget) closePicker();
         },
-        children: jsxs6("div", {
+        children: jsxs5("div", {
           style: {
             width: "min(440px, 100%)",
             maxHeight: "80vh",
@@ -4773,7 +6577,7 @@ function TraceScopePanelBody() {
             overflow: "hidden"
           },
           children: [
-            jsxs6("div", {
+            jsxs5("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -4782,11 +6586,11 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx6("strong", {
+                jsx5("strong", {
                   style: { fontSize: 13 },
                   children: pickerPurpose === "repo" ? "选择代码文件夹" : "选择数据存放目录"
                 }),
-                jsx6("button", {
+                jsx5("button", {
                   type: "button",
                   style: Object.assign({}, styles.miniBtn, { padding: "2px 8px" }),
                   onClick: closePicker,
@@ -4795,7 +6599,7 @@ function TraceScopePanelBody() {
               ]
             }),
             // Quick places.
-            pickerBrowse && Array.isArray(pickerBrowse.quick) ? jsx6("div", {
+            pickerBrowse && Array.isArray(pickerBrowse.quick) ? jsx5("div", {
               style: {
                 display: "flex",
                 gap: 6,
@@ -4804,7 +6608,7 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: pickerBrowse.quick.map(function(q) {
-                return jsx6(
+                return jsx5(
                   "button",
                   {
                     type: "button",
@@ -4819,7 +6623,7 @@ function TraceScopePanelBody() {
               })
             }) : null,
             // Current path + up navigation.
-            jsxs6("div", {
+            jsxs5("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -4828,7 +6632,7 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx6("button", {
+                jsx5("button", {
                   type: "button",
                   style: Object.assign({}, styles.secondary, { padding: "4px 10px" }),
                   // Enabled anywhere except the synthetic volume list itself.
@@ -4843,7 +6647,7 @@ function TraceScopePanelBody() {
                   },
                   children: "↑ 上级"
                 }),
-                jsx6("div", {
+                jsx5("div", {
                   title: pickerBrowse ? pickerBrowse.path : "",
                   style: {
                     flex: 1,
@@ -4859,21 +6663,21 @@ function TraceScopePanelBody() {
               ]
             }),
             // Folder list.
-            jsx6("div", {
+            jsx5("div", {
               style: { flex: 1, overflowY: "auto", padding: 6, minHeight: 180 },
-              children: pickerLoading ? jsx6("div", {
+              children: pickerLoading ? jsx5("div", {
                 style: { padding: 16, textAlign: "center", color: "#8a8378", fontSize: 12 },
                 children: "正在读取…"
-              }) : pickerBrowse && !pickerBrowse.dirs.length ? jsx6("div", {
+              }) : pickerBrowse && !pickerBrowse.dirs.length ? jsx5("div", {
                 style: { padding: 16, textAlign: "center", color: "#8a8378", fontSize: 12 },
                 children: "该目录下没有子文件夹，可直接选择当前目录。"
               }) : (pickerBrowse ? pickerBrowse.dirs : []).map(function(d) {
-                var active = pickerSelected === d.path;
-                return jsx6(
+                var active2 = pickerSelected === d.path;
+                return jsx5(
                   "button",
                   {
                     type: "button",
-                    title: active ? "已选中（双击进入）" : "单击选中，双击进入",
+                    title: active2 ? "已选中（双击进入）" : "单击选中，双击进入",
                     onClick: function() {
                       setPickerSelected(d.path);
                     },
@@ -4889,17 +6693,17 @@ function TraceScopePanelBody() {
                       padding: "7px 8px",
                       marginBottom: 2,
                       borderRadius: 8,
-                      border: "1px solid " + (active ? "var(--dsh-accent,#0f6e56)" : "transparent"),
-                      background: active ? "var(--dsh-accent-soft,#efe8da)" : "transparent",
+                      border: "1px solid " + (active2 ? "var(--dsh-accent,#0f6e56)" : "transparent"),
+                      background: active2 ? "var(--dsh-accent-soft,#efe8da)" : "transparent",
                       cursor: "pointer",
                       fontSize: 12
                     },
                     children: [
-                      jsx6("span", {
+                      jsx5("span", {
                         style: { flex: "0 0 auto", color: "#b98f3f" },
                         children: "📁"
                       }),
-                      jsx6("span", { style: { flex: 1, minWidth: 0 }, children: d.name })
+                      jsx5("span", { style: { flex: 1, minWidth: 0 }, children: d.name })
                     ]
                   },
                   "d-" + d.path
@@ -4907,7 +6711,7 @@ function TraceScopePanelBody() {
               })
             }),
             // Footer.
-            jsxs6("div", {
+            jsxs5("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -4916,7 +6720,7 @@ function TraceScopePanelBody() {
                 borderTop: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx6("div", {
+                jsx5("div", {
                   style: {
                     flex: 1,
                     minWidth: 0,
@@ -4932,7 +6736,7 @@ function TraceScopePanelBody() {
                     return p ? "将使用：" + p : "请进入并选择一个文件夹";
                   })()
                 }),
-                jsx6("button", {
+                jsx5("button", {
                   type: "button",
                   style: styles.secondary,
                   disabled: pickerLoading || !pickerBrowse || pickerBrowse.isRoot,
@@ -4943,13 +6747,13 @@ function TraceScopePanelBody() {
                   },
                   children: "选当前目录"
                 }),
-                jsx6("button", {
+                jsx5("button", {
                   type: "button",
                   style: styles.secondary,
                   onClick: closePicker,
                   children: "取消"
                 }),
-                jsx6("button", {
+                jsx5("button", {
                   type: "button",
                   style: styles.primary,
                   onClick: confirmPicker,
@@ -4961,7 +6765,7 @@ function TraceScopePanelBody() {
         })
       }) : null,
       // Top-level mode switch — always reachable, before/after repo setup.
-      jsxs6("div", {
+      jsxs5("div", {
         style: {
           display: "flex",
           gap: 6,
@@ -4971,7 +6775,7 @@ function TraceScopePanelBody() {
           padding: 4
         },
         children: [
-          jsx6("button", {
+          jsx5("button", {
             type: "button",
             style: mode === "functional" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
             disabled: busy,
@@ -4980,7 +6784,7 @@ function TraceScopePanelBody() {
             },
             children: "功能影响分析"
           }),
-          jsx6("button", {
+          jsx5("button", {
             type: "button",
             style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
             disabled: busy,
@@ -4991,20 +6795,23 @@ function TraceScopePanelBody() {
           })
         ]
       }),
-      jsxs6("section", {
-        style: styles.card,
+      jsxs5("section", {
+        style: Object.assign(
+          {},
+          styles.card
+        ),
         children: [
-          jsxs6("div", {
+          jsxs5("div", {
             style: Object.assign({}, styles.row, { justifyContent: "space-between" }),
             children: [
-              jsxs6("div", {
+              jsxs5("div", {
                 style: Object.assign({}, styles.row, { flex: 1, minWidth: 0 }),
                 children: [
-                  jsx6("span", {
+                  jsx5("span", {
                     style: { fontWeight: 700, whiteSpace: "nowrap" },
                     children: "仓库"
                   }),
-                  jsx6("select", {
+                  jsx5("select", {
                     style: Object.assign({}, styles.input, {
                       flex: 1,
                       minWidth: 120,
@@ -5018,7 +6825,7 @@ function TraceScopePanelBody() {
                       if (v) switchRepo(v);
                     },
                     children: [
-                      jsx6(
+                      jsx5(
                         "option",
                         {
                           value: "",
@@ -5028,7 +6835,7 @@ function TraceScopePanelBody() {
                       )
                     ].concat(
                       (repoList || []).map(function(r) {
-                        return jsx6(
+                        return jsx5(
                           "option",
                           { value: r, children: shortRepoLabel(r) + " — " + r },
                           r
@@ -5038,7 +6845,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: styles.btn,
                 disabled: busy,
@@ -5050,25 +6857,25 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          !settingsOpen && repoPath.trim() ? jsx6("p", {
+          !settingsOpen && repoPath.trim() ? jsx5("p", {
             style: { margin: "6px 0 0", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
             children: shortRepoLabel(repoPath) + (resolved ? " · " + (resolved.source === "codeup" ? "远端 API" : resolved.source === "remote" ? "远端缓存" : "本地") + (resolved.authMode && resolved.authMode !== "none" ? " · 认证 " + (authMode === "token" ? "个人访问令牌" : resolved.authMode) : authMode === "token" ? " · 认证 个人访问令牌" : "") + (authMode === "token" && (yxTokenSaved || usableSecret(yxToken)) ? " · 令牌已保存" : authMode === "token" ? " · 请填写个人访问令牌" : "") : "")
           }) : null,
-          settingsOpen ? jsxs6("div", {
+          settingsOpen ? jsxs5("div", {
             style: {
               marginTop: 10,
               paddingTop: 10,
               borderTop: "1px solid var(--dsh-border, #ddd4c5)"
             },
             children: [
-              jsxs6("label", {
+              jsxs5("label", {
                 style: styles.label,
                 children: [
                   mode === "ui" ? "代码文件夹路径 / 远端代码库地址" : "本地文件夹路径 / 远端仓库地址",
-                  jsxs6("div", {
+                  jsxs5("div", {
                     style: Object.assign({}, styles.row, { alignItems: "stretch" }),
                     children: [
-                      jsx6("input", {
+                      jsx5("input", {
                         style: Object.assign({}, styles.input, { flex: 1, marginBottom: 0 }),
                         value: repoPath,
                         disabled: busy,
@@ -5080,7 +6887,7 @@ function TraceScopePanelBody() {
                           if (repoPath.trim()) rememberRepo(repoPath.trim());
                         }
                       }),
-                      jsx6("button", {
+                      jsx5("button", {
                         type: "button",
                         style: styles.btn,
                         disabled: busy,
@@ -5089,17 +6896,17 @@ function TraceScopePanelBody() {
                       })
                     ]
                   }),
-                  jsx6("span", {
+                  jsx5("span", {
                     style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                     children: mode === "ui" ? "UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。" : "支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。"
                   })
                 ]
               }),
-              mode === "functional" && isRemote ? jsxs6("label", {
+              mode === "functional" && isRemote ? jsxs5("label", {
                 style: styles.label,
                 children: [
                   "读取方式",
-                  jsx6("select", {
+                  jsx5("select", {
                     style: styles.input,
                     value: accessMode,
                     disabled: busy,
@@ -5112,23 +6919,23 @@ function TraceScopePanelBody() {
                       }
                     },
                     children: [
-                      jsx6("option", { value: "git", children: "本地 Git（推荐）" }, "mode-git"),
-                      jsx6("option", {
+                      jsx5("option", { value: "git", children: "本地 Git（推荐）" }, "mode-git"),
+                      jsx5("option", {
                         value: "codeup",
                         children: "远端 API 兜底（无本机 Git）"
                       }, "mode-codeup")
                     ]
                   }),
-                  jsx6("span", {
+                  jsx5("span", {
                     style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                     children: accessMode === "codeup" ? "不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。" : "同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。"
                   })
                 ]
               }) : null,
-              jsxs6("div", {
+              jsxs5("div", {
                 style: Object.assign({}, styles.row, { marginBottom: 8 }),
                 children: [
-                  mode === "functional" ? jsx6("button", {
+                  mode === "functional" ? jsx5("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy || !repoPath.trim(),
@@ -5138,7 +6945,7 @@ function TraceScopePanelBody() {
                       setSettingsOpen(false);
                     },
                     children: "保存并加载版本"
-                  }) : jsx6("button", {
+                  }) : jsx5("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy || !repoPath.trim(),
@@ -5154,7 +6961,7 @@ function TraceScopePanelBody() {
                     },
                     children: isRemote ? "使用此代码库" : "使用此文件夹"
                   }),
-                  repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx6("button", {
+                  repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx5("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy,
@@ -5184,47 +6991,47 @@ function TraceScopePanelBody() {
                 ]
               }),
               // Local folders need no credentials; show a compact, neutral note.
-              !isRemote ? jsx6("p", {
+              !isRemote ? jsx5("p", {
                 style: { margin: "0 0 4px", color: "#0f6e56", fontSize: 12, lineHeight: 1.45 },
                 children: "本地文件夹：直接读取，无需填写认证。"
               }) : null,
-              isRemote && jsxs6("div", {
+              isRemote && jsxs5("div", {
                 style: {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
                   gap: 8
                 },
                 children: [
-                  jsxs6("label", {
+                  jsxs5("label", {
                     style: styles.label,
                     children: [
                       "远端认证",
-                      jsx6("select", {
+                      jsx5("select", {
                         style: styles.input,
                         value: authMode,
                         onChange: function(e) {
                           setRemoteAuthMode(e.target.value);
                         },
                         children: [
-                          jsx6("option", { value: "none", children: "无需认证" }),
-                          jsx6("option", {
+                          jsx5("option", { value: "none", children: "无需认证" }),
+                          jsx5("option", {
                             value: "token",
                             children: "个人访问令牌"
                           }),
-                          jsx6("option", {
+                          jsx5("option", {
                             value: "https",
                             children: "HTTPS 用户名 + 密码/Token"
                           }),
-                          jsx6("option", { value: "ssh", children: "SSH 私钥" })
+                          jsx5("option", { value: "ssh", children: "SSH 私钥" })
                         ]
                       })
                     ]
                   }),
-                  authMode === "https" ? jsxs6("label", {
+                  authMode === "https" ? jsxs5("label", {
                     style: styles.label,
                     children: [
                       "用户名",
-                      jsx6("input", {
+                      jsx5("input", {
                         style: styles.input,
                         value: authUser,
                         onChange: function(e) {
@@ -5232,14 +7039,14 @@ function TraceScopePanelBody() {
                         }
                       })
                     ]
-                  }) : jsx6("div", { children: null })
+                  }) : jsx5("div", { children: null })
                 ]
               }),
-              isRemote && authMode === "token" ? jsxs6("label", {
+              isRemote && authMode === "token" ? jsxs5("label", {
                 style: styles.label,
                 children: [
                   "个人访问令牌",
-                  jsx6("input", {
+                  jsx5("input", {
                     style: styles.input,
                     type: "password",
                     value: yxToken,
@@ -5249,7 +7056,7 @@ function TraceScopePanelBody() {
                       setYxToken(e.target.value);
                     }
                   }),
-                  jsx6("span", {
+                  jsx5("span", {
                     style: {
                       display: "block",
                       color: "#6b645a",
@@ -5260,11 +7067,11 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode === "https" ? jsxs6("label", {
+              isRemote && authMode === "https" ? jsxs5("label", {
                 style: styles.label,
                 children: [
                   "密码 / Token",
-                  jsx6("input", {
+                  jsx5("input", {
                     style: styles.input,
                     type: "password",
                     value: authToken,
@@ -5273,7 +7080,7 @@ function TraceScopePanelBody() {
                       setAuthToken(e.target.value);
                     }
                   }),
-                  jsx6("span", {
+                  jsx5("span", {
                     style: {
                       display: "block",
                       color: "#6b645a",
@@ -5284,11 +7091,11 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode === "ssh" ? jsxs6("label", {
+              isRemote && authMode === "ssh" ? jsxs5("label", {
                 style: styles.label,
                 children: [
                   "私钥绝对路径",
-                  jsx6("input", {
+                  jsx5("input", {
                     style: styles.input,
                     value: authKey,
                     placeholder: "本机 SSH 私钥文件路径，如 ~/.ssh/id_ed25519",
@@ -5298,7 +7105,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode !== "none" ? jsxs6("label", {
+              isRemote && authMode !== "none" ? jsxs5("label", {
                 style: {
                   display: "flex",
                   alignItems: "center",
@@ -5307,7 +7114,7 @@ function TraceScopePanelBody() {
                   marginTop: 4
                 },
                 children: [
-                  jsx6("input", {
+                  jsx5("input", {
                     type: "checkbox",
                     checked: rememberAuth,
                     onChange: function(e) {
@@ -5318,9 +7125,9 @@ function TraceScopePanelBody() {
                 ]
               }) : null,
               mode === "functional" && (function() {
-                return jsxs6(jsxRuntime.Fragment, {
+                return jsxs5(jsxRuntime.Fragment, {
                   children: [
-                    jsx6("div", {
+                    jsx5("div", {
                       style: {
                         marginTop: 12,
                         paddingTop: 10,
@@ -5329,33 +7136,33 @@ function TraceScopePanelBody() {
                       },
                       children: "协作平台"
                     }),
-                    jsx6("p", {
+                    jsx5("p", {
                       style: { margin: "4px 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                       children: "关联工作项、提交失败反馈。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。"
                     }),
-                    jsxs6("label", {
+                    jsxs5("label", {
                       style: styles.label,
                       children: [
                         "平台",
-                        jsx6("select", {
+                        jsx5("select", {
                           style: styles.input,
                           value: trackerProvider,
                           onChange: function(e) {
                             setTrackerProvider(e.target.value);
                           },
                           children: [
-                            jsx6("option", { value: "none", children: "不启用" }),
-                            jsx6("option", { value: "yunxiao", children: "阿里云效" }),
-                            jsx6("option", { value: "github", children: "GitHub Issues" }),
-                            jsx6("option", { value: "gitlab", children: "GitLab Issues" }),
-                            jsx6("option", { value: "webhook", children: "通用 Webhook" })
+                            jsx5("option", { value: "none", children: "不启用" }),
+                            jsx5("option", { value: "yunxiao", children: "阿里云效" }),
+                            jsx5("option", { value: "github", children: "GitHub Issues" }),
+                            jsx5("option", { value: "gitlab", children: "GitLab Issues" }),
+                            jsx5("option", { value: "webhook", children: "通用 Webhook" })
                           ]
                         })
                       ]
                     }),
-                    trackerProvider === "yunxiao" ? jsxs6("div", {
+                    trackerProvider === "yunxiao" ? jsxs5("div", {
                       children: [
-                        jsx6("p", {
+                        jsx5("p", {
                           style: {
                             margin: "0 0 8px",
                             color: "#6b645a",
@@ -5364,11 +7171,11 @@ function TraceScopePanelBody() {
                           },
                           children: "访问令牌与上方「个人访问令牌」共用。填好后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人。"
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "API Endpoint（一般不用改）",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: yxEndpoint,
                               onChange: function(e) {
@@ -5377,17 +7184,17 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("div", {
+                        jsxs5("div", {
                           style: Object.assign({}, styles.row, { alignItems: "flex-end" }),
                           children: [
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: Object.assign({}, styles.label, {
                                 flex: 1,
                                 marginBottom: 0
                               }),
                               children: [
                                 "访问令牌",
-                                jsx6("input", {
+                                jsx5("input", {
                                   style: styles.input,
                                   type: "password",
                                   value: yxToken,
@@ -5398,7 +7205,7 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsx6("button", {
+                            jsx5("button", {
                               type: "button",
                               style: styles.primary,
                               disabled: busy || !usableSecret(yxToken) && !yxTokenSaved,
@@ -5407,11 +7214,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "企业 organizationId",
-                            jsx6("select", {
+                            jsx5("select", {
                               style: styles.input,
                               value: yxOrg,
                               disabled: busy,
@@ -5431,7 +7238,7 @@ function TraceScopePanelBody() {
                                 if (id) refreshYunxiaoProjectsAndMembers(id);
                               },
                               children: [
-                                jsx6(
+                                jsx5(
                                   "option",
                                   {
                                     value: "",
@@ -5441,7 +7248,7 @@ function TraceScopePanelBody() {
                                 )
                               ].concat(
                                 (yxOrgs || []).map(function(o) {
-                                  return jsx6(
+                                  return jsx5(
                                     "option",
                                     { value: o.id, children: o.name + "（" + o.id + "）" },
                                     o.id
@@ -5451,11 +7258,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "项目 spaceId",
-                            jsx6("select", {
+                            jsx5("select", {
                               style: styles.input,
                               value: yxSpace,
                               disabled: busy || !yxOrg,
@@ -5471,7 +7278,7 @@ function TraceScopePanelBody() {
                                 if (id) refreshYunxiaoTypes(yxOrg, id);
                               },
                               children: [
-                                jsx6(
+                                jsx5(
                                   "option",
                                   {
                                     value: "",
@@ -5481,7 +7288,7 @@ function TraceScopePanelBody() {
                                 )
                               ].concat(
                                 (yxProjects || []).map(function(o) {
-                                  return jsx6(
+                                  return jsx5(
                                     "option",
                                     { value: o.id, children: o.name + "（" + o.id + "）" },
                                     o.id
@@ -5491,14 +7298,14 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("div", {
+                        jsxs5("div", {
                           style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
                           children: [
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: styles.label,
                               children: [
                                 "缺陷类型 workitemTypeId",
-                                jsx6("select", {
+                                jsx5("select", {
                                   style: styles.input,
                                   value: yxType,
                                   disabled: busy || !yxSpace,
@@ -5506,7 +7313,7 @@ function TraceScopePanelBody() {
                                     setYxType(e.target.value);
                                   },
                                   children: [
-                                    jsx6(
+                                    jsx5(
                                       "option",
                                       {
                                         value: "",
@@ -5516,7 +7323,7 @@ function TraceScopePanelBody() {
                                     )
                                   ].concat(
                                     (yxTypes || []).map(function(o) {
-                                      return jsx6(
+                                      return jsx5(
                                         "option",
                                         {
                                           value: o.id,
@@ -5529,11 +7336,11 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: styles.label,
                               children: [
                                 "负责人 assignedTo",
-                                jsx6("select", {
+                                jsx5("select", {
                                   style: styles.input,
                                   value: yxAssignee,
                                   disabled: busy || !yxOrg,
@@ -5541,7 +7348,7 @@ function TraceScopePanelBody() {
                                     setYxAssignee(e.target.value);
                                   },
                                   children: [
-                                    jsx6(
+                                    jsx5(
                                       "option",
                                       {
                                         value: "",
@@ -5551,7 +7358,7 @@ function TraceScopePanelBody() {
                                     )
                                   ].concat(
                                     (yxMembers || []).map(function(o) {
-                                      return jsx6(
+                                      return jsx5(
                                         "option",
                                         {
                                           value: o.id,
@@ -5566,7 +7373,7 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        yxCatalogHint ? jsx6("p", {
+                        yxCatalogHint ? jsx5("p", {
                           style: {
                             margin: "4px 0 0",
                             color: "#6b645a",
@@ -5574,14 +7381,14 @@ function TraceScopePanelBody() {
                           },
                           children: yxCatalogHint
                         }) : null,
-                        jsxs6("div", {
+                        jsxs5("div", {
                           style: {
                             marginTop: 8,
                             paddingTop: 8,
                             borderTop: "1px dashed #ddd6cb"
                           },
                           children: [
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: {
                                 display: "flex",
                                 alignItems: "center",
@@ -5591,7 +7398,7 @@ function TraceScopePanelBody() {
                                 cursor: "pointer"
                               },
                               children: [
-                                jsx6("input", {
+                                jsx5("input", {
                                   type: "checkbox",
                                   checked: yxDebugLog,
                                   onChange: function(e) {
@@ -5602,17 +7409,17 @@ function TraceScopePanelBody() {
                                 "请求日志（排查用，不含 token）"
                               ]
                             }),
-                            yxDebugLog ? jsxs6("div", {
+                            yxDebugLog ? jsxs5("div", {
                               style: { marginTop: 6 },
                               children: [
-                                jsxs6("div", {
+                                jsxs5("div", {
                                   style: {
                                     display: "flex",
                                     gap: 6,
                                     marginBottom: 4
                                   },
                                   children: [
-                                    jsx6("button", {
+                                    jsx5("button", {
                                       type: "button",
                                       style: styles.secondary,
                                       disabled: !yxRequestLog,
@@ -5629,7 +7436,7 @@ function TraceScopePanelBody() {
                                       },
                                       children: "复制日志"
                                     }),
-                                    jsx6("button", {
+                                    jsx5("button", {
                                       type: "button",
                                       style: styles.secondary,
                                       disabled: !yxRequestLog,
@@ -5640,7 +7447,7 @@ function TraceScopePanelBody() {
                                     })
                                   ]
                                 }),
-                                jsx6("textarea", {
+                                jsx5("textarea", {
                                   readOnly: true,
                                   value: yxRequestLog || "开启后执行「拉取企业 / 选企业」即可在此看到云效请求与响应摘要。",
                                   style: Object.assign({}, styles.input, {
@@ -5658,13 +7465,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "github" ? jsxs6("div", {
+                    trackerProvider === "github" ? jsxs5("div", {
                       children: [
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "GitHub Token",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               type: "password",
                               value: ghToken,
@@ -5675,14 +7482,14 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("div", {
+                        jsxs5("div", {
                           style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
                           children: [
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: styles.label,
                               children: [
                                 "owner",
-                                jsx6("input", {
+                                jsx5("input", {
                                   style: styles.input,
                                   value: ghOwner,
                                   onChange: function(e) {
@@ -5691,11 +7498,11 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsxs6("label", {
+                            jsxs5("label", {
                               style: styles.label,
                               children: [
                                 "repo",
-                                jsx6("input", {
+                                jsx5("input", {
                                   style: styles.input,
                                   value: ghRepo,
                                   onChange: function(e) {
@@ -5706,11 +7513,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "labels（逗号分隔）",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: ghLabels,
                               onChange: function(e) {
@@ -5721,13 +7528,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "gitlab" ? jsxs6("div", {
+                    trackerProvider === "gitlab" ? jsxs5("div", {
                       children: [
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "GitLab Host",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: glHost,
                               onChange: function(e) {
@@ -5736,11 +7543,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "Private Token",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               type: "password",
                               value: glToken,
@@ -5750,11 +7557,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "projectId（数字或 group/project）",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: glProject,
                               onChange: function(e) {
@@ -5763,11 +7570,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "labels（逗号分隔）",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: glLabels,
                               onChange: function(e) {
@@ -5778,13 +7585,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "webhook" ? jsxs6("div", {
+                    trackerProvider === "webhook" ? jsxs5("div", {
                       children: [
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "Webhook URL",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               value: whUrl,
                               placeholder: "https://… 可对接 Jira / 飞书 / 自建服务",
@@ -5794,11 +7601,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs6("label", {
+                        jsxs5("label", {
                           style: styles.label,
                           children: [
                             "Authorization 头（可选）",
-                            jsx6("input", {
+                            jsx5("input", {
                               style: styles.input,
                               type: "password",
                               value: whAuth,
@@ -5811,13 +7618,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider !== "none" ? jsx6("button", {
+                    trackerProvider !== "none" ? jsx5("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, { marginTop: 4 }),
                       disabled: busy,
                       onClick: saveTrackerSettings,
                       children: trackerReady ? "保存平台配置（已就绪）" : "保存平台配置"
-                    }) : jsx6("button", {
+                    }) : jsx5("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, { marginTop: 4 }),
                       disabled: busy,
@@ -5830,9 +7637,9 @@ function TraceScopePanelBody() {
             ]
           }) : null,
           mode === "functional" && (function() {
-            return jsxs6(jsxRuntime.Fragment, {
+            return jsxs5(jsxRuntime.Fragment, {
               children: [
-                trackerProvider === "yunxiao" && yxOrg && yxSpace ? jsxs6("div", {
+                trackerProvider === "yunxiao" && yxOrg && yxSpace ? jsxs5("div", {
                   style: {
                     marginTop: 10,
                     padding: "10px 12px",
@@ -5841,15 +7648,15 @@ function TraceScopePanelBody() {
                     border: "1px solid var(--dsh-border, #ddd4c5)"
                   },
                   children: [
-                    jsx6("div", {
+                    jsx5("div", {
                       style: { fontWeight: 600, marginBottom: 6 },
                       children: "关联敏捷任务（可选，多选）"
                     }),
-                    jsx6("p", {
+                    jsx5("p", {
                       style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                       children: "勾选工作项类型后拉取任务，再多选任务。生成验证清单 / AI 智能分析时会把它们写入清单与提示。"
                     }),
-                    jsxs6("div", {
+                    jsxs5("div", {
                       style: Object.assign({}, styles.row, {
                         flexWrap: "wrap",
                         gap: 10,
@@ -5863,7 +7670,7 @@ function TraceScopePanelBody() {
                           Risk: "风险",
                           Topic: "专题"
                         };
-                        return jsxs6(
+                        return jsxs5(
                           "label",
                           {
                             style: {
@@ -5875,7 +7682,7 @@ function TraceScopePanelBody() {
                               cursor: "pointer"
                             },
                             children: [
-                              jsx6("input", {
+                              jsx5("input", {
                                 type: "checkbox",
                                 checked: Boolean(wiCats[cat]),
                                 onChange: function(e) {
@@ -5894,17 +7701,17 @@ function TraceScopePanelBody() {
                         );
                       })
                     }),
-                    jsxs6("div", {
+                    jsxs5("div", {
                       style: Object.assign({}, styles.row, { marginBottom: 6 }),
                       children: [
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.primary,
                           disabled: busy,
                           onClick: refreshAgileWorkitems,
                           children: "拉取任务"
                         }),
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !wiItems.length,
@@ -5917,7 +7724,7 @@ function TraceScopePanelBody() {
                           },
                           children: "全选"
                         }),
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !Object.keys(wiSelected).length,
@@ -5926,7 +7733,7 @@ function TraceScopePanelBody() {
                           },
                           children: "清空选择"
                         }),
-                        jsx6("span", {
+                        jsx5("span", {
                           style: { color: "#6b645a", fontSize: 12 },
                           children: "已选 " + Object.keys(wiSelected).filter(function(k) {
                             return wiSelected[k];
@@ -5934,11 +7741,11 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }),
-                    wiHint ? jsx6("p", {
+                    wiHint ? jsx5("p", {
                       style: { margin: "0 0 6px", color: "#6b645a", fontSize: 12 },
                       children: wiHint
                     }) : null,
-                    wiItems.length ? jsx6("div", {
+                    wiItems.length ? jsx5("div", {
                       style: {
                         maxHeight: 180,
                         overflow: "auto",
@@ -5948,7 +7755,7 @@ function TraceScopePanelBody() {
                         padding: "4px 0"
                       },
                       children: wiItems.map(function(it) {
-                        return jsxs6(
+                        return jsxs5(
                           "label",
                           {
                             style: {
@@ -5962,7 +7769,7 @@ function TraceScopePanelBody() {
                               borderBottom: "1px solid #f0ebe3"
                             },
                             children: [
-                              jsx6("input", {
+                              jsx5("input", {
                                 type: "checkbox",
                                 style: { marginTop: 2 },
                                 checked: Boolean(wiSelected[it.id]),
@@ -5976,10 +7783,10 @@ function TraceScopePanelBody() {
                                   });
                                 }
                               }),
-                              jsxs6("span", {
+                              jsxs5("span", {
                                 style: { flex: 1, minWidth: 0 },
                                 children: [
-                                  jsx6("span", {
+                                  jsx5("span", {
                                     style: {
                                       display: "inline-block",
                                       fontSize: 11,
@@ -5988,8 +7795,8 @@ function TraceScopePanelBody() {
                                     },
                                     children: it.category || "WorkItem"
                                   }),
-                                  jsx6("span", { children: it.subject }),
-                                  it.status ? jsx6("span", {
+                                  jsx5("span", { children: it.subject }),
+                                  it.status ? jsx5("span", {
                                     style: {
                                       display: "block",
                                       fontSize: 11,
@@ -6007,10 +7814,10 @@ function TraceScopePanelBody() {
                     }) : null
                   ]
                 }) : null,
-                jsxs6("div", {
+                jsxs5("div", {
                   style: Object.assign({}, styles.row, { marginTop: 10 }),
                   children: [
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !repoPath.trim(),
@@ -6019,14 +7826,14 @@ function TraceScopePanelBody() {
                       },
                       children: "同步版本"
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.primary,
                       disabled: busy || !baseCommit || !headCommit,
                       onClick: analyze,
                       children: "生成验证清单"
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: jobId && jobStatus === "pending" ? styles.danger : styles.btn,
                       disabled: busy || !(jobId && jobStatus === "pending") && (!baseCommit || !headCommit),
@@ -6039,7 +7846,7 @@ function TraceScopePanelBody() {
                       },
                       children: jobId && jobStatus === "pending" ? "取消等待并清空草稿" : "AI 智能分析"
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !baseCommit || !headCommit,
@@ -6048,7 +7855,7 @@ function TraceScopePanelBody() {
                     })
                   ]
                 }),
-                jobId ? jsxs6("div", {
+                jobId ? jsxs5("div", {
                   style: Object.assign({}, styles.row, {
                     marginTop: 8,
                     padding: "8px 10px",
@@ -6057,11 +7864,11 @@ function TraceScopePanelBody() {
                     border: "1px solid var(--dsh-border, #ddd4c5)"
                   }),
                   children: [
-                    jsx6("span", {
+                    jsx5("span", {
                       style: { fontWeight: 600, whiteSpace: "nowrap" },
                       children: "对话任务 ID"
                     }),
-                    jsx6("code", {
+                    jsx5("code", {
                       style: {
                         flex: 1,
                         minWidth: 0,
@@ -6072,7 +7879,7 @@ function TraceScopePanelBody() {
                       title: jobId,
                       children: jobId
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.btn,
                       onClick: function() {
@@ -6080,20 +7887,20 @@ function TraceScopePanelBody() {
                       },
                       children: "复制"
                     }),
-                    jsx6("span", {
+                    jsx5("span", {
                       style: { color: "#6b645a", fontSize: 12 },
                       children: jobStatus === "pending" ? "等待 publish" : jobStatus === "published" ? "已发布" : jobStatus || ""
                     })
                   ]
                 }) : null,
-                jsxs6("div", {
+                jsxs5("div", {
                   style: Object.assign({}, styles.row, { marginTop: 8, alignItems: "flex-end" }),
                   children: [
-                    jsxs6("label", {
+                    jsxs5("label", {
                       style: Object.assign({}, styles.label, { flex: 1, marginBottom: 0, minWidth: 180 }),
                       children: [
                         "历史任务（多仓库）",
-                        jsx6("select", {
+                        jsx5("select", {
                           style: styles.input,
                           value: historyId,
                           disabled: busy || !history.length,
@@ -6103,7 +7910,7 @@ function TraceScopePanelBody() {
                             if (id) openHistoryEntry(id);
                           },
                           children: [
-                            jsx6(
+                            jsx5(
                               "option",
                               {
                                 value: "",
@@ -6114,13 +7921,13 @@ function TraceScopePanelBody() {
                           ].concat(
                             (history || []).map(function(h) {
                               var label = shortRepoLabel(h.repoInput) + " · " + (h.savedAt || "").replace("T", " ").slice(0, 16) + " · " + (h.source === "model" ? "AI" : "规则") + " · " + shortSha(h.baseCommit) + "→" + shortSha(h.headCommit);
-                              return jsx6("option", { value: h.id, children: label }, h.id);
+                              return jsx5("option", { value: h.id, children: label }, h.id);
                             })
                           )
                         })
                       ]
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !historyId,
@@ -6129,7 +7936,7 @@ function TraceScopePanelBody() {
                       },
                       children: "复制历史 ID"
                     }),
-                    jsx6("button", {
+                    jsx5("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !historyId,
@@ -6138,25 +7945,25 @@ function TraceScopePanelBody() {
                     })
                   ]
                 }),
-                copyFlash ? jsx6("p", {
+                copyFlash ? jsx5("p", {
                   style: { color: "#0f6e56", margin: "6px 0 0", fontSize: 12 },
                   children: copyFlash
                 }) : null,
-                chatHint ? jsx6("p", {
+                chatHint ? jsx5("p", {
                   style: { color: "#6b645a", margin: "8px 0 0", fontSize: 12, lineHeight: 1.45 },
                   children: chatHint
                 }) : null,
-                jsxs6("div", {
+                jsxs5("div", {
                   style: { marginTop: 8 },
                   children: [
-                    jsxs6("div", {
+                    jsxs5("div", {
                       style: Object.assign({}, styles.row, {
                         marginBottom: 0,
                         alignItems: "center",
                         gap: 8
                       }),
                       children: [
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !(refs && refs.length),
@@ -6167,7 +7974,7 @@ function TraceScopePanelBody() {
                           },
                           children: branchPickerOpen ? "收起分支" : "切换分支"
                         }),
-                        !branchPickerOpen ? jsx6("span", {
+                        !branchPickerOpen ? jsx5("span", {
                           style: { color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                           children: (function() {
                             var tip = newestBranchTip(refs);
@@ -6179,10 +7986,10 @@ function TraceScopePanelBody() {
                         }) : null
                       ]
                     }),
-                    branchPickerOpen ? jsxs6("div", {
+                    branchPickerOpen ? jsxs5("div", {
                       style: { marginTop: 6 },
                       children: [
-                        jsx6("input", {
+                        jsx5("input", {
                           style: styles.input,
                           value: branchQuery,
                           disabled: busy || !(refs && refs.length),
@@ -6191,7 +7998,7 @@ function TraceScopePanelBody() {
                             setBranchQuery(e.target.value);
                           }
                         }),
-                        jsx6("div", {
+                        jsx5("div", {
                           style: {
                             maxHeight: 168,
                             overflow: "auto",
@@ -6205,7 +8012,7 @@ function TraceScopePanelBody() {
                             var newest = matched[0] || null;
                             var newestScore = newest ? branchActivityScore(newest) : 0;
                             if (!shown.length) {
-                              return jsx6("div", {
+                              return jsx5("div", {
                                 style: { padding: "8px 10px", color: "#6b645a", fontSize: 12 },
                                 children: refs && refs.length ? "没有匹配的分支" : "同步后在这里选分支"
                               });
@@ -6238,7 +8045,7 @@ function TraceScopePanelBody() {
                                 setBranchPickerOpen(false);
                                 loadCommits(true, { preserveSelection: true, refName: r.name });
                               }
-                              return jsxs6(
+                              return jsxs5(
                                 "div",
                                 {
                                   style: {
@@ -6250,7 +8057,7 @@ function TraceScopePanelBody() {
                                     background: isNewest ? "#eef6ff" : onHead || onBase ? "#f3faf6" : "transparent"
                                   },
                                   children: [
-                                    jsxs6("div", {
+                                    jsxs5("div", {
                                       style: {
                                         flex: 1,
                                         minWidth: 0,
@@ -6259,15 +8066,15 @@ function TraceScopePanelBody() {
                                       },
                                       title: r.name + (r.subject ? "\n" + r.subject : "") + (r.date ? "\n" + r.date : ""),
                                       children: [
-                                        jsxs6("div", {
+                                        jsxs5("div", {
                                           style: { wordBreak: "break-all" },
                                           children: [
                                             (r.kind === "remote" ? "远端 " : "") + r.name,
-                                            r.short ? jsx6("span", {
+                                            r.short ? jsx5("span", {
                                               style: { color: "#8a7f70" },
                                               children: " · " + r.short
                                             }) : null,
-                                            isNewest ? jsx6("span", {
+                                            isNewest ? jsx5("span", {
                                               style: Object.assign({}, styles.badge, {
                                                 marginLeft: 6,
                                                 background: "#dbeafe",
@@ -6277,7 +8084,7 @@ function TraceScopePanelBody() {
                                             }) : null
                                           ]
                                         }),
-                                        r.date || r.subject ? jsx6("div", {
+                                        r.date || r.subject ? jsx5("div", {
                                           style: {
                                             color: "#6b645a",
                                             fontSize: 11,
@@ -6290,7 +8097,7 @@ function TraceScopePanelBody() {
                                         }) : null
                                       ]
                                     }),
-                                    jsx6("button", {
+                                    jsx5("button", {
                                       type: "button",
                                       style: Object.assign({}, styles.btn, {
                                         padding: "4px 8px",
@@ -6302,7 +8109,7 @@ function TraceScopePanelBody() {
                                       },
                                       children: onBase ? "稳定 ✓" : "稳定"
                                     }),
-                                    jsx6("button", {
+                                    jsx5("button", {
                                       type: "button",
                                       style: Object.assign({}, styles.btn, {
                                         padding: "4px 8px",
@@ -6321,10 +8128,10 @@ function TraceScopePanelBody() {
                             });
                           })()
                         }),
-                        branchQuery && matchingBranches(refs, branchQuery).length > 40 ? jsx6("div", {
+                        branchQuery && matchingBranches(refs, branchQuery).length > 40 ? jsx5("div", {
                           style: { color: "#6b645a", fontSize: 11, marginTop: 4 },
                           children: "匹配超过 40 个，请再输入几个字缩小范围"
-                        }) : !branchQuery && matchingBranches(refs, "").length > 40 ? jsx6("div", {
+                        }) : !branchQuery && matchingBranches(refs, "").length > 40 ? jsx5("div", {
                           style: { color: "#6b645a", fontSize: 11, marginTop: 4 },
                           children: "分支较多，输入名称筛选。列表先显示前 40 个"
                         }) : null
@@ -6332,14 +8139,14 @@ function TraceScopePanelBody() {
                     }) : null
                   ]
                 }),
-                jsxs6("div", {
+                jsxs5("div", {
                   style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 },
                   children: [
-                    jsxs6("label", {
+                    jsxs5("label", {
                       style: styles.label,
                       children: [
                         "稳定版本",
-                        jsx6(
+                        jsx5(
                           "select",
                           {
                             style: styles.input,
@@ -6359,11 +8166,11 @@ function TraceScopePanelBody() {
                         )
                       ]
                     }),
-                    jsxs6("label", {
+                    jsxs5("label", {
                       style: styles.label,
                       children: [
                         "待测版本",
-                        jsx6(
+                        jsx5(
                           "select",
                           {
                             style: styles.input,
@@ -6388,46 +8195,46 @@ function TraceScopePanelBody() {
               ]
             });
           })(),
-          error ? jsx6("p", { style: styles.error, children: error }) : null
+          error ? jsx5("p", { style: styles.error, children: error }) : null
         ]
       }),
-      mode === "functional" && report ? jsxs6("section", {
+      mode === "functional" && report ? jsxs5("section", {
         style: styles.card,
         children: [
-          jsx6("div", {
+          jsx5("div", {
             style: { marginBottom: 8, color: "#6b645a" },
             children: "变更文件 " + (report.changedFiles || []).length + " · 直接 " + (report.direct || []).length + " · 波及 " + (report.ripple || []).length + " · " + (report.modelEnriched ? "AI 分析" : "规则分析")
           }),
-          jsx6("p", {
+          jsx5("p", {
             style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 },
             children: "验证时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。"
           }),
-          jsxs6("div", {
+          jsxs5("div", {
             style: Object.assign({}, styles.row, {
               marginBottom: 8,
               justifyContent: "space-between",
               alignItems: "center"
             }),
             children: [
-              jsx6("div", {
+              jsx5("div", {
                 style: { fontSize: 12, color: "#3d3a34", flex: "1 1 auto", minWidth: 0 },
                 children: (function() {
                   var all = [].concat(report.direct || [], report.ripple || []);
                   var pass = 0;
                   var fail = 0;
                   var skip = 0;
-                  var pending = 0;
+                  var pending2 = 0;
                   all.forEach(function(it) {
                     var s = it.status || "pending";
                     if (s === "pass") pass += 1;
                     else if (s === "fail") fail += 1;
                     else if (s === "skip") skip += 1;
-                    else pending += 1;
+                    else pending2 += 1;
                   });
-                  return "进度：通过 " + pass + " · 失败 " + fail + " · 跳过 " + skip + " · 待测 " + pending;
+                  return "进度：通过 " + pass + " · 失败 " + fail + " · 跳过 " + skip + " · 待测 " + pending2;
                 })()
               }),
-              jsxs6("div", {
+              jsxs5("div", {
                 style: {
                   display: "flex",
                   gap: 8,
@@ -6436,20 +8243,20 @@ function TraceScopePanelBody() {
                   flex: "0 0 auto"
                 },
                 children: [
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.btn,
                     onClick: copyFailFeedback,
                     children: "复制失败反馈"
                   }),
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy,
                     onClick: submitTracker,
                     children: "提交缺陷"
                   }),
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy,
@@ -6460,7 +8267,7 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          jsxs6("div", {
+          jsxs5("div", {
             style: {
               marginBottom: 10,
               padding: "10px 12px",
@@ -6469,11 +8276,11 @@ function TraceScopePanelBody() {
               border: "1px solid var(--dsh-border, #ddd4c5)"
             },
             children: [
-              jsx6("div", {
+              jsx5("div", {
                 style: { fontWeight: 600, marginBottom: 4 },
                 children: "任务附件（整份验证任务）"
               }),
-              jsx6("p", {
+              jsx5("p", {
                 style: {
                   margin: "0 0 8px",
                   color: "#6b645a",
@@ -6482,7 +8289,7 @@ function TraceScopePanelBody() {
                 },
                 children: "可上传视频录像、文档等。附件属于当前版本对比任务，不绑定单条 checklist。小文件可直接选择；大视频建议填本机绝对路径。"
               }),
-              jsxs6("div", {
+              jsxs5("div", {
                 style: Object.assign({}, styles.row, {
                   flexWrap: "wrap",
                   gap: 8,
@@ -6490,7 +8297,7 @@ function TraceScopePanelBody() {
                   marginBottom: 8
                 }),
                 children: [
-                  jsx6("input", {
+                  jsx5("input", {
                     ref: taskAttachRef,
                     type: "file",
                     multiple: true,
@@ -6503,7 +8310,7 @@ function TraceScopePanelBody() {
                       uploadTaskFiles(files);
                     }
                   }),
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy,
@@ -6512,7 +8319,7 @@ function TraceScopePanelBody() {
                     },
                     children: "选择文件"
                   }),
-                  jsx6("input", {
+                  jsx5("input", {
                     style: Object.assign({}, styles.input, {
                       flex: "1 1 180px",
                       minWidth: 140,
@@ -6524,23 +8331,23 @@ function TraceScopePanelBody() {
                       setTaskAttachPath(e.target.value);
                     }
                   }),
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy || !taskAttachPath.trim(),
                     onClick: uploadTaskLocalPath,
                     children: "从路径添加"
                   }),
-                  jsx6("span", {
+                  jsx5("span", {
                     style: { fontSize: 12, color: "#6b645a" },
                     children: "已附 " + (report.attachments && report.attachments.length || 0) + "/8"
                   })
                 ]
               }),
-              report.attachments && report.attachments.length ? jsx6("div", {
+              report.attachments && report.attachments.length ? jsx5("div", {
                 style: { display: "flex", flexDirection: "column", gap: 6 },
                 children: report.attachments.map(function(att) {
-                  return jsxs6(
+                  return jsxs5(
                     "div",
                     {
                       style: Object.assign({}, styles.row, {
@@ -6552,10 +8359,10 @@ function TraceScopePanelBody() {
                         border: "1px solid #ebe4d8"
                       }),
                       children: [
-                        jsxs6("div", {
+                        jsxs5("div", {
                           style: { flex: 1, minWidth: 0 },
                           children: [
-                            jsx6("div", {
+                            jsx5("div", {
                               style: {
                                 fontWeight: 600,
                                 overflow: "hidden",
@@ -6565,13 +8372,13 @@ function TraceScopePanelBody() {
                               title: att.name,
                               children: att.name
                             }),
-                            jsx6("div", {
+                            jsx5("div", {
                               style: { fontSize: 11, color: "#8a7f70" },
                               children: (att.mime || "file") + " · " + formatBytes(att.size || 0)
                             })
                           ]
                         }),
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy,
@@ -6580,7 +8387,7 @@ function TraceScopePanelBody() {
                           },
                           children: "下载"
                         }),
-                        jsx6("button", {
+                        jsx5("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy,
@@ -6594,16 +8401,16 @@ function TraceScopePanelBody() {
                     att.id
                   );
                 })
-              }) : jsx6("p", {
+              }) : jsx5("p", {
                 style: { margin: 0, fontSize: 12, color: "#9a9185" },
                 children: "暂无任务附件"
               })
             ]
           }),
-          jsxs6("div", {
+          jsxs5("div", {
             style: styles.row,
             children: [
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: Object.assign({}, styles.btn, tab === "direct" ? { fontWeight: 700 } : null),
                 disabled: busy,
@@ -6613,7 +8420,7 @@ function TraceScopePanelBody() {
                 },
                 children: "直接项"
               }),
-              jsx6("button", {
+              jsx5("button", {
                 type: "button",
                 style: Object.assign({}, styles.btn, tab === "ripple" ? { fontWeight: 700 } : null),
                 disabled: busy,
@@ -6626,7 +8433,7 @@ function TraceScopePanelBody() {
             ]
           }),
           items.length ? items.map(function(item, index) {
-            return jsx6(
+            return jsx5(
               ItemCard,
               {
                 item,
@@ -6640,14 +8447,28 @@ function TraceScopePanelBody() {
               },
               (tab === "ripple" ? "ripple" : "direct") + "-" + index + "-" + (item.id || "")
             );
-          }) : jsx6("p", { style: { color: "#6b645a" }, children: "这一类没有条目" })
+          }) : jsx5("p", { style: { color: "#6b645a" }, children: "这一类没有条目" })
         ]
       }) : null,
-      mode === "ui" ? jsx6(VisualComparePanel2, {
+      mode === "ui" ? jsx5(VisualComparePanel2, {
         repoInput: repoPath.trim(),
-        auth: buildAuthPayload()
+        auth: buildAuthPayload(),
+        onSendToChat: fillComposerDraft,
+        openConfirmDialog: function(opts) {
+          setConfirmDlg({
+            title: opts.title,
+            message: opts.message || "",
+            inputLabel: opts.inputLabel,
+            inputValue: opts.inputValue || "",
+            multiline: !!opts.multiline,
+            fields: opts.fields || null,
+            confirmLabel: opts.confirmLabel || "保存",
+            danger: false,
+            onConfirm: opts.onConfirm
+          });
+        }
       }) : null,
-      confirmDlg ? jsxs6("div", {
+      confirmDlg ? jsxs5("div", {
         style: styles.modalBackdrop,
         role: "dialog",
         "aria-modal": "true",
@@ -6655,25 +8476,70 @@ function TraceScopePanelBody() {
           setConfirmDlg(null);
         },
         children: [
-          jsxs6("div", {
+          jsxs5("div", {
             style: Object.assign({}, styles.modalCard, { width: "min(480px, 100%)" }),
             onClick: function(e) {
               e.stopPropagation();
             },
             children: [
-              jsx6("div", {
+              jsx5("div", {
                 style: { fontWeight: 700, fontSize: 15, marginBottom: 8 },
                 children: confirmDlg.title || "请确认"
               }),
-              jsx6("p", {
+              confirmDlg.message ? jsx5("p", {
                 style: { margin: "0 0 12px", lineHeight: 1.5, color: "#4a453e" },
                 children: confirmDlg.message
-              }),
-              confirmDlg.inputLabel ? jsxs6("label", {
+              }) : null,
+              confirmDlg.fields && confirmDlg.fields.length ? jsx5("div", {
+                style: { display: "grid", gap: 10, marginBottom: 14 },
+                children: confirmDlg.fields.map(function(field, idx) {
+                  return jsxs5(
+                    "label",
+                    {
+                      style: styles.label,
+                      children: [
+                        field.label,
+                        jsx5("input", {
+                          style: styles.input,
+                          value: field.value || "",
+                          autoFocus: idx === 0,
+                          onChange: function(e) {
+                            var nextVal = e.target.value;
+                            var key = field.key;
+                            setConfirmDlg(function(prev) {
+                              if (!prev || !prev.fields) return prev;
+                              return Object.assign({}, prev, {
+                                fields: prev.fields.map(function(f) {
+                                  return f.key === key ? Object.assign({}, f, { value: nextVal }) : f;
+                                })
+                              });
+                            });
+                          }
+                        })
+                      ]
+                    },
+                    field.key
+                  );
+                })
+              }) : confirmDlg.inputLabel ? jsxs5("label", {
                 style: Object.assign({}, styles.label, { marginBottom: 14 }),
                 children: [
                   confirmDlg.inputLabel,
-                  jsx6("input", {
+                  confirmDlg.multiline ? jsx5("textarea", {
+                    style: Object.assign({}, styles.input, {
+                      minHeight: 88,
+                      resize: "vertical"
+                    }),
+                    value: confirmDlg.inputValue || "",
+                    autoFocus: true,
+                    onChange: function(e) {
+                      var next = e.target.value;
+                      setConfirmDlg(function(prev) {
+                        if (!prev) return prev;
+                        return Object.assign({}, prev, { inputValue: next });
+                      });
+                    }
+                  }) : jsx5("input", {
                     style: styles.input,
                     value: confirmDlg.inputValue || "",
                     autoFocus: true,
@@ -6696,10 +8562,10 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              jsxs6("div", {
+              jsxs5("div", {
                 style: Object.assign({}, styles.row, { justifyContent: "flex-end" }),
                 children: [
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: styles.btn,
                     onClick: function() {
@@ -6707,16 +8573,23 @@ function TraceScopePanelBody() {
                     },
                     children: "取消"
                   }),
-                  jsx6("button", {
+                  jsx5("button", {
                     type: "button",
                     style: confirmDlg.danger ? styles.danger : styles.primary,
                     onClick: function() {
                       var action = confirmDlg.onConfirm;
-                      var value = confirmDlg.inputValue;
                       setConfirmDlg(null);
-                      if (typeof action === "function") {
-                        if (confirmDlg.inputLabel) action(value);
-                        else action();
+                      if (typeof action !== "function") return;
+                      if (confirmDlg.fields && confirmDlg.fields.length) {
+                        var map = {};
+                        confirmDlg.fields.forEach(function(f) {
+                          map[f.key] = f.value || "";
+                        });
+                        action(map);
+                      } else if (confirmDlg.inputLabel) {
+                        action(confirmDlg.inputValue);
+                      } else {
+                        action();
                       }
                     },
                     children: confirmDlg.confirmLabel || "确定"
@@ -6853,7 +8726,7 @@ function apply(ctx) {
           key: TAB_ID
         },
         function TraceScopeTitle() {
-          return jsx6("span", { children: "TraceScope" });
+          return jsx5("span", { children: "TraceScope" });
         }
       );
     });

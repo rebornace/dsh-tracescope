@@ -1,59 +1,10 @@
-import { useEffect, useState } from 'react'
-import { VisualDiffBoard } from './VisualDiffBoard.js'
+import { useEffect, useRef, useState } from 'react'
 import { PageMappingOverview } from './PageMappingOverview.js'
 import { HifiCompareBoard } from './HifiCompareBoard.js'
+import { LoadingOverlay } from './LoadingOverlay.js'
+import type { PageFindings } from './panel-types.js'
 
-interface MatchCandidate {
-  adapterId: string
-  platform: string
-  kindLabel: string
-  relativePath: string
-  precise: boolean
-  score: number
-  reasons: string[]
-}
-
-interface WireNode {
-  id: string
-  name: string
-  kind: string
-  text?: string
-  box: { x?: number; y?: number; width?: number; height?: number }
-  style: {
-    backgroundColor?: string
-    color?: string
-    fontSize?: number
-    fontWeight?: number
-    cornerRadius?: number
-  }
-  children: WireNode[]
-}
-
-interface VisualDiff {
-  designNodeId: string
-  codeNodeId?: string
-  nodeName: string
-  property: string
-  expected: unknown
-  actual?: unknown
-  severity: 'high' | 'medium' | 'low'
-  needsReview?: boolean
-}
-
-interface CompareData {
-  page: { adapterId: string; kindLabel: string; relativePath: string; precise: boolean }
-  precise: boolean
-  reason?: string
-  result?: {
-    diffs: VisualDiff[]
-    unmatched: Array<{ id: string; name: string; side: 'design' | 'code'; text?: string }>
-    comparedPairs: number
-  }
-  designImageUrl?: string
-  frameBox?: { x: number; y: number; width: number; height: number }
-  designTree?: WireNode
-  codeTree?: WireNode
-}
+export type { PageFindings } from './panel-types.js'
 
 async function post(path: string, body: unknown) {
   const r = await fetch(path, {
@@ -71,49 +22,229 @@ async function post(path: string, body: unknown) {
 export interface VisualComparePanelProps {
   repoInput: string
   auth?: unknown
+  /** Drop a starter prompt into the host session composer (functional-test style). */
+  onSendToChat?: (prompt: string) => { ok: boolean; error?: string }
+  /**
+   * Host-level confirm dialog (same dialog used by hand-test notes). Required for
+   * reliable text input in the DSH sidebar — nested panel inputs often cannot focus.
+   */
+  openConfirmDialog?: (opts: {
+    title: string
+    message?: string
+    inputLabel?: string
+    inputValue?: string
+    multiline?: boolean
+    fields?: Array<{ key: string; label: string; value: string }>
+    confirmLabel?: string
+    onConfirm: (value: string | Record<string, string> | void) => void
+  }) => void
 }
 
-// Persist the design connection per code folder so reopening the panel (or the
-// app) does not force re-entering the Figma link/token.
+// Persist design connection: shared global default + optional per-repo override.
+// Switching repos loads that repo's saved values when present; otherwise keeps
+// the currently filled (global) values so one Figma file can serve many frontends.
 const UI_CONFIG_PREFIX = 'tracescope.ui.'
+const UI_CONFIG_GLOBAL_PREFIX = 'tracescope.ui.global.'
 const UI_CONFIG_FIGMA_URL = 'figmaUrl'
 const UI_CONFIG_FIGMA_TOKEN = 'figmaToken'
+/** Saved design-link history (shared across repos). */
+const SAVED_LINKS_KEY = 'tracescope.ui.savedFigmaLinks'
+const MAX_SAVED_LINKS = 12
 
-function uiStorageKey(repoInput: string, field: string) {
+interface SavedFigmaLink {
+  url: string
+  label: string
+  savedAt: string
+}
+
+function uiRepoKey(repoInput: string, field: string) {
   return UI_CONFIG_PREFIX + field + ':' + repoInput.trim()
 }
 
-function readUiConfig(repoInput: string, field: string) {
+function uiGlobalKey(field: string) {
+  return UI_CONFIG_GLOBAL_PREFIX + field
+}
+
+function readStorage(key: string): string | null {
   try {
-    return localStorage.getItem(uiStorageKey(repoInput, field)) ?? ''
+    return localStorage.getItem(key)
   } catch {
-    return ''
+    return null
   }
 }
 
-function writeUiConfig(repoInput: string, field: string, value: string) {
+function writeStorage(key: string, value: string) {
   try {
-    if (value) localStorage.setItem(uiStorageKey(repoInput, field), value)
-    else localStorage.removeItem(uiStorageKey(repoInput, field))
+    if (value) localStorage.setItem(key, value)
+    else localStorage.removeItem(key)
   } catch {
     /* storage unavailable: session-only */
   }
 }
 
-export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps) {
-  const [figmaUrl, setFigmaUrlState] = useState(() => readUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
-  const [figmaToken, setFigmaTokenState] = useState(() =>
-    readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN),
+/** True when this repo has ever saved a UI-walkthrough design connection. */
+function hasRepoUiConfig(repoInput: string): boolean {
+  return (
+    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null ||
+    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null
   )
+}
+
+function readRepoUiConfig(repoInput: string, field: string): string {
+  return readStorage(uiRepoKey(repoInput, field)) ?? ''
+}
+
+function readGlobalUiConfig(field: string): string {
+  return readStorage(uiGlobalKey(field)) ?? ''
+}
+
+/** Resolve initial field: repo override if present, else shared global. */
+function resolveUiConfig(repoInput: string, field: string): string {
+  if (hasRepoUiConfig(repoInput)) return readRepoUiConfig(repoInput, field)
+  return readGlobalUiConfig(field)
+}
+
+/** Save both the current repo override and the shared global default. */
+function writeUiConfig(repoInput: string, field: string, value: string) {
+  const trimmed = value.trim()
+  writeStorage(uiRepoKey(repoInput, field), trimmed)
+  writeStorage(uiGlobalKey(field), trimmed)
+}
+
+function clearUiConfigField(repoInput: string, field: string) {
+  writeStorage(uiRepoKey(repoInput, field), '')
+  writeStorage(uiGlobalKey(field), '')
+}
+
+function labelForFigmaUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const parts = u.pathname.split('/').filter(Boolean)
+    // /design/:fileKey/:fileName or /file/:fileKey/:fileName
+    const name = parts.length >= 3 ? decodeURIComponent(parts[2]!.replace(/-/g, ' ')) : ''
+    const node = u.searchParams.get('node-id') || ''
+    if (name && node) return `${name} · node ${node}`
+    if (name) return name
+    if (node) return `node ${node}`
+    return u.hostname + u.pathname
+  } catch {
+    return url.slice(0, 48)
+  }
+}
+
+function isLikelyFigmaUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim())
+    return u.hostname.includes('figma.com') && /\/(design|file|proto)\//.test(u.pathname)
+  } catch {
+    return false
+  }
+}
+
+function readSavedLinks(): SavedFigmaLink[] {
+  try {
+    const raw = localStorage.getItem(SAVED_LINKS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as SavedFigmaLink[]
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((x) => x && typeof x.url === 'string' && x.url.trim())
+  } catch {
+    return []
+  }
+}
+
+function writeSavedLinks(list: SavedFigmaLink[]) {
+  try {
+    localStorage.setItem(SAVED_LINKS_KEY, JSON.stringify(list.slice(0, MAX_SAVED_LINKS)))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Upsert a design URL into the saved-links list (most recent first). */
+function rememberSavedLink(url: string): SavedFigmaLink[] {
+  const trimmed = url.trim()
+  if (!isLikelyFigmaUrl(trimmed)) return readSavedLinks()
+  const next: SavedFigmaLink[] = [
+    { url: trimmed, label: labelForFigmaUrl(trimmed), savedAt: new Date().toISOString() },
+    ...readSavedLinks().filter((x) => x.url !== trimmed),
+  ].slice(0, MAX_SAVED_LINKS)
+  writeSavedLinks(next)
+  return next
+}
+
+function removeSavedLink(url: string): SavedFigmaLink[] {
+  const next = readSavedLinks().filter((x) => x.url !== url)
+  writeSavedLinks(next)
+  return next
+}
+
+export function VisualComparePanel({
+  repoInput,
+  auth,
+  onSendToChat,
+  openConfirmDialog,
+}: VisualComparePanelProps) {
+  const [figmaUrl, setFigmaUrlState] = useState(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
+  const [figmaToken, setFigmaTokenState] = useState(() =>
+    resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN),
+  )
+  const [savedLinks, setSavedLinks] = useState<SavedFigmaLink[]>(() => readSavedLinks())
   const [busy, setBusy] = useState(false)
-  const [phase, setPhase] = useState<'idle' | 'matched'>('idle')
-  const [candidates, setCandidates] = useState<MatchCandidate[]>([])
-  const [selectedKey, setSelectedKey] = useState('')
-  const [data, setData] = useState<CompareData | null>(null)
+  const [busyMessage, setBusyMessage] = useState('')
+  const [busyStartedAt, setBusyStartedAt] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+
+  // Begin/end a busy operation with a stage message. Both the whole-file scan
+  // and high-fidelity compare route through here so the loading modal can show
+  // what is happening and how long it has taken.
+  function beginBusy(message: string) {
+    setBusyMessage(message)
+    setBusyStartedAt(Date.now())
+    setElapsed(0)
+    setBusy(true)
+  }
+  function endBusy() {
+    setBusy(false)
+    setBusyMessage('')
+    setBusyStartedAt(0)
+    setElapsed(0)
+  }
+
+  // Tick an elapsed-seconds counter while a busy operation runs.
+  useEffect(() => {
+    if (!busy || !busyStartedAt) return
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - busyStartedAt) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [busy, busyStartedAt])
+
   const [error, setError] = useState('')
-  const [designNodeName, setDesignNodeName] = useState('')
   const [hifiData, setHifiData] = useState<unknown>(null)
-  const [useAI, setUseAI] = useState(false)
+  // Design id + code file of the high-fidelity result currently shown, so the
+  // originating card is highlighted and the result area is clearly labelled.
+  const [activeDesignId, setActiveDesignId] = useState('')
+  const [activeCodeFile, setActiveCodeFile] = useState<{ adapterId: string; relativePath: string } | null>(null)
+  // AI findings per design id (write-back); persisted server-side.
+  const [findingsMap, setFindingsMap] = useState<Record<string, PageFindings>>({})
+  // Job currently awaiting the model's publish, plus the page it belongs to.
+  const [pendingJob, setPendingJob] = useState<{
+    jobId: string
+    designId: string
+    kind: 'findings' | 'rematch'
+  } | null>(null)
+  const [rematchApply, setRematchApply] = useState<{
+    designId: string
+    candidates: Array<{
+      adapterId: string
+      relativePath: string
+      kindLabel?: string
+      score?: number
+      reason?: string
+    }>
+    note?: string
+    token: number
+  } | null>(null)
+  const rematchTokenRef = useRef(0)
 
   const setFigmaUrl = (value: string) => {
     setFigmaUrlState(value)
@@ -123,52 +254,135 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
     setFigmaTokenState(value)
     writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim())
   }
+  const clearFigmaUrl = () => {
+    setFigmaUrlState('')
+    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_URL)
+  }
+  const clearFigmaToken = () => {
+    setFigmaTokenState('')
+    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_TOKEN)
+  }
+  const saveCurrentLink = () => {
+    if (!figmaUrl.trim()) return
+    setSavedLinks(rememberSavedLink(figmaUrl))
+  }
+  const applySavedLink = (url: string) => {
+    setFigmaUrl(url)
+  }
+  const deleteSavedLink = (url: string) => {
+    const next = removeSavedLink(url)
+    setSavedLinks(next)
+    if (figmaUrl.trim() === url.trim()) clearFigmaUrl()
+  }
+  const onDesignLinkUsed = (url: string) => {
+    setSavedLinks(rememberSavedLink(url))
+  }
 
-  // Reload this folder's saved design connection when the code folder changes,
-  // and clear the previous folder's match/compare results.
+  // When the code folder changes: load that repo's saved design connection if
+  // it has one; otherwise keep the currently filled values (shared design).
   useEffect(() => {
-    setFigmaUrlState(readUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
-    setFigmaTokenState(readUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN))
-    setCandidates([])
-    setSelectedKey('')
-    setData(null)
-    setPhase('idle')
+    if (hasRepoUiConfig(repoInput)) {
+      setFigmaUrlState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
+      setFigmaTokenState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN))
+    } else {
+      setFigmaUrlState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_URL))
+      setFigmaTokenState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN))
+    }
     setError('')
-    setDesignNodeName('')
+    setHifiData(null)
+    setActiveDesignId('')
+    setActiveCodeFile(null)
+    setFindingsMap({})
+    setPendingJob(null)
+    setRematchApply(null)
   }, [repoInput])
 
-  const basePayload = () => ({
-    repoPath: repoInput,
-    auth,
-    figmaUrl: figmaUrl.trim(),
-    figmaToken: figmaToken.trim(),
-  })
-
-  async function locate() {
-    setError('')
-    setData(null)
-    setDesignNodeName('')
-    if (!figmaUrl.trim() || !figmaToken.trim()) {
-      setError('请填写设计稿链接和访问 Token')
-      return
-    }
-    setBusy(true)
-    try {
-      const res = await post('/tracescope/v1/match-page', basePayload())
-      const list = (res.candidates || []) as MatchCandidate[]
-      setCandidates(list)
-      setPhase('matched')
-      setDesignNodeName(typeof res.designNodeName === 'string' ? res.designNodeName : '')
-      if (list.length) {
-        const first = list[0]!
-        setSelectedKey(candidateKey(first))
+  // Poll the UI review / rematch job once the prompt is in the composer.
+  useEffect(() => {
+    if (!pendingJob) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+    const startedAt = Date.now()
+    const MAX_WAIT_MS = 180_000
+    const tick = async () => {
+      try {
+        const res = await post('/tracescope/v1/visual-job', { id: pendingJob.jobId })
+        if (cancelled) return
+        const status = (res as { status?: string }).status
+        if (status === 'published') {
+          if (pendingJob.kind === 'rematch') {
+            const rematch = (
+              res as {
+                rematch?: {
+                  picks?: Array<{
+                    adapterId?: string
+                    relativePath?: string
+                    kindLabel?: string
+                    score?: number
+                    reason?: string
+                  }>
+                  note?: string
+                }
+              }
+            ).rematch
+            const picks = (rematch?.picks ?? [])
+              .filter((p) => p && p.relativePath)
+              .map((p) => ({
+                adapterId: String(p.adapterId || 'android-xml'),
+                relativePath: String(p.relativePath),
+                kindLabel: p.kindLabel,
+                score: p.score,
+                reason: p.reason,
+              }))
+            if (picks.length) {
+              rematchTokenRef.current += 1
+              setRematchApply({
+                designId: pendingJob.designId,
+                candidates: picks,
+                note: rematch?.note,
+                token: rematchTokenRef.current,
+              })
+              setError(
+                `✓ AI 已写回文件推荐（${picks[0]!.relativePath}）。可在会话继续纠正后再次写回。`,
+              )
+            }
+          } else {
+            const findings = (res as { findings?: PageFindings }).findings
+            if (findings) {
+              setFindingsMap((prev) => ({
+                ...prev,
+                [pendingJob.designId]: {
+                  findings: findings.findings ?? [],
+                  renderPatch: findings.renderPatch,
+                  summary: findings.summary,
+                  savedAt: findings.savedAt || new Date().toISOString(),
+                },
+              }))
+            }
+          }
+          setPendingJob(null)
+          return
+        }
+        if (status === 'error') {
+          setPendingJob(null)
+          return
+        }
+      } catch {
+        /* transient: keep polling */
       }
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
+      if (cancelled) return
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        setPendingJob(null)
+        return
+      }
+      timer = setTimeout(tick, 2000)
     }
-  }
+    timer = setTimeout(tick, 2500)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [pendingJob])
 
   /** Build a node-specific Figma URL from a whole-file URL + node id. */
   function nodeUrl(designId: string): string {
@@ -181,14 +395,17 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
     }
   }
 
-  async function compareFromOverview(
+  /**
+   * Run high-fidelity compare for one design↔code pair and wire the board.
+   * Does not manage busy overlay — callers own beginBusy/endBusy.
+   */
+  async function runHifiCompare(
     designId: string,
     codeFile: { adapterId: string; relativePath: string },
-  ) {
-    setError('')
-    setData(null)
-    setHifiData(null)
-    setBusy(true)
+    force = false,
+  ): Promise<
+    { ok: true; designImageUrl?: string } | { ok: false; error: string }
+  > {
     try {
       const res = await post('/tracescope/v1/hifi-compare', {
         repoPath: repoInput,
@@ -197,79 +414,351 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
         figmaToken: figmaToken.trim(),
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
-        useAI,
+        useAI: false,
+        force,
       })
       setHifiData(res)
+      setActiveDesignId(designId)
+      setActiveCodeFile(codeFile)
+      try {
+        const f = await post('/tracescope/v1/visual-findings-load', {
+          repoPath: repoInput,
+          figmaUrl: nodeUrl(designId),
+          designId,
+          adapterId: codeFile.adapterId,
+          relativePath: codeFile.relativePath,
+        })
+        const report = (f as { found?: boolean; report?: PageFindings }).report
+        if ((f as { found?: boolean }).found && report) {
+          setFindingsMap((prev) => ({
+            ...prev,
+            [designId]: {
+              findings: report.findings ?? [],
+              renderPatch: report.renderPatch,
+              summary: report.summary,
+              savedAt: report.savedAt || new Date().toISOString(),
+            },
+          }))
+        }
+      } catch {
+        /* findings are optional */
+      }
+      return {
+        ok: true,
+        designImageUrl: (res as { designImageUrl?: string }).designImageUrl,
+      }
     } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
+      return { ok: false, error: (err as Error).message }
     }
   }
 
-  async function compare() {
+  async function compareFromOverview(
+    designId: string,
+    codeFile: { adapterId: string; relativePath: string },
+    force = false,
+  ) {
     setError('')
-    const c = candidates.find((x) => candidateKey(x) === selectedKey)
-    if (!c) {
-      setError('请选择要对比的页面')
-      return
-    }
-    setBusy(true)
+    setHifiData(null)
+    setActiveDesignId('')
+    setActiveCodeFile(null)
+    beginBusy(force ? '正在重新生成界面对比…' : '正在对比设计稿与代码，并生成标注…')
     try {
-      const res = await post('/tracescope/v1/visual-compare', {
-        ...basePayload(),
-        adapterId: c.adapterId,
-        relativePath: c.relativePath,
+      const result = await runHifiCompare(designId, codeFile, force)
+      if (!result.ok) setError(result.error)
+      else if (!result.designImageUrl) {
+        setError(
+          '界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查 Figma 链接/Token 后重试「界面对比」。',
+        )
+      }
+    } finally {
+      endBusy()
+    }
+  }
+
+  /**
+   * Per-card "AI 协助分析": ensure the hifi board is showing for this page
+   * (so design raster + static diffs are visible), then fill the session
+   * composer with the skill-driven analysis brief.
+   */
+  async function aiAnalyzeFromOverview(
+    designId: string,
+    codeFile: { adapterId: string; relativePath: string },
+  ) {
+    setError('')
+    const boardReady =
+      !!hifiData &&
+      activeDesignId === designId &&
+      activeCodeFile?.adapterId === codeFile.adapterId &&
+      activeCodeFile?.relativePath === codeFile.relativePath
+
+    if (!boardReady) {
+      const proceed = window.confirm(
+        '尚未对该页完成「界面对比」。\n\n' +
+          '继续将先生成界面对比（可能需要几十秒到数分钟），再准备 AI 分析提示词；整体耗时与 token 消耗都会更高。\n\n' +
+          '若设计稿渲染图加载失败，分析质量会明显下降。\n\n是否仍要继续？',
+      )
+      if (!proceed) {
+        setError('已取消 AI 协助分析。建议先点「界面对比」，确认设计稿渲染成功后再分析。')
+        return
+      }
+    }
+
+    beginBusy(boardReady ? '正在准备 AI 协助分析…' : '正在生成界面对比，随后准备 AI 协助分析…')
+    try {
+      let designImageUrl =
+        boardReady
+          ? (hifiData as { designImageUrl?: string } | null)?.designImageUrl
+          : undefined
+
+      if (!boardReady) {
+        const compared = await runHifiCompare(designId, codeFile, false)
+        if (!compared.ok) {
+          setError(
+            `界面对比失败，已中止 AI 协助分析，避免无效 token 消耗。\n原因：${compared.error}`,
+          )
+          return
+        }
+        designImageUrl = compared.designImageUrl
+        setBusyMessage('正在准备 AI 协助分析…')
+      }
+
+      if (!designImageUrl) {
+        const proceedWithoutRaster = window.confirm(
+          '设计稿官方渲染图加载失败（或尚未可用）。\n\n' +
+            '没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n' +
+            '建议先检查 Figma 链接与 Token，重新「界面对比」成功后再分析。\n\n是否仍要继续？',
+        )
+        if (!proceedWithoutRaster) {
+          setError(
+            '已取消：请先确认设计稿渲染图可加载（界面对比左侧出现设计图），再使用「AI 协助分析」。',
+          )
+          return
+        }
+      }
+
+      const res = await post('/tracescope/v1/code-visual-prompt', {
+        repoPath: repoInput,
+        auth,
+        figmaUrl: nodeUrl(designId),
+        figmaToken: figmaToken.trim(),
+        adapterId: codeFile.adapterId,
+        relativePath: codeFile.relativePath,
       })
-      setData(res as CompareData)
+      const prompt = (res as { prompt?: string }).prompt
+      const jobId = (res as { jobId?: string }).jobId
+      const promptDesignImage = (res as { designImageUrl?: string }).designImageUrl
+      if (!designImageUrl && !promptDesignImage) {
+        const proceed = window.confirm(
+          '准备提示词时仍未拿到设计稿渲染图。继续发送可能导致效果差且浪费 token。\n\n是否仍要填入会话？',
+        )
+        if (!proceed) {
+          setError('已取消填入提示词。请修复设计稿渲染后再试。')
+          return
+        }
+      }
+      if (typeof onSendToChat !== 'function' || !prompt) {
+        setError('无法准备 AI 协助分析，请重试。')
+        return
+      }
+      const sent = onSendToChat(prompt)
+      if (!sent.ok) {
+        setError(
+          (sent.error || '无法写入会话输入框') +
+            '；请确认已打开并选中一个会话，或重新点击「AI 协助分析」。',
+        )
+        return
+      }
+      if (jobId) setPendingJob({ jobId, designId, kind: 'findings' })
+      setError(
+        designImageUrl || promptDesignImage
+          ? '✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。'
+          : '✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。',
+      )
     } catch (err) {
-      setData(null)
       setError((err as Error).message)
     } finally {
-      setBusy(false)
+      endBusy()
+    }
+  }
+
+  /**
+   * Per-card "AI 推荐文件": build a reviewable rematch prompt (static candidates
+   * + design texts) and fill the session composer. No silent LLM call — the
+   * user can edit, send, and keep chatting to correct bad matches.
+   */
+  async function aiRematchFromOverview(
+    designId: string,
+    codeFile?: { adapterId: string; relativePath: string },
+  ) {
+    setError('')
+    beginBusy('正在准备「AI 推荐文件」提示词…')
+    try {
+      if (!figmaUrl.trim() || !figmaToken.trim()) {
+        setError('请先填写设计稿链接与 Token')
+        return
+      }
+      const res = await post('/tracescope/v1/match-page', {
+        repoPath: repoInput,
+        auth,
+        figmaUrl: figmaUrl.trim(),
+        figmaToken: figmaToken.trim(),
+        designId,
+        rematchPrompt: true,
+        adapterId: codeFile?.adapterId,
+        relativePath: codeFile?.relativePath,
+      })
+      const prompt = (res as { prompt?: string }).prompt
+      const jobId = (res as { jobId?: string }).jobId
+      if (typeof onSendToChat !== 'function' || !prompt) {
+        setError('无法准备推荐提示词，请重试。')
+        return
+      }
+      const sent = onSendToChat(prompt)
+      if (!sent.ok) {
+        setError(
+          (sent.error || '无法写入会话输入框') +
+            '；请确认已打开并选中一个会话，核对提示词后再发送。写回后侧栏会自动更新选中文件。',
+        )
+        return
+      }
+      if (jobId) setPendingJob({ jobId, designId, kind: 'rematch' })
+      setError(
+        '✓ 已将「AI 推荐文件」提示词填入当前会话。请核对后发送；模型调用 tracescope_publish_page_rematch 后，侧栏会自动选中推荐文件。可继续对话纠正并再次写回。',
+      )
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      endBusy()
     }
   }
 
   return (
     <section style={S.card}>
+      {busy ? (
+        <LoadingOverlay message={busyMessage} elapsedSeconds={elapsed} />
+      ) : null}
       <strong>UI 走查：设计稿 ↔ 代码</strong>
       <p style={S.hint}>
-        连接设计稿后，系统会在当前仓库中自动定位对应的页面（同一页面可能存在多种技术实现），
-        再与所选实现进行确定性对比，自动列出尺寸、间距、颜色、字号等差异。无需运行应用，也不依赖模型。
+        粘贴 Figma 链接与 Token 后扫描：链接带 <code>node-id</code> 时优先定位该页（若节点下有多块画板会拆成多张卡片）；否则扫描整个设计文件。
+        链接与 Token 会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。
       </p>
 
       <label style={S.label}>
         设计稿链接
-        <input
-          style={S.input}
-          value={figmaUrl}
-          disabled={busy}
-          placeholder="https://www.figma.com/design/...?node-id=0-3046"
-          onChange={(e) => setFigmaUrl(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            style={{ ...S.input, flex: 1, marginTop: 0 }}
+            value={figmaUrl}
+            disabled={busy}
+            placeholder="https://www.figma.com/design/...?node-id=0-3046"
+            onChange={(e) => setFigmaUrl(e.target.value)}
+            onBlur={() => {
+              if (isLikelyFigmaUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl))
+            }}
+          />
+          <button
+            type="button"
+            style={S.miniBtn}
+            disabled={busy || !figmaUrl.trim()}
+            title="保存到常用链接"
+            onClick={saveCurrentLink}
+          >
+            保存
+          </button>
+          <button
+            type="button"
+            style={S.miniBtn}
+            disabled={busy || !figmaUrl.trim()}
+            title="清空当前链接"
+            onClick={clearFigmaUrl}
+          >
+            删除
+          </button>
+        </div>
       </label>
+
+      {savedLinks.length > 0 ? (
+        <div style={{ margin: '0 0 8px', fontSize: 12 }}>
+          <div style={{ color: '#667085', marginBottom: 4 }}>常用设计稿链接</div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
+            {savedLinks.map((item) => {
+              const active = item.url.trim() === figmaUrl.trim()
+              return (
+                <li
+                  key={item.url}
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    alignItems: 'center',
+                    padding: '4px 6px',
+                    borderRadius: 6,
+                    background: active ? '#eef6ff' : '#f8fafc',
+                    border: `1px solid ${active ? '#b2d4ff' : '#e4e7ec'}`,
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => applySavedLink(item.url)}
+                    title={item.url}
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: busy ? 'default' : 'pointer',
+                      padding: 0,
+                      fontSize: 12,
+                      color: '#101828',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {item.label || item.url}
+                  </button>
+                  <button
+                    type="button"
+                    style={S.miniBtn}
+                    disabled={busy}
+                    title="从常用列表删除"
+                    onClick={() => deleteSavedLink(item.url)}
+                  >
+                    ×
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       <label style={S.label}>
         访问 Token
-        <input
-          style={S.input}
-          type="password"
-          value={figmaToken}
-          disabled={busy}
-          placeholder="figd_..."
-          onChange={(e) => setFigmaToken(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            style={{ ...S.input, flex: 1, marginTop: 0 }}
+            type="password"
+            value={figmaToken}
+            disabled={busy}
+            placeholder="figd_..."
+            onChange={(e) => setFigmaToken(e.target.value)}
+          />
+          <button
+            type="button"
+            style={S.miniBtn}
+            disabled={busy || !figmaToken.trim()}
+            title="清除已保存的 Token"
+            onClick={clearFigmaToken}
+          >
+            清除
+          </button>
+        </div>
       </label>
 
-      <label style={{ ...S.row, gap: 6, fontSize: 12, color: '#5f584c', margin: '2px 0 8px' }}>
-        <input
-          type="checkbox"
-          checked={useAI}
-          disabled={busy}
-          onChange={(e) => setUseAI(e.target.checked)}
-        />
-        本次生成启用 AI 辅助（仅用于推断列表/分页等动态区域，会标注为「AI 推断」，不参与自动判定）
-      </label>
+      <p style={{ ...S.hint, margin: '2px 0 8px' }}>
+        「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。
+      </p>
 
       <div style={{ marginTop: 2 }}>
         <PageMappingOverview
@@ -278,128 +767,79 @@ export function VisualComparePanel({ repoInput, auth }: VisualComparePanelProps)
           figmaToken={figmaToken}
           auth={auth}
           busy={busy}
-          onScanStateChange={setBusy}
+          activeDesignId={activeDesignId}
+          onScanStateChange={(next, message) =>
+            next ? beginBusy(message || '正在扫描设计稿…') : endBusy()
+          }
+          onDesignLinkUsed={onDesignLinkUsed}
           onCompare={compareFromOverview}
+          onAiAnalyze={aiAnalyzeFromOverview}
+          onAiRematch={aiRematchFromOverview}
+          rematchApply={rematchApply}
         />
       </div>
-
-      <details style={{ marginTop: 10 }}>
-        <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b645a' }}>
-          高级：仅定位当前链接选中的单个节点
-        </summary>
-
-        <button type="button" style={{ ...S.primary, marginTop: 8 }} disabled={busy} onClick={locate}>
-          {busy && phase === 'idle' ? '定位中…' : '自动定位当前节点'}
-        </button>
-
-        {phase === 'matched' ? (
-          candidates.length ? (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ ...S.row, justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 600 }}>匹配的页面（默认最佳，可切换）</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-                {candidates.map((c) => {
-                  const key = candidateKey(c)
-                  const checked = key === selectedKey
-                  return (
-                    <label
-                      key={key}
-                      style={{
-                        border: '1px solid ' + (checked ? '#0f6e56' : 'var(--dsh-border,#ddd4c5)'),
-                        borderRadius: 8,
-                        padding: '8px 10px',
-                        cursor: 'pointer',
-                        background: checked ? '#f2f8f5' : '#fff',
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ ...S.row, justifyContent: 'space-between' }}>
-                        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                          <input
-                            type="radio"
-                            name="visual-page"
-                            checked={checked}
-                            onChange={() => setSelectedKey(key)}
-                          />
-                          <strong>
-                            {c.kindLabel} · {Math.round(c.score * 100)}%
-                          </strong>
-                          {!c.precise ? (
-                            <span style={S.badge}>暂不支持精确对比</span>
-                          ) : null}
-                        </span>
-                      </div>
-                      <div style={{ color: '#6b645a', marginTop: 4 }}>{c.relativePath}</div>
-                      {c.reasons.length ? (
-                        <div style={{ color: '#8a7f70', marginTop: 2 }}>{c.reasons.join('；')}</div>
-                      ) : null}
-                    </label>
-                  )
-                })}
-              </div>
-              <button
-                type="button"
-                style={{ ...S.primary, marginTop: 10 }}
-                disabled={busy}
-                onClick={compare}
-              >
-                {busy ? '对比中…' : '开始对比所选页面'}
-              </button>
-            </div>
-          ) : designNodeName ? (
-            <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
-              当前链接指向的节点「{designNodeName}」是一个<strong>空白图层（不含任何文案或控件）</strong>，
-              无法对应到代码页面。
-              <br />
-              请在 Figma 中点击真正的<strong>画板 / 界面 Frame</strong>（通常包含整屏内容，而非某个矩形、图片等子元素），
-              右键选择「Copy link to selection」后重新粘贴。
-            </div>
-          ) : (
-            <div style={{ ...S.hint, color: '#9a6700', marginTop: 10, lineHeight: 1.7 }}>
-              未能在仓库中定位到与设计稿对应的页面。请确认：
-              <br />
-              1）所选代码文件夹根目录正确；
-              <br />
-              2）复制链接时选中的是完整画板，而不是画板内的某个分组 / 子元素；
-              <br />
-              3）设计稿中的文案与界面实际文案一致。
-            </div>
-          )
-        ) : null}
-      </details>
 
       {error ? (
         <p style={{ color: '#b42318', margin: '8px 0 0', fontSize: 12 }}>{error}</p>
       ) : null}
-
-      {data && !data.precise ? (
+      {hifiData ? (
         <div
           style={{
-            marginTop: 12,
-            border: '1px solid var(--dsh-border,#ddd4c5)',
+            marginTop: 14,
+            padding: '10px 12px',
+            border: '1px solid #0f6e56',
             borderRadius: 10,
-            padding: 10,
-            background: '#faf7f0',
+            background: '#f2f8f5',
             fontSize: 12,
-            color: '#7a5b13',
-            lineHeight: 1.5,
+            color: '#0d4a3a',
+            lineHeight: 1.6,
           }}
         >
-          <strong>{data.page.kindLabel}</strong> · {data.page.relativePath}
-          <div style={{ marginTop: 4 }}>
-            {data.reason || '该实现以代码方式构建界面，当前版本暂不支持属性级对比。'}
+          <div style={{ fontWeight: 700, fontSize: 13 }}>
+            当前对比：{String(
+              (hifiData as { designHifiTree?: { name?: string } })?.designHifiTree?.name ?? '',
+            )}
+          </div>
+          <div style={{ marginTop: 2, color: '#3f6b5c', wordBreak: 'break-all' }}>
+            设计稿 ↔ 代码文件：{(activeCodeFile as { relativePath?: string } | null)?.relativePath ??
+              (hifiData as { page?: { relativePath?: string } })?.page?.relativePath ??
+              ''}
           </div>
         </div>
       ) : null}
-      {data && data.precise && data.result ? <VisualDiffBoard data={data} /> : null}
-      {hifiData ? <HifiCompareBoard data={hifiData as never} /> : null}
+      {hifiData ? (
+        <HifiCompareBoard
+          data={hifiData as never}
+          findings={
+            activeDesignId ? (findingsMap[activeDesignId] as PageFindings) : undefined
+          }
+          onSendToChat={onSendToChat}
+          openConfirmDialog={openConfirmDialog}
+          onAiAnalyze={(file) => {
+            const designId = String(
+              (hifiData as { designHifiTree?: { id?: string } } | null)?.designHifiTree?.id ?? '',
+            )
+            if (designId) aiAnalyzeFromOverview(designId, file)
+            else setError('无法确定当前设计节点，请重新进行界面对比。')
+          }}
+          onRegenerate={() => {
+            const tree = (hifiData as {
+              designHifiTree?: { id?: string }
+              page?: { adapterId?: string; relativePath?: string }
+            } | null)
+            const designId = String(tree?.designHifiTree?.id ?? '')
+            const adapterId = String(tree?.page?.adapterId ?? '')
+            const relativePath = String(tree?.page?.relativePath ?? '')
+            if (designId && adapterId && relativePath) {
+              void compareFromOverview(designId, { adapterId, relativePath }, true)
+            } else {
+              setError('无法确定当前页面，请重新进行界面对比。')
+            }
+          }}
+        />
+      ) : null}
     </section>
   )
-}
-
-function candidateKey(c: MatchCandidate) {
-  return c.adapterId + '::' + c.relativePath
 }
 
 const S = {
@@ -420,6 +860,17 @@ const S = {
     borderRadius: 8,
     fontSize: 13,
     boxSizing: 'border-box',
+  },
+  miniBtn: {
+    flexShrink: 0,
+    padding: '6px 10px',
+    borderRadius: 8,
+    border: '1px solid #d0d5dd',
+    background: '#fff',
+    color: '#344054',
+    fontSize: 12,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
   },
   primary: {
     padding: '7px 12px',

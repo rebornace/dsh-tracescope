@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.1.11`**（同步默认最新分支 + 稳定/待测提交；分支筛选与个人访问令牌持久化）
+**版本: `0.1.12`**（设计稿 UI 走查 design-only；多栈静态对比 + AI 协助分析）
 
 功能节点见 [更新日志](./CHANGELOG.md)。下面是**当前版本**能力，不是 0.1.0 的快照。
 
@@ -21,7 +21,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代�
 | `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
 | `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
 
-## 当前能力（0.1.11）
+## 当前能力（0.1.12）
 
 - **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）。本地 Git 按**提交对象**建索引，不要求工作区文件此刻能被打开
 - **支持语言（反向依赖波及）**：
@@ -37,10 +37,11 @@ TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代�
 - **逐项标注**：通过 / 失败 / 跳过 / 重置；问题项可填备注 + **每条最多 3 张截图**
 - **任务级附件**：视频 / 文档等挂在整份对比任务上（最多 8 个，不跟单条 checklist）
 - **关联云效敏捷任务**：类型可多选，任务可多选，辅助生成清单种子 / 模型提示
-- **协作平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook  
+- **协作平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook
   - 提交时可**修改默认标题**  
   - 云效：任务附件真实上传；截图嵌入工作项**详情**对应条目（`![文件名](embedUrl)`）  
   - 云效目录请求可在面板查看日志（不含 token）
+- **设计稿 UI 走查**：以 Figma 为唯一准绳的静态对比（Android / iOS / Flutter / RN / Harmony / Web / 小程序 / uni-app / Taro / MAUI），支持属性级与启发式对比，并可一键发起 AI 协助分析
 - **导出**：Markdown / CSV；复制问题反馈
 - **本机数据**：`~/.tracescope/`（认证、协作平台配置、报告、附件、远端缓存）
 
@@ -123,7 +124,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
 3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
 
-### npm 包（0.1.11）
+### npm 包（0.1.12）
 
 | 包 | 用途 |
 |----|------|
@@ -193,9 +194,9 @@ DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`traces
 
 | 包 | 版本 | 说明 |
 |----|------|------|
-| `@rebornace/tracescope-core` | 0.1.11 | 分析、报告存储、云效 / Tracker、导出 |
-| `@rebornace/dsh-tracescope` | 0.1.11 | DSH Host + React Slot Client |
-| `@rebornace/tracescope-mcp` | 0.1.11 | MCP Server |
+| `@rebornace/tracescope-core` | 0.1.12 | 分析、报告存储、云效 / Tracker、导出 |
+| `@rebornace/dsh-tracescope` | 0.1.12 | DSH Host + React Slot Client |
+| `@rebornace/tracescope-mcp` | 0.1.12 | MCP Server |
 | `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
 ## 已知限制

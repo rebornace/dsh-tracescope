@@ -21,8 +21,12 @@ import { registerVisualRoutes } from './routes/visual.js'
 import { registerAnalyzeImpactTool } from './tools/analyze-impact-tool.js'
 import { registerGetDiffTool } from './tools/get-diff-tool.js'
 import { registerPublishHandtestTool } from './tools/publish-handtest-tool.js'
+import { registerPublishVisualFindingsTool } from './tools/publish-visual-findings-tool.js'
+import { registerPublishPageRematchTool } from './tools/publish-page-rematch-tool.js'
+import { registerGetDesignSnapshotTool } from './tools/get-design-snapshot-tool.js'
 
 import { registerCliCommand } from './commands/cli-command.js'
+import { registerBuiltinSkills } from './skills/builtin-skills.js'
 
 export const name = 'tracescope'
 export const inject = ['tools', 'commands', 'webServer']
@@ -43,6 +47,12 @@ export function apply(ctx: Context) {
   registerAnalyzeImpactTool(ctx)
   registerGetDiffTool(ctx)
   registerPublishHandtestTool(ctx)
+  registerPublishVisualFindingsTool(ctx)
+  registerPublishPageRematchTool(ctx)
+  registerGetDesignSnapshotTool(ctx)
+
+  // Built-in skills (no-op when host has no @deepseek-ai/dsh-skill).
+  registerBuiltinSkills(ctx)
 
   // Slash command.
   registerCliCommand(ctx)

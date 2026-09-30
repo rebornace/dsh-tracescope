@@ -46,17 +46,36 @@ export interface HifiRenderNode {
     color?: string
     fontSize?: number
     fontWeight?: number
+    /** Raw font family from the design; the client wraps it in a CJK fallback stack. */
+    fontFamily?: string
     borderRadius?: number
+    /** Per-corner radii [topLeft, topRight, bottomRight, bottomLeft]. */
+    borderRadii?: [number, number, number, number]
     borderWidth?: number
     borderColor?: string
     gradient?: ParsedDrawableShape['gradient']
     opacity?: number
     textAlign?: string
+    /** Text line height in logical units. */
+    lineHeight?: number
+    /** How an image is fitted: 'fill' stretches, 'cover' crops, 'contain' letterboxes. */
+    imageFit?: 'fill' | 'contain' | 'cover'
   }
   /** True for a surface populated at runtime (list/pager/web). */
   dynamic?: boolean
+  /**
+   * True when this dynamic surface was filled by rendering the CODE's own item
+   * layout (recovered from the Adapter source) and tiling the real rows — as
+   * opposed to projecting design geometry. The client labels it "代码还原".
+   */
+  itemRendered?: boolean
   /** True when content was produced by an AI best-effort inference. */
   aiInferred?: boolean
+  /**
+   * AI-inferred child content for a runtime-populated surface (list/pager/web).
+   * Coordinates are absolute (same shared space); anchored to real design copy.
+   */
+  inferredChildren?: HifiRenderNode[]
   children: HifiRenderNode[]
 }
 
@@ -79,6 +98,43 @@ function simpleTag(tag: string): string {
 
 function isScrollContainer(tag: string): boolean {
   return /^(nestedscrollview|scrollview|horizontalscrollview)$/i.test(tag)
+}
+
+// Shared layout-classification used by BOTH measure and place passes, so a node
+// is never measured one way and placed another. AppBarLayout is a vertical
+// LinearLayout; CollapsingToolbarLayout stacks children like a FrameLayout.
+function orientationIsHorizontal(el: XmlElement): boolean {
+  return /horizontal/.test(el.attrs['android:orientation'] ?? '')
+}
+function isVerticalLinearLayoutNode(tag: string, el: XmlElement): boolean {
+  const t = simpleTag(tag)
+  return (
+    (/linearlayout$/i.test(t) || /appbarlayout$/i.test(t)) &&
+    !orientationIsHorizontal(el)
+  )
+}
+function isHorizontalLinearLayoutNode(tag: string, el: XmlElement): boolean {
+  const t = simpleTag(tag)
+  return /linearlayout$/i.test(t) && orientationIsHorizontal(el)
+}
+function isFrameLikeNode(tag: string): boolean {
+  return /^(framelayout|coordinatorlayout|smartrefreshlayout|collapsingtoolbarlayout)$/i.test(
+    simpleTag(tag),
+  )
+}
+
+/**
+ * A full-screen loading / skeleton overlay that is programmatically hidden once
+ * data arrives. It is absent from the finished UI, so rendering it would paint
+ * placeholder blocks over the real content. Match by id/name, not position.
+ */
+function isStaticHiddenOverlay(el: XmlElement): boolean {
+  const id = (el.attrs['android:id'] ?? '')
+    .replace(/^@\+?id\//, '')
+    .toLowerCase()
+  return /(^|_)(loading_view|loadingview|skeleton|shimmer|placeholder_view|state_loading)($|_)/.test(
+    id,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +323,12 @@ function boxFromAttrs(
   const a = el.attrs
   const get = (side: string) => {
     const all = a[`android:${prefix}margin`]
-    const one = a[`android:${prefix}margin${side}`]
+    // Modern layouts write marginStart/marginEnd (RTL-aware); fall back to
+    // those when marginLeft/marginRight is absent. Reading only Left/Right
+    // made start/end margins resolve to 0, so match_parent children spanned
+    // the whole width.
+    const alt = side === 'Left' ? 'Start' : side === 'Right' ? 'End' : side
+    const one = a[`android:${prefix}margin${side}`] ?? a[`android:${prefix}margin${alt}`]
     const raw = one ?? all
     const n = raw ? resolveSize(raw, ctx) : null
     return typeof n === 'number' ? n : 0
@@ -283,7 +344,9 @@ function boxFromAttrs(
 function paddingFromAttrs(el: XmlElement, ctx: AndroidRenderContext): Box {
   const a = el.attrs
   const get = (side: string) => {
-    const raw = a[`android:padding${side}`] ?? a['android:padding']
+    const alt = side === 'Left' ? 'Start' : side === 'Right' ? 'End' : side
+    const raw =
+      a[`android:padding${side}`] ?? a[`android:padding${alt}`] ?? a['android:padding']
     const n = raw ? resolveSize(raw, ctx) : null
     return typeof n === 'number' ? n : 0
   }
@@ -408,6 +471,20 @@ async function buildNode(
     if (srcName) srcDrawable = ctx.drawables[srcName]
     // A background bitmap is also the painted image.
     if (!srcDrawable && bgDrawable) srcDrawable = bgDrawable
+    // ImageView scaleType -> neutral fit. Default is fitCenter (contain).
+    switch (a['android:scaleType']) {
+      case 'fitXY':
+        style.imageFit = 'fill'
+        break
+      case 'centerCrop':
+        style.imageFit = 'cover'
+        break
+      case 'fitCenter':
+      case 'centerInside':
+      default:
+        style.imageFit = 'contain'
+        break
+    }
   }
 
   const weight = Number(a['android:layout_weight'] ?? 0)
@@ -437,13 +514,21 @@ async function buildNode(
     /^(linearlayout|relativelayout|framelayout|nestedscrollview|scrollview|horizontalscrollview|coordinatorlayout|smartrefreshlayout|constraintlayout)$/i.test(
       simple,
     )
-  if (understoodContainer) {
+  // Any frame-kind element carrying child elements is a ViewGroup, even when
+  // we do not specifically model its layout (AppBarLayout/CollapsingToolbar
+  // and project custom ViewGroups). Dropping its subtree was the main source
+  // of "code render is missing big regions", so traverse it and lay it out
+  // with a sensible default in the measure/place passes.
+  const childElements = el.children.filter(
+    (c) =>
+      c.tag &&
+      !/^(requestfocus|tag)$/.test(simpleTag(c.tag)) &&
+      c.attrs['android:visibility'] !== 'gone' &&
+      !isStaticHiddenOverlay(c),
+  )
+  if (understoodContainer || (nodeKindOf(tag, el, dynamic) === 'frame' && childElements.length)) {
     node.children = await Promise.all(
-      el.children
-        .filter((c) => c.tag)
-        // <merge>/<requestFocus>/<tag> helpers are skipped.
-        .filter((c) => !/^(requestfocus|tag)$/.test(simpleTag(c.tag)))
-        .map((c) => buildNode(c, ctx, resolveLayout)),
+      childElements.map((c) => buildNode(c, ctx, resolveLayout)),
     )
   }
 
@@ -503,16 +588,23 @@ function measureNode(
   else height = Number.isFinite(availHeight) ? Math.min(heightSpec, availHeight) : heightSpec
 
   const simple = simpleTag(node.tag)
-  const isVerticalLinear = /linearlayout/i.test(simple) && !/horizontal/.test(node.el.attrs['android:orientation'] ?? '')
-  const isHorizontalLinear = /linearlayout/i.test(simple) && /horizontal/.test(node.el.attrs['android:orientation'] ?? '')
-  const isFrameLike = /^(framelayout|coordinatorlayout|smartrefreshlayout)$/i.test(simple)
+  // AppBarLayout behaves as a vertical LinearLayout; CollapsingToolbarLayout
+  // stacks children like a FrameLayout.
+  const isVerticalLinear = isVerticalLinearLayoutNode(node.tag, node.el)
+  const isHorizontalLinear = isHorizontalLinearLayoutNode(node.tag, node.el)
+  const isFrameLike = isFrameLikeNode(node.tag)
   const isScrollV = /^(nestedscrollview|scrollview)$/i.test(simple)
   const isScrollH = /^horizontalscrollview$/i.test(simple)
 
   // LinearLayout: lay children along the main axis; weight shares the leftover.
+  // NOTE: consult the resolved local `widthSpec`/`heightSpec` (which include any
+  // measure-time override), NOT `node.widthSpec`. Inside a scrolling parent a
+  // match_parent child is degraded to wrap_content via the override; reading the
+  // original node spec here would measure against a 0-height inner box and skip
+  // the wrap_content size back-fill, collapsing the whole subtree.
   if (isVerticalLinear || isHorizontalLinear) {
-    const innerW = node.widthSpec === 'wrap' ? Number.POSITIVE_INFINITY : width - paddingH
-    const innerH = node.heightSpec === 'wrap' ? Number.POSITIVE_INFINITY : height - paddingV
+    const innerW = widthSpec === 'wrap' ? Number.POSITIVE_INFINITY : width - paddingH
+    const innerH = heightSpec === 'wrap' ? Number.POSITIVE_INFINITY : height - paddingV
     measureLinearLayout(
       node,
       innerW,
@@ -522,10 +614,10 @@ function measureNode(
       isVerticalLinear,
     )
     const size = linearContentSize(node, paddingH, paddingV, isVerticalLinear)
-    if (node.widthSpec === 'wrap') {
+    if (widthSpec === 'wrap') {
       width = Math.min(availWidth, size.crossSize)
     }
-    if (node.heightSpec === 'wrap') {
+    if (heightSpec === 'wrap') {
       height = isVerticalLinear
         ? Math.min(availHeight, size.mainSize)
         : clampWrapHeight(node, paddingV, availHeight)
@@ -540,24 +632,44 @@ function measureNode(
       maxW = Math.max(maxW, m.width)
       maxH = Math.max(maxH, m.height)
     }
-    if (node.widthSpec === 'wrap') width = Math.min(availWidth, maxW + paddingH)
-    if (node.heightSpec === 'wrap') height = Math.min(availHeight, maxH + paddingV)
+    if (widthSpec === 'wrap') width = Math.min(availWidth, maxW + paddingH)
+    if (heightSpec === 'wrap') height = Math.min(availHeight, maxH + paddingV)
   } else if (isScrollV) {
     // Vertical scroll: width bound, height of content can exceed viewport.
     const child = node.children[0]
     if (child) {
       const m = measureChild(child, width - paddingH, Number.POSITIVE_INFINITY)
-      if (node.heightSpec === 'wrap') height = Math.min(availHeight, m.height + paddingV)
+      if (heightSpec === 'wrap') height = Math.min(availHeight, m.height + paddingV)
     }
   } else if (isScrollH) {
     const child = node.children[0]
     if (child) {
       const m = measureChild(child, Number.POSITIVE_INFINITY, height - paddingV)
-      if (node.widthSpec === 'wrap') width = Math.min(availWidth, m.width + paddingH)
+      if (widthSpec === 'wrap') width = Math.min(availWidth, m.width + paddingH)
     }
+  } else if (/relativelayout/i.test(simple)) {
+    // RelativeLayout: a child is measured against the parent content box MINUS
+    // ITS OWN margins. The previous fallback measured against the full content
+    // box, so match_parent children ignored layout_marginStart/End and spanned
+    // the whole width. Placement adds the margins back as an offset.
+    let maxW = 0
+    let maxH = 0
+    for (const child of node.children) {
+      const marginH = child.margins.left + child.margins.right
+      const marginV = child.margins.top + child.margins.bottom
+      const m = measureChild(
+        child,
+        (width - paddingH || availWidth - paddingH) - marginH,
+        (height - paddingV || availHeight - paddingV) - marginV,
+      )
+      maxW = Math.max(maxW, m.width + marginH)
+      maxH = Math.max(maxH, m.height + marginV)
+    }
+    if (widthSpec === 'wrap') width = Math.min(availWidth, maxW + paddingH)
+    if (heightSpec === 'wrap') height = Math.min(availHeight, maxH + paddingV)
   } else if (node.children.length) {
-    // RelativeLayout / ConstraintLayout fallback: treat as block stack for
-    // measurement (precise anchors applied in the placement pass).
+    // Other/unknown container fallback: block stack for measurement (precise
+    // anchors applied in the placement pass).
     let maxW = 0
     let maxH = 0
     for (const child of node.children) {
@@ -565,12 +677,12 @@ function measureNode(
       maxW = Math.max(maxW, m.width)
       maxH = Math.max(maxH, m.height)
     }
-    if (node.widthSpec === 'wrap') width = Math.min(availWidth, maxW + paddingH)
-    if (node.heightSpec === 'wrap') height = Math.min(availHeight, maxH + paddingV)
-  } else if (node.widthSpec === 'wrap' || node.heightSpec === 'wrap') {
+    if (widthSpec === 'wrap') width = Math.min(availWidth, maxW + paddingH)
+    if (heightSpec === 'wrap') height = Math.min(availHeight, maxH + paddingV)
+  } else if (widthSpec === 'wrap' || heightSpec === 'wrap') {
     const intrinsic = intrinsicContent(node)
-    if (node.widthSpec === 'wrap') width = Math.min(availWidth, intrinsic.w + paddingH)
-    if (node.heightSpec === 'wrap') height = Math.min(availHeight, intrinsic.h + paddingV)
+    if (widthSpec === 'wrap') width = Math.min(availWidth, intrinsic.w + paddingH)
+    if (heightSpec === 'wrap') height = Math.min(availHeight, intrinsic.h + paddingV)
   }
 
   node.measuredWidth = width
@@ -615,7 +727,10 @@ function measureLinearLayout(
     : 0
   for (const child of node.children) {
     if (child.weight > 0) continue
-    const cw = vertical ? innerW : Number.POSITIVE_INFINITY
+    // A vertical LinearLayout still bounds each child's WIDTH by its own
+    // start/end margins; otherwise a match_parent child spans edge to edge.
+    const marginH = child.margins.left + child.margins.right
+    const cw = vertical ? Math.max(0, innerW - marginH) : Number.POSITIVE_INFINITY
     const ch = vertical ? innerH : node.measuredHeight - paddingV
     const m = measureChild(child, cw, ch)
     usedMain += vertical ? m.height : m.width
@@ -626,9 +741,12 @@ function measureLinearLayout(
   const leftover = Math.max(0, boundMain - (vertical ? paddingV : paddingH) - usedInner)
   for (const child of weighted) {
     const share = boundMain ? (leftover * child.weight) / totalWeight : 0
+    const marginH = child.margins.left + child.margins.right
     if (vertical) {
-      const m = measureChild(child, innerW, Math.max(0, share))
+      const m = measureChild(child, Math.max(0, innerW - marginH), Math.max(0, share))
       child.measuredHeight = boundMain ? Math.max(m.height, share) : m.height
+      // match_parent width fills the content box minus its own margins.
+      if (child.widthSpec === 'match') child.measuredWidth = Math.max(0, innerW - marginH)
     } else {
       const m = measureChild(child, Math.max(0, share), innerH)
       child.measuredWidth = boundMain ? Math.max(m.width, share) : m.width
@@ -680,6 +798,19 @@ function clampWrapWidth(node: EngineNode, paddingH: number, availWidth: number):
 // Placement: convert measured boxes into absolute coordinates
 // ---------------------------------------------------------------------------
 
+/**
+ * Test whether a combined gravity string (flags joined with "|") contains a
+ * whole token. Matching tokens rather than substrings prevents "center_vertical"
+ * being read as "center" / horizontal centering.
+ */
+function gravityHas(gravity: string | undefined, token: string): boolean {
+  if (!gravity) return false
+  return gravity
+    .split('|')
+    .map((part) => part.trim().toLowerCase())
+    .includes(token.toLowerCase())
+}
+
 function gravityAlign(
   gravity: string | undefined,
   child: EngineNode,
@@ -688,18 +819,16 @@ function gravityAlign(
 ): { x: number; y: number } {
   let x = 0
   let y = 0
-  if (gravity) {
-    if (/center_horizontal|center(?!_vertical)/.test(gravity) || /center\b/.test(gravity)) {
-      x = (contentW - child.measuredWidth) / 2
-    } else if (/right|end/.test(gravity)) {
-      x = contentW - child.measuredWidth
-    }
-    if (/center_vertical/.test(gravity) || /center\b/.test(gravity)) {
-      y = (contentH - child.measuredHeight) / 2
-    } else if (/bottom/.test(gravity)) {
-      y = contentH - child.measuredHeight
-    }
-  }
+  const centerX =
+    gravityHas(gravity, 'center_horizontal') || gravityHas(gravity, 'center')
+  const end = gravityHas(gravity, 'right') || gravityHas(gravity, 'end')
+  const centerY =
+    gravityHas(gravity, 'center_vertical') || gravityHas(gravity, 'center')
+  const bottom = gravityHas(gravity, 'bottom')
+  if (centerX) x = (contentW - child.measuredWidth) / 2
+  else if (end) x = contentW - child.measuredWidth
+  if (centerY) y = (contentH - child.measuredHeight) / 2
+  else if (bottom) y = contentH - child.measuredHeight
   return { x, y }
 }
 
@@ -714,16 +843,21 @@ function placeChildren(
   const contentW = node.measuredWidth - node.padding.left - node.padding.right
   const contentH = node.measuredHeight - node.padding.top - node.padding.bottom
 
-  const isVerticalLinear = /linearlayout/i.test(simple) && !/horizontal/.test(node.el.attrs['android:orientation'] ?? '')
-  const isHorizontalLinear = /linearlayout/i.test(simple) && /horizontal/.test(node.el.attrs['android:orientation'] ?? '')
+  const isVerticalLinear = isVerticalLinearLayoutNode(node.tag, node.el)
+  const isHorizontalLinear = isHorizontalLinearLayoutNode(node.tag, node.el)
 
   if (isVerticalLinear) {
     let cursor = 0
     for (const child of node.children) {
       let x = 0
       const g = child.el.attrs['android:layout_gravity']
-      if (/center/.test(g ?? '')) x = (contentW - child.measuredWidth) / 2
-      else if (/right|end/.test(g ?? '')) x = contentW - child.measuredWidth
+      // layout_gravity combines flags with "|" ("center_vertical" must NOT be
+      // read as horizontal centering). Match whole tokens.
+      if (gravityHas(g, 'center_horizontal') || gravityHas(g, 'center')) {
+        x = (contentW - child.measuredWidth) / 2
+      } else if (gravityHas(g, 'right') || gravityHas(g, 'end')) {
+        x = contentW - child.measuredWidth
+      }
       // Offsets are content origins relative to the padding box and already
       // include the leading margin; the cursor advances with both margins so
       // the next child clears this one's bottom margin.
@@ -736,8 +870,11 @@ function placeChildren(
     for (const child of node.children) {
       let y = 0
       const g = child.el.attrs['android:layout_gravity']
-      if (/center/.test(g ?? '')) y = (contentH - child.measuredHeight) / 2
-      else if (/bottom/.test(g ?? '')) y = contentH - child.measuredHeight
+      if (gravityHas(g, 'center_vertical') || gravityHas(g, 'center')) {
+        y = (contentH - child.measuredHeight) / 2
+      } else if (gravityHas(g, 'bottom')) {
+        y = contentH - child.measuredHeight
+      }
       y += child.margins.top
       offsets.set(child.id, { x: cursor + child.margins.left, y })
       cursor += child.margins.left + child.measuredWidth + child.margins.right
@@ -763,37 +900,123 @@ function placeRelative(
   contentH: number,
   offsets: Map<string, { x: number; y: number }>,
 ): void {
-  const byId = new Map(node.children.map((c) => [c.id, c]))
-  for (const child of node.children) {
+  const children = node.children
+  const byId = new Map(children.map((c) => [c.id, c]))
+
+  // Sibling ids a child's position references. These must be placed first even
+  // when they appear later in the XML (e.g. a Coordinator with
+  // layout_above="@id/ll_bootom" is declared before the bottom bar).
+  // Real layouts overwhelmingly write forward references as "@+id/x" (not
+  // "@id/x"); stripping only "@id/" left the "+id/" prefix and made EVERY
+  // anchor miss, so the title/search/list stacked together at y=0.
+  const refId = (raw: string | undefined): string =>
+    (raw ?? '').replace(/^@\+?id\//, '')
+  const dependencies = (child: EngineNode): string[] => {
     const a = child.el.attrs
-    let x = 0
-    let y = 0
-    const alignParent = /true/.test(a['android:layout_alignParentTop'] ?? '')
-    if (/true/.test(a['android:layout_alignParentBottom'] ?? '')) y = contentH - child.measuredHeight
-    if (/true/.test(a['android:layout_alignParentRight'] ?? '') || /true/.test(a['android:layout_alignParentEnd'] ?? '')) {
-      x = contentW - child.measuredWidth
+    return [
+      refId(a['android:layout_above']),
+      refId(a['android:layout_below']),
+      refId(a['android:layout_toRightOf'] ?? a['android:layout_toEndOf']),
+      refId(a['android:layout_alignTop']),
+      refId(a['android:layout_alignLeft'] ?? a['android:layout_alignStart']),
+    ].filter((id) => id && byId.has(id))
+  }
+
+  // Kahn-style topological order preserving original order among independent
+  // nodes; any cycle falls back to declaration order for its members.
+  const order: EngineNode[] = []
+  const placed = new Set<string>()
+  let progress = true
+  while (order.length < children.length && progress) {
+    progress = false
+    for (const child of children) {
+      if (placed.has(child.id)) continue
+      if (dependencies(child).every((id) => placed.has(id))) {
+        order.push(child)
+        placed.add(child.id)
+        progress = true
+      }
     }
-    if (/true/.test(a['android:layout_centerHorizontal'] ?? '')) x = (contentW - child.measuredWidth) / 2
-    if (/true/.test(a['android:layout_centerVertical'] ?? '')) y = (contentH - child.measuredHeight) / 2
-    if (/true/.test(a['android:layout_centerInParent'] ?? '')) {
-      x = (contentW - child.measuredWidth) / 2
-      y = (contentH - child.measuredHeight) / 2
+  }
+  for (const child of children) if (!placed.has(child.id)) order.push(child)
+
+  for (const child of order) {
+    const a = child.el.attrs
+    const mH = child.margins.left + child.margins.right
+    const mV = child.margins.top + child.margins.bottom
+    // Content area the child can occupy once its own margins are removed.
+    const boxW = Math.max(0, contentW - mH)
+    const boxH = Math.max(0, contentH - mV)
+
+    let x = child.margins.left
+    let y = child.margins.top
+
+    const parentEnd = /true/.test(a['android:layout_alignParentRight'] ?? a['android:layout_alignParentEnd'] ?? '')
+    const parentBottom = /true/.test(a['android:layout_alignParentBottom'] ?? '')
+    const centerX =
+      /true/.test(a['android:layout_centerHorizontal'] ?? '') ||
+      /true/.test(a['android:layout_centerInParent'] ?? '')
+    const centerY =
+      /true/.test(a['android:layout_centerVertical'] ?? '') ||
+      /true/.test(a['android:layout_centerInParent'] ?? '')
+
+    if (parentEnd) x = contentW - child.margins.right - child.measuredWidth
+    else if (centerX) x = child.margins.left + (boxW - child.measuredWidth) / 2
+    if (parentBottom) y = contentH - child.margins.bottom - child.measuredHeight
+    else if (centerY) y = child.margins.top + (boxH - child.measuredHeight) / 2
+
+    const sibAbove = byId.get(refId(a['android:layout_above']))
+    const sibBelow = byId.get(refId(a['android:layout_below']))
+    const sibRight = byId.get(
+      refId(a['android:layout_toRightOf'] ?? a['android:layout_toEndOf']),
+    )
+    const anchorTop = refId(a['android:layout_alignTop'])
+    const anchorLeft = refId(
+      a['android:layout_alignLeft'] ?? a['android:layout_alignStart'],
+    )
+
+    // Sibling anchors override the parent alignment. The referenced sibling's
+    // offset already includes ITS margins, so align to its content edge.
+    if (sibAbove) {
+      const ay = (offsets.get(sibAbove.id)?.y ?? 0) - sibAbove.margins.top
+      y = ay - child.measuredHeight - child.margins.bottom
+    } else if (sibBelow) {
+      const by =
+        (offsets.get(sibBelow.id)?.y ?? 0) +
+        sibBelow.margins.top +
+        sibBelow.measuredHeight
+      y = by + child.margins.top
     }
-    // Align relative to another sibling (resolve sibling offset first).
-    const above = (a['android:layout_above'] ?? '').replace(/^@id\//, '')
-    const below = (a['android:layout_below'] ?? '').replace(/^@id\//, '')
-    const toRight = (a['android:layout_toRightOf'] ?? a['android:layout_toEndOf'] ?? '').replace(/^@id\//, '')
-    const anchorTop = (a['android:layout_alignTop'] ?? '').replace(/^@id\//, '')
-    const anchorLeft = (a['android:layout_alignLeft'] ?? a['android:layout_alignStart'] ?? '').replace(/^@id\//, '')
-    const sibAbove = above ? byId.get(above) : undefined
-    const sibBelow = below ? byId.get(below) : undefined
-    const sibRight = toRight ? byId.get(toRight) : undefined
-    if (sibAbove) y = (offsets.get(sibAbove.id)?.y ?? 0) - child.measuredHeight
-    else if (sibBelow) y = (offsets.get(sibBelow.id)?.y ?? 0) + sibBelow.measuredHeight
-    if (sibRight) x = (offsets.get(sibRight.id)?.x ?? 0) + sibRight.measuredWidth
-    if (anchorTop) y = offsets.get(anchorTop)?.y ?? y
-    if (anchorLeft) x = offsets.get(anchorLeft)?.x ?? x
-    void alignParent
+
+    // Sandwiched between a sibling above AND below (the classic RecyclerView:
+    // layout_below=search, layout_above=bottom bar). Fill exactly the gap.
+    if (sibAbove && sibBelow) {
+      const topY =
+        (offsets.get(sibBelow.id)?.y ?? 0) +
+        sibBelow.margins.top +
+        sibBelow.measuredHeight
+      const bottomY =
+        (offsets.get(sibAbove.id)?.y ?? 0) - sibAbove.margins.top
+      if (bottomY > topY) {
+        y = topY + child.margins.top
+        child.measuredHeight = Math.max(0, bottomY - topY - mV)
+      }
+    }
+
+    if (sibRight) {
+      x =
+        (offsets.get(sibRight.id)?.x ?? 0) +
+        sibRight.margins.left +
+        sibRight.measuredWidth +
+        child.margins.left
+    }
+    if (anchorTop && offsets.has(anchorTop)) {
+      y = offsets.get(anchorTop)!.y - child.margins.top + child.margins.top
+    }
+    if (anchorLeft && offsets.has(anchorLeft)) {
+      x = offsets.get(anchorLeft)!.x - child.margins.left + child.margins.left
+    }
+
     offsets.set(child.id, { x, y })
   }
 }
@@ -867,6 +1090,45 @@ export async function renderAndroidLayout(
   measureNode(root, input.width, input.height)
   const rendered = emitNode(root, 0, 0, new Map())
   return { width: input.width, height: input.height, root: rendered }
+}
+
+export interface RenderAndroidItemInput {
+  layoutXml: string
+  /** Row width; omit (undefined) for an unbounded wrap-content width. */
+  width?: number
+  context: AndroidRenderContext
+  resolveLayout?: (name: string) => Promise<string | undefined>
+}
+
+export interface RenderedAndroidItem {
+  root: HifiRenderNode
+  /** Intrinsic row height after measurement. */
+  height: number
+  /** Intrinsic row width after measurement (meaningful when width was unbounded). */
+  width: number
+}
+
+/**
+ * Render one Adapter item layout. With a fixed `width` the row fills/wraps to
+ * that width and its natural height is measured; with no width the item keeps
+ * its wrap_content intrinsic size (for a HORIZONTAL list). Height is always
+ * unbounded so rows never get a viewport height. Used to tile real rows into a
+ * RecyclerView region instead of projecting design geometry.
+ */
+export async function renderAndroidItemLayout(
+  input: RenderAndroidItemInput,
+): Promise<RenderedAndroidItem> {
+  const resolveLayout =
+    input.resolveLayout ?? ((name: string) => Promise.resolve(input.context.layouts[name]))
+  const xmlRoot = parseXml(input.layoutXml)
+  const root = await buildNode(xmlRoot, input.context, resolveLayout)
+  measureNode(root, input.width ?? Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY)
+  const rendered = emitNode(root, 0, 0, new Map())
+  return {
+    root: rendered,
+    height: root.measuredHeight,
+    width: root.measuredWidth,
+  }
 }
 
 function placeConstraint(

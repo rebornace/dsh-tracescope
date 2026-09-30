@@ -15,6 +15,7 @@ import {
   EMPTY_ANDROID_RESOURCES,
   type AndroidResources,
 } from './adapters/android-xml.js'
+import type { DesignGradient, GradientStop } from './types.js'
 
 export interface ParsedDrawableShape {
   kind: 'shape'
@@ -22,12 +23,7 @@ export interface ParsedDrawableShape {
   backgroundColor?: string
   cornerRadius?: number
   stroke?: { width: number; color: string }
-  gradient?: {
-    angle: number
-    startColor?: string
-    endColor?: string
-    centerColor?: string
-  }
+  gradient?: DesignGradient
 }
 
 export interface ParsedDrawableBitmap {
@@ -61,6 +57,27 @@ export interface AndroidModuleResources {
   resRoot: string
   values: AndroidValueResources
   drawables: Record<string, ParsedDrawable>
+  /**
+   * Origin file (absolute path) of each indexed drawable name. Populated so the
+   * AI dependency manifest can point at the exact drawable source rather than
+   * guessing which density/qualifier file is relevant.
+   */
+  drawableSources?: Record<string, string>
+  /**
+   * Origin file (absolute path) of each indexed color/dimen/string name. Names
+   * are unique per type after merging, so a single file path per symbol.
+   */
+  valueSources?: {
+    colors: Record<string, string>
+    dimens: Record<string, string>
+    strings: Record<string, string>
+  }
+  /**
+   * Indexed <style> declarations by name: origin file (absolute path) and the
+   * declared `parent` style (for following style inheritance). Built so the AI
+   * dependency manifest can pull in the full style chain.
+   */
+  styles?: Record<string, { file: string; parent?: string }>
 }
 
 export interface AndroidProjectResources {
@@ -164,13 +181,15 @@ function resolveDimen(
   values: AndroidValueResources,
 ): number | undefined {
   if (raw === undefined) return undefined
-  const ref = raw.match(/^@dimen\/(.+)$/)
+  const ref = raw.trim().match(/^@dimen\/(.+)$/)
   if (ref) {
-    const v = values.dimens[ref[1] ?? '']
-    return v
+    return values.dimens[ref[1] ?? '']
   }
-  const n = Number(raw)
-  return Number.isFinite(n) ? n : undefined
+  // Strip the Android unit: shape drawables write "100dp"/"1dp"/"8px". A bare
+  // Number("100dp") is NaN, which silently dropped the corner radius.
+  const unit = raw.trim().match(/^(-?\d+(?:\.\d+)?)(dp|dip|px|sp|pt|in|mm)?$/i)
+  if (unit) return Number(unit[1])
+  return undefined
 }
 
 /** Parse a <shape> XML drawable into a CSS-friendly description. */
@@ -208,18 +227,31 @@ function parseShapeDrawable(
   }
   const gradient = root.children.find((c) => c.tag === 'gradient')
   if (gradient) {
-    shape.gradient = {
-      angle: Number(attr(gradient, 'android:angle') ?? 0),
-      startColor: resolveColor(attr(gradient, 'android:startColor'), values),
-      endColor: resolveColor(attr(gradient, 'android:endColor'), values),
-      centerColor: resolveColor(attr(gradient, 'android:centerColor'), values),
+    const startColor = resolveColor(attr(gradient, 'android:startColor'), values)
+    const endColor = resolveColor(attr(gradient, 'android:endColor'), values)
+    const centerColor = resolveColor(attr(gradient, 'android:centerColor'), values)
+    const androidType = attr(gradient, 'android:type')
+    // Default Android linear gradient runs left->right when no start/end given.
+    const stops: GradientStop[] = []
+    if (startColor) stops.push({ color: startColor, position: 0 })
+    if (centerColor) stops.push({ color: centerColor, position: 0.5 })
+    if (endColor) stops.push({ color: endColor, position: 1 })
+    if (stops.length >= 2) {
+      const androidAngle = Number(attr(gradient, 'android:angle') ?? 0)
+      // Android 0 = left->right (=CSS 90deg), 90 = bottom->top (=CSS 0deg).
+      const cssAngle = (90 - androidAngle + 360) % 360
+      shape.gradient = {
+        type: androidType === 'radial' ? 'radial' : 'linear',
+        cssAngle,
+        stops,
+      }
     }
   }
   return shape
 }
 
 /** Discover every `res` root under the project (each Android module has one). */
-async function findResRoots(projectRoot: string): Promise<string[]> {
+export async function findResRoots(projectRoot: string): Promise<string[]> {
   const roots = new Set<string>()
   async function walk(dir: string, depth: number) {
     if (depth > 10) return
@@ -250,11 +282,26 @@ async function findResRoots(projectRoot: string): Promise<string[]> {
 }
 
 /** Read & parse every values XML into resolved colors / dimens / strings. */
-async function parseValueResources(resRoot: string): Promise<AndroidValueResources> {
+export interface AndroidValueResourcesWithSources {
+  values: AndroidValueResources
+  sources: {
+    colors: Record<string, string>
+    dimens: Record<string, string>
+    strings: Record<string, string>
+  }
+  /** <style> declarations found in this module's values (name -> file/parent). */
+  styles: Record<string, { file: string; parent?: string }>
+}
+
+async function parseValueResources(resRoot: string): Promise<AndroidValueResourcesWithSources> {
   const raw: AndroidResources = { dimens: {}, colors: {} }
   const strings: Record<string, string> = {}
   const pendingColors: Array<{ name: string; value: string }> = []
   const pendingDimens: Array<{ name: string; value: string }> = []
+  // Remember which file each declared symbol came from (first declaration).
+  const declaredFile: Record<string, string> = {}
+  // Style declarations captured directly: name -> { file, parent }.
+  const styles: Record<string, { file: string; parent?: string }> = {}
 
   let valueDirs: string[] = []
   try {
@@ -262,7 +309,11 @@ async function parseValueResources(resRoot: string): Promise<AndroidValueResourc
       .filter((d) => d.isDirectory() && d.name.startsWith('values'))
       .map((d) => path.join(resRoot, d.name))
   } catch {
-    return { colors: {}, dimens: {}, strings: {} }
+    return {
+      values: { colors: {}, dimens: {}, strings: {} },
+      sources: { colors: {}, dimens: {}, strings: {} },
+      styles: {},
+    }
   }
 
   for (const dir of valueDirs) {
@@ -274,18 +325,30 @@ async function parseValueResources(resRoot: string): Promise<AndroidValueResourc
     }
     for (const name of names) {
       if (!name.endsWith('.xml')) continue
+      const valueFile = path.join(dir, name)
       let root: XmlElement
       try {
-        root = parseXml(await readFile(path.join(dir, name), 'utf8'))
+        root = parseXml(await readFile(valueFile, 'utf8'))
       } catch {
         continue
       }
       for (const el of root.children) {
         const key = el.attrs.name
         if (!key) continue
+        // Record the origin file the first time the symbol is declared.
+        if (!declaredFile[`${el.tag}:${key}`]) declaredFile[`${el.tag}:${key}`] = valueFile
         if (el.tag === 'color') pendingColors.push({ name: key, value: el.text })
         else if (el.tag === 'dimen') pendingDimens.push({ name: key, value: el.text })
         else if (el.tag === 'string') strings[key] = el.text
+        else if (el.tag === 'style') {
+          if (!styles[key]) {
+            const parentRaw = el.attrs.parent
+            styles[key] = {
+              file: valueFile,
+              parent: typeof parentRaw === 'string' && parentRaw ? parentRaw : undefined,
+            }
+          }
+        }
         else if (el.tag === 'item' && el.attrs.type === 'color') {
           pendingColors.push({ name: key, value: el.text })
         }
@@ -321,28 +384,55 @@ async function parseValueResources(resRoot: string): Promise<AndroidValueResourc
     colorQueue = rest
   }
 
-  return {
+  // Build per-type origin-file maps from the recorded declarations. Item-based
+  // colors are recorded under tag "item"; expose them alongside "color".
+  const colorSources: Record<string, string> = {}
+  for (const name of Object.keys(raw.colors)) {
+    colorSources[name] = declaredFile[`color:${name}`] ?? declaredFile[`item:${name}`] ?? ''
+  }
+  const dimenSources: Record<string, string> = {}
+  for (const name of Object.keys(raw.dimens)) {
+    dimenSources[name] = declaredFile[`dimen:${name}`] ?? ''
+  }
+  const stringSources: Record<string, string> = {}
+  for (const name of Object.keys(strings)) {
+    stringSources[name] = declaredFile[`string:${name}`] ?? ''
+  }
+
+  const values: AndroidValueResources = {
     colors: raw.colors,
     dimens: Object.fromEntries(
       Object.entries(raw.dimens).map(([k, v]) => [k, v.value]),
     ),
     strings,
   }
+  return {
+    values,
+    sources: { colors: colorSources, dimens: dimenSources, strings: stringSources },
+    styles,
+  }
 }
 
 /** Index every drawable name; best bitmap per density, parsed shape XML. */
+export interface IndexedDrawables {
+  drawables: Record<string, ParsedDrawable>
+  /** Origin file (absolute path) chosen for each drawable name. */
+  sources: Record<string, string>
+}
+
 async function indexDrawables(
   resRoot: string,
   values: AndroidValueResources,
-): Promise<Record<string, ParsedDrawable>> {
-  const result: Record<string, ParsedDrawable> = {}
+): Promise<IndexedDrawables> {
+  const drawables: Record<string, ParsedDrawable> = {}
+  const sources: Record<string, string> = {}
   let dirs: string[] = []
   try {
     dirs = (await readdir(resRoot, { withFileTypes: true }))
       .filter((d) => d.isDirectory() && d.name.startsWith('drawable'))
       .map((d) => path.join(resRoot, d.name))
   } catch {
-    return result
+    return { drawables, sources }
   }
 
   // Sort dirs high -> low density so the first bitmap for a name wins.
@@ -359,18 +449,20 @@ async function indexDrawables(
       const name = path.basename(file, path.extname(file))
       const ext = path.extname(file).slice(1).toLowerCase()
       if (MIME_BY_EXT[ext]) {
-        if (result[name]) continue // already have a higher-density copy
-        result[name] = await readBitmap(full, dir)
+        if (drawables[name]) continue // already have a higher-density copy
+        drawables[name] = await readBitmap(full, dir)
+        sources[name] = full
       } else if (ext === 'xml') {
         // XML shapes may live in the default drawable dir; never overwrite a
         // higher-density bitmap already chosen.
-        if (!result[name]) {
-          result[name] = parseShapeDrawable(await readFile(full, 'utf8'), values)
+        if (!drawables[name]) {
+          drawables[name] = parseShapeDrawable(await readFile(full, 'utf8'), values)
+          sources[name] = full
         }
       }
     }
   }
-  return result
+  return { drawables, sources }
 }
 
 /** Build the full resource index for an Android project. */
@@ -380,13 +472,16 @@ export async function loadAndroidProjectResources(
   const resRoots = await findResRoots(projectRoot)
   const modules: AndroidModuleResources[] = []
   for (const resRoot of resRoots) {
-    const values = await parseValueResources(resRoot)
-    const drawables = await indexDrawables(resRoot, values)
+    const parsed = await parseValueResources(resRoot)
+    const indexed = await indexDrawables(resRoot, parsed.values)
     modules.push({
       moduleRoot: path.dirname(resRoot),
       resRoot,
-      values,
-      drawables,
+      values: parsed.values,
+      drawables: indexed.drawables,
+      drawableSources: indexed.sources,
+      valueSources: parsed.sources,
+      styles: parsed.styles,
     })
   }
   return { modules }

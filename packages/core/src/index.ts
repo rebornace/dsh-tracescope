@@ -41,6 +41,7 @@ export {
 } from './display-names.js'
 export { heuristicDisplayName, classifyFileRisk, detectLanguage } from './heuristics.js'
 export {
+  gitExec,
   gitDiffFiles,
   gitDiffUnified,
   gitFetchAll,
@@ -187,7 +188,27 @@ export {
   type ModelJsonCaller,
   type ModelScopeDraft,
 } from './enrich.js'
-export { buildChatAnalysisPrompt } from './chat-prompt.js'
+export { buildChatAnalysisPrompt, buildVisualChatPrompt, buildCodeVisualPrompt, buildPageRematchPrompt, formatDesignSnapshot, formatStaticDiffSummary } from './chat-prompt.js'
+export type { VisualChatDiff, VisualChatPromptInput, CodeVisualPromptInput, CodeVisualManifestMode, PageRematchCandidate, PageRematchPromptInput } from './chat-prompt.js'
+
+export {
+  visualScanKey,
+  visualHifiKey,
+  visualFindingsKey,
+  visualRematchKey,
+  loadVisualScan,
+  saveVisualScan,
+  loadVisualHifi,
+  saveVisualHifi,
+  loadVisualFindings,
+  saveVisualFindings,
+  loadVisualRematch,
+  saveVisualRematch,
+  fingerprintFiles,
+  VISUAL_CACHE_SCHEMA_VERSION,
+} from './visual-cache.js'
+export type { CachedEntry } from './visual-cache.js'
+export { parseVisualFindings, parseVisualRenderPatches } from './visual-findings-publish.js'
 export {
   buildReportFromPublishedItems,
   parsePublishedHandtestItems,
@@ -210,6 +231,11 @@ export type {
   UnmatchedNode,
   UnresolvedValue,
   VisualCompareResult,
+  VisualFinding,
+  VisualFindingSeverity,
+  VisualFindingsReport,
+  VisualRenderPatch,
+  VisualRenderNodePatch,
   VisualProperty,
 } from './design/types.js'
 export {
@@ -217,7 +243,10 @@ export {
   fetchFigmaDoc,
   normalizeFigmaTree,
   parseFigmaUrl,
+  parseFigmaFileKey,
   renderFigmaNode,
+  renderFigmaNodesBatch,
+  fetchFigmaImageFills,
   type FigmaClientOptions,
   type FigmaRenderOptions,
   type FigmaRenderResult,
@@ -232,6 +261,19 @@ export {
 } from './design/adapters/android-xml.js'
 export { normalizeUIKitDoc } from './design/adapters/ios-xib.js'
 export { compareVisualDocs, type CompareOptions } from './design/compare.js'
+export { heuristicCompare } from './design/heuristic-compare.js'
+export {
+  parseCssColor,
+  parseCssLength,
+  parseCssDeclarations,
+  parseSimpleClassRules,
+  parseSimpleStyleRules,
+  type SimpleStyleRules,
+} from './design/adapters/web-css.js'
+export { markupToDesignDoc, collectMarkupTexts, countMarkupControls } from './design/adapters/web-markup.js'
+export { normalizeMauiXaml } from './design/adapters/maui-xaml.js'
+export { analyzeAdapterBindings, type AdapterBindings } from './design/adapter-binding.js'
+export { walkFiles } from './design/fs-walk.js'
 export { parseXml, decodeXmlEntities, type XmlElement } from './design/xml-lite.js'
 // Adapter / page-matching API.
 export {
@@ -246,6 +288,7 @@ export {
   normalizeText,
   scorePage,
   tokenizeName,
+  adapterSpecificity,
   type PageMatch,
   type MatchOptions,
 } from './design/page-fingerprint.js'
@@ -263,6 +306,7 @@ export {
 } from './design/sources/figma.js'
 export {
   loadAndroidProjectResources,
+  findResRoots,
   type AndroidProjectResources,
   type AndroidModuleResources,
   type AndroidValueResources,
@@ -270,16 +314,28 @@ export {
 } from './design/android-resources.js'
 export {
   renderAndroidLayout,
+  renderAndroidItemLayout,
   nodeKindOf,
   type AndroidRenderContext,
   type HifiLayoutResult,
   type HifiRenderNode,
+  type RenderedAndroidItem,
   type HifiNodeKind,
 } from './design/android-layout-engine.js'
+export {
+  pruneDesignerAnnotations,
+  isDesignerAnnotationText,
+  isDesignerAnnotationNode,
+} from './design/annotation-filter.js'
 export {
   buildAndroidRenderContext,
   type BuiltAndroidRenderContext,
 } from './design/android-render-context.js'
+export {
+  analyzeLayoutDependencies,
+  formatDependencyManifest,
+  type LayoutDependencyManifest,
+} from './design/deps-manifest.js'
 export { hifiTreeToDesignDoc } from './design/hifi-to-design-doc.js'
 export {
   classifyCodePage,
@@ -291,12 +347,18 @@ export {
   type PageMappingCandidate,
   type InventoryMappingOptions,
 } from './design/page-inventory.js'
+export {
+  expandFocusedDesignPages,
+  looksLikeScreenFrame,
+} from './design/expand-screens.js'
 export type {
   AdapterId,
+  AdapterCapabilities,
   CodePage,
   PageFingerprint,
   PlatformId,
 } from './design/adapters/adapter-types.js'
+export { resolveAdapterCapabilities } from './design/adapters/adapter-types.js'
 // Legacy discovery shim (kept for older routes).
 export {
   discoverLayouts,
@@ -304,3 +366,11 @@ export {
   type LayoutPlatform,
   type ProjectKind,
 } from './design/legacy-discover.js'
+export {
+  diffPixelImages,
+  pixelDistance,
+  type PixelImage,
+  type PixelDiffResult,
+  type PixelDiffOptions,
+  type DiffRegion,
+} from './pixel-diff.js'

@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/tracescope-core",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Git-diff impact analysis and hand-test scope reports for TraceScope",
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./pixel-diff": {
+      "types": "./dist/pixel-diff.d.ts",
+      "default": "./dist/pixel-diff.js"
     }
   },
   "files": [

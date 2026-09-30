@@ -104,14 +104,28 @@ export interface RouteOptions {
 
 /** Register one same-origin JSON route with the DSH web server. */
 export function registerRoute(ctx: Context, options: RouteOptions) {
-  const method = options.method ?? 'POST'
+  const method = (options.method ?? 'POST').toUpperCase()
   return ctx.effect?.(
     () =>
       ctx.webServer!.register({
         kind: 'exact',
         path: options.path,
         handler: async (req, res) => {
-          if (req.method !== method) return sendJson(res, 405, { error: 'method not allowed' })
+          const reqMethod = String(req.method ?? 'GET').toUpperCase()
+          // Browser / embedded webviews may probe with OPTIONS before POST.
+          if (reqMethod === 'OPTIONS') {
+            res.writeHead(204, {
+              'access-control-allow-methods': 'GET,POST,OPTIONS',
+              'access-control-allow-headers': 'content-type',
+              'access-control-max-age': '86400',
+              'content-length': 0,
+            })
+            res.end()
+            return
+          }
+          if (reqMethod !== method) {
+            return sendJson(res, 405, { error: `method not allowed（需要 ${method}，收到 ${reqMethod}）` })
+          }
           if (!isTrustedRequest(req)) return sendJson(res, 403, { error: 'untrusted request' })
           let body: Record<string, unknown> = {}
           if (method !== 'GET') {

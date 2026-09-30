@@ -80,6 +80,10 @@ function mergeMissing<T>(target: Record<string, T>, source: Record<string, T>): 
 export interface BuiltAndroidRenderContext {
   context: AndroidRenderContext
   resolveLayout: (name: string) => Promise<string | undefined>
+  /** Like {@link resolveLayout} but also returns the layout file's absolute path. */
+  resolveLayoutEntry: (
+    name: string,
+  ) => Promise<{ file: string; content: string } | undefined>
 }
 
 /** Build the high-fidelity render context (merged resources, lazy includes). */
@@ -106,18 +110,28 @@ export async function buildAndroidRenderContext(
 
   const layoutIndex = await indexLayoutFiles(projectRoot, resources)
   const cache = new Map<string, string>()
-  async function resolveLayout(name: string): Promise<string | undefined> {
-    const cached = cache.get(name)
-    if (cached !== undefined) return cached
+  const fileCache = new Map<string, string>()
+  async function resolveLayoutEntry(
+    name: string,
+  ): Promise<{ file: string; content: string } | undefined> {
+    const cachedContent = fileCache.get(name)
     const entry = layoutIndex.get(name)
+    if (cachedContent !== undefined) {
+      return entry ? { file: entry.file, content: cachedContent } : undefined
+    }
     if (!entry) return undefined
     const content = await readFile(entry.file, 'utf8')
     cache.set(name, content)
-    return content
+    fileCache.set(name, content)
+    return { file: entry.file, content }
+  }
+  async function resolveLayout(name: string): Promise<string | undefined> {
+    return (await resolveLayoutEntry(name))?.content
   }
 
   return {
     context: { colors, dimens, strings, drawables, layouts: {} },
     resolveLayout,
+    resolveLayoutEntry,
   }
 }

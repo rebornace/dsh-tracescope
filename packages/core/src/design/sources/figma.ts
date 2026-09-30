@@ -4,6 +4,7 @@
  */
 import type {
   DesignDoc,
+  DesignGradient,
   DesignNode,
   DesignNodeKind,
   DesignStyle,
@@ -20,6 +21,21 @@ export interface FigmaTransportOptions {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Translate a `Retry-After` header into a delay in ms. Accepts either an
+ * integer number of seconds or an HTTP date; falls back to exponential backoff
+ * when missing/unparseable. Capped so a bad header can't stall a request long.
+ */
+function retryAfterDelayMs(retryAfter: string | null, attempt: number): number {
+  const fallback = Math.min(4000, 500 * 2 ** attempt)
+  if (!retryAfter) return fallback
+  const asSeconds = Number(retryAfter)
+  if (Number.isFinite(asSeconds)) return Math.min(8000, Math.max(0, asSeconds * 1000))
+  const dateMs = Date.parse(retryAfter)
+  if (!Number.isNaN(dateMs)) return Math.min(8000, Math.max(0, dateMs - Date.now()))
+  return fallback
+}
 
 /**
  * Fetch with a connect timeout and automatic retries.
@@ -40,8 +56,12 @@ async function figmaFetch(
 
   let lastCause: unknown
   let firedOwnTimeout = false
+  let retryDelayMs = 0
   for (let i = 0; i < attempts; i += 1) {
-    if (i > 0) await sleep(Math.min(4000, 500 * 2 ** (i - 1)))
+    if (retryDelayMs > 0) {
+      await sleep(retryDelayMs)
+      retryDelayMs = 0
+    }
     firedOwnTimeout = false
 
     const controller = new AbortController()
@@ -56,12 +76,20 @@ async function figmaFetch(
     } catch (error) {
       clearTimeout(timer)
       lastCause = (error as { cause?: unknown })?.cause ?? error
+      retryDelayMs = Math.min(4000, 500 * 2 ** i)
       continue
     }
     clearTimeout(timer)
 
-    // Transient server error -> retry; anything else (incl. all 4xx) is final.
+    // Rate limited -> retry, honoring Retry-After (seconds or HTTP date) when
+    // present so a burst of thumbnail requests backs off instead of failing.
+    if (response.status === 429 && i < attempts - 1) {
+      retryDelayMs = retryAfterDelayMs(response.headers.get('retry-after'), i)
+      continue
+    }
+    // Transient server error -> retry; anything else (incl. other 4xx) is final.
     if (response.status < 500 || i === attempts - 1) return response
+    retryDelayMs = Math.min(4000, 500 * 2 ** i)
   }
 
   const code =
@@ -90,11 +118,26 @@ interface FigmaColor {
   b: number
   a?: number
 }
+interface FigmaGradientStop {
+  position: number
+  color: FigmaColor
+}
+interface FigmaVector {
+  x: number
+  y: number
+}
 interface FigmaPaint {
   type: string
   visible?: boolean
   color?: FigmaColor
   opacity?: number
+  /** IMAGE fills only. */
+  scaleMode?: string
+  /** IMAGE fill asset id, resolved via the /image-fills endpoint. */
+  imageRef?: string
+  /** GRADIENT_* fills only. */
+  gradientHandlePositions?: FigmaVector[]
+  gradientStops?: FigmaGradientStop[]
 }
 interface FigmaTypeStyle {
   fontFamily?: string
@@ -102,6 +145,7 @@ interface FigmaTypeStyle {
   fontWeight?: number | string
   lineHeightPx?: number
   letterSpacing?: number
+  textAlignHorizontal?: string
 }
 interface FigmaBBox {
   x: number
@@ -117,8 +161,12 @@ interface FigmaNode {
   children?: FigmaNode[]
   absoluteBoundingBox?: FigmaBBox
   fills?: FigmaPaint[]
+  strokes?: FigmaPaint[]
+  strokeWeight?: number
   opacity?: number
   cornerRadius?: number
+  /** Per-corner radii [topLeft, topRight, bottomRight, bottomLeft] when mixed. */
+  rectangleCornerRadii?: [number, number, number, number]
   characters?: string
   style?: FigmaTypeStyle
   layoutMode?: string
@@ -144,16 +192,73 @@ export function figmaColorToHex(color: FigmaColor, paintOpacity = 1): HexColor {
   return a < 1 ? `#${rgb}${toByte(a)}` : `#${rgb}`
 }
 
+function visiblePaints(paints: FigmaPaint[] | undefined): FigmaPaint[] {
+  return (paints ?? []).filter((f) => f.visible !== false)
+}
+
 function firstSolidFill(node: FigmaNode): FigmaPaint | undefined {
-  return (node.fills ?? []).find(
-    (f) => f.visible !== false && f.type === 'SOLID' && f.color,
+  return visiblePaints(node.fills).find(
+    (f) => f.type === 'SOLID' && f.color,
   )
 }
 
+/** First visible gradient paint, if any. */
+function firstGradientFill(node: FigmaNode): FigmaPaint | undefined {
+  return visiblePaints(node.fills).find((f) => f.type.startsWith('GRADIENT_'))
+}
+
+/** Map a Figma image fill scaleMode to the neutral image-fit. */
+function imageFitOf(paint: FigmaPaint): DesignStyle['imageFit'] {
+  switch (paint.scaleMode) {
+    case 'FIT':
+      return 'contain'
+    case 'FILL':
+      return 'cover'
+    case 'STRETCH':
+      return 'fill'
+    default:
+      // Figma's default for image rectangles is FILL (cover the box).
+      return 'cover'
+  }
+}
+
+/** Convert a Figma gradient paint into the neutral gradient model. */
+function convertGradient(paint: FigmaPaint): DesignGradient | undefined {
+  const stops = (paint.gradientStops ?? [])
+    .filter((s) => s.color)
+    .map((s) => ({
+      position: Math.max(0, Math.min(1, s.position)),
+      color: figmaColorToHex(s.color, paint.opacity ?? 1),
+    }))
+  if (stops.length < 2) return undefined
+
+  const type: DesignGradient['type'] =
+    paint.type === 'GRADIENT_RADIAL' ? 'radial' : 'linear'
+
+  // Default to a top->bottom gradient when handles are missing.
+  const handles = paint.gradientHandlePositions
+  let cssAngle = 180
+  if (handles && handles.length >= 2) {
+    const start = handles[0]!
+    const end = handles[1]!
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    // CSS angle: 0deg = to top, 90deg = to right (clockwise).
+    cssAngle = (Math.atan2(dx, -dy) * 180) / Math.PI
+  }
+
+  return { type, cssAngle, stops }
+}
+
 function hasImageFill(node: FigmaNode): boolean {
-  return (node.fills ?? []).some(
-    (f) => f.visible !== false && (f.type === 'IMAGE' || f.type === 'GRADIENT_IMAGE'),
+  return visiblePaints(node.fills).some(
+    (f) => f.type === 'IMAGE' || f.type === 'GRADIENT_IMAGE',
   )
+}
+
+/** First visible image fill. */
+function firstImageFill(node: FigmaNode): FigmaPaint | undefined {
+  return visiblePaints(node.fills).find((f) => f.type === 'IMAGE')
 }
 
 function mapKind(node: FigmaNode): DesignNodeKind {
@@ -197,11 +302,50 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
     : {}
 
   const solid = firstSolidFill(node)
-  // For text nodes a SOLID fill is the glyph color, not a background.
-  if (solid?.color && node.type !== 'TEXT') {
-    style.backgroundColor = figmaColorToHex(solid.color, solid.opacity ?? 1)
+  const gradientPaint = firstGradientFill(node)
+
+  if (node.type === 'TEXT') {
+    // Text fills paint the glyphs: support both solid and gradient colours.
+    if (solid?.color) {
+      style.color = figmaColorToHex(solid.color, solid.opacity ?? 1)
+    } else if (gradientPaint) {
+      style.gradient = convertGradient(gradientPaint)
+    }
+  } else {
+    // Shape / frame backgrounds: gradient wins over a flat solid fill, matching
+    // how Figma composites the topmost paint.
+    if (gradientPaint) {
+      style.gradient = convertGradient(gradientPaint)
+    } else if (solid?.color) {
+      style.backgroundColor = figmaColorToHex(solid.color, solid.opacity ?? 1)
+    }
+    const imagePaint = firstImageFill(node)
+    if (imagePaint) {
+      style.imageFit = imageFitOf(imagePaint)
+      if (imagePaint.imageRef) style.imageRef = imagePaint.imageRef
+    }
   }
+
+  // Strokes -> border (Figma strokes are centred; CSS border is a close match).
+  const strokePaint = visiblePaints(node.strokes).find(
+    (f) => f.type === 'SOLID' && f.color,
+  )
+  if (strokePaint?.color && typeof node.strokeWeight === 'number' && node.strokeWeight > 0) {
+    style.borderWidth = round(node.strokeWeight, scale)
+    style.borderColor = figmaColorToHex(strokePaint.color, strokePaint.opacity ?? 1)
+  }
+
   if (typeof node.cornerRadius === 'number') style.cornerRadius = round(node.cornerRadius, scale)
+  // Mixed corner radii take precedence over the uniform value (Figma only sends
+  // rectangleCornerRadii when the four corners differ).
+  if (Array.isArray(node.rectangleCornerRadii) && node.rectangleCornerRadii.length === 4) {
+    style.cornerRadii = node.rectangleCornerRadii.map((v) => round(v, scale)) as [
+      number,
+      number,
+      number,
+      number,
+    ]
+  }
   if (typeof node.opacity === 'number') style.opacity = Math.round(node.opacity * 100) / 100
 
   if (node.layoutMode === 'VERTICAL' || node.layoutMode === 'HORIZONTAL') {
@@ -223,7 +367,21 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
       style.lineHeight = round(s.lineHeightPx, scale)
     }
     if (typeof s.letterSpacing === 'number') style.letterSpacing = round(s.letterSpacing, scale)
-    if (solid?.color) style.color = figmaColorToHex(solid.color, solid.opacity ?? 1)
+    switch (s.textAlignHorizontal) {
+      case 'CENTER':
+        style.textAlign = 'center'
+        break
+      case 'RIGHT':
+        style.textAlign = 'right'
+        break
+      case 'JUSTIFIED':
+        style.textAlign = 'justify'
+        break
+      case 'LEFT':
+      default:
+        style.textAlign = 'left'
+        break
+    }
   }
 
   return {
@@ -240,7 +398,29 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
 }
 
 export function normalizeFigmaTree(root: FigmaNode, scale = 1): DesignDoc {
-  return { root: convertNode(root, scale), scale, source: 'figma' }
+  const doc: DesignDoc = { root: convertNode(root, scale), scale, source: 'figma' }
+  rebaseTreeToRootOrigin(doc.root)
+  return doc
+}
+
+/**
+ * Figma's `absoluteBoundingBox` is positioned relative to the whole file
+ * canvas (e.g. a frame can sit at x=-666, y=7589). We paint every fetched node
+ * as its own screen with its origin at (0,0) and a viewport of the root's size,
+ * so those absolute offsets would push every child off-screen. Translate the
+ * whole tree by minus the root box origin, making the root start at (0,0) and
+ * all children relative to it (matching the Android layout engine).
+ */
+function rebaseTreeToRootOrigin(root: DesignNode): void {
+  const originX = typeof root.box.x === 'number' ? root.box.x : 0
+  const originY = typeof root.box.y === 'number' ? root.box.y : 0
+  if (originX === 0 && originY === 0) return
+  const shift = (node: DesignNode): void => {
+    if (typeof node.box.x === 'number') node.box.x -= originX
+    if (typeof node.box.y === 'number') node.box.y -= originY
+    for (const child of node.children) shift(child)
+  }
+  shift(root)
 }
 
 /** Extract just the file key from a Figma file/design URL. */
@@ -347,6 +527,86 @@ export async function renderFigmaNode(
   return { url: imageUrl, nodeId: resolvedNodeId }
 }
 
+/**
+ * Server-side render several nodes to images in a single request and return a
+ * map of node id -> temporary image URL. Nodes Figma cannot render are simply
+ * absent from the map (never fatal), so the caller can show a text fallback.
+ */
+export async function renderFigmaNodesBatch(
+  fileKey: string,
+  nodeIds: string[],
+  options: FigmaRenderOptions,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (!nodeIds.length) return result
+
+  const params = new URLSearchParams({
+    ids: nodeIds.join(','),
+    format: options.format ?? 'png',
+    scale: String(options.scale ?? 1),
+  })
+  const url = `${FIGMA_API}/images/${fileKey}?${params.toString()}`
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
+  if (!response.ok) {
+    throw new Error(`Figma 渲染请求失败：${response.status} ${response.statusText}`)
+  }
+  const payload = (await response.json()) as {
+    err?: unknown
+    images?: Record<string, string | null>
+  }
+  if (payload.err) throw new Error(`Figma 渲染错误：${JSON.stringify(payload.err)}`)
+  const images = payload.images ?? {}
+  for (const id of nodeIds) {
+    const u =
+      images[id] ||
+      images[id.replace(/-/g, ':')] ||
+      images[id.replace(/:/g, '-')] ||
+      null
+    if (u) result.set(id.replace(/-/g, ':'), u)
+  }
+  // Also pick up any unexpected key forms Figma returned.
+  for (const [rawId, u] of Object.entries(images)) {
+    if (!u) continue
+    const normalized = rawId.replace(/-/g, ':')
+    if (!result.has(normalized)) result.set(normalized, u)
+  }
+  return result
+}
+
+/**
+ * Resolve IMAGE-paint asset ids to usable URLs in ONE request
+ * (`GET /files/{file_key}/images`). The endpoint returns every image fill used
+ * by the file, so we simply pick out the refs requested. Best effort: unknown
+ * refs are absent from the returned map.
+ */
+export async function fetchFigmaImageFills(
+  fileKey: string,
+  imageRefs: string[],
+  options: FigmaRenderOptions,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  const wanted = new Set(imageRefs)
+  if (!wanted.size) return result
+
+  const url = `${FIGMA_API}/files/${fileKey}/images`
+  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
+  if (!response.ok) {
+    throw new Error(`Figma 图片资源请求失败：${response.status} ${response.statusText}`)
+  }
+  const payload = (await response.json()) as {
+    error?: boolean
+    status?: number
+    meta?: { images?: Record<string, string> }
+  }
+  if (payload.error) throw new Error('Figma 图片资源返回错误')
+  const images = payload.meta?.images ?? {}
+  for (const ref of wanted) {
+    const u = images[ref]
+    if (u) result.set(ref, u)
+  }
+  return result
+}
+
 // ---------------------------------------------------------------------------
 // Whole-file page inventory
 // ---------------------------------------------------------------------------
@@ -442,10 +702,17 @@ export async function fetchFigmaFileInventory(
   return { fileKey, canvases, pages }
 }
 
+/** Node ids requested per `/nodes` call (keeps large frames from bloating one request). */
+const DOCS_BATCH_CHUNK = 12
+/** `/nodes` requests in flight at once. */
+const DOCS_BATCH_CONCURRENCY = 4
+
 /**
- * Fetch several node documents in one request and normalise each. Batching
- * keeps whole-file inventory mapping to a handful of requests instead of one
- * per page. Nodes that fail to normalise are omitted.
+ * Fetch several node documents and normalise each. Requests are split into
+ * small, concurrently-run chunks: a single request for dozens of frames (some
+ * very tall) made Figma spend ~40s serialising one huge payload, which looked
+ * like a hang. Chunks fail independently, so one slow/failed frame never
+ * blocks the rest of the scan. Nodes that could not be fetched are omitted.
  */
 export async function fetchFigmaDocsBatch(
   fileKey: string,
@@ -454,18 +721,34 @@ export async function fetchFigmaDocsBatch(
 ): Promise<Map<string, DesignDoc>> {
   const result = new Map<string, DesignDoc>()
   if (!nodeIds.length) return result
-  const url = `${FIGMA_API}/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeIds.join(','))}`
-  const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
-  if (!response.ok) {
-    throw new Error(`Figma 批量节点请求失败：${response.status} ${response.statusText}`)
+
+  const chunks: string[][] = []
+  for (let i = 0; i < nodeIds.length; i += DOCS_BATCH_CHUNK) {
+    chunks.push(nodeIds.slice(i, i + DOCS_BATCH_CHUNK))
   }
-  const payload = (await response.json()) as {
-    nodes?: Record<string, { document?: FigmaNode }>
-  }
+
   const scale = options.scale ?? 1
-  for (const id of nodeIds) {
-    const entry = payload.nodes?.[id]?.document
-    if (entry) result.set(id, normalizeFigmaTree(entry, scale))
-  }
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(DOCS_BATCH_CONCURRENCY, chunks.length) }, async () => {
+    while (cursor < chunks.length) {
+      const chunk = chunks[cursor]!
+      cursor += 1
+      try {
+        const url = `${FIGMA_API}/files/${fileKey}/nodes?ids=${encodeURIComponent(chunk.join(','))}`
+        const response = await figmaFetch(url, { 'X-Figma-Token': options.token }, options)
+        if (!response.ok) continue
+        const payload = (await response.json()) as {
+          nodes?: Record<string, { document?: FigmaNode }>
+        }
+        for (const id of chunk) {
+          const entry = payload.nodes?.[id]?.document
+          if (entry) result.set(id, normalizeFigmaTree(entry, scale))
+        }
+      } catch {
+        // Skip this chunk; its pages are simply absent from the overview.
+      }
+    }
+  })
+  await Promise.all(workers)
   return result
 }
