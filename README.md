@@ -42,6 +42,8 @@ TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代�
   - 云效：任务附件真实上传；截图嵌入工作项**详情**对应条目（`![文件名](embedUrl)`）  
   - 云效目录请求可在面板查看日志（不含 token）
 - **设计稿 UI 走查**：以 Figma / 蓝湖为准的静态对比（Android / iOS / Flutter / RN / Harmony / Web / 小程序 / uni-app / Taro / MAUI），支持属性级与启发式对比，并可一键发起 AI 协助分析
+  - 蓝湖：粘贴项目/设计稿链接 + 浏览器 Cookie（登录后从 DevTools 复制）；有 `image_id` 扫单稿，否则扫整个项目
+  - 蓝湖协议说明参考了社区项目 [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server)（Cookie、`/api/project/image(s)`、`json_url`）；本仓库实现为自研适配器 `packages/core/src/design/sources/lanhu.ts`，映射到内部 `DesignDoc`，未拷贝其客户端/DDS/MCP 代码
 - **导出**：Markdown / CSV；复制问题反馈
 - **本机数据**：`~/.tracescope/`（认证、协作平台配置、报告、附件、远端缓存）
 

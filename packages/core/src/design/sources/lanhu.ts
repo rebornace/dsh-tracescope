@@ -4,6 +4,12 @@
  *
  * Auth uses a browser Cookie (and optional Authorization header) — lanhu has no
  * public personal-access-token like Figma. Users copy Cookie from DevTools.
+ *
+ * Protocol reference (not a source copy): community project
+ * https://github.com/DC911360/lanhu-mcp-server (Cookie / Authorization,
+ * `/api/project/image(s)`, `json_url` annotation payload). This file is an
+ * original TraceScope adapter that maps those payloads into {@link DesignDoc};
+ * it does not vendor that repository's client, DDS, or MCP layers.
  */
 import type {
   DesignDoc,
