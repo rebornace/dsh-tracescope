@@ -47,7 +47,7 @@ import {
   buildLanhuImageUrl,
   fetchLanhuDoc,
   fetchLanhuPreviewUrl,
-  fetchLanhuPreviewUrls,
+  fetchLanhuPreviewDataUrls,
   fetchLanhuProjectInventory,
   visualScanKey,
   visualHifiKey,
@@ -549,7 +549,7 @@ export async function getDesignPageThumbnails(
       else missing.push(id)
     }
     if (missing.length) {
-      const map = await fetchLanhuPreviewUrls(parts, missing, {
+      const map = await fetchLanhuPreviewDataUrls(parts, missing, {
         cookie: conn.credential,
         authorization: conn.authorization,
       })

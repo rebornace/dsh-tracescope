@@ -75,8 +75,15 @@ async function queueThumbnail(task) {
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
+function isLanhuDesignUrl(url) {
+  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url);
+}
+function normalizeNodeId(designUrl, nodeId) {
+  if (isLanhuDesignUrl(designUrl)) return nodeId.trim();
+  return nodeId.trim().replace(/-/g, ":");
+}
 function cacheKey(figmaUrl, figmaToken, nodeId) {
-  return `${figmaToken.slice(0, 12)}|${figmaUrl}|${nodeId.replace(/-/g, ":")}`;
+  return `${figmaToken.slice(0, 12)}|${figmaUrl}|${normalizeNodeId(figmaUrl, nodeId)}`;
 }
 async function postThumbnails(figmaUrl, figmaToken, nodeIds) {
   const r = await fetch("/tracescope/v1/page-thumbnails", {
@@ -98,10 +105,10 @@ function flushBucket(bucket) {
   }
   const waiters = bucket.waiters.splice(0);
   if (!waiters.length) return;
-  const nodeIds = [...new Set(waiters.map((w) => w.nodeId.replace(/-/g, ":")))];
+  const nodeIds = [...new Set(waiters.map((w) => normalizeNodeId(bucket.figmaUrl, w.nodeId)))];
   void queueThumbnail(() => postThumbnails(bucket.figmaUrl, bucket.figmaToken, nodeIds)).then((urls) => {
     for (const w of waiters) {
-      const normalized = w.nodeId.replace(/-/g, ":");
+      const normalized = normalizeNodeId(bucket.figmaUrl, w.nodeId);
       const url = urls[normalized] || urls[w.nodeId];
       if (url) urlCache.set(w.cacheKey, url);
       w.resolve(url);
@@ -1091,6 +1098,128 @@ var init_PageMappingOverview = __esm({
   }
 });
 
+// client-src/visual/diff-actions.ts
+function itemNote(item) {
+  const lines = [];
+  if (item.location) lines.push(`位置：${item.location}`);
+  if (item.expected) lines.push(`设计期望：${item.expected}`);
+  if (item.actual) lines.push(`实际：${item.actual}`);
+  if (item.codeSource) lines.push(`代码来源：${item.codeSource}`);
+  if (item.suggestion) lines.push(`建议：${item.suggestion}`);
+  if (item.note) lines.push(`备注：${item.note}`);
+  lines.push(`来源：${item.source === "ai" ? "AI 协助" : "静态规则"}`);
+  return lines.join("\n");
+}
+function unifiedItemsToFailReport(items, meta) {
+  const codePath = (meta.codePath || "").trim();
+  const direct = items.map((item, index) => ({
+    id: `ui-diff-${item.key || index}`,
+    displayName: item.headline || `UI 差异 ${index + 1}`,
+    kind: "direct",
+    risk: item.severity,
+    files: codePath ? [codePath] : [],
+    evidence: codePath ? [{ path: codePath, reason: item.headline || "UI 差异" }] : [],
+    suggestedSteps: item.suggestion ? [item.suggestion] : [],
+    status: "fail",
+    testerNote: itemNote(item)
+  }));
+  return {
+    repoPath: meta.repoPath,
+    baseCommit: "design",
+    headCommit: "code",
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    modelEnriched: false,
+    direct,
+    ripple: [],
+    changedFiles: codePath ? [codePath] : []
+  };
+}
+function defaultVisualDefectSubject(items, meta) {
+  const name2 = meta.designName || "设计稿";
+  const code = meta.codePath ? ` ↔ ${meta.codePath}` : "";
+  return `[UI 走查] ${name2}${code}（${items.length} 条差异）`;
+}
+function formatVisualDiffCopyText(items, meta) {
+  const lines = [
+    "【TraceScope UI 差异反馈】",
+    `仓库：${meta.repoPath || ""}`,
+    meta.designName ? `设计稿：${meta.designName}` : "",
+    meta.designUrl ? `链接：${meta.designUrl}` : "",
+    meta.codePath ? `代码：${meta.codePath}` : "",
+    meta.platformLabel ? `平台：${meta.platformLabel}` : "",
+    ""
+  ].filter(Boolean);
+  items.forEach((item, i) => {
+    lines.push(
+      `${i + 1}. [${item.severity}] ${item.headline}（${item.source === "ai" ? "AI" : "规则"}）`
+    );
+    const note = itemNote(item);
+    for (const line of note.split("\n")) {
+      lines.push(`   ${line}`);
+    }
+    lines.push("");
+  });
+  return lines.join("\n");
+}
+function formatVisualDiffExportMarkdown(items, meta) {
+  const lines = [
+    "# TraceScope UI 走查差异报告",
+    "",
+    `- 仓库：\`${meta.repoPath || ""}\``,
+    meta.designName ? `- 设计稿：${meta.designName}` : "",
+    meta.designUrl ? `- 链接：${meta.designUrl}` : "",
+    meta.codePath ? `- 代码：\`${meta.codePath}\`` : "",
+    meta.platformLabel ? `- 平台：${meta.platformLabel}` : "",
+    `- 生成时间：${(/* @__PURE__ */ new Date()).toISOString()}`,
+    `- 差异数：${items.length}`,
+    "",
+    "## 差异清单",
+    ""
+  ].filter(Boolean);
+  items.forEach((item, i) => {
+    lines.push(`### ${i + 1}. ${item.headline}`);
+    lines.push("");
+    lines.push(`- 严重程度：${item.severity}`);
+    lines.push(`- 来源：${item.source === "ai" ? "AI 协助" : "静态规则"}`);
+    if (item.location) lines.push(`- 位置：${item.location}`);
+    if (item.expected) lines.push(`- 设计期望：${item.expected}`);
+    if (item.actual) lines.push(`- 实际：${item.actual}`);
+    if (item.codeSource) lines.push(`- 代码来源：${item.codeSource}`);
+    if (item.suggestion) lines.push(`- 建议：${item.suggestion}`);
+    if (item.note) lines.push(`- 备注：${item.note}`);
+    lines.push("");
+  });
+  return lines.join("\n");
+}
+async function copyTextToClipboard(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+}
+function downloadTextFile(filename, text, mime = "text/markdown") {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+var init_diff_actions = __esm({
+  "client-src/visual/diff-actions.ts"() {
+    "use strict";
+  }
+});
+
 // client-src/visual/HifiCompareBoard.tsx
 function formatHifiSavedAt(iso) {
   const d = new Date(iso);
@@ -1121,7 +1250,13 @@ function HifiCompareBoard({
   findings,
   onAiAnalyze,
   onRegenerate,
-  openConfirmDialog
+  openConfirmDialog,
+  repoInput,
+  designUrl,
+  trackerReady,
+  trackerProvider,
+  onOpenTrackerSettings,
+  onActionHint
 }) {
   const [activeDesignId, setActiveDesignId] = (0, import_react2.useState)("");
   const [chatNote, setChatNote] = (0, import_react2.useState)("");
@@ -1256,6 +1391,97 @@ function HifiCompareBoard({
   const visibleItems = displayItems.filter(
     (i) => sourceFilter === "all" || i.source === sourceFilter
   );
+  const actionMeta = {
+    repoPath: (repoInput || "").trim(),
+    designName: data.designName || data.designHifiTree?.name || "",
+    designUrl: (designUrl || "").trim(),
+    codePath: data.page.relativePath,
+    platformLabel: data.page.kindLabel || data.page.adapterId
+  };
+  const hint = (message) => {
+    setChatNote(message);
+    onActionHint?.(message);
+  };
+  const copyDiffs = async () => {
+    if (!visibleItems.length) {
+      hint("当前没有可复制的差异");
+      return;
+    }
+    try {
+      await copyTextToClipboard(formatVisualDiffCopyText(visibleItems, actionMeta));
+      hint(`已复制 ${visibleItems.length} 条差异`);
+    } catch (err) {
+      hint(`复制失败：${err.message}`);
+    }
+  };
+  const exportDiffs = () => {
+    if (!visibleItems.length) {
+      hint("当前没有可导出的差异");
+      return;
+    }
+    const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `tracescope-ui-diff-${stamp}.md`;
+    downloadTextFile(filename, formatVisualDiffExportMarkdown(visibleItems, actionMeta));
+    hint(`已导出：${filename}`);
+  };
+  const submitDiffs = () => {
+    if (!visibleItems.length) {
+      hint("当前没有可提交的差异");
+      return;
+    }
+    if (!trackerReady) {
+      if (typeof openConfirmDialog === "function") {
+        openConfirmDialog({
+          title: "先配置协作平台？",
+          message: "尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。",
+          confirmLabel: "打开配置",
+          onConfirm: () => {
+            onOpenTrackerSettings?.();
+          }
+        });
+      } else {
+        hint("请先在「仓库配置 → 协作平台」完成配置");
+      }
+      return;
+    }
+    if (typeof openConfirmDialog !== "function") {
+      hint("当前宿主不支持弹窗输入，无法提交缺陷");
+      return;
+    }
+    openConfirmDialog({
+      title: "提交缺陷？",
+      message: `将把 ${visibleItems.length} 条 UI 差异提交到协作平台（${trackerProvider || "已配置"}）。可修改下方标题后再提交。`,
+      inputLabel: "缺陷标题",
+      inputValue: defaultVisualDefectSubject(visibleItems, actionMeta),
+      confirmLabel: "提交",
+      onConfirm: (subject) => {
+        const report = unifiedItemsToFailReport(visibleItems, actionMeta);
+        void fetch("/tracescope/v1/tracker-submit", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            repoPath: actionMeta.repoPath,
+            baseCommit: report.baseCommit,
+            headCommit: report.headCommit,
+            report,
+            subject: String(subject || "").trim()
+          })
+        }).then(async (r) => {
+          const text = await r.text();
+          const data2 = text ? JSON.parse(text) : {};
+          if (!r.ok) throw new Error(data2.error || "提交失败");
+          let tip = `已提交到 ${data2.provider || trackerProvider || "协作平台"}`;
+          if (data2.id) tip += `（ID ${data2.id}）`;
+          tip += `，共 ${data2.count || visibleItems.length} 条。`;
+          if (data2.url) tip += ` 链接：${data2.url}`;
+          hint(tip);
+        }).catch((err) => {
+          hint(`提交失败：${err.message}`);
+        });
+      }
+    });
+  };
   const markerDiffs = (0, import_react2.useMemo)(() => {
     const fromRules = displayItems.filter((i) => i.designId && designBoxById.has(i.designId)).map((i) => ({
       designId: i.designId,
@@ -1495,8 +1721,11 @@ function HifiCompareBoard({
               visibleItems.length,
               "，点击可在设计稿上定位）"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, flexShrink: 0 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.aiBtn, onClick: sendToChat, children: "AI 协助分析" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: () => void copyDiffs(), children: "复制差异" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: submitDiffs, children: "提交缺陷" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: exportDiffs, children: "导出报告" }),
               onRegenerate ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: onRegenerate, children: "重新生成" }) : null,
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: clearMarkers, children: "清除高亮" })
             ] })
@@ -2145,6 +2374,7 @@ var init_HifiCompareBoard = __esm({
   "client-src/visual/HifiCompareBoard.tsx"() {
     "use strict";
     import_react2 = require("react");
+    init_diff_actions();
     import_jsx_runtime2 = require("react/jsx-runtime");
     SEVERITY_RANK = { high: 3, medium: 2, low: 0 };
     SEVERITY_LABEL = { high: "高", medium: "中", low: "低" };
@@ -2523,7 +2753,10 @@ function VisualComparePanel({
   repoInput,
   auth,
   onSendToChat,
-  openConfirmDialog
+  openConfirmDialog,
+  trackerReady,
+  trackerProvider,
+  onOpenTrackerSettings
 }) {
   const [figmaUrl, setFigmaUrlState] = (0, import_react3.useState)(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
   const [figmaToken, setFigmaTokenState] = (0, import_react3.useState)(
@@ -3058,6 +3291,12 @@ function VisualComparePanel({
         findings: activeDesignId ? findingsMap[activeDesignId] : void 0,
         onSendToChat,
         openConfirmDialog,
+        repoInput,
+        designUrl: figmaUrl,
+        trackerReady,
+        trackerProvider,
+        onOpenTrackerSettings,
+        onActionHint: (message) => setError(message),
         onAiAnalyze: (file) => {
           const designId = String(
             hifiData?.designHifiTree?.id ?? ""
@@ -3417,7 +3656,7 @@ function apiPost(path, body) {
     });
   });
 }
-function downloadTextFile(filename, text, mime) {
+function downloadTextFile2(filename, text, mime) {
   var blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
@@ -6072,7 +6311,7 @@ function TraceScopePanelBody() {
       }).then(function(data) {
         var text = data && data.markdown || "";
         var name2 = data && data.filename || filename;
-        downloadTextFile(name2, text, "text/markdown");
+        downloadTextFile2(name2, text, "text/markdown");
         setChatHint("已导出：" + name2);
       }).catch(function() {
         var text = buildLocalExportMarkdown(report, {
@@ -6080,7 +6319,7 @@ function TraceScopePanelBody() {
           baseCommit: base,
           headCommit: head
         });
-        downloadTextFile(filename, text, "text/markdown");
+        downloadTextFile2(filename, text, "text/markdown");
         setChatHint("已导出（本地面板数据）：" + filename);
       }).finally(function() {
         endBusy();
@@ -7161,7 +7400,7 @@ function TraceScopePanelBody() {
                   "记住认证到本机"
                 ]
               }) : null,
-              mode === "functional" && (function() {
+              (function() {
                 return jsxs5(jsxRuntime.Fragment, {
                   children: [
                     jsx5("div", {
@@ -7175,7 +7414,7 @@ function TraceScopePanelBody() {
                     }),
                     jsx5("p", {
                       style: { margin: "4px 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
-                      children: "关联工作项、提交失败反馈。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。"
+                      children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与 UI 设计对比共用同一套平台配置。"
                     }),
                     jsxs5("label", {
                       style: styles.label,
@@ -8491,6 +8730,11 @@ function TraceScopePanelBody() {
         repoInput: repoPath.trim(),
         auth: buildAuthPayload(),
         onSendToChat: fillComposerDraft,
+        trackerReady,
+        trackerProvider,
+        onOpenTrackerSettings: function() {
+          setSettingsOpen(true);
+        },
         openConfirmDialog: function(opts) {
           setConfirmDlg({
             title: opts.title,

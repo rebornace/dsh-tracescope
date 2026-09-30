@@ -260,6 +260,7 @@ export {
   fetchLanhuDoc,
   fetchLanhuPreviewUrl,
   fetchLanhuPreviewUrls,
+  fetchLanhuPreviewDataUrls,
   fetchLanhuProjectInventory,
   type LanhuClientOptions,
   type LanhuUrlParts,

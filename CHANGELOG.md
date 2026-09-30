@@ -7,7 +7,7 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 0.1.12 — 2026-09-30
 
-- **蓝湖设计稿**：UI 走查支持蓝湖链接 + Cookie（可选 Authorization）；单稿 `image_id` 或整项目扫描；预览图/缩略图走蓝湖封面。
+- **蓝湖**：UI 走查缩略图改走服务端带 Cookie 拉取封面（避免 CDN 鉴权/错误改写 UUID）；差异清单支持复制差异、提交缺陷、导出报告；协作平台配置对功能分析与 UI 走查共用。
 - **设计稿 UI 走查（design-only）**：以 Figma / 蓝湖设计稿为准做静态对比，不再依赖 native 运行时渲染。
   - 页面发现覆盖 Android XML / Compose / View、iOS Xib / SwiftUI / UIKit、Flutter、React Native、Harmony ArkUI、Web（HTML/React/Vue/Svelte/Angular）、小程序（WXML/AXML/TTML/Swan）、uni-app、Taro、.NET MAUI XAML
   - 对比分层：L0 指纹匹配 → L1 属性级静态树 → L2 启发式文案/控件规模 → L3「AI 协助分析」（按适配器生成源码阅读清单，非 XML 不再误走 Android 依赖闭包）

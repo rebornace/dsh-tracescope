@@ -2,6 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DiffBox } from './HifiScreen.js'
 import type { PageFindings } from './panel-types.js'
+import {
+  copyTextToClipboard,
+  defaultVisualDefectSubject,
+  downloadTextFile,
+  formatVisualDiffCopyText,
+  formatVisualDiffExportMarkdown,
+  unifiedItemsToFailReport,
+} from './diff-actions.js'
 
 interface HifiCompareData {
   page: { adapterId: string; kindLabel?: string; relativePath: string }
@@ -115,6 +123,12 @@ export function HifiCompareBoard({
   onAiAnalyze,
   onRegenerate,
   openConfirmDialog,
+  repoInput,
+  designUrl,
+  trackerReady,
+  trackerProvider,
+  onOpenTrackerSettings,
+  onActionHint,
 }: {
   data: HifiCompareData
   findings?: PageFindings
@@ -131,6 +145,12 @@ export function HifiCompareBoard({
     confirmLabel?: string
     onConfirm: (value: string | Record<string, string> | void) => void
   }) => void
+  repoInput?: string
+  designUrl?: string
+  trackerReady?: boolean
+  trackerProvider?: string
+  onOpenTrackerSettings?: () => void
+  onActionHint?: (message: string) => void
 }) {
   const [activeDesignId, setActiveDesignId] = useState('')
   const [chatNote, setChatNote] = useState('')
@@ -284,6 +304,105 @@ export function HifiCompareBoard({
   const visibleItems = displayItems.filter(
     (i) => sourceFilter === 'all' || i.source === sourceFilter,
   )
+
+  const actionMeta = {
+    repoPath: (repoInput || '').trim(),
+    designName: data.designName || data.designHifiTree?.name || '',
+    designUrl: (designUrl || '').trim(),
+    codePath: data.page.relativePath,
+    platformLabel: data.page.kindLabel || data.page.adapterId,
+  }
+
+  const hint = (message: string) => {
+    setChatNote(message)
+    onActionHint?.(message)
+  }
+
+  const copyDiffs = async () => {
+    if (!visibleItems.length) {
+      hint('当前没有可复制的差异')
+      return
+    }
+    try {
+      await copyTextToClipboard(formatVisualDiffCopyText(visibleItems, actionMeta))
+      hint(`已复制 ${visibleItems.length} 条差异`)
+    } catch (err) {
+      hint(`复制失败：${(err as Error).message}`)
+    }
+  }
+
+  const exportDiffs = () => {
+    if (!visibleItems.length) {
+      hint('当前没有可导出的差异')
+      return
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const filename = `tracescope-ui-diff-${stamp}.md`
+    downloadTextFile(filename, formatVisualDiffExportMarkdown(visibleItems, actionMeta))
+    hint(`已导出：${filename}`)
+  }
+
+  const submitDiffs = () => {
+    if (!visibleItems.length) {
+      hint('当前没有可提交的差异')
+      return
+    }
+    if (!trackerReady) {
+      if (typeof openConfirmDialog === 'function') {
+        openConfirmDialog({
+          title: '先配置协作平台？',
+          message:
+            '尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。',
+          confirmLabel: '打开配置',
+          onConfirm: () => {
+            onOpenTrackerSettings?.()
+          },
+        })
+      } else {
+        hint('请先在「仓库配置 → 协作平台」完成配置')
+      }
+      return
+    }
+    if (typeof openConfirmDialog !== 'function') {
+      hint('当前宿主不支持弹窗输入，无法提交缺陷')
+      return
+    }
+    openConfirmDialog({
+      title: '提交缺陷？',
+      message: `将把 ${visibleItems.length} 条 UI 差异提交到协作平台（${trackerProvider || '已配置'}）。可修改下方标题后再提交。`,
+      inputLabel: '缺陷标题',
+      inputValue: defaultVisualDefectSubject(visibleItems, actionMeta),
+      confirmLabel: '提交',
+      onConfirm: (subject) => {
+        const report = unifiedItemsToFailReport(visibleItems, actionMeta)
+        void fetch('/tracescope/v1/tracker-submit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            repoPath: actionMeta.repoPath,
+            baseCommit: report.baseCommit,
+            headCommit: report.headCommit,
+            report,
+            subject: String(subject || '').trim(),
+          }),
+        })
+          .then(async (r) => {
+            const text = await r.text()
+            const data = text ? JSON.parse(text) : {}
+            if (!r.ok) throw new Error(data.error || '提交失败')
+            let tip = `已提交到 ${data.provider || trackerProvider || '协作平台'}`
+            if (data.id) tip += `（ID ${data.id}）`
+            tip += `，共 ${data.count || visibleItems.length} 条。`
+            if (data.url) tip += ` 链接：${data.url}`
+            hint(tip)
+          })
+          .catch((err) => {
+            hint(`提交失败：${(err as Error).message}`)
+          })
+      },
+    })
+  }
 
   const markerDiffs = useMemo(() => {
     const fromRules = displayItems
@@ -541,9 +660,18 @@ export function HifiCompareBoard({
           <strong style={{ fontSize: 12 }}>
             差异清单（{visibleItems.length}，点击可在设计稿上定位）
           </strong>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" style={COL.aiBtn} onClick={sendToChat}>
               AI 协助分析
+            </button>
+            <button type="button" style={COL.clearBtn} onClick={() => void copyDiffs()}>
+              复制差异
+            </button>
+            <button type="button" style={COL.clearBtn} onClick={submitDiffs}>
+              提交缺陷
+            </button>
+            <button type="button" style={COL.clearBtn} onClick={exportDiffs}>
+              导出报告
             </button>
             {onRegenerate ? (
               <button type="button" style={COL.clearBtn} onClick={onRegenerate}>

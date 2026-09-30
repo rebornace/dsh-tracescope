@@ -516,6 +516,24 @@ export async function fetchLanhuDoc(
   })
 }
 
+function pickPreviewUrl(row: Record<string, unknown>): string {
+  const candidates: unknown[] = [
+    row.url,
+    row.cover,
+    row.preview,
+    row.preview_url,
+    row.sketch_url,
+    row.image_url,
+    (row.dds as { url?: string; imageUrl?: string } | undefined)?.url,
+    (row.dds as { url?: string; imageUrl?: string } | undefined)?.imageUrl,
+    (row.versions as Array<{ url?: string }> | undefined)?.[0]?.url,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && /^https?:\/\//i.test(c.trim())) return c.trim()
+  }
+  return ''
+}
+
 /** Cover / preview image URL for a design. */
 export async function fetchLanhuPreviewUrl(
   urlOrParts: string | LanhuUrlParts,
@@ -523,9 +541,29 @@ export async function fetchLanhuPreviewUrl(
 ): Promise<string> {
   const parts = typeof urlOrParts === 'string' ? parseLanhuUrl(urlOrParts) : urlOrParts
   const detail = await getDesignDetail(parts, options)
-  const url = typeof detail.url === 'string' ? detail.url : ''
+  const url = pickPreviewUrl(detail)
   if (!url) throw new Error('蓝湖设计稿没有预览图')
   return url
+}
+
+/**
+ * Download a Lanhu cover/preview with auth cookies and return a data URL so the
+ * sidebar `<img>` does not depend on CDN hotlink / cookie-less browser fetches.
+ */
+export async function fetchLanhuPreviewDataUrl(
+  urlOrParts: string | LanhuUrlParts,
+  options: LanhuClientOptions,
+): Promise<string> {
+  const remote = await fetchLanhuPreviewUrl(urlOrParts, options)
+  const response = await lanhuFetch(remote, options)
+  if (!response.ok) {
+    throw new Error(`蓝湖预览图下载失败：${response.status} ${response.statusText}`)
+  }
+  const contentType = response.headers.get('content-type') || 'image/png'
+  const buf = Buffer.from(await response.arrayBuffer())
+  if (buf.byteLength > 6 * 1024 * 1024) throw new Error('蓝湖预览图过大')
+  const mime = contentType.startsWith('image/') ? contentType.split(';')[0]! : 'image/png'
+  return `data:${mime};base64,${buf.toString('base64')}`
 }
 
 /**
@@ -561,14 +599,7 @@ export async function fetchLanhuProjectInventory(
     const name = String(row.name ?? row.image_name ?? id)
     const width = Number(row.width ?? row.w ?? 390) || 390
     const height = Number(row.height ?? row.h ?? 844) || 844
-    const previewUrl =
-      typeof row.url === 'string'
-        ? row.url
-        : typeof row.cover === 'string'
-          ? row.cover
-          : typeof (row.dds as { url?: string } | undefined)?.url === 'string'
-            ? (row.dds as { url: string }).url
-            : undefined
+    const previewUrl = pickPreviewUrl(row) || undefined
     pages.push({
       id,
       name,
@@ -619,8 +650,52 @@ export async function fetchLanhuPreviewUrls(
     try {
       out[id] = await fetchLanhuPreviewUrl({ ...parts, imageId: id }, options)
     } catch {
-      // skip missing previews
+      // Layer ids from multi-board expand are not image ids — fall back to URL image.
+      if (parts.imageId && parts.imageId !== id) {
+        try {
+          out[id] = await fetchLanhuPreviewUrl(parts, options)
+        } catch {
+          /* skip */
+        }
+      }
     }
+  }
+  return out
+}
+
+/**
+ * Like {@link fetchLanhuPreviewUrls}, but returns data URLs fetched with the
+ * caller's Cookie so the UI can render without CDN cookie/hotlink issues.
+ */
+export async function fetchLanhuPreviewDataUrls(
+  urlOrParts: string | LanhuUrlParts,
+  imageIds: string[],
+  options: LanhuClientOptions,
+): Promise<Record<string, string>> {
+  const parts = typeof urlOrParts === 'string' ? parseLanhuUrl(urlOrParts) : urlOrParts
+  const remote = await fetchLanhuPreviewUrls(parts, imageIds, options)
+  const out: Record<string, string> = {}
+  const entries = Object.entries(remote)
+  const CONCURRENCY = 4
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const chunk = entries.slice(i, i + CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ([id, url]) => {
+        try {
+          const response = await lanhuFetch(url, options)
+          if (!response.ok) return
+          const contentType = response.headers.get('content-type') || 'image/png'
+          const buf = Buffer.from(await response.arrayBuffer())
+          if (buf.byteLength > 6 * 1024 * 1024) return
+          const mime = contentType.startsWith('image/')
+            ? contentType.split(';')[0]!
+            : 'image/png'
+          out[id] = `data:${mime};base64,${buf.toString('base64')}`
+        } catch {
+          /* keep missing */
+        }
+      }),
+    )
   }
   return out
 }

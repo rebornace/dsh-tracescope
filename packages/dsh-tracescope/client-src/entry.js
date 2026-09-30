@@ -4588,7 +4588,7 @@
                             ],
                           })
                         : null,
-                      mode === 'functional' && (function () {
+                      (function () {
                         return jsxs(jsxRuntime.Fragment, {
                           children: [
                                                   jsx('div', {
@@ -4603,7 +4603,7 @@
                       jsx('p', {
                         style: { margin: '4px 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '关联工作项、提交失败反馈。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。',
+                          '关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与 UI 设计对比共用同一套平台配置。',
                       }),
                       jsxs('label', {
                         style: styles.label,
@@ -6062,6 +6062,11 @@
                 repoInput: repoPath.trim(),
                 auth: buildAuthPayload(),
                 onSendToChat: fillComposerDraft,
+                trackerReady: trackerReady,
+                trackerProvider: trackerProvider,
+                onOpenTrackerSettings: function () {
+                  setSettingsOpen(true)
+                },
                 openConfirmDialog: function (opts) {
                   setConfirmDlg({
                     title: opts.title,
