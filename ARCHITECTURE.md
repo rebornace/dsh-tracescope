@@ -20,17 +20,17 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 | List commits | `tracescope_list_commits` | panel UI |
 | Open visual panel | `tracescope_open_panel` | `/tracescope` / auto-start Host server |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
-| Design UI review (Figma vs code) | `tracescope_publish_visual_findings` + chat prompt | Visual panel + `/tracescope/v1/*` compare routes |
+| Design UI review (Figma/Lanhu vs code) | `tracescope_publish_visual_findings` + chat prompt | Visual panel + `/tracescope/v1/*` compare routes |
 | Crash adapters / USB / extension | future MCP tools | future Host/Client surfaces |
 
 ## Design UI review (design-only)
 
-Figma is the source of truth. Compare is **static** (no app runtime / native render):
+Figma or Lanhu is the source of truth. Compare is **static** (no app runtime / native render):
 
 1. **Discover** code pages via `PlatformAdapter` registry (`packages/core/src/design/registry.ts`)
 2. **Match** design ↔ page by fingerprint (L0); near-ties prefer specialized stacks (uni-app / Taro / miniprogram / …)
 3. **Compare** exact `DesignDoc` trees when the adapter can build one (L1), else heuristic text/control checks (L2)
-4. **AI assist** (L3) builds a source reading list + Figma REST instructions; Android XML still gets layout dependency closure, other stacks get entry + sibling files
+4. **AI assist** (L3) builds a source reading list; design raster from Figma `/images` or Lanhu cover; Android XML still gets layout dependency closure, other stacks get entry + sibling files
 
 Adapters cover Android (XML / Compose / View), iOS (Xib / SwiftUI / UIKit), Flutter, React Native, Harmony ArkUI, Web (HTML / React / Vue / Svelte / Angular), miniprograms (WXML / AXML / TTML / Swan), uni-app, Taro, and .NET MAUI XAML.
 

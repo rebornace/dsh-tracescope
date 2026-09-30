@@ -42,6 +42,13 @@ import {
   expandFocusedDesignPages,
   renderFigmaNodesBatch,
   fetchFigmaImageFills,
+  isLanhuUrl,
+  parseLanhuUrl,
+  buildLanhuImageUrl,
+  fetchLanhuDoc,
+  fetchLanhuPreviewUrl,
+  fetchLanhuPreviewUrls,
+  fetchLanhuProjectInventory,
   visualScanKey,
   visualHifiKey,
   visualRematchKey,
@@ -130,12 +137,85 @@ export async function resolveVisualRepo(
   return { repoInput: trimmed, checkoutPath: checkout.checkoutPath }
 }
 
-/** Fetch the design doc from the Figma link/token. */
+/** Resolve design URL + credential from the request body (Figma or Lanhu). */
+function designConnection(body: Record<string, unknown>): {
+  url: string
+  credential: string
+  authorization?: string
+  source: 'figma' | 'lanhu'
+} {
+  const url = String(body.figmaUrl ?? body.designUrl ?? body.lanhuUrl ?? '').trim()
+  const credential = String(
+    body.figmaToken ?? body.designToken ?? body.lanhuCookie ?? body.cookie ?? '',
+  ).trim()
+  const authorization = String(body.lanhuAuthorization ?? body.authorization ?? '').trim()
+  if (!url || !credential) throw new Error('需要设计稿链接和访问凭证（Figma Token 或蓝湖 Cookie）')
+  if (isLanhuUrl(url)) {
+    return { url, credential, authorization: authorization || undefined, source: 'lanhu' }
+  }
+  return { url, credential, source: 'figma' }
+}
+
+/** Fetch the design doc from Figma or Lanhu. */
 export async function loadDesign(body: Record<string, unknown>): Promise<DesignDoc> {
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  const figmaToken = String(body.figmaToken ?? '').trim()
-  if (!figmaUrl || !figmaToken) throw new Error('需要设计稿链接和访问 Token')
-  return await fetchFigmaDoc(figmaUrl, undefined, { token: figmaToken })
+  const conn = designConnection(body)
+  if (conn.source === 'lanhu') {
+    return await fetchLanhuDoc(conn.url, {
+      cookie: conn.credential,
+      authorization: conn.authorization,
+    })
+  }
+  return await fetchFigmaDoc(conn.url, undefined, { token: conn.credential })
+}
+
+/** Stable cache key for a design connection (Figma file key or lanhu:projectId). */
+function designCacheFileKey(url: string): string {
+  if (isLanhuUrl(url)) {
+    try {
+      return `lanhu:${parseLanhuUrl(url).projectId}`
+    } catch {
+      return `lanhu:${url.slice(0, 80)}`
+    }
+  }
+  return parseFigmaFileKey(url)
+}
+
+/** Point a design URL at a specific page/image id. */
+function designUrlForNode(url: string, nodeId: string): string {
+  if (isLanhuUrl(url)) return buildLanhuImageUrl(url, nodeId)
+  try {
+    const u = new URL(url)
+    u.searchParams.set('node-id', nodeId.replace(/:/g, '-'))
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+/** Official design raster (Figma render or Lanhu cover). */
+async function renderDesignRaster(
+  body: Record<string, unknown>,
+  nodeId?: string,
+): Promise<{ url: string } | undefined> {
+  try {
+    const conn = designConnection(body)
+    if (conn.source === 'lanhu') {
+      const parts = parseLanhuUrl(conn.url)
+      const imageId = (nodeId || parts.imageId || '').trim()
+      if (!imageId) return undefined
+      const url = await fetchLanhuPreviewUrl(
+        { ...parts, imageId },
+        { cookie: conn.credential, authorization: conn.authorization },
+      )
+      return { url }
+    }
+    return await renderFigmaNode(conn.url, nodeId, {
+      token: conn.credential,
+      scale: 2,
+    })
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -291,11 +371,7 @@ export async function compareDesignAgainstPage(
     const heuristic = await heuristicCompare(design, page)
     let designImageUrl: string | undefined
     try {
-      const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
-        token: String(body.figmaToken ?? '').trim(),
-        scale: 2,
-      })
-      designImageUrl = rendered.url
+      designImageUrl = (await renderDesignRaster(body))?.url
     } catch {
       designImageUrl = undefined
     }
@@ -332,11 +408,7 @@ export async function compareDesignAgainstPage(
   // structural diff, the panel falls back to the block view.
   let designImageUrl: string | undefined
   try {
-    const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
-      token: String(body.figmaToken ?? '').trim(),
-      scale: 2,
-    })
-    designImageUrl = rendered.url
+    designImageUrl = (await renderDesignRaster(body))?.url
   } catch {
     designImageUrl = undefined
   }
@@ -408,27 +480,22 @@ export interface MatchAllResult {
 }
 
 /**
- * On-demand design-page thumbnail. Renders a single frame via Figma and
+ * On-demand design-page thumbnail. Renders a single frame via Figma / Lanhu and
  * returns its temporary image URL. Called lazily per card (one frame each), so
  * thumbnail loading never blocks or stalls the whole-file scan.
  */
 export async function getDesignPageThumbnail(body: Record<string, unknown>): Promise<{ url?: string }> {
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  const figmaToken = String(body.figmaToken ?? '').trim()
   const nodeId = String(body.nodeId ?? '').trim()
-  if (!figmaUrl || !figmaToken || !nodeId) {
-    throw new Error('需要 figmaUrl、figmaToken、nodeId')
-  }
+  if (!nodeId) throw new Error('需要 nodeId')
   const batch = await getDesignPageThumbnails({
-    figmaUrl,
-    figmaToken,
+    ...body,
     nodeIds: [nodeId],
   })
   const normalized = nodeId.replace(/-/g, ':')
   return { url: batch.urls[nodeId] || batch.urls[normalized] }
 }
 
-/** In-memory cache of Figma CDN thumbnail URLs (valid for hours–days). */
+/** In-memory cache of design CDN thumbnail URLs (valid for hours–days). */
 const thumbUrlCache = new Map<string, { url: string; at: number }>()
 const THUMB_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const THUMB_BATCH_CHUNK = 20
@@ -436,7 +503,7 @@ const THUMB_SCALE = 0.5
 const THUMB_FORMAT: 'jpg' = 'jpg'
 
 function thumbCacheKey(fileKey: string, nodeId: string): string {
-  return `${fileKey}|${nodeId.replace(/-/g, ':')}|${THUMB_FORMAT}|${THUMB_SCALE}`
+  return `${fileKey}|${nodeId}|${THUMB_FORMAT}|${THUMB_SCALE}`
 }
 
 function readThumbCache(fileKey: string, nodeId: string): string | undefined {
@@ -455,35 +522,52 @@ function writeThumbCache(fileKey: string, nodeId: string, url: string): void {
 }
 
 /**
- * Batch-render design-page thumbnails in few Figma `/images` calls.
+ * Batch-render design-page thumbnails (Figma `/images` or Lanhu cover URLs).
  * Uses low-scale JPG + server memory cache so a grid of cards is far faster
  * than one render request per card.
  */
 export async function getDesignPageThumbnails(
   body: Record<string, unknown>,
 ): Promise<{ urls: Record<string, string> }> {
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  const figmaToken = String(body.figmaToken ?? '').trim()
+  const conn = designConnection(body)
   const rawIds = Array.isArray(body.nodeIds)
     ? body.nodeIds
     : typeof body.nodeId === 'string'
       ? [body.nodeId]
       : []
-  const nodeIds = [
-    ...new Set(
-      rawIds
-        .map((id) => String(id ?? '').trim())
-        .filter(Boolean)
-        .map((id) => id.replace(/-/g, ':')),
-    ),
-  ]
-  if (!figmaUrl || !figmaToken || nodeIds.length === 0) {
-    throw new Error('需要 figmaUrl、figmaToken、nodeIds')
+  const nodeIds = [...new Set(rawIds.map((id) => String(id ?? '').trim()).filter(Boolean))]
+  if (nodeIds.length === 0) throw new Error('需要 nodeIds')
+
+  if (conn.source === 'lanhu') {
+    const parts = parseLanhuUrl(conn.url)
+    const fileKey = `lanhu:${parts.projectId}`
+    const urls: Record<string, string> = {}
+    const missing: string[] = []
+    for (const id of nodeIds) {
+      const cached = readThumbCache(fileKey, id)
+      if (cached) urls[id] = cached
+      else missing.push(id)
+    }
+    if (missing.length) {
+      const map = await fetchLanhuPreviewUrls(parts, missing, {
+        cookie: conn.credential,
+        authorization: conn.authorization,
+      })
+      for (const [id, url] of Object.entries(map)) {
+        writeThumbCache(fileKey, id, url)
+        urls[id] = url
+      }
+    }
+    return { urls }
   }
-  const fileKey = parseFigmaFileKey(figmaUrl)
+
+  const figmaIds = [
+    ...new Set(nodeIds.map((id) => id.replace(/-/g, ':'))),
+  ]
+  const fileKey = parseFigmaFileKey(conn.url)
   const urls: Record<string, string> = {}
   const missing: string[] = []
-  for (const id of nodeIds) {
+  for (const id of figmaIds) {
     const cached = readThumbCache(fileKey, id)
     if (cached) urls[id] = cached
     else missing.push(id)
@@ -492,7 +576,7 @@ export async function getDesignPageThumbnails(
   for (let i = 0; i < missing.length; i += THUMB_BATCH_CHUNK) {
     const chunk = missing.slice(i, i + THUMB_BATCH_CHUNK)
     const map = await renderFigmaNodesBatch(fileKey, chunk, {
-      token: figmaToken,
+      token: conn.credential,
       scale: THUMB_SCALE,
       format: THUMB_FORMAT,
       timeoutMs: 45000,
@@ -502,7 +586,6 @@ export async function getDesignPageThumbnails(
       const normalized = id.replace(/-/g, ':')
       writeThumbCache(fileKey, normalized, url)
       urls[normalized] = url
-      // Also expose the caller's original hyphenated form if present.
       urls[id] = url
     }
   }
@@ -625,19 +708,23 @@ async function enrichMatchAllWithRematch(
 
 /**
  * Scan design pages and map them to code files.
- * - URL 带 node-id（默认 / scope=node）：只定位该页（合并原「高级：自动定位」）
- * - 无 node-id 或 scope=file：扫描整个设计文件
+ * - Figma：URL 带 node-id（默认 / scope=node）只定位该页；否则扫整个文件
+ * - 蓝湖：URL 带 image_id 只定位该稿；否则扫整个项目设计稿列表
  */
 export async function matchAllDesignPages(
   body: Record<string, unknown>,
 ): Promise<MatchAllResult> {
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  const figmaToken = String(body.figmaToken ?? '').trim()
   const force = body.force === true
   if (!repoInput) throw new Error('缺少 repoPath')
-  if (!figmaUrl || !figmaToken) throw new Error('需要设计稿链接和访问 Token')
+  const conn = designConnection(body)
 
+  if (conn.source === 'lanhu') {
+    return await matchAllLanhuPages(body, repoInput, conn, force)
+  }
+
+  const figmaUrl = conn.url
+  const figmaToken = conn.credential
   const scopeRaw = String(body.scope ?? body.scanScope ?? 'auto').trim().toLowerCase()
   let focusNodeId = ''
   try {
@@ -813,6 +900,200 @@ export async function matchAllDesignPages(
   return await enrichMatchAllWithRematch(result, repoInput, fileKey)
 }
 
+async function matchAllLanhuPages(
+  body: Record<string, unknown>,
+  repoInput: string,
+  conn: { url: string; credential: string; authorization?: string },
+  force: boolean,
+): Promise<MatchAllResult> {
+  const parts = parseLanhuUrl(conn.url)
+  const scopeRaw = String(body.scope ?? body.scanScope ?? 'auto').trim().toLowerCase()
+  let focusImageId = parts.imageId
+  let scope: 'node' | 'file' = 'file'
+  if (scopeRaw === 'file') {
+    scope = 'file'
+    focusImageId = ''
+  } else if (scopeRaw === 'node') {
+    if (!focusImageId) throw new Error('单页扫描需要蓝湖链接中包含 image_id')
+    scope = 'node'
+  } else if (focusImageId) {
+    scope = 'node'
+  }
+
+  const fileKey = `lanhu:${parts.projectId}`
+  const scanKey = visualScanKey(
+    repoInput,
+    fileKey,
+    focusImageId ? `${focusImageId}:screens-v1` : '',
+  )
+
+  if (!force) {
+    const cached = await loadVisualScan<MatchAllResult>(scanKey)
+    if (cached?.payload) {
+      return await enrichMatchAllWithRematch(
+        {
+          ...cached.payload,
+          fromCache: true,
+          savedAt: cached.savedAt,
+          scope,
+          focusNodeId: focusImageId || undefined,
+        },
+        repoInput,
+        fileKey,
+      )
+    }
+  }
+
+  const lanhuOpts = { cookie: conn.credential, authorization: conn.authorization }
+
+  if (scope === 'node') {
+    const ctx = await resolveVisualRepo(repoInput, body)
+    const design = await loadDesign(body)
+    const { empty, nodeName } = describeEmptyDesign(design)
+    if (empty) {
+      throw new Error(
+        `当前蓝湖设计稿「${nodeName || focusImageId}」是空白图层（不含文案或控件）。请打开真正的界面画板后复制链接。`,
+      )
+    }
+    const codePages = await discoverAllPages(ctx.checkoutPath)
+    const pageInput = expandFocusedDesignPages(design)
+    const mappings = mapInventoryPages(pageInput, codePages)
+    const boxOf = new Map(pageInput.map((p) => [p.summary.id, p.summary.box]))
+    const totals = { pages: mappings.length, matched: 0, weak: 0, none: 0 }
+    const pages = mappings.map((m) => {
+      totals[m.status] += 1
+      const box = boxOf.get(m.designId)
+      const aspect = box && box.height > 0 ? box.width / box.height : 390 / 844
+      return {
+        canvasId: 'focused',
+        canvasName:
+          pageInput.length > 1
+            ? design.root.name || nodeName || '当前蓝湖设计稿'
+            : '当前蓝湖设计稿',
+        aspect,
+        mapping: {
+          designId: m.designId,
+          designName: m.designName,
+          kind: m.kind,
+          status: m.status,
+          candidates: m.candidates,
+        },
+      }
+    })
+    const result: MatchAllResult = {
+      codeFiles: codePages.map((p) => ({
+        adapterId: p.adapterId,
+        kindLabel: p.kindLabel,
+        relativePath: p.relativePath,
+        precise: p.precise,
+      })),
+      canvases: [
+        {
+          id: 'focused',
+          name: design.root.name || nodeName || '当前蓝湖设计稿',
+          componentLibrary: false,
+        },
+      ],
+      pages,
+      totals,
+      fromCache: false,
+      scope: 'node',
+      focusNodeId: focusImageId,
+      savedAt: new Date().toISOString(),
+    }
+    try {
+      await saveVisualScan(scanKey, result)
+    } catch {
+      /* ignore */
+    }
+    return await enrichMatchAllWithRematch(result, repoInput, fileKey)
+  }
+
+  const ctx = await resolveVisualRepo(repoInput, body)
+  const inventory = await fetchLanhuProjectInventory(parts, lanhuOpts)
+  if (!inventory.pages.length) {
+    throw new Error('该蓝湖项目下没有可扫描的设计稿')
+  }
+
+  // Cap concurrent annotation fetches so a large project does not stampede the API.
+  const docs = new Map<string, DesignDoc>()
+  const CONCURRENCY = 4
+  for (let i = 0; i < inventory.pages.length; i += CONCURRENCY) {
+    const chunk = inventory.pages.slice(i, i + CONCURRENCY)
+    await Promise.all(
+      chunk.map(async (page) => {
+        try {
+          const doc = await fetchLanhuDoc(
+            { ...parts, imageId: page.id },
+            lanhuOpts,
+          )
+          docs.set(page.id, doc)
+        } catch {
+          /* skip pages without annotations */
+        }
+      }),
+    )
+  }
+
+  const codePages = await discoverAllPages(ctx.checkoutPath)
+  const pageInput = inventory.pages
+    .filter((s) => docs.has(s.id))
+    .map((summary) => ({
+      summary: {
+        id: summary.id,
+        name: summary.name,
+        type: summary.type,
+        box: summary.box,
+      },
+      doc: docs.get(summary.id)!,
+    }))
+  if (!pageInput.length) {
+    throw new Error('未能解析任何蓝湖设计稿标注（请确认 Cookie 有效且稿件已生成标注）')
+  }
+  const mappings = mapInventoryPages(pageInput, codePages)
+  const totals = { pages: mappings.length, matched: 0, weak: 0, none: 0 }
+  const boxOf = new Map(inventory.pages.map((p) => [p.id, p.box]))
+
+  const pages = mappings.map((m) => {
+    totals[m.status] += 1
+    const box = boxOf.get(m.designId)
+    const aspect = box && box.height > 0 ? box.width / box.height : 390 / 844
+    return {
+      canvasId: parts.projectId,
+      canvasName: '蓝湖项目',
+      aspect,
+      mapping: {
+        designId: m.designId,
+        designName: m.designName,
+        kind: m.kind,
+        status: m.status,
+        candidates: m.candidates,
+      },
+    }
+  })
+
+  const result: MatchAllResult = {
+    codeFiles: codePages.map((p) => ({
+      adapterId: p.adapterId,
+      kindLabel: p.kindLabel,
+      relativePath: p.relativePath,
+      precise: p.precise,
+    })),
+    canvases: [{ id: parts.projectId, name: '蓝湖项目', componentLibrary: false }],
+    pages,
+    totals,
+    fromCache: false,
+    scope: 'file',
+    savedAt: new Date().toISOString(),
+  }
+  try {
+    await saveVisualScan(scanKey, result)
+  } catch {
+    /* ignore */
+  }
+  return await enrichMatchAllWithRematch(result, repoInput, fileKey)
+}
+
 // ---------------------------------------------------------------------------
 // High-fidelity comparison
 // ---------------------------------------------------------------------------
@@ -954,10 +1235,11 @@ export async function compareHighFidelity(
     throw new Error('缺少 repoPath / adapterId / relativePath')
   }
 
-  const figmaUrlRaw = String(body.figmaUrl ?? '').trim()
-  const fileKey = parseFigmaFileKey(figmaUrlRaw)
+  const figmaUrlRaw = String(body.figmaUrl ?? body.designUrl ?? '').trim()
+  const fileKey = designCacheFileKey(figmaUrlRaw)
   const nodeIdForCache = (() => {
     try {
+      if (isLanhuUrl(figmaUrlRaw)) return parseLanhuUrl(figmaUrlRaw).imageId || ''
       return new URL(figmaUrlRaw).searchParams.get('node-id') ?? ''
     } catch {
       return ''
@@ -1123,11 +1405,7 @@ export async function compareHighFidelity(
 
   let designImageUrl: string | undefined
   try {
-    const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
-      token: String(body.figmaToken ?? '').trim(),
-      scale: 2,
-    })
-    designImageUrl = rendered.url
+    designImageUrl = (await renderDesignRaster(body))?.url
   } catch {
     designImageUrl = undefined
   }
@@ -1842,9 +2120,13 @@ async function enrichDesignIcons(
   const iconUrls = new Map<string, string>()
   const suppressed = new Set<string>()
 
-  const token = String(body.figmaToken ?? '').trim()
+  const designUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
+  // Lanhu cover is whole-artboard only — no per-vector Figma-style renders.
+  if (isLanhuUrl(designUrl)) return { groupUrls, iconUrls, suppressed }
+
+  const token = String(body.figmaToken ?? body.designToken ?? body.lanhuCookie ?? '').trim()
   if (!token) return { groupUrls, iconUrls, suppressed }
-  const fileKey = parseFigmaFileKey(String(body.figmaUrl ?? '').trim())
+  const fileKey = parseFigmaFileKey(designUrl)
 
   const renderBatch = async (ids: string[]): Promise<Map<string, string>> => {
     const out = new Map<string, string>()
@@ -1916,9 +2198,17 @@ async function enrichDesignImageFills(
 
   const result = new Map<string, string>()
   if (!refs.size) return result
-  const token = String(body.figmaToken ?? '').trim()
+  const designUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
+  // Lanhu imageRef values are already absolute CDN URLs.
+  if (isLanhuUrl(designUrl)) {
+    for (const ref of refs) {
+      if (/^https?:\/\//i.test(ref)) result.set(ref, ref)
+    }
+    return result
+  }
+  const token = String(body.figmaToken ?? body.designToken ?? '').trim()
   if (!token) return result
-  const fileKey = parseFigmaFileKey(String(body.figmaUrl ?? '').trim())
+  const fileKey = parseFigmaFileKey(designUrl)
   try {
     const map = await fetchFigmaImageFills(fileKey, [...refs], {
       token,
@@ -2040,30 +2330,19 @@ export async function buildCodeVisualAnalysis(
   // Best-effort design raster so multimodal models can see the design.
   let designImageUrl: string | undefined
   try {
-    const rendered = await renderFigmaNode(String(body.figmaUrl ?? '').trim(), undefined, {
-      token: String(body.figmaToken ?? '').trim(),
-      scale: 2,
-    })
-    designImageUrl = rendered.url
+    designImageUrl = (await renderDesignRaster(body))?.url
   } catch {
     designImageUrl = undefined
   }
 
-  // Node-specific figma link kept only as a reference (do not ask the model to fetch).
-  const rawFigmaUrl = String(body.figmaUrl ?? '').trim()
-  let nodeFigmaUrl = rawFigmaUrl
+  // Node-specific design link kept only as a reference (do not ask the model to fetch).
+  const rawFigmaUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
   const nodeIdRest = String(design.root.id ?? '')
-  try {
-    const u = new URL(nodeFigmaUrl)
-    if (nodeIdRest) u.searchParams.set('node-id', nodeIdRest.replace(/:/g, '-'))
-    nodeFigmaUrl = u.toString()
-  } catch {
-    /* keep original */
-  }
+  const nodeFigmaUrl = nodeIdRest ? designUrlForNode(rawFigmaUrl, nodeIdRest) : rawFigmaUrl
 
   let figmaFileKey = ''
   try {
-    figmaFileKey = parseFigmaFileKey(rawFigmaUrl) ?? ''
+    figmaFileKey = designCacheFileKey(rawFigmaUrl)
   } catch {
     figmaFileKey = ''
   }
@@ -2124,14 +2403,14 @@ export async function loadPageFindings(
   body: Record<string, unknown>,
 ): Promise<{ found: boolean; savedAt?: string; report?: unknown }> {
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
-  const figmaUrlRaw = String(body.figmaUrl ?? '').trim()
+  const figmaUrlRaw = String(body.figmaUrl ?? body.designUrl ?? '').trim()
   const nodeId = String(body.designId ?? '').trim()
   const adapterId = String(body.adapterId ?? '').trim()
   const relativePath = String(body.relativePath ?? '').trim()
   if (!repoInput || !figmaUrlRaw || !nodeId || !relativePath) {
     throw new Error('缺少 repoPath / figmaUrl / designId / relativePath')
   }
-  const fileKey = parseFigmaFileKey(figmaUrlRaw)
+  const fileKey = designCacheFileKey(figmaUrlRaw)
   const key = visualFindingsKey(repoInput, fileKey, nodeId, relativePath)
   const stored = await loadVisualFindings<unknown>(key)
   if (!stored?.payload) return { found: false }
@@ -2159,15 +2438,8 @@ export async function buildPageRematchAnalysis(
   const designId = String(body.designId ?? '').trim()
   if (!repoInput || !designId) throw new Error('缺少 repoPath / designId')
 
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  let nodeUrl = figmaUrl
-  try {
-    const u = new URL(figmaUrl)
-    u.searchParams.set('node-id', designId.replace(/:/g, '-'))
-    nodeUrl = u.toString()
-  } catch {
-    /* keep */
-  }
+  const figmaUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
+  const nodeUrl = designUrlForNode(figmaUrl, designId)
 
   const design = await loadDesign({ ...body, figmaUrl: nodeUrl })
   const ctx = await resolveVisualRepo(repoInput, body)
@@ -2192,7 +2464,7 @@ export async function buildPageRematchAnalysis(
 
   let figmaFileKey = ''
   try {
-    figmaFileKey = parseFigmaFileKey(figmaUrl) ?? ''
+    figmaFileKey = designCacheFileKey(figmaUrl)
   } catch {
     figmaFileKey = ''
   }
@@ -2248,16 +2520,9 @@ export async function aiRematchDesignPage(
   const designId = String(body.designId ?? '').trim()
   if (!repoInput || !designId) throw new Error('缺少 repoPath / designId')
 
-  // Point the figma URL at this node so loadDesign fetches the right frame.
-  const figmaUrl = String(body.figmaUrl ?? '').trim()
-  let nodeUrl = figmaUrl
-  try {
-    const u = new URL(figmaUrl)
-    u.searchParams.set('node-id', designId.replace(/:/g, '-'))
-    nodeUrl = u.toString()
-  } catch {
-    /* keep */
-  }
+  // Point the design URL at this node so loadDesign fetches the right frame.
+  const figmaUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
+  const nodeUrl = designUrlForNode(figmaUrl, designId)
   const design = await loadDesign({ ...body, figmaUrl: nodeUrl })
   const ctx = await resolveVisualRepo(repoInput, body)
   let deterministic

@@ -100,10 +100,17 @@ function loadSelections(repoInput: string, figmaUrl: string): Record<string, Sel
   }
 }
 
-/** Extract Figma node-id from a design URL (normalised to `a:b`), or empty. */
+/** Extract page id from a design URL (Figma node-id or Lanhu image_id). */
 function parseNodeIdFromFigmaUrl(url: string): string {
   try {
-    const raw = new URL(url.trim()).searchParams.get('node-id')
+    if (/lanhuapp\.com|lanhu\.woa\.com/i.test(url)) {
+      const u = new URL(url)
+      const q = u.hash.includes('?') ? u.hash.slice(u.hash.indexOf('?') + 1) : u.search.slice(1)
+      const params = new URLSearchParams(q)
+      return (params.get('image_id') || params.get('imageId') || '').trim()
+    }
+    const u = new URL(url)
+    const raw = u.searchParams.get('node-id') || ''
     return raw ? raw.replace(/-/g, ':') : ''
   } catch {
     return ''
@@ -433,7 +440,7 @@ export function PageMappingOverview({
       <p style={{ margin: '0 0 8px', fontSize: 12, color: '#6b645a', lineHeight: 1.55 }}>
         {linkHasNodeId
           ? '链接含 node-id：扫描会优先定位当前页（较快）。若要一次处理文件内全部页面，可用下方「扫描整个设计文件」。'
-          : '链接未指定页面：扫描会读取设计文件内全部页面并自动映射。若只想对某一页，请在 Figma 复制带 node-id 的画板链接。'}
+          : '链接未指定页面：扫描会读取设计文件/项目内全部页面并自动映射。若只想对某一页，请复制带 node-id（Figma）或 image_id（蓝湖）的链接。'}
       </p>
       <button
         type="button"

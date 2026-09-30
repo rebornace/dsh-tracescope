@@ -41,7 +41,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代�
   - 提交时可**修改默认标题**  
   - 云效：任务附件真实上传；截图嵌入工作项**详情**对应条目（`![文件名](embedUrl)`）  
   - 云效目录请求可在面板查看日志（不含 token）
-- **设计稿 UI 走查**：以 Figma 为唯一准绳的静态对比（Android / iOS / Flutter / RN / Harmony / Web / 小程序 / uni-app / Taro / MAUI），支持属性级与启发式对比，并可一键发起 AI 协助分析
+- **设计稿 UI 走查**：以 Figma / 蓝湖为准的静态对比（Android / iOS / Flutter / RN / Harmony / Web / 小程序 / uni-app / Taro / MAUI），支持属性级与启发式对比，并可一键发起 AI 协助分析
 - **导出**：Markdown / CSV；复制问题反馈
 - **本机数据**：`~/.tracescope/`（认证、协作平台配置、报告、附件、远端缓存）
 

@@ -172,7 +172,14 @@ function loadSelections(repoInput, figmaUrl) {
 }
 function parseNodeIdFromFigmaUrl(url) {
   try {
-    const raw = new URL(url.trim()).searchParams.get("node-id");
+    if (/lanhuapp\.com|lanhu\.woa\.com/i.test(url)) {
+      const u2 = new URL(url);
+      const q = u2.hash.includes("?") ? u2.hash.slice(u2.hash.indexOf("?") + 1) : u2.search.slice(1);
+      const params = new URLSearchParams(q);
+      return (params.get("image_id") || params.get("imageId") || "").trim();
+    }
+    const u = new URL(url);
+    const raw = u.searchParams.get("node-id") || "";
     return raw ? raw.replace(/-/g, ":") : "";
   } catch {
     return "";
@@ -437,7 +444,7 @@ function PageMappingOverview({
   const scanScope = overview?.scope;
   const isNodeScope = scanScope === "node" || !overview && linkHasNodeId;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { margin: "0 0 8px", fontSize: 12, color: "#6b645a", lineHeight: 1.55 }, children: linkHasNodeId ? "链接含 node-id：扫描会优先定位当前页（较快）。若要一次处理文件内全部页面，可用下方「扫描整个设计文件」。" : "链接未指定页面：扫描会读取设计文件内全部页面并自动映射。若只想对某一页，请在 Figma 复制带 node-id 的画板链接。" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { margin: "0 0 8px", fontSize: 12, color: "#6b645a", lineHeight: 1.55 }, children: linkHasNodeId ? "链接含 node-id：扫描会优先定位当前页（较快）。若要一次处理文件内全部页面，可用下方「扫描整个设计文件」。" : "链接未指定页面：扫描会读取设计文件/项目内全部页面并自动映射。若只想对某一页，请复制带 node-id（Figma）或 image_id（蓝湖）的链接。" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "button",
       {
@@ -2434,8 +2441,26 @@ function clearUiConfigField(repoInput, field) {
   writeStorage(uiRepoKey(repoInput, field), "");
   writeStorage(uiGlobalKey(field), "");
 }
-function labelForFigmaUrl(url) {
+function labelForDesignUrl(url) {
   try {
+    if (/lanhuapp\.com|lanhu\.woa\.com/i.test(url)) {
+      const hashQ = url.includes("?") ? url.slice(url.indexOf("?") + 1) : "";
+      const params = new URLSearchParams(hashQ.includes("#") ? hashQ.slice(hashQ.indexOf("?") + 1) : hashQ);
+      const fromHash = (() => {
+        try {
+          const u2 = new URL(url);
+          const q = u2.hash.includes("?") ? u2.hash.slice(u2.hash.indexOf("?") + 1) : u2.search.slice(1);
+          return new URLSearchParams(q);
+        } catch {
+          return params;
+        }
+      })();
+      const imageId = fromHash.get("image_id") || fromHash.get("imageId") || "";
+      const projectId = fromHash.get("project_id") || fromHash.get("pid") || "";
+      if (imageId) return `蓝湖 · ${imageId.slice(0, 8)}`;
+      if (projectId) return `蓝湖项目 · ${projectId.slice(0, 8)}`;
+      return "蓝湖设计稿";
+    }
     const u = new URL(url);
     const parts = u.pathname.split("/").filter(Boolean);
     const name2 = parts.length >= 3 ? decodeURIComponent(parts[2].replace(/-/g, " ")) : "";
@@ -2456,6 +2481,12 @@ function isLikelyFigmaUrl(url) {
     return false;
   }
 }
+function isLikelyLanhuUrl(url) {
+  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url.trim());
+}
+function isLikelyDesignUrl(url) {
+  return isLikelyFigmaUrl(url) || isLikelyLanhuUrl(url);
+}
 function readSavedLinks() {
   try {
     const raw = localStorage.getItem(SAVED_LINKS_KEY);
@@ -2475,9 +2506,9 @@ function writeSavedLinks(list) {
 }
 function rememberSavedLink(url) {
   const trimmed = url.trim();
-  if (!isLikelyFigmaUrl(trimmed)) return readSavedLinks();
+  if (!isLikelyDesignUrl(trimmed)) return readSavedLinks();
   const next = [
-    { url: trimmed, label: labelForFigmaUrl(trimmed), savedAt: (/* @__PURE__ */ new Date()).toISOString() },
+    { url: trimmed, label: labelForDesignUrl(trimmed), savedAt: (/* @__PURE__ */ new Date()).toISOString() },
     ...readSavedLinks().filter((x) => x.url !== trimmed)
   ].slice(0, MAX_SAVED_LINKS);
   writeSavedLinks(next);
@@ -2709,7 +2740,7 @@ function VisualComparePanel({
       if (!result.ok) setError(result.error);
       else if (!result.designImageUrl) {
         setError(
-          "界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查 Figma 链接/Token 后重试「界面对比」。"
+          "界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查设计稿链接/凭证后重试「界面对比」。"
         );
       }
     } finally {
@@ -2745,7 +2776,7 @@ function VisualComparePanel({
       }
       if (!designImageUrl) {
         const proceedWithoutRaster = window.confirm(
-          "设计稿官方渲染图加载失败（或尚未可用）。\n\n没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n建议先检查 Figma 链接与 Token，重新「界面对比」成功后再分析。\n\n是否仍要继续？"
+          "设计稿官方渲染图加载失败（或尚未可用）。\n\n没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n建议先检查设计稿链接与凭证，重新「界面对比」成功后再分析。\n\n是否仍要继续？"
         );
         if (!proceedWithoutRaster) {
           setError(
@@ -2800,7 +2831,7 @@ function VisualComparePanel({
     beginBusy("正在准备「AI 推荐文件」提示词…");
     try {
       if (!figmaUrl.trim() || !figmaToken.trim()) {
-        setError("请先填写设计稿链接与 Token");
+        setError("请先填写设计稿链接与访问凭证（Figma Token 或蓝湖 Cookie）");
         return;
       }
       const res = await post2("/tracescope/v1/match-page", {
@@ -2840,9 +2871,15 @@ function VisualComparePanel({
     busy ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LoadingOverlay, { message: busyMessage, elapsedSeconds: elapsed }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "UI 走查：设计稿 ↔ 代码" }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("p", { style: S.hint, children: [
-      "粘贴 Figma 链接与 Token 后扫描：链接带 ",
+      "支持 ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "Figma" }),
+      " 与 ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "蓝湖" }),
+      "：粘贴设计稿链接与访问凭证后扫描。 Figma 填 Personal Access Token；蓝湖填浏览器 Cookie（登录 lanhuapp.com 后从 DevTools 复制）。 链接带页面定位（Figma ",
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { children: "node-id" }),
-      " 时优先定位该页（若节点下有多块画板会拆成多张卡片）；否则扫描整个设计文件。 链接与 Token 会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。"
+      " / 蓝湖 ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { children: "image_id" }),
+      "）时优先该页；否则扫描整个文件/项目。 链接与凭证会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。"
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { style: S.label, children: [
       "设计稿链接",
@@ -2853,10 +2890,10 @@ function VisualComparePanel({
             style: { ...S.input, flex: 1, marginTop: 0 },
             value: figmaUrl,
             disabled: busy,
-            placeholder: "https://www.figma.com/design/...?node-id=0-3046",
+            placeholder: "Figma 或蓝湖链接，如 https://lanhuapp.com/web/#/item/project/detailDetach?...",
             onChange: (e) => setFigmaUrl(e.target.value),
             onBlur: () => {
-              if (isLikelyFigmaUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl));
+              if (isLikelyDesignUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl));
             }
           }
         ),
@@ -2942,7 +2979,7 @@ function VisualComparePanel({
       }) })
     ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { style: S.label, children: [
-      "访问 Token",
+      isLikelyLanhuUrl(figmaUrl) ? "蓝湖 Cookie" : "访问凭证（Figma Token / 蓝湖 Cookie）",
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
           "input",
@@ -2951,7 +2988,7 @@ function VisualComparePanel({
             type: "password",
             value: figmaToken,
             disabled: busy,
-            placeholder: "figd_...",
+            placeholder: isLikelyLanhuUrl(figmaUrl) ? "从浏览器 DevTools → Network 请求头复制 Cookie" : "figd_... 或蓝湖 Cookie",
             onChange: (e) => setFigmaToken(e.target.value)
           }
         ),
@@ -2961,7 +2998,7 @@ function VisualComparePanel({
             type: "button",
             style: S.miniBtn,
             disabled: busy || !figmaToken.trim(),
-            title: "清除已保存的 Token",
+            title: "清除已保存的凭证",
             onClick: clearFigmaToken,
             children: "清除"
           }

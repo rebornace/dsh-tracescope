@@ -146,7 +146,14 @@ export function registerVisualRoutes(ctx: Context) {
         host.endsWith('.figma.com') ||
         host.endsWith('.figma.site') ||
         host.endsWith('.amazonaws.com') ||
-        host.endsWith('.cloudfront.net')
+        host.endsWith('.cloudfront.net') ||
+        host === 'lanhuapp.com' ||
+        host.endsWith('.lanhuapp.com') ||
+        host === 'lanhu.woa.com' ||
+        host.endsWith('.lanhu.woa.com') ||
+        host.endsWith('.aliyuncs.com') ||
+        host.endsWith('.myqcloud.com') ||
+        host.endsWith('.qcloud.com')
       if (!allowed) throw new Error('不允许代理该图片域名')
       const response = await fetch(url, { redirect: 'follow' })
       if (!response.ok) {
