@@ -30,7 +30,10 @@ export function classifyDesignPage(
   doc: DesignDoc,
 ): PageKind {
   const fp = designFingerprint(doc)
-  const { width, height } = summary.box
+  // Prefer the normalised doc box (Figma frame / Lanhu artboard) over inventory
+  // thumbnail sizes, which are often wrong for Lanhu list APIs.
+  const width = Number(doc.root.box.width) || summary.box.width
+  const height = Number(doc.root.box.height) || summary.box.height
   const long = Math.max(width, height)
   const short = Math.min(width, height)
 
@@ -113,26 +116,29 @@ export function mapInventoryPages(
   for (const { summary, doc } of pages) {
     const kind = classifyDesignPage(summary, doc)
     const pool = byKind[kind]
+    const fp = designFingerprint(doc)
 
-    const scored = pool
-      .map((code) => scorePage(designFingerprint(doc), code))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
+    const scorePool = (candidates: CodePage[]) =>
+      candidates
+        .map((code) => scorePage(fp, code))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
 
-    const confident = scored.filter((m) => m.score >= minScore)
-    const weak = scored.filter((m) => m.score >= weakFloor && m.score < minScore)
+    const pick = (rows: ReturnType<typeof scorePool>) => {
+      const confident = rows.filter((m) => m.score >= minScore)
+      const weak = rows.filter((m) => m.score >= weakFloor && m.score < minScore)
+      if (confident.length) return { status: 'matched' as const, chosen: confident }
+      if (weak.length) return { status: 'weak' as const, chosen: weak }
+      return { status: 'none' as const, chosen: [] as typeof rows }
+    }
 
-    let status: DesignPageMapping['status']
-    let chosen: typeof scored
-    if (confident.length) {
-      status = 'matched'
-      chosen = confident
-    } else if (weak.length) {
-      status = 'weak'
-      chosen = weak
-    } else {
-      status = 'none'
-      chosen = []
+    let scored = scorePool(pool)
+    let { status, chosen } = pick(scored)
+    // Size-based kind buckets are often wrong for Lanhu covers / partial frames.
+    // Fall back to scoring every code page before giving up.
+    if (status === 'none' && codePages.length > pool.length) {
+      scored = scorePool(codePages)
+      ;({ status, chosen } = pick(scored))
     }
 
     mappings.push({

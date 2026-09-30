@@ -233,6 +233,7 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 interface RawLayer {
   id?: string
   name?: string
+  type?: string
   width?: number
   height?: number
   left?: number
@@ -243,10 +244,42 @@ interface RawLayer {
   visible?: boolean
   opacity?: number
   layers?: RawLayer[]
+  children?: RawLayer[]
   fills?: Array<Record<string, unknown>>
   borders?: Array<Record<string, unknown>>
-  text?: { text?: string }
+  text?: {
+    text?: string
+    value?: string
+    content?: string
+    style?: { content?: string; text?: string }
+  }
+  textInfo?: {
+    text?: string
+    content?: string
+    value?: string
+    size?: number
+    fontSize?: number
+    color?: unknown
+  }
+  characters?: string
+  content?: string
   style?: Record<string, unknown>
+  frame?: {
+    left?: number
+    top?: number
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }
+  realFrame?: {
+    left?: number
+    top?: number
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }
   ddsType?: string
   ddsImage?: { imageUrl?: string; size?: { width?: number; height?: number } }
   image?: { imageUrl?: string; size?: { width?: number; height?: number } }
@@ -260,18 +293,83 @@ function resolveLayerId(node: RawLayer, path: string): string {
   return `lh-${path}`
 }
 
+function childLayers(raw: RawLayer): RawLayer[] {
+  if (Array.isArray(raw.layers) && raw.layers.length) return raw.layers
+  if (Array.isArray(raw.children) && raw.children.length) return raw.children
+  return []
+}
+
+function extractTextContent(raw: RawLayer): string | undefined {
+  const candidates: unknown[] = [
+    raw.text?.text,
+    raw.text?.value,
+    raw.text?.content,
+    raw.text?.style?.content,
+    raw.text?.style?.text,
+    raw.textInfo?.text,
+    raw.textInfo?.content,
+    raw.textInfo?.value,
+    raw.characters,
+    raw.content,
+    raw.style?.text,
+    raw.style?.content,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim()
+  }
+  return undefined
+}
+
+function isShapeName(name: string): boolean {
+  return /^(矩形|圆形|椭圆|路径|形状|编组|蒙版|Border|Cap|Vector|Group|Rectangle|Oval|Path)/.test(
+    name || '',
+  )
+}
+
 function mapKind(raw: RawLayer): DesignNodeKind {
+  const typeHint = String(raw.type || raw.ddsType || '').toLowerCase()
+  if (typeHint.includes('text') || extractTextContent(raw) !== undefined) return 'text'
   if (raw.text?.text !== undefined) return 'text'
-  if (raw.style?.fontSize && !/^(矩形|圆形|椭圆|路径|形状|编组|蒙版)/.test(raw.name || '')) {
+  if (
+    (raw.style?.fontSize || raw.textInfo?.size || raw.textInfo?.fontSize) &&
+    !isShapeName(raw.name || '')
+  ) {
     return 'text'
   }
-  if (raw.ddsType === 'artboard-group') return 'frame'
-  if (raw.fills?.some((f) => f.type === 'image')) return 'image'
-  if (raw.layers?.length) return 'group'
-  if (raw.symbolID) return 'frame'
-  if (raw.points || raw.shapeType) return 'shape'
-  if (/^(矩形|圆形|椭圆|路径|形状|Vector|Rectangle)/.test(raw.name || '')) return 'shape'
+  if (typeHint.includes('artboard') || raw.ddsType === 'artboard-group') return 'frame'
+  if (typeHint.includes('image') || raw.fills?.some((f) => f.type === 'image')) return 'image'
+  if (childLayers(raw).length) return 'group'
+  if (raw.symbolID || typeHint.includes('symbol') || typeHint.includes('component')) return 'frame'
+  if (raw.points || raw.shapeType || typeHint.includes('shape')) return 'shape'
+  if (isShapeName(raw.name || '')) return 'shape'
   return 'view'
+}
+
+function layerGeometry(
+  raw: RawLayer,
+  scale: number,
+): { relX: number; relY: number; width: number; height: number } {
+  const frame = raw.frame || raw.realFrame
+  const rawW = Number(raw.width ?? frame?.width ?? 0) || 0
+  const rawH = Number(raw.height ?? frame?.height ?? 0) || 0
+  const rawX = Number(raw.left ?? raw.position_x ?? frame?.left ?? frame?.x ?? 0) || 0
+  const rawY = Number(raw.top ?? raw.position_y ?? frame?.top ?? frame?.y ?? 0) || 0
+  // Many Lanhu dumps already store logical @1x sizes while ArtboardScale=2 refers
+  // to export bitmaps. If both edges look like phone logical sizes, don't divide.
+  const looksLogical =
+    scale > 1 &&
+    rawW > 0 &&
+    rawH > 0 &&
+    rawW <= 600 &&
+    rawH <= 1400 &&
+    (rawW >= 280 || rawH >= 400)
+  const s = looksLogical ? 1 : scale
+  return {
+    relX: to1x(rawX, s),
+    relY: to1x(rawY, s),
+    width: to1x(rawW, s),
+    height: to1x(rawH, s),
+  }
 }
 
 function parseGradient(fill: Record<string, unknown>): DesignGradient | undefined {
@@ -308,10 +406,15 @@ function convertStyle(raw: RawLayer, scale: number, kind: DesignNodeKind): Desig
 
   if (kind === 'text') {
     const typo = raw.style || {}
+    const textInfo = raw.textInfo || {}
     if (typo.textColor) style.color = parseColor(typo.textColor)
+    else if (textInfo.color) style.color = parseColor(textInfo.color)
     else if (solid?.color) style.color = parseColor(solid.color)
     if (typeof typo.fontFamily === 'string') style.fontFamily = typo.fontFamily
-    if (typeof typo.fontSize === 'number') style.fontSize = round(to1x(typo.fontSize, scale))
+    const fontSize = Number(typo.fontSize ?? textInfo.size ?? textInfo.fontSize)
+    if (Number.isFinite(fontSize) && fontSize > 0) {
+      style.fontSize = round(to1x(fontSize, scale))
+    }
     if (typeof typo.fontWeight === 'number') style.fontWeight = typo.fontWeight
     if (typeof typo.lineHeight === 'number') style.lineHeight = round(to1x(typo.lineHeight, scale))
     if (typeof typo.letterSpacing === 'number' || typeof typo.kerning === 'number') {
@@ -358,22 +461,21 @@ function convertLayer(
 ): DesignNode | null {
   if (raw.isVisible === false || raw.visible === false) return null
 
-  const relX = to1x(raw.left ?? raw.position_x ?? 0, scale)
-  const relY = to1x(raw.top ?? raw.position_y ?? 0, scale)
-  const absX = parentAbsX + relX
-  const absY = parentAbsY + relY
-  const kind = mapKind(raw)
+  const geom = layerGeometry(raw, scale)
+  const absX = parentAbsX + geom.relX
+  const absY = parentAbsY + geom.relY
+  const extracted = extractTextContent(raw)
+  let kind = mapKind(raw)
+  if (extracted) kind = 'text'
   const id = resolveLayerId(raw, path)
-  const children = (raw.layers ?? [])
+  const children = childLayers(raw)
     .map((child, i) => convertLayer(child, scale, `${path}_${i}`, absX, absY))
     .filter((n): n is DesignNode => !!n)
 
-  const width = round(to1x(raw.width || 0, scale))
-  const height = round(to1x(raw.height || 0, scale))
   const text =
     kind === 'text'
-      ? String(raw.text?.text ?? raw.style?.text ?? raw.name ?? '').trim() || undefined
-      : undefined
+      ? extracted || String(raw.name || '').trim() || undefined
+      : extracted || undefined
 
   // Prefer DDS export image as imageRef when present.
   const style = convertStyle(raw, scale, kind)
@@ -388,7 +490,12 @@ function convertLayer(
     name: raw.name || id,
     kind,
     text,
-    box: { x: round(absX), y: round(absY), width, height },
+    box: {
+      x: round(absX),
+      y: round(absY),
+      width: round(geom.width),
+      height: round(geom.height),
+    },
     style,
     children,
   }
@@ -412,12 +519,24 @@ export function normalizeLanhuAnnotation(
   options?: { name?: string; imageId?: string; scale?: number },
 ): DesignDoc {
   const artboardScale = Number(raw.ArtboardScale ?? raw.scale ?? 2) || 2
-  const info = Array.isArray(raw.info) ? (raw.info as RawLayer[]) : []
+  const infoRaw =
+    (Array.isArray(raw.info) && raw.info) ||
+    (Array.isArray(raw.artboards) && raw.artboards) ||
+    (Array.isArray(raw.layers) && raw.layers) ||
+    []
+  const info = infoRaw as RawLayer[]
   if (!info.length) throw new Error('蓝湖标注数据为空（无画板）')
+
+  const boardArea = (ab: RawLayer): number => {
+    const frame = ab.frame || ab.realFrame
+    const w = Number(ab.width ?? frame?.width ?? 0) || 0
+    const h = Number(ab.height ?? frame?.height ?? 0) || 0
+    return w * h
+  }
 
   // Prefer the largest artboard as the screen root (common multi-board dumps).
   const boards = info
-    .map((ab, i) => ({ ab, i, area: (ab.width || 0) * (ab.height || 0) }))
+    .map((ab, i) => ({ ab, i, area: boardArea(ab) }))
     .sort((a, b) => b.area - a.area)
 
   const primary = boards[0]!

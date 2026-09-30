@@ -107,8 +107,13 @@ function textsSoftHit(designText: string, codeTexts: Set<string>): 'exact' | 'so
 }
 
 function collectTexts(node: DesignNode, out: Set<string>): void {
-  if (node.kind === 'text' && node.text) {
+  // Prefer explicit text content regardless of kind — some sources (e.g. Lanhu)
+  // may attach readable copy to non-`text` nodes when type detection is fuzzy.
+  if (node.text) {
     const t = normalizeText(node.text)
+    if (t) out.add(t)
+  } else if (node.kind === 'text' && node.name) {
+    const t = normalizeText(node.name)
     if (t) out.add(t)
   }
   for (const child of node.children) collectTexts(child, out)
@@ -127,6 +132,12 @@ function countControls(node: DesignNode): number {
 export function designFingerprint(doc: DesignDoc): PageFingerprint {
   const texts = new Set<string>()
   collectTexts(doc.root, texts)
+  // Lanhu design titles (首页 / 登录) often match path tokens better than English
+  // file names when annotation text extraction is sparse.
+  if (doc.source === 'lanhu') {
+    const name = normalizeText(doc.root.name)
+    if (name && name.length <= 40) texts.add(name)
+  }
   return {
     texts: [...texts],
     nameTokens: tokenizeName(doc.root.name),
