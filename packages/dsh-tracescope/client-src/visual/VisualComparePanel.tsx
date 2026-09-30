@@ -116,8 +116,27 @@ function clearUiConfigField(repoInput: string, field: string) {
   writeStorage(uiGlobalKey(field), '')
 }
 
-function labelForFigmaUrl(url: string): string {
+function labelForDesignUrl(url: string): string {
   try {
+    if (/lanhuapp\.com|lanhu\.woa\.com/i.test(url)) {
+      const hashQ = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
+      const params = new URLSearchParams(hashQ.includes('#') ? hashQ.slice(hashQ.indexOf('?') + 1) : hashQ)
+      // Hash routes: ...#/path?tid=...&image_id=...
+      const fromHash = (() => {
+        try {
+          const u = new URL(url)
+          const q = u.hash.includes('?') ? u.hash.slice(u.hash.indexOf('?') + 1) : u.search.slice(1)
+          return new URLSearchParams(q)
+        } catch {
+          return params
+        }
+      })()
+      const imageId = fromHash.get('image_id') || fromHash.get('imageId') || ''
+      const projectId = fromHash.get('project_id') || fromHash.get('pid') || ''
+      if (imageId) return `蓝湖 · ${imageId.slice(0, 8)}`
+      if (projectId) return `蓝湖项目 · ${projectId.slice(0, 8)}`
+      return '蓝湖设计稿'
+    }
     const u = new URL(url)
     const parts = u.pathname.split('/').filter(Boolean)
     // /design/:fileKey/:fileName or /file/:fileKey/:fileName
@@ -139,6 +158,14 @@ function isLikelyFigmaUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function isLikelyLanhuUrl(url: string): boolean {
+  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url.trim())
+}
+
+function isLikelyDesignUrl(url: string): boolean {
+  return isLikelyFigmaUrl(url) || isLikelyLanhuUrl(url)
 }
 
 function readSavedLinks(): SavedFigmaLink[] {
@@ -164,9 +191,9 @@ function writeSavedLinks(list: SavedFigmaLink[]) {
 /** Upsert a design URL into the saved-links list (most recent first). */
 function rememberSavedLink(url: string): SavedFigmaLink[] {
   const trimmed = url.trim()
-  if (!isLikelyFigmaUrl(trimmed)) return readSavedLinks()
+  if (!isLikelyDesignUrl(trimmed)) return readSavedLinks()
   const next: SavedFigmaLink[] = [
-    { url: trimmed, label: labelForFigmaUrl(trimmed), savedAt: new Date().toISOString() },
+    { url: trimmed, label: labelForDesignUrl(trimmed), savedAt: new Date().toISOString() },
     ...readSavedLinks().filter((x) => x.url !== trimmed),
   ].slice(0, MAX_SAVED_LINKS)
   writeSavedLinks(next)
@@ -467,7 +494,7 @@ export function VisualComparePanel({
       if (!result.ok) setError(result.error)
       else if (!result.designImageUrl) {
         setError(
-          '界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查 Figma 链接/Token 后重试「界面对比」。',
+          '界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查设计稿链接/凭证后重试「界面对比」。',
         )
       }
     } finally {
@@ -526,7 +553,7 @@ export function VisualComparePanel({
         const proceedWithoutRaster = window.confirm(
           '设计稿官方渲染图加载失败（或尚未可用）。\n\n' +
             '没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n' +
-            '建议先检查 Figma 链接与 Token，重新「界面对比」成功后再分析。\n\n是否仍要继续？',
+            '建议先检查设计稿链接与凭证，重新「界面对比」成功后再分析。\n\n是否仍要继续？',
         )
         if (!proceedWithoutRaster) {
           setError(
@@ -594,7 +621,7 @@ export function VisualComparePanel({
     beginBusy('正在准备「AI 推荐文件」提示词…')
     try {
       if (!figmaUrl.trim() || !figmaToken.trim()) {
-        setError('请先填写设计稿链接与 Token')
+        setError('请先填写设计稿链接与访问凭证（Figma Token 或蓝湖 Cookie）')
         return
       }
       const res = await post('/tracescope/v1/match-page', {
@@ -639,8 +666,10 @@ export function VisualComparePanel({
       ) : null}
       <strong>UI 走查：设计稿 ↔ 代码</strong>
       <p style={S.hint}>
-        粘贴 Figma 链接与 Token 后扫描：链接带 <code>node-id</code> 时优先定位该页（若节点下有多块画板会拆成多张卡片）；否则扫描整个设计文件。
-        链接与 Token 会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。
+        支持 <b>Figma</b> 与 <b>蓝湖</b>：粘贴设计稿链接与访问凭证后扫描。
+        Figma 填 Personal Access Token；蓝湖填浏览器 Cookie（登录 lanhuapp.com 后从 DevTools 复制）。
+        链接带页面定位（Figma <code>node-id</code> / 蓝湖 <code>image_id</code>）时优先该页；否则扫描整个文件/项目。
+        链接与凭证会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。
       </p>
 
       <label style={S.label}>
@@ -650,10 +679,10 @@ export function VisualComparePanel({
             style={{ ...S.input, flex: 1, marginTop: 0 }}
             value={figmaUrl}
             disabled={busy}
-            placeholder="https://www.figma.com/design/...?node-id=0-3046"
+            placeholder="Figma 或蓝湖链接，如 https://lanhuapp.com/web/#/item/project/detailDetach?..."
             onChange={(e) => setFigmaUrl(e.target.value)}
             onBlur={() => {
-              if (isLikelyFigmaUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl))
+              if (isLikelyDesignUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl))
             }}
           />
           <button
@@ -734,21 +763,25 @@ export function VisualComparePanel({
       ) : null}
 
       <label style={S.label}>
-        访问 Token
+        {isLikelyLanhuUrl(figmaUrl) ? '蓝湖 Cookie' : '访问凭证（Figma Token / 蓝湖 Cookie）'}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             style={{ ...S.input, flex: 1, marginTop: 0 }}
             type="password"
             value={figmaToken}
             disabled={busy}
-            placeholder="figd_..."
+            placeholder={
+              isLikelyLanhuUrl(figmaUrl)
+                ? '从浏览器 DevTools → Network 请求头复制 Cookie'
+                : 'figd_... 或蓝湖 Cookie'
+            }
             onChange={(e) => setFigmaToken(e.target.value)}
           />
           <button
             type="button"
             style={S.miniBtn}
             disabled={busy || !figmaToken.trim()}
-            title="清除已保存的 Token"
+            title="清除已保存的凭证"
             onClick={clearFigmaToken}
           >
             清除

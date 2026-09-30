@@ -253,6 +253,21 @@ export {
   type FigmaTransportOptions,
 } from './design/sources/figma.js'
 export {
+  isLanhuUrl,
+  parseLanhuUrl,
+  buildLanhuImageUrl,
+  normalizeLanhuAnnotation,
+  fetchLanhuDoc,
+  fetchLanhuPreviewUrl,
+  fetchLanhuPreviewUrls,
+  fetchLanhuProjectInventory,
+  type LanhuClientOptions,
+  type LanhuUrlParts,
+  type LanhuPageSummary,
+  type LanhuProjectInventory,
+  type LanhuTransportOptions,
+} from './design/sources/lanhu.js'
+export {
   buildAndroidResources,
   normalizeAndroidLayout,
   parseAndroidDimension,
