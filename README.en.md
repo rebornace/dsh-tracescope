@@ -38,7 +38,7 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
   - Editable default title on submit  
   - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each problem item (`![filename](embedUrl)`)  
   - Yunxiao catalog calls can be inspected in an in-panel log (token redacted)
-- **Design UI review**: Figma-first static compare across Android / iOS / Flutter / RN / Harmony / Web / miniprograms / uni-app / Taro / MAUI, with property-level + heuristic diffs and optional AI assist
+- **Design UI review**: Figma / Lanhu static compare across Android / iOS / Flutter / RN / Harmony / Web / miniprograms / uni-app / Taro / MAUI, with property-level + heuristic diffs and optional AI assist
 - **Export**: Markdown / CSV; copy issue feedback
 - **Local data**: under `~/.tracescope/`
 
