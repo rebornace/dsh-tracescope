@@ -38,33 +38,32 @@ export async function locatePagesForDesign(
 }
 
 export interface PageComparison {
-  /** Whether property-level comparison could be performed. */
+  /** Whether property-level (exact) comparison could be performed. */
   precise: boolean
-  /** Present only when the page supports precise comparison. */
+  /** Diff result from exact or heuristic compare. */
   result?: import('./types.js').VisualCompareResult
-  /** Reason the comparison was skipped when not precise. */
+  /** Extra note when compare was heuristic / incomplete. */
   reason?: string
 }
 
 /**
  * Compare a design screen against a specific matched page.
  *
- * For locator-only implementations (Compose / SwiftUI) comparison is skipped
- * with a clear reason instead of producing a misleading diff.
+ * Precise adapters run property-level compare via toDesignDoc; others fall
+ * back to L2 heuristic (texts / control-count) instead of a hard stop.
  */
 export async function compareDesignWithPage(
   design: DesignDoc,
   page: CodePage,
 ): Promise<PageComparison> {
-  if (!page.precise) {
+  const adapter = getPlatformAdapter(page.adapterId)
+  if (!page.precise || !adapter?.toDesignDoc) {
+    const { heuristicCompare } = await import('./heuristic-compare.js')
     return {
       precise: false,
-      reason: `${page.kindLabel} 页面已定位，但该实现以代码方式构建界面，当前版本暂不支持属性级对比。`,
+      result: await heuristicCompare(design, page),
+      reason: `${page.kindLabel} 已完成启发式静态对比；属性级几何对比可后续加深。`,
     }
-  }
-  const adapter = getPlatformAdapter(page.adapterId)
-  if (!adapter?.toDesignDoc) {
-    return { precise: false, reason: '该页面缺少可用的对比适配器。' }
   }
   const code = await adapter.toDesignDoc(page)
   // Imported lazily to keep the module graph explicit.

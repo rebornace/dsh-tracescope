@@ -46,7 +46,7 @@ describe('android-compose locator', () => {
     const pages = await androidComposeAdapter.discoverPages(root)
     expect(pages).toHaveLength(1)
     const page = pages[0]!
-    expect(page.precise).toBe(false)
+    expect(page.precise).toBe(true)
     expect(page.kindLabel).toBe('Jetpack Compose')
     expect(page.relativePath).toMatch(/LoginScreen\.kt$/)
     expect(page.fingerprint.texts).toContain('登录')
@@ -83,7 +83,7 @@ describe('ios-swiftui locator', () => {
     const pages = await iosSwiftuiAdapter.discoverPages(root)
     expect(pages).toHaveLength(1)
     const page = pages[0]!
-    expect(page.precise).toBe(false)
+    expect(page.precise).toBe(true)
     expect(page.kindLabel).toBe('SwiftUI')
     expect(page.fingerprint.texts).toContain('登录')
     expect(page.fingerprint.nameTokens).toContain('loginview')

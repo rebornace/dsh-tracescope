@@ -58,6 +58,16 @@ export interface Context {
   effect?: (fn: () => void | (() => void), label?: string) => void
   /** Cordis service lookup (preferred over direct property access). */
   get?: (name: string) => unknown
+  /** Optional skill registry when `@deepseek-ai/dsh-skill` is mounted. */
+  skills?: {
+    register: (skill: {
+      name: string
+      description: string
+      whenToUse?: string
+      content: string
+      source?: string
+    }) => unknown
+  }
   llm?: {
     stream: (options: Record<string, unknown>) => AsyncIterable<unknown>
     listProviders?: () => Array<{ id: string; name?: string }>

@@ -16,7 +16,15 @@ export interface DiscoveredLayout {
   platform: LayoutPlatform
 }
 
-export type ProjectKind = 'android' | 'ios' | 'flutter' | 'react-native'
+export type ProjectKind =
+  | 'android'
+  | 'ios'
+  | 'flutter'
+  | 'react-native'
+  | 'harmony'
+  | 'web'
+  | 'miniprogram'
+  | 'dotnet'
 
 export interface RepoScanResult {
   layouts: DiscoveredLayout[]
@@ -24,7 +32,8 @@ export interface RepoScanResult {
   reactNativeConfirmed: boolean
 }
 
-function toLegacyLayout(page: CodePage): DiscoveredLayout {
+function toLegacyLayout(page: CodePage): DiscoveredLayout | null {
+  if (page.platform !== 'android' && page.platform !== 'ios') return null
   return {
     path: page.absolutePath,
     relativePath: page.relativePath,
@@ -35,13 +44,17 @@ function toLegacyLayout(page: CodePage): DiscoveredLayout {
 export async function discoverLayouts(repoRoot: string): Promise<RepoScanResult> {
   const pages = await discoverAllPages(repoRoot)
   const projectKinds = new Set<ProjectKind>()
-  for (const page of pages) projectKinds.add(page.platform)
+  for (const page of pages) projectKinds.add(page.platform as ProjectKind)
+  const layouts: DiscoveredLayout[] = []
+  for (const p of pages) {
+    // Legacy callers only understand the precise (XML / Xib) pages on android/ios.
+    if (!p.precise) continue
+    const layout = toLegacyLayout(p)
+    if (layout) layouts.push(layout)
+  }
   return {
-    layouts: pages
-      // Legacy callers only understand the precise (XML) pages.
-      .filter((p) => p.precise)
-      .map(toLegacyLayout),
+    layouts,
     projectKinds: [...projectKinds],
-    reactNativeConfirmed: false,
+    reactNativeConfirmed: pages.some((p) => p.adapterId === 'react-native'),
   }
 }

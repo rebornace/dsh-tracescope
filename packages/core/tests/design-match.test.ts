@@ -51,10 +51,20 @@ describe('fingerprint text helpers', () => {
     expect(normalizeText(undefined)).toBe('')
   })
 
-  it('tokenizes names on non-alphanumeric boundaries', () => {
-    expect(tokenizeName('LoginScreen.kt')).toEqual(['loginscreen', 'kt'])
+  it('tokenizes names on non-alphanumeric boundaries and camelCase', () => {
+    expect(tokenizeName('LoginScreen.kt')).toEqual(['login', 'screen', 'kt'])
     expect(tokenizeName('user_profile-page')).toEqual(['user', 'profile', 'page'])
     expect(tokenizeName('登录页')).toEqual(['登录页'])
+  })
+
+  it('ranks a path-named page higher when texts are sparse', () => {
+    const doc = designDoc(frame('s', 'UserProfile', [textNode('a', '保存')]))
+    const pages: CodePage[] = [
+      page('misc/other.xml', fp(['保存'], ['other'], 2)),
+      page('ui/UserProfileScreen.xml', fp(['保存'], ['user', 'profile', 'screen'], 2)),
+    ]
+    const matches = matchPages(doc, pages)
+    expect(matches[0]!.page.relativePath).toMatch(/UserProfile/i)
   })
 })
 
@@ -135,5 +145,31 @@ describe('matchPages', () => {
     expect(matches.length).toBeGreaterThan(0)
     const strict = matchPages(doc, pages, { minScore: 0.9 })
     expect(strict).toHaveLength(0)
+  })
+
+  it('prefers specialized adapter on near-tie', () => {
+    const doc = designDoc(frame('s', 'Home', [textNode('a', '欢迎首页')]))
+    const pages: CodePage[] = [
+      {
+        adapterId: 'web-vue',
+        platform: 'web',
+        kindLabel: 'Web Vue',
+        relativePath: 'pages/home/index.vue',
+        absolutePath: '/r/pages/home/index.vue',
+        precise: true,
+        fingerprint: fp(['欢迎首页'], ['home'], 2),
+      },
+      {
+        adapterId: 'uni-app',
+        platform: 'web',
+        kindLabel: 'uni-app',
+        relativePath: 'pages/home/index.vue',
+        absolutePath: '/r/pages/home/index.vue',
+        precise: true,
+        fingerprint: fp(['欢迎首页'], ['home'], 2),
+      },
+    ]
+    const matches = matchPages(doc, pages)
+    expect(matches[0]!.page.adapterId).toBe('uni-app')
   })
 })

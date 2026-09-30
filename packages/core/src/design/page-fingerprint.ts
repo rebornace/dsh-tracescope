@@ -12,6 +12,47 @@ import type { DesignDoc, DesignNode } from './types.js'
 import type { CodePage, PageFingerprint } from './adapters/adapter-types.js'
 import { detectSubPages, subPageAsDoc } from './subpages.js'
 
+/**
+ * Higher = more specialized stack adapter. Used only for near-tie ranking so
+ * uni-app / Taro / miniprogram win over generic web-vue / web-react.
+ */
+export function adapterSpecificity(adapterId: string): number {
+  switch (adapterId) {
+    case 'android-xml':
+    case 'ios-xib':
+      return 100
+    case 'maui-xaml':
+    case 'miniprogram-wxml':
+    case 'miniprogram-axml':
+    case 'miniprogram-ttml':
+    case 'miniprogram-swan':
+      return 90
+    case 'uni-app':
+    case 'taro':
+    case 'flutter':
+    case 'react-native':
+    case 'harmony-arkui':
+      return 80
+    case 'android-compose':
+    case 'ios-swiftui':
+    case 'android-view-java':
+    case 'android-view-kotlin':
+    case 'ios-uikit-objc':
+    case 'ios-uikit-swift':
+      return 70
+    case 'web-angular':
+    case 'web-svelte':
+      return 40
+    case 'web-vue':
+    case 'web-react':
+      return 30
+    case 'web-html':
+      return 20
+    default:
+      return 10
+  }
+}
+
 /** Lowercase and collapse all whitespace; used for text equality. */
 export function normalizeText(value?: string): string {
   return (value ?? '')
@@ -20,12 +61,49 @@ export function normalizeText(value?: string): string {
     .trim()
 }
 
-/** Lowercase, split on non-alphanumerics; used for name token overlap. */
+/** Lowercase, split on non-alphanumerics and camelCase; used for name token overlap. */
 export function tokenizeName(value?: string): string[] {
-  return (value ?? '')
+  const raw = (value ?? '').trim()
+  if (!raw) return []
+  // Split camelCase / PascalCase before lowercasing so LoginScreen → login + screen.
+  const spaced = raw
+    .replace(/([a-z\u4e00-\u9fa5])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+  return spaced
     .toLowerCase()
     .split(/[^a-z0-9\u4e00-\u9fa5]+/i)
     .filter(Boolean)
+}
+
+/** Tokens from a relative path (folders + basename without extension). */
+export function pathTokens(relativePath: string): string[] {
+  const parts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean)
+  const out = new Set<string>()
+  for (const part of parts) {
+    const base = part.replace(/\.[^.]+$/i, '')
+    for (const t of tokenizeName(base)) out.add(t)
+  }
+  return [...out]
+}
+
+/**
+ * Soft text hit: exact first; then containment for sufficiently long strings
+ * so short labels like「登录」do not falsely match「退出登录」.
+ */
+function textsSoftHit(designText: string, codeTexts: Set<string>): 'exact' | 'soft' | false {
+  if (!designText) return false
+  if (codeTexts.has(designText)) return 'exact'
+  const minLen = /[\u4e00-\u9fa5]/.test(designText) ? 3 : 5
+  if (designText.length < minLen) return false
+  for (const lit of codeTexts) {
+    if (!lit || lit.length < minLen) continue
+    const shorter = designText.length <= lit.length ? designText : lit
+    const longer = designText.length <= lit.length ? lit : designText
+    // Avoid loose parent/child matches (e.g. 登录 ⊂ 退出登录).
+    if (longer.length > shorter.length * 2) continue
+    if (longer.includes(shorter)) return 'soft'
+  }
+  return false
 }
 
 function collectTexts(node: DesignNode, out: Set<string>): void {
@@ -73,45 +151,51 @@ export interface MatchOptions {
  * Score a code page against the design fingerprint.
  *
  * Signals (weighted):
- *  - text overlap: how many design texts appear in the code page (strongest)
+ *  - text overlap (exact + soft containment for longer strings)
  *  - name token overlap between screen and file names
+ *  - path token overlap (folders / basename vs design name)
  *  - control-count similarity
  */
 export function scorePage(target: PageFingerprint, page: CodePage): PageMatch {
   const reasons: string[] = []
   const candidate = new Set(page.fingerprint.texts)
 
-  let hit = 0
+  let exactHit = 0
+  let softHit = 0
   for (const t of target.texts) {
-    if (candidate.has(t)) hit += 1
+    const hit = textsSoftHit(t, candidate)
+    if (hit === 'exact') exactHit += 1
+    else if (hit === 'soft') softHit += 1
   }
-  // Jaccard-ish recall: fraction of design texts found in the page.
-  const textRecall = target.texts.length ? hit / target.texts.length : 0
-  // Precision guards against a huge page matching a small screen too easily.
-  const textPrecision = candidate.size ? hit / candidate.size : 0
-  const textScore = target.texts.length
-    ? textRecall * 0.8 + textPrecision * 0.2
-    : 0
-  if (hit) reasons.push(`文案命中 ${hit}/${target.texts.length}`)
+  const weightedHits = exactHit + softHit * 0.55
+  const textRecall = target.texts.length ? weightedHits / target.texts.length : 0
+  const textPrecision = candidate.size ? weightedHits / candidate.size : 0
+  const textScore = target.texts.length ? textRecall * 0.8 + textPrecision * 0.2 : 0
+  if (exactHit) reasons.push(`文案命中 ${exactHit}/${target.texts.length}`)
+  if (softHit) reasons.push(`文案近似 ${softHit}`)
 
   const targetNames = new Set(target.nameTokens)
   let nameHits = 0
   for (const tok of page.fingerprint.nameTokens) {
     if (targetNames.has(tok)) nameHits += 1
   }
-  const nameScore = targetNames.size
-    ? nameHits / targetNames.size
-    : 0
+  const nameScore = targetNames.size ? nameHits / targetNames.size : 0
   if (nameHits) reasons.push(`名称相关 ${nameHits} 项`)
+
+  const pathToks = pathTokens(page.relativePath)
+  let pathHits = 0
+  for (const tok of pathToks) {
+    if (targetNames.has(tok)) pathHits += 1
+  }
+  const pathScore = targetNames.size ? Math.min(1, pathHits / targetNames.size) : 0
+  if (pathHits) reasons.push(`路径相关 ${pathHits} 项`)
 
   const tc = target.controlCount || 1
   const cc = page.fingerprint.controlCount
-  const controlScore = cc
-    ? 1 - Math.min(1, Math.abs(tc - cc) / Math.max(tc, cc))
-    : 0
+  const controlScore = cc ? 1 - Math.min(1, Math.abs(tc - cc) / Math.max(tc, cc)) : 0
 
   const score =
-    textScore * 0.7 + nameScore * 0.2 + controlScore * 0.1
+    textScore * 0.55 + nameScore * 0.15 + pathScore * 0.2 + controlScore * 0.1
 
   if (!reasons.length && controlScore > 0.5) reasons.push('结构规模接近')
 
@@ -178,7 +262,17 @@ export function matchPages(
     return match
   })
 
-  const ranked = scored.sort((a, b) => b.score - a.score)
+  const ranked = scored.sort((a, b) => {
+    const scoreDiff = b.score - a.score
+    if (Math.abs(scoreDiff) > 0.04) return scoreDiff
+    // Near-ties: prefer specialized stacks (uni/taro/mp) over generic web,
+    // then precise XML/Xib-style adapters over heuristic-only ones.
+    const specDiff =
+      adapterSpecificity(b.page.adapterId) - adapterSpecificity(a.page.adapterId)
+    if (specDiff !== 0) return specDiff
+    if (a.page.precise !== b.page.precise) return a.page.precise ? -1 : 1
+    return scoreDiff
+  })
   const passing = ranked.filter((m) => m.score >= minScore)
   if (passing.length) return passing
 

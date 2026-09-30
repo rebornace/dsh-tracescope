@@ -57,6 +57,30 @@ describe('figma transport retries', () => {
     expect(calls).toBe(1)
   })
 
+  it('retries an HTTP 429 rate-limit response and then succeeds', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      if (calls === 1) {
+        return new Response('Too Many Requests', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        })
+      }
+      return jsonResponse(
+        nodesPayload({ id: '0:1', name: 'Screen', type: 'FRAME', children: [] }),
+      )
+    }) as typeof fetch
+
+    const doc = await fetchFigmaDoc(URL, undefined, {
+      token: TOKEN,
+      fetchImpl,
+      timeoutMs: 1000,
+    })
+    expect(calls).toBe(2)
+    expect(doc.root.name).toBe('Screen')
+  })
+
   it('surfaces a friendly Chinese timeout message after exhausting retries', async () => {
     let calls = 0
     const fetchImpl = (async () => {

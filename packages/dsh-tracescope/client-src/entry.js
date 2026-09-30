@@ -33,6 +33,12 @@
     }
     /** Set in apply(); used by the panel to fill the session composer. */
     var hostCtx = null
+    /**
+     * AbortController for the in-flight busy overlay request (analyze / sync / …).
+     * Module-scoped so apiPost can attach the signal without threading it through
+     * every call site; beginBusy guards against concurrent work.
+     */
+    var activeBusyAbort = null
 
     var styles = {
       root: {
@@ -161,14 +167,22 @@
         boxShadow: '0 8px 28px rgba(0,0,0,0.12)',
         textAlign: 'center',
       },
-      busySpinner: {
-        width: 22,
-        height: 22,
+      busySpinnerSvg: {
+        display: 'block',
+        width: 28,
+        height: 28,
         margin: '0 auto 10px',
-        borderRadius: '50%',
-        border: '3px solid #efe8da',
-        borderTopColor: '#0f6e56',
-        animation: 'tracescope-spin 0.8s linear infinite',
+        overflow: 'visible',
+      },
+      busyCancel: {
+        marginTop: 12,
+        border: '1px solid var(--dsh-border, #ddd4c5)',
+        borderRadius: 999,
+        padding: '6px 14px',
+        cursor: 'pointer',
+        background: '#fff',
+        color: '#5f584c',
+        fontSize: 12,
       },
       modalCard: {
         width: 'min(420px, 100%)',
@@ -254,12 +268,20 @@
       })
     }
 
+    function isAbortError(err) {
+      if (!err) return false
+      if (err.name === 'AbortError') return true
+      var msg = String(err.message || err || '')
+      return /aborted|AbortError|The user aborted/i.test(msg)
+    }
+
     function apiPost(path, body) {
       return fetch(path, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
+        signal: activeBusyAbort ? activeBusyAbort.signal : undefined,
       }).then(function (r) {
         return r.text().then(function (text) {
           var data = {}
@@ -1483,8 +1505,9 @@
       var tab = _tab[0]
       var setTab = _tab[1]
       var MODE_KEY = 'tracescope.mode'
+      var _savedMode = localStorage.getItem(MODE_KEY)
       var _mode = useState(
-        localStorage.getItem(MODE_KEY) === 'ui' ? 'ui' : 'functional',
+        _savedMode === 'ui' ? _savedMode : 'functional',
       )
       var mode = _mode[0]
       var setMode = _mode[1]
@@ -1505,8 +1528,12 @@
       var _busyMessage = useState('')
       var busyMessage = _busyMessage[0]
       var setBusyMessage = _busyMessage[1]
+      var _busyElapsed = useState(0)
+      var busyElapsed = _busyElapsed[0]
+      var setBusyElapsed = _busyElapsed[1]
       var busyRef = useRef(false)
       var busyMsgRef = useRef('')
+      var busyBaseMsgRef = useRef('')
       var _health = useState('检查中…')
       var health = _health[0]
       var setHealth = _health[1]
@@ -1580,16 +1607,39 @@
         var text = message || '处理中，请稍候…'
         busyRef.current = true
         busyMsgRef.current = text
+        busyBaseMsgRef.current = text
+        setBusyElapsed(0)
         setBusy(true)
         setBusyMessage(text)
+        try {
+          activeBusyAbort = new AbortController()
+        } catch (_abort) {
+          activeBusyAbort = null
+        }
         return true
       }
 
       function endBusy() {
         busyRef.current = false
         busyMsgRef.current = ''
+        busyBaseMsgRef.current = ''
+        activeBusyAbort = null
         setBusy(false)
         setBusyMessage('')
+        setBusyElapsed(0)
+      }
+
+      function cancelBusy() {
+        var ctrl = activeBusyAbort
+        if (ctrl) {
+          try {
+            ctrl.abort()
+          } catch (_e) {
+            /* ignore */
+          }
+        }
+        endBusy()
+        setChatHint('已取消当前操作。可调整版本后重试「生成验证清单」。')
       }
 
       function updateBusyMessage(message) {
@@ -1598,6 +1648,47 @@
         busyMsgRef.current = text
         setBusyMessage(text)
       }
+
+      // Elapsed-time ticker + soft stage hints so long analyze/sync never looks frozen.
+      useEffect(
+        function () {
+          if (!busy) {
+            setBusyElapsed(0)
+            return undefined
+          }
+          var started = Date.now()
+          var tick = setInterval(function () {
+            if (!busyRef.current) return
+            var sec = Math.floor((Date.now() - started) / 1000)
+            setBusyElapsed(sec)
+            var base = busyBaseMsgRef.current || ''
+            if (sec === 20) {
+              if (/生成验证清单/.test(base)) {
+                updateBusyMessage(
+                  '正在分析版本差异与波及范围…（已用时 20 秒；大仓库或首次同步可能需要 1–3 分钟）',
+                )
+              } else if (/同步仓库|远端 API 读取/.test(base)) {
+                updateBusyMessage('仍在同步版本信息…（已用时 20 秒；网络较慢时请稍候）')
+              } else if (/AI 智能分析/.test(base)) {
+                updateBusyMessage('仍在准备 AI 分析提示…（已用时 20 秒）')
+              }
+            } else if (sec === 60) {
+              updateBusyMessage(
+                (base.replace(/…$/, '') || '仍在处理中') +
+                  '（已用时 60 秒）。若确认网络/仓库无响应，可点「取消」后重试。',
+              )
+            } else if (sec === 180) {
+              updateBusyMessage(
+                '已等待超过 3 分钟，可能卡住了。建议取消后检查仓库路径、鉴权或网络再试。',
+              )
+            }
+          }, 1000)
+          return function () {
+            clearInterval(tick)
+          }
+        },
+        [busy],
+      )
 
       var _jobId = useState('')
       var jobId = _jobId[0]
@@ -2186,6 +2277,7 @@
               }
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -2239,6 +2331,7 @@
               }
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -2512,6 +2605,7 @@
               }
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -2647,6 +2741,7 @@
               refreshHistory()
             })
               .catch(function (err) {
+                if (isAbortError(err)) return
                 setError(err.message || String(err))
               })
               .finally(function () {
@@ -2749,6 +2844,7 @@
                 }
               })
               .catch(function (err) {
+                if (isAbortError(err)) return
                 setError(err.message || String(err))
               })
               .finally(function () {
@@ -2815,6 +2911,7 @@
                   refreshHistory()
                 })
                 .catch(function (err) {
+                  if (isAbortError(err)) return
                   setError(err.message || String(err))
                 })
                 .finally(function () {
@@ -3010,6 +3107,7 @@
                 })
                 .catch(function (err) {
                   endBusy()
+                  if (isAbortError(err)) return
                   setError(err.message || String(err))
                 })
               return
@@ -3049,6 +3147,7 @@
               })
               .catch(function (err) {
                 endBusy()
+                if (isAbortError(err)) return
                 setError(err.message || String(err))
               })
           }
@@ -3085,6 +3184,7 @@
               setChatHint('已从本机路径添加附件')
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -3115,6 +3215,7 @@
               setChatHint('已移除任务附件')
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -3161,6 +3262,7 @@
               setChatHint('已开始下载「' + att.name + '」')
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -3311,6 +3413,7 @@
               )
             })
             .catch(function (err) {
+              if (isAbortError(err)) return
               setError(err.message || String(err))
             })
             .finally(function () {
@@ -3589,6 +3692,7 @@
                   setChatHint(tip)
                 })
                 .catch(function (err) {
+                  if (isAbortError(err)) return
                   setError(err.message || String(err))
                 })
                 .finally(function () {
@@ -3626,7 +3730,37 @@
                 children: jsxs('div', {
                   style: styles.busyBanner,
                   children: [
-                    jsx('div', { style: styles.busySpinner, 'aria-hidden': 'true' }),
+                    jsxs('svg', {
+                      style: styles.busySpinnerSvg,
+                      viewBox: '0 0 28 28',
+                      width: 28,
+                      height: 28,
+                      'aria-hidden': 'true',
+                      children: [
+                        jsx('circle', {
+                          cx: 14,
+                          cy: 14,
+                          r: 11,
+                          fill: 'none',
+                          stroke: '#e4ddd0',
+                          strokeWidth: 3,
+                        }),
+                        jsx('circle', {
+                          cx: 14,
+                          cy: 14,
+                          r: 11,
+                          fill: 'none',
+                          stroke: '#0f6e56',
+                          strokeWidth: 3,
+                          strokeLinecap: 'round',
+                          strokeDasharray: '52 100',
+                          style: {
+                            transformOrigin: '14px 14px',
+                            animation: 'tracescope-spin 0.8s linear infinite',
+                          },
+                        }),
+                      ],
+                    }),
                     jsx('div', {
                       style: { fontWeight: 700, marginBottom: 6 },
                       children: '加载中，请稍候',
@@ -3636,6 +3770,20 @@
                       children:
                         busyMessage ||
                         '正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。',
+                    }),
+                    jsx('div', {
+                      style: { marginTop: 8, fontSize: 11, color: '#8a7f70' },
+                      children: '已用时 ' + busyElapsed + ' 秒',
+                    }),
+                    jsx('button', {
+                      type: 'button',
+                      style: styles.busyCancel,
+                      onClick: function (e) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        cancelBusy()
+                      },
+                      children: '取消',
                     }),
                   ],
                 }),
@@ -4057,7 +4205,10 @@
             ],
           }),
           jsxs('section', {
-            style: styles.card,
+            style: Object.assign(
+              {},
+              styles.card,
+            ),
             children: [
               jsxs('div', {
                 style: Object.assign({}, styles.row, { justifyContent: 'space-between' }),
@@ -5910,6 +6061,20 @@
             ? jsx(VisualComparePanel, {
                 repoInput: repoPath.trim(),
                 auth: buildAuthPayload(),
+                onSendToChat: fillComposerDraft,
+                openConfirmDialog: function (opts) {
+                  setConfirmDlg({
+                    title: opts.title,
+                    message: opts.message || '',
+                    inputLabel: opts.inputLabel,
+                    inputValue: opts.inputValue || '',
+                    multiline: !!opts.multiline,
+                    fields: opts.fields || null,
+                    confirmLabel: opts.confirmLabel || '保存',
+                    danger: false,
+                    onConfirm: opts.onConfirm,
+                  })
+                },
               })
             : null,
           confirmDlg
@@ -5931,39 +6096,92 @@
                         style: { fontWeight: 700, fontSize: 15, marginBottom: 8 },
                         children: confirmDlg.title || '请确认',
                       }),
-                      jsx('p', {
-                        style: { margin: '0 0 12px', lineHeight: 1.5, color: '#4a453e' },
-                        children: confirmDlg.message,
-                      }),
-                      confirmDlg.inputLabel
-                        ? jsxs('label', {
-                            style: Object.assign({}, styles.label, { marginBottom: 14 }),
-                            children: [
-                              confirmDlg.inputLabel,
-                              jsx('input', {
-                                style: styles.input,
-                                value: confirmDlg.inputValue || '',
-                                autoFocus: true,
-                                onChange: function (e) {
-                                  var next = e.target.value
-                                  setConfirmDlg(function (prev) {
-                                    if (!prev) return prev
-                                    return Object.assign({}, prev, { inputValue: next })
-                                  })
-                                },
-                                onKeyDown: function (e) {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    var action = confirmDlg.onConfirm
-                                    var value = confirmDlg.inputValue
-                                    setConfirmDlg(null)
-                                    if (typeof action === 'function') action(value)
-                                  }
-                                },
-                              }),
-                            ],
+                      confirmDlg.message
+                        ? jsx('p', {
+                            style: { margin: '0 0 12px', lineHeight: 1.5, color: '#4a453e' },
+                            children: confirmDlg.message,
                           })
                         : null,
+                      confirmDlg.fields && confirmDlg.fields.length
+                        ? jsx('div', {
+                            style: { display: 'grid', gap: 10, marginBottom: 14 },
+                            children: confirmDlg.fields.map(function (field, idx) {
+                              return jsxs(
+                                'label',
+                                {
+                                  style: styles.label,
+                                  children: [
+                                    field.label,
+                                    jsx('input', {
+                                      style: styles.input,
+                                      value: field.value || '',
+                                      autoFocus: idx === 0,
+                                      onChange: function (e) {
+                                        var nextVal = e.target.value
+                                        var key = field.key
+                                        setConfirmDlg(function (prev) {
+                                          if (!prev || !prev.fields) return prev
+                                          return Object.assign({}, prev, {
+                                            fields: prev.fields.map(function (f) {
+                                              return f.key === key
+                                                ? Object.assign({}, f, { value: nextVal })
+                                                : f
+                                            }),
+                                          })
+                                        })
+                                      },
+                                    }),
+                                  ],
+                                },
+                                field.key,
+                              )
+                            }),
+                          })
+                        : confirmDlg.inputLabel
+                          ? jsxs('label', {
+                              style: Object.assign({}, styles.label, { marginBottom: 14 }),
+                              children: [
+                                confirmDlg.inputLabel,
+                                confirmDlg.multiline
+                                  ? jsx('textarea', {
+                                      style: Object.assign({}, styles.input, {
+                                        minHeight: 88,
+                                        resize: 'vertical',
+                                      }),
+                                      value: confirmDlg.inputValue || '',
+                                      autoFocus: true,
+                                      onChange: function (e) {
+                                        var next = e.target.value
+                                        setConfirmDlg(function (prev) {
+                                          if (!prev) return prev
+                                          return Object.assign({}, prev, { inputValue: next })
+                                        })
+                                      },
+                                    })
+                                  : jsx('input', {
+                                      style: styles.input,
+                                      value: confirmDlg.inputValue || '',
+                                      autoFocus: true,
+                                      onChange: function (e) {
+                                        var next = e.target.value
+                                        setConfirmDlg(function (prev) {
+                                          if (!prev) return prev
+                                          return Object.assign({}, prev, { inputValue: next })
+                                        })
+                                      },
+                                      onKeyDown: function (e) {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault()
+                                          var action = confirmDlg.onConfirm
+                                          var value = confirmDlg.inputValue
+                                          setConfirmDlg(null)
+                                          if (typeof action === 'function') action(value)
+                                        }
+                                      },
+                                    }),
+                              ],
+                            })
+                          : null,
                       jsxs('div', {
                         style: Object.assign({}, styles.row, { justifyContent: 'flex-end' }),
                         children: [
@@ -5980,11 +6198,18 @@
                             style: confirmDlg.danger ? styles.danger : styles.primary,
                             onClick: function () {
                               var action = confirmDlg.onConfirm
-                              var value = confirmDlg.inputValue
                               setConfirmDlg(null)
-                              if (typeof action === 'function') {
-                                if (confirmDlg.inputLabel) action(value)
-                                else action()
+                              if (typeof action !== 'function') return
+                              if (confirmDlg.fields && confirmDlg.fields.length) {
+                                var map = {}
+                                confirmDlg.fields.forEach(function (f) {
+                                  map[f.key] = f.value || ''
+                                })
+                                action(map)
+                              } else if (confirmDlg.inputLabel) {
+                                action(confirmDlg.inputValue)
+                              } else {
+                                action()
                               }
                             },
                             children: confirmDlg.confirmLabel || '确定',

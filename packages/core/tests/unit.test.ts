@@ -239,6 +239,52 @@ describe('chat publish helpers', () => {
     expect(prompt).toContain('wi-1')
   })
 
+  it('builds a page-level visual chat prompt with its diffs', async () => {
+    const { buildVisualChatPrompt } = await import('../src/chat-prompt.js')
+    const prompt = buildVisualChatPrompt({
+      designName: '登录页',
+      codeRelativePath: 'res/layout/login.xml',
+      platformLabel: 'Android XML',
+      viewport: { width: 390, height: 844 },
+      diffs: [
+        {
+          nodeName: '手机号输入框',
+          property: 'width',
+          severity: 'high',
+          expected: 300,
+          actual: 280,
+        },
+      ],
+    })
+    expect(prompt).toContain('登录页')
+    expect(prompt).toContain('res/layout/login.xml')
+    expect(prompt).toContain('手机号输入框')
+    expect(prompt).toContain('300')
+    expect(prompt).toContain('280')
+    expect(prompt).toContain('[高]')
+  })
+
+  it('builds a generic-stack code visual prompt without Android XML wording', async () => {
+    const { buildCodeVisualPrompt } = await import('../src/chat-prompt.js')
+    const prompt = buildCodeVisualPrompt({
+      designName: '首页',
+      figmaUrl: 'https://www.figma.com/file/abc/Home?node-id=1-2',
+      repoPath: '/tmp/app',
+      platformLabel: 'uni-app',
+      codeRelativePath: 'pages/home/index.vue',
+      dependencyManifest: '入口源文件：pages/home/index.vue\n同目录关联文件：\n- pages/home/index.css',
+      manifestMode: 'source-files',
+      jobId: 'vj-1',
+    })
+    expect(prompt).toContain('uni-app')
+    expect(prompt).toContain('pages/home/index.vue')
+    expect(prompt).toContain('同目录关联')
+    expect(prompt).not.toContain('layout_width')
+    expect(prompt).not.toContain('@drawable')
+    expect(prompt).toContain('tracescope_publish_visual_findings')
+    expect(prompt).toContain('vj-1')
+  })
+
   it('parses published items into a model-enriched report', async () => {
     const { buildReportFromPublishedItems, parsePublishedHandtestItems } = await import(
       '../src/handtest-publish.js'

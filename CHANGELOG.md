@@ -5,6 +5,14 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.1.12 — 2026-09-30
+
+- **设计稿 UI 走查（design-only）**：以 Figma 设计稿为唯一准绳做静态对比，不再依赖 native 运行时渲染。
+  - 页面发现覆盖 Android XML / Compose / View、iOS Xib / SwiftUI / UIKit、Flutter、React Native、Harmony ArkUI、Web（HTML/React/Vue/Svelte/Angular）、小程序（WXML/AXML/TTML/Swan）、uni-app、Taro、.NET MAUI XAML
+  - 对比分层：L0 指纹匹配 → L1 属性级静态树 → L2 启发式文案/控件规模 → L3「AI 协助分析」（按适配器生成源码阅读清单，非 XML 不再误走 Android 依赖闭包）
+  - 匹配近并列时优先专用栈（uni-app / Taro / 小程序 等），避免被通用 web-vue / web-react 抢走
+- Design-only UI review across mobile/web/miniprogram stacks; L0–L3 compare; specialized adapters win near-ties.
+
 ## 0.1.11 — 2026-09-21
 
 - **语言支持扩展（静态反向依赖波及）**：

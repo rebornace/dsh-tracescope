@@ -4,7 +4,7 @@
  * over it. Geometry, styles, text and images are preserved; dynamic surfaces
  * become a clearly-labelled frame.
  */
-import type { DesignDoc, DesignNode, DesignNodeKind } from './types.js'
+import type { DesignDoc, DesignGradient, DesignNode, DesignNodeKind } from './types.js'
 import type { HifiRenderNode } from './android-layout-engine.js'
 
 function convertKind(node: HifiRenderNode): DesignNodeKind {
@@ -19,10 +19,38 @@ function convertKind(node: HifiRenderNode): DesignNodeKind {
       return 'frame'
     case 'view':
       return 'view'
+    default: {
+      const exhaustive: never = node.kind
+      return exhaustive as DesignNodeKind
+    }
   }
 }
 
+/** Flatten a gradient to its first stop for the deterministic property diff. */
+function gradientApproxColor(gradient: DesignGradient): string | undefined {
+  return gradient.stops[0]?.color
+}
+
 function convertNode(node: HifiRenderNode): DesignNode {
+  const style: DesignNode['style'] = {
+    backgroundColor: node.style.backgroundColor,
+    color: node.style.color,
+    fontSize: node.style.fontSize,
+    fontWeight: node.style.fontWeight,
+    cornerRadius: node.style.borderRadius,
+    borderWidth: node.style.borderWidth,
+    borderColor: node.style.borderColor,
+    opacity: node.style.opacity,
+  }
+  if (node.style.gradient) {
+    style.gradient = node.style.gradient
+    // Give the property diff a representative colour so gradient-vs-solid
+    // mismatches are still surfaced in the readable list.
+    if (!style.backgroundColor) style.backgroundColor = gradientApproxColor(node.style.gradient)
+  }
+  if (node.style.lineHeight) style.lineHeight = node.style.lineHeight
+  if (node.style.imageFit) style.imageFit = node.style.imageFit
+
   const out: DesignNode = {
     id: node.id,
     name: node.name,
@@ -33,16 +61,7 @@ function convertNode(node: HifiRenderNode): DesignNode {
       width: node.width,
       height: node.height,
     },
-    style: {
-      backgroundColor: node.style.backgroundColor,
-      color: node.style.color,
-      fontSize: node.style.fontSize,
-      fontWeight: node.style.fontWeight,
-      cornerRadius: node.style.borderRadius,
-      borderWidth: node.style.borderWidth,
-      borderColor: node.style.borderColor,
-      opacity: node.style.opacity,
-    },
+    style,
     children: node.children.map(convertNode),
   }
   if (node.text !== undefined) out.text = node.text
