@@ -31,6 +31,16 @@ describe('lanhu url parsing', () => {
     expect(next).toContain('image_id=image-xyz')
     expect(next).toContain('project_id=p1')
   })
+
+  it('parses stage project links without image_id', () => {
+    const url =
+      'https://lanhuapp.com/web/#/item/project/stage?tid=0d911feb-df4f-4b9b-8dea-60adff59a7cb&pid=f07565f9-4316-4e3a-b278-2406bc17c261'
+    expect(isLanhuUrl(url)).toBe(true)
+    const parts = parseLanhuUrl(url)
+    expect(parts.tenantId).toBe('0d911feb-df4f-4b9b-8dea-60adff59a7cb')
+    expect(parts.projectId).toBe('f07565f9-4316-4e3a-b278-2406bc17c261')
+    expect(parts.imageId).toBe('')
+  })
 })
 
 describe('lanhu annotation normalize', () => {

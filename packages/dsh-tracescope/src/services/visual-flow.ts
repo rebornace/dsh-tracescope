@@ -725,6 +725,11 @@ export async function matchAllDesignPages(
 
   const figmaUrl = conn.url
   const figmaToken = conn.credential
+  if (!/figma\.com/i.test(figmaUrl)) {
+    throw new Error(
+      '无法识别的设计稿链接。请粘贴 Figma（figma.com）或蓝湖（lanhuapp.com）链接；蓝湖需填 Cookie，不是 Figma Token。',
+    )
+  }
   const scopeRaw = String(body.scope ?? body.scanScope ?? 'auto').trim().toLowerCase()
   let focusNodeId = ''
   try {

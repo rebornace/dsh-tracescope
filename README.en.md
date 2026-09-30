@@ -39,6 +39,8 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
   - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each problem item (`![filename](embedUrl)`)  
   - Yunxiao catalog calls can be inspected in an in-panel log (token redacted)
 - **Design UI review**: Figma / Lanhu static compare across Android / iOS / Flutter / RN / Harmony / Web / miniprograms / uni-app / Taro / MAUI, with property-level + heuristic diffs and optional AI assist
+  - Lanhu: paste project/design URL + browser Cookie; `image_id` = one screen, otherwise whole project
+  - Lanhu HTTP protocol notes were informed by community [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server); our adapter is original (`packages/core/src/design/sources/lanhu.ts` → `DesignDoc`), not a copy of that client/DDS/MCP stack
 - **Export**: Markdown / CSV; copy issue feedback
 - **Local data**: under `~/.tracescope/`
 
