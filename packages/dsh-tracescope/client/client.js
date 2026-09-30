@@ -2909,9 +2909,31 @@ function VisualComparePanel({
     };
   }, [pendingJob]);
   function nodeUrl(designId) {
+    const id = designId.trim();
+    if (!id) return figmaUrl;
+    if (isLikelyLanhuUrl(figmaUrl)) {
+      try {
+        const u = new URL(figmaUrl.trim());
+        const host = u.hostname.toLowerCase().includes("woa") ? "lanhu.woa.com" : "lanhuapp.com";
+        const hashQ = u.hash.includes("?") ? u.hash.slice(u.hash.indexOf("?") + 1) : u.search.slice(1);
+        const params = new URLSearchParams(hashQ);
+        const projectId = params.get("project_id") || params.get("pid") || "";
+        const tid = params.get("tid") || params.get("team_id") || "0";
+        if (!projectId) return figmaUrl;
+        const q = new URLSearchParams({
+          tid,
+          pid: projectId,
+          project_id: projectId,
+          image_id: id
+        });
+        return `https://${host}/web/#/item/project/detailDetach?${q.toString()}`;
+      } catch {
+        return figmaUrl;
+      }
+    }
     try {
       const u = new URL(figmaUrl);
-      u.searchParams.set("node-id", designId.replace(/:/g, "-"));
+      u.searchParams.set("node-id", id.replace(/:/g, "-"));
       return u.toString();
     } catch {
       return figmaUrl;
@@ -2924,6 +2946,7 @@ function VisualComparePanel({
         auth,
         figmaUrl: nodeUrl(designId),
         figmaToken: figmaToken.trim(),
+        designId,
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
         useAI: false,
@@ -3023,6 +3046,7 @@ function VisualComparePanel({
         auth,
         figmaUrl: nodeUrl(designId),
         figmaToken: figmaToken.trim(),
+        designId,
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath
       });

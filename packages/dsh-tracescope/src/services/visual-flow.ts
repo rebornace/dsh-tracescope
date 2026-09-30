@@ -160,7 +160,10 @@ function designConnection(body: Record<string, unknown>): {
 export async function loadDesign(body: Record<string, unknown>): Promise<DesignDoc> {
   const conn = designConnection(body)
   if (conn.source === 'lanhu') {
-    return await fetchLanhuDoc(conn.url, {
+    const parts = parseLanhuUrl(conn.url)
+    const designId = String(body.designId ?? body.nodeId ?? body.imageId ?? '').trim()
+    if (!parts.imageId && designId) parts.imageId = designId
+    return await fetchLanhuDoc(parts, {
       cookie: conn.credential,
       authorization: conn.authorization,
     })
@@ -201,7 +204,8 @@ async function renderDesignRaster(
     const conn = designConnection(body)
     if (conn.source === 'lanhu') {
       const parts = parseLanhuUrl(conn.url)
-      const imageId = (nodeId || parts.imageId || '').trim()
+      const fallbackId = String(body.designId ?? body.nodeId ?? body.imageId ?? '').trim()
+      const imageId = (nodeId || parts.imageId || fallbackId || '').trim()
       if (!imageId) return undefined
       const url = await fetchLanhuPreviewUrl(
         { ...parts, imageId },
