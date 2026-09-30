@@ -576,11 +576,25 @@ function PageMappingOverview({
               onChoose: (file) => choose(mapping.designId, file),
               onCompare: () => {
                 const file = selections[mapping.designId];
-                if (file) onCompare(mapping.designId, file);
+                if (!file) {
+                  setLocalError(
+                    `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先点卡片上的红色「点此指定代码文件」，选好后再点「界面对比」。`
+                  );
+                  return;
+                }
+                setLocalError("");
+                onCompare(mapping.designId, file);
               },
               onAiAnalyze: () => {
                 const file = selections[mapping.designId];
-                if (file) onAiAnalyze(mapping.designId, file);
+                if (!file) {
+                  setLocalError(
+                    `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先指定代码文件后再「AI 协助分析」。`
+                  );
+                  return;
+                }
+                setLocalError("");
+                onAiAnalyze(mapping.designId, file);
               },
               onAiRematch: () => {
                 void requestRematchPrompt(mapping.designId);
@@ -809,19 +823,33 @@ function PageCard({
             "button",
             {
               type: "button",
-              style: OV.compareBtn,
-              disabled: !selected || cardBusy,
-              onClick: onCompare,
-              children: "界面对比"
+              style: {
+                ...OV.compareBtn,
+                ...!selected ? { opacity: 0.85, background: "#667085", borderColor: "#667085" } : null
+              },
+              disabled: cardBusy,
+              title: selected ? "对比设计稿与已选代码文件" : "请先点上方「点此指定代码文件」再对比",
+              onClick: () => {
+                if (!selected) setPickerOpen(true);
+                onCompare();
+              },
+              children: selected ? "界面对比" : "先选代码文件"
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "button",
             {
               type: "button",
-              style: OV.aiBtn,
-              disabled: !selected || cardBusy,
-              onClick: onAiAnalyze,
+              style: {
+                ...OV.aiBtn,
+                ...!selected ? { opacity: 0.7 } : null
+              },
+              disabled: cardBusy,
+              title: selected ? "先对比再生成 AI 分析提示词" : "请先点上方「点此指定代码文件」再分析",
+              onClick: () => {
+                if (!selected) setPickerOpen(true);
+                onAiAnalyze();
+              },
               children: "AI 协助分析"
             }
           )
@@ -3262,7 +3290,20 @@ function VisualComparePanel({
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。 蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。" }),
+    error ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      "p",
+      {
+        style: {
+          color: error.startsWith("✓") ? "#0f6e56" : "#b42318",
+          margin: "0 0 8px",
+          fontSize: 12,
+          lineHeight: 1.5,
+          whiteSpace: "pre-wrap"
+        },
+        children: error
+      }
+    ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { marginTop: 2 }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       PageMappingOverview,
       {
@@ -3280,7 +3321,6 @@ function VisualComparePanel({
         rematchApply
       }
     ) }),
-    error ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { color: "#b42318", margin: "8px 0 0", fontSize: 12 }, children: error }) : null,
     hifiData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       "div",
       {

@@ -567,11 +567,25 @@ export function PageMappingOverview({
                         onChoose={(file) => choose(mapping.designId, file)}
                         onCompare={() => {
                           const file = selections[mapping.designId]
-                          if (file) onCompare(mapping.designId, file)
+                          if (!file) {
+                            setLocalError(
+                              `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先点卡片上的红色「点此指定代码文件」，选好后再点「界面对比」。`,
+                            )
+                            return
+                          }
+                          setLocalError('')
+                          onCompare(mapping.designId, file)
                         }}
                         onAiAnalyze={() => {
                           const file = selections[mapping.designId]
-                          if (file) onAiAnalyze(mapping.designId, file)
+                          if (!file) {
+                            setLocalError(
+                              `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先指定代码文件后再「AI 协助分析」。`,
+                            )
+                            return
+                          }
+                          setLocalError('')
+                          onAiAnalyze(mapping.designId, file)
                         }}
                         onAiRematch={() => {
                           void requestRematchPrompt(mapping.designId)
@@ -864,17 +878,41 @@ function PageCard({
       <div style={OV.actionRow}>
         <button
           type="button"
-          style={OV.compareBtn}
-          disabled={!selected || cardBusy}
-          onClick={onCompare}
+          style={{
+            ...OV.compareBtn,
+            ...(!selected
+              ? { opacity: 0.85, background: '#667085', borderColor: '#667085' }
+              : null),
+          }}
+          disabled={cardBusy}
+          title={
+            selected
+              ? '对比设计稿与已选代码文件'
+              : '请先点上方「点此指定代码文件」再对比'
+          }
+          onClick={() => {
+            if (!selected) setPickerOpen(true)
+            onCompare()
+          }}
         >
-          界面对比
+          {selected ? '界面对比' : '先选代码文件'}
         </button>
         <button
           type="button"
-          style={OV.aiBtn}
-          disabled={!selected || cardBusy}
-          onClick={onAiAnalyze}
+          style={{
+            ...OV.aiBtn,
+            ...(!selected ? { opacity: 0.7 } : null),
+          }}
+          disabled={cardBusy}
+          title={
+            selected
+              ? '先对比再生成 AI 分析提示词'
+              : '请先点上方「点此指定代码文件」再分析'
+          }
+          onClick={() => {
+            if (!selected) setPickerOpen(true)
+            onAiAnalyze()
+          }}
         >
           AI 协助分析
         </button>
