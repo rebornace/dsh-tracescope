@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.1.12`** (design-only Figma UI review across mobile/web/miniprogram stacks)
+**Version: `0.1.12`** (design-only Figma / Lanhu UI review across mobile/web/miniprogram stacks)
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **current** release, not the 0.1.0 snapshot.
 
