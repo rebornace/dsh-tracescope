@@ -337,11 +337,14 @@ export {
 } from './design/adapters/load-associated-styles.js'
 export { normalizeMauiXaml } from './design/adapters/maui-xaml.js'
 export { analyzeAdapterBindings, type AdapterBindings } from './design/adapter-binding.js'
-export { walkFiles } from './design/fs-walk.js'
+export { walkFiles, SKIP_DIRS } from './design/fs-walk.js'
+export { SKIP_DIR_NAMES, pathHasSkippedSegment } from './skip-paths.js'
 export { parseXml, decodeXmlEntities, type XmlElement } from './design/xml-lite.js'
 // Adapter / page-matching API.
 export {
   discoverAllPages,
+  clearDiscoverPagesCache,
+  resolveCodePage,
   locatePagesForDesign,
   compareDesignWithPage,
   matchPages,

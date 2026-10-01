@@ -1,54 +1,58 @@
 # TraceScope
 
-**Version: `0.1.13`** (full MCP agent surface parity with DSH; design-only Figma / Lanhu UI review)
+**Version: `0.2.0`**
 
-Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **current** release, not the 0.1.0 snapshot.
+Milestones: [CHANGELOG.md](./CHANGELOG.md). [中文](./README.md) · [English](./README.en.md)
 
-[中文](./README.md) · [English](./README.en.md)
+**TraceScope** (`dsh-tracescope` monorepo) helps developers and testers answer two questions:
 
-**TraceScope** (`dsh-tracescope` monorepo) is for anyone who needs to understand the impact of a code change—**developers and testers alike**. Given two revisions (a stable baseline → an under-test target, or any base → target commit), it turns the diff into an **impact checklist**: direct changes plus reverse-dependency ripple.
+| Capability | Question | Typical use |
+|------------|----------|-------------|
+| **Impact analysis** | What does this code change affect? | Pre-handoff self-review, regression scope, verification checklist |
+| **Design diff analysis** | How does the implementation diverge from Figma / Lanhu? | UI review, fidelity checks, localized diffs and defect filing |
 
-- **Developers**: self-review the scope of a change before committing/merging, confirm which pages and modules are affected, and walk the checklist before handing off; log issues and submit them directly when found
-- **Testers / QA**: quickly determine the regression scope, use the checklist as a manual-test plan, mark results, attach screenshots, submit defects, and export reports
+Review, marking, screenshots, attachments, and issue submission live in the **official DeepSeek Harness Desktop** (and Web) right sidebar. The same capabilities are available over MCP from Cursor / Claude or any other client.
 
-Review, marking, screenshots, attachments and issue submission all live in the **DeepSeek Harness Web or Desktop** right sidebar; the same analysis is also available over MCP from Cursor / Claude or any other client.
-
-Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
+## Packages
 
 | Package | Role |
 |---------|------|
-| `@rebornace/tracescope-core` | Deterministic impact analysis (agent-agnostic) |
-| `@rebornace/tracescope-mcp` | MCP server for Cursor / Claude / any MCP client |
-| `@rebornace/dsh-tracescope` | DSH plugin: Host APIs + embedded sidebar UI (primary path for this release) |
+| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | Deterministic engine (impact indexing + design compare) |
+| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH plugin: Host APIs + sidebar UI (primary path) |
+| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | MCP server, same tool surface as DSH |
 
-## Current capabilities (0.1.13)
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for details.
 
-- **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2). Local git indexes **commit objects**, not whatever files happen to be readable in the work tree
-- **Languages with ripple**: mobile — Kotlin, Java (Kotlin interop), Swift (ObjC interop), Objective-C, Dart/Flutter; web — TypeScript/JavaScript, Vue, CSS/SCSS/Sass/Less, HTML. Other languages still appear in **direct changes** (git diff is language-agnostic) but without static ripple.
-- **Read mode**: local git, or a **Codeup API** fallback (no static ripple; chat analysis can still read diffs)
-- **Remote cache**: new syncs are bare object repos under `~/.tracescope/repos`. Existing checkouts keep working
-- **Product-facing names**: modules YAML → static title extraction → heuristics
-- **DSH sidebar**: multi-repo, remote auth, default sync of under-test / stable commits; other actions lock while a request is in flight
-- **Generate impact checklist**: deterministic analyze + persist; one history row per comparison pair
-- **Chat / model analysis**: job + composer draft + `tracescope_publish_handtest`
-- **Per-item status**: pass / fail / skip / reset; problem items get notes + **up to 3 screenshots per item**
-- **Task-level attachments**: videos/docs on the whole comparison (max 8), not per checklist row
-- **Yunxiao agile work items**: multi-select categories + items to seed checklist / prompts
-- **Issue trackers / collaboration**: Yunxiao / GitHub / GitLab / Webhook  
-  - Editable default title on submit  
-  - Yunxiao: uploads task attachments; embeds screenshots **in the work-item description** under each problem item (`![filename](embedUrl)`)  
-  - Yunxiao catalog calls can be inspected in an in-panel log (token redacted)
-- **Design UI review**: Figma / Lanhu static compare across Android / iOS / Flutter / RN / Harmony / Web / miniprograms / uni-app / Taro / MAUI, with property-level + heuristic diffs and optional AI assist
-  - Lanhu: paste project/design URL + browser Cookie; `image_id` = one screen, otherwise whole project
-  - Lanhu HTTP protocol notes were informed by community [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server); our adapter is original (`packages/core/src/design/sources/lanhu.ts` → `DesignDoc`), not a copy of that client/DDS/MCP stack
-- **Export**: Markdown / CSV; copy issue feedback
-- **Local data**: under `~/.tracescope/`
+## Impact analysis
+
+Given two revisions (stable → under-test, or any base → target):
+
+- **Direct changes + reverse-dependency ripple** (default depth 2); local git indexes **commit objects**, not whatever files happen to be open in the work tree
+- **Ripple languages**: Kotlin / Java, Swift / Objective-C, Dart/Flutter; TypeScript / JavaScript, Vue, CSS family, HTML. Other languages still appear in direct changes without static ripple
+- **Read mode**: local git, or a **Codeup API** fallback (no static ripple; chat can still read diffs)
+- **Product-facing names**: modules YAML → static titles → heuristics
+- **Checklist workflow**: generate / chat analysis → pass · fail · skip → notes and screenshots (up to 3 per item) → task attachments → export Markdown / CSV → submit defects
+
+## Design diff analysis
+
+**Figma / Lanhu** is the source of truth. Compare is **static** (no app runtime render):
+
+- **Page discovery**: Android (XML / Compose / View), iOS (Xib / SwiftUI / UIKit), Flutter, React Native, Harmony ArkUI, Web (HTML / React / Vue / Svelte / Angular), miniprograms, uni-app, Taro, .NET MAUI
+- **Layers**: L0 fingerprint match → L1 property-level tree → L2 heuristic text / control count → L3 AI-assisted review
+- **Sidebar**: design raster + diff list, multi-select highlight, pick code file, related files, copy diffs / file defects / export
+- **Lanhu**: paste project or design URL + browser Cookie; `image_id` = one screen, otherwise whole project. Protocol notes were informed by community [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server); our adapter is original (`packages/core/src/design/sources/lanhu.ts`)
+
+## Collaboration & local data
+
+- **Trackers**: Yunxiao / GitHub Issues / GitLab Issues / Webhook (editable title; Yunxiao uploads attachments and embeds images in the description)
+- **Optional Yunxiao agile work items** to seed checklists / prompts
+- **Local dir** `~/.tracescope/`: auth, tracker config, reports, attachments, remote repo cache
 
 ## Requirements
 
 - Node.js `>= 20`
 - pnpm `9.x` (`packageManager: pnpm@9.6.0`)
-- For the DSH plugin: DeepSeek Harness (**Web** or **Desktop**) with `dsh plugin`
+- For the DSH plugin: **official DeepSeek Harness Desktop** (recommended) or Web
 
 ## Install & build
 
@@ -65,91 +69,55 @@ pnpm --filter @rebornace/dsh-tracescope build
 pnpm --filter @rebornace/tracescope-mcp build
 ```
 
-## Install into DSH (Web / Desktop)
+## Install into DeepSeek Harness (official Desktop recommended)
 
-Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) (`dsh.bundle` + right-sidebar Client — same package for Web and Desktop).
+Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope). **The same package works on official DeepSeek Harness Desktop and Web.**
 
-Per the [official DSH publish guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), prefer the **prebuilt npm package** (no `allowBuilds`).
+### Option 1: Official Desktop Plugins UI (recommended)
 
-### Option 1: Search and install in dsh-market (recommended)
+1. Install and open [DeepSeek Harness official Desktop](https://github.com/deepseek-ai/deepseek-harness)
+2. Open the **Plugins** option in the Desktop app
+3. Follow the on-screen prompts to add a plugin; use package name: `@rebornace/dsh-tracescope`
+4. After install, open the **TraceScope** right-sidebar tab (or use `/tracescope` in a session)
 
-1. Open the [dsh-market](https://github.com/dsh-market/dsh-market) panel inside DSH **Web** or **Desktop**
-2. Search for `tracescope`, `dsh-tracescope`, `impact`, or `manual-test`
-3. Install **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope` into the current profile
+### Option 2: CLI (optional)
 
-Listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) ([PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)). The npm package includes `dsh-plugin` keywords for catalog / registry search.
-
-### Option 2: CLI (Web and Desktop)
+For scripting or local debugging; see the [official install guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md).
 
 ```bash
-# DSH Web
-dsh plugin --profile web add @rebornace/dsh-tracescope
-
-# DSH Desktop
 dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
-If your default registry is npmmirror and dependencies are not synced yet, add a temporary `.npmrc` in that profile directory:
+### Community catalogs
 
-```ini
-registry=https://registry.npmjs.org/
-```
+Listed in:
 
-Then re-run `dsh plugin add`.
+- [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) ([PR #522](https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/522))
+- [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) ([PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388))
 
-### Option 3: Local path / GitHub
+You can also browse [dsh-market](https://github.com/dsh-market/dsh-market) and similar UIs; prefer the official Desktop Plugins option for day-to-day installs.
 
-```bash
-pnpm --filter @rebornace/dsh-tracescope build
+## Workflows
 
-dsh plugin --profile web add <repo>/packages/dsh-tracescope
-dsh plugin --profile desktop add <repo>/packages/dsh-tracescope
+### A. Impact analysis
 
-# GitHub (requires prepare build allowance — see DSH docs)
-dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
-dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
-```
+1. Pick a repo and read mode (default: local git; Codeup API if git is unavailable)
+2. Sync versions (defaults: latest = under-test, second-latest = stable)
+3. Optionally configure a tracker and link agile work items
+4. **Generate checklist** or **Chat analysis**
+5. Mark items → attach files → copy feedback / submit defect / export
 
-### After install
+### B. Design diff analysis
 
-1. Restart / refresh the profile (Web session or Desktop)
-2. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
-3. Or use `/tracescope` Host capabilities from the session
-
-### npm packages (0.1.13)
-
-| Package | Role |
-|---------|------|
-| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle (`dsh.bundle` + Client Slot) for Web and Desktop |
-| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | Analysis engine (plugin dependency) |
-| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | Standalone MCP server |
-
-## Workflow
-
-The same steps work for a developer's pre-handoff self-review and a tester scoping regression:
-
-1. Pick a repo and a read mode. Default is local git (HTTPS token or SSH key as needed). If git is missing or the cache never becomes usable, switch to the Codeup API and use a `https://codeup.aliyun.com/<orgId>/group/repo.git` URL plus a token with code read access
-2. Sync versions: sync jumps to the newest branch; defaults are latest commit = under-test (target), second-latest = stable (baseline). Both can be changed manually. Codeup mode lists recent commits on the default branch
-3. Optionally configure a collaboration platform (Yunxiao catalogs via token + dropdowns)
-4. Optionally link Yunxiao agile work items (multi-select types + items)
-5. **Generate checklist** or **Chat analysis** (confirm if overwriting). The Codeup deterministic checklist is direct changes only
-6. Walk the checklist and mark each item: pass / fail / skip; on problems, add notes and screenshots (file picker or paste)
-7. Add task-level video/doc attachments
-8. Copy issue feedback / submit issue (editable title) / export report
+1. Open the design-diff / UI-review entry in the sidebar
+2. Paste a **Figma** URL (token) or **Lanhu** URL (cookie)
+3. Choose the code repo and target page (accept a match, pick a file, or rematch)
+4. Review the static diff list and highlights; optionally start **AI-assisted analysis**
+5. Copy diffs, file defects, or export (tracker config is shared with impact analysis)
 
 ## Optional module mapping
 
 See [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
-
-## Local data
-
-| Path | Contents |
-|------|----------|
-| `~/.tracescope/` auth store | Optional remembered git credentials |
-| `~/.tracescope/tracker.json` | Collaboration platform config |
-| `~/.tracescope/reports/` | Latest impact checklist + history index |
-| `~/.tracescope/attachments/<reportKey>/` | Task attachment binaries |
-| `~/.tracescope/repos/` | Cached remote clones (when used) |
 
 ## MCP (any agent)
 
@@ -172,30 +140,23 @@ See [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 | `tracescope_analyze_impact` | Deterministic impact analysis |
 | `tracescope_create_handtest_job` | Create hand-test chat job + starter prompt |
 | `tracescope_publish_handtest` | Publish hand-test checklist |
-| `tracescope_start_visual_review` | Start UI review job + starter prompt |
+| `tracescope_start_visual_review` | Start design-diff job + starter prompt |
 | `tracescope_get_design_snapshot` | On-demand design tree snapshot |
-| `tracescope_publish_visual_findings` | Publish UI review findings |
-| `tracescope_start_page_rematch` | Start page↔file rematch job |
+| `tracescope_publish_visual_findings` | Publish design-diff findings |
+| `tracescope_start_page_rematch` | Start page ↔ file rematch job |
 | `tracescope_publish_page_rematch` | Publish rematch picks |
 
-Same execute layer as DSH via `@rebornace/dsh-tracescope/agent-api` — any MCP client can run the full analyze → publish loop.
-
-## Packages
-
-| Package | Version | Notes |
-|---------|---------|-------|
-| `@rebornace/tracescope-core` | 0.1.13 | Analysis, storage, Yunxiao/tracker, export |
-| `@rebornace/dsh-tracescope` | 0.1.13 | DSH Host + React Slot client |
-| `@rebornace/tracescope-mcp` | 0.1.13 | MCP server (full agent tool surface) |
-| `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
+Same execute layer as DSH via `@rebornace/dsh-tracescope/agent-api`.
 
 ## Known limitations
 
 - Codeup API mode has no local static ripple; use local git for that
-- Yunxiao inline screenshots require the work-item attachment API to obtain permanent `embedUrl`s; files may still appear in the attachment list (platform constraint)
+- Yunxiao inline screenshots require the work-item attachment API for permanent `embedUrl`s
 - GitHub / GitLab / Webhook do **not** upload video binaries the way Yunxiao does
+- Design diff is static — it does not replace runtime screenshot comparison
 - Umeng adapter, Android USB, browser recording remain roadmap items
-- The version shown on the plugin-market card can lag npm `latest`
+- `adapters/*` and `browser-extension` are stubs — **out of 0.2.0 delivery**
+- The version on the plugin-market card can lag npm `latest`
 
 ## Development
 
@@ -204,8 +165,6 @@ pnpm install
 pnpm -r run typecheck
 pnpm test
 ```
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## License
 

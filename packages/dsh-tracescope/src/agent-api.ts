@@ -14,8 +14,6 @@ import {
   exportReportMarkdown,
   formatDesignSnapshot,
   gitDiffFiles,
-  listGitRefs,
-  listRecentCommits,
   parseAgileWorkItemRefs,
   parseGitAuth,
   parsePublishedHandtestItems,
@@ -42,6 +40,7 @@ import {
 } from './visual-jobs.js'
 import { getDiffChunk } from './services/diff-chunk.js'
 import { runAnalyze } from './services/run-analyze.js'
+import { loadRepoHistory } from './services/repo-history.js'
 import {
   readAccessMode,
   resolveCodeupAuth,
@@ -52,9 +51,9 @@ import {
   buildPageRematchAnalysis,
 } from './services/visual-flow.js'
 import { parseAuthFromToolArgs } from './tools/tool-helpers.js'
+import { parseFetchFlag } from './http/route-helpers.js'
 
 export { parseAuthFromToolArgs }
-export { toolText } from './tools/tool-helpers.js'
 
 function parseJsonArg(raw: unknown, label: string): unknown {
   if (typeof raw !== 'string') return raw
@@ -75,16 +74,12 @@ export async function listCommits(args: {
   commits: GitCommitInfo[]
   refs: GitRefInfo[]
 }> {
-  const auth = args.auth
-  const resolved = await resolveGitRepo(args.repoPath, {
-    fetch: args.fetch ?? true,
-    auth,
-  })
-  const commits = await listRecentCommits(resolved.repoPath, {
-    limit: args.limit ?? 40,
-    allRefs: true,
-  })
-  const refs = await listGitRefs(resolved.repoPath)
+  const { resolved, commits, refs } = await loadRepoHistory(
+    args.repoPath,
+    args.limit ?? 40,
+    args.fetch ?? true,
+    args.auth,
+  )
   return { resolved, commits, refs }
 }
 
@@ -167,12 +162,10 @@ export async function createHandtestJob(args: Record<string, unknown>) {
           privateKeyPath: args.authPrivateKeyPath,
         }
   const auth = await resolveRequestGitAuth(parseGitAuth(authRaw), repoInput)
-  const fetchRemote =
-    typeof args.fetch === 'boolean'
-      ? args.fetch
-      : typeof args.fetchRemote === 'boolean'
-        ? args.fetchRemote
-        : true
+  const fetchRemote = parseFetchFlag(
+    args.fetch !== undefined ? args.fetch : args.fetchRemote,
+    true,
+  )
   const accessMode = readAccessMode(args)
   const codeup = accessMode === 'codeup' ? await resolveCodeupAuth(args) : undefined
   const resolved =

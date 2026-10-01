@@ -5,24 +5,10 @@
  */
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { SKIP_DIR_NAMES } from '../skip-paths.js'
 
 /** Directories that never contain source pages we want to inspect. */
-export const SKIP_DIRS = new Set([
-  '.git',
-  'node_modules',
-  'build',
-  'dist',
-  '.gradle',
-  '.idea',
-  'Pods',
-  'DerivedData',
-  'Carthage',
-  '.build',
-  'out',
-  'target',
-  'bin',
-  'obj',
-])
+export const SKIP_DIRS = SKIP_DIR_NAMES
 
 export const DEFAULT_MAX_DEPTH = 12
 export const DEFAULT_MAX_FILES = 60_000

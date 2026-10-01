@@ -7,6 +7,7 @@ import {
   extractDeclaredSymbols,
   extractStyleHooks,
 } from './deps-refs.js'
+import { SKIP_DIR_NAMES, pathHasSkippedSegment } from './skip-paths.js'
 
 export interface SourceIndex {
   files: Map<string, string>
@@ -15,36 +16,6 @@ export interface SourceIndex {
 
 const INDEXED_EXT =
   /\.(kt|kts|java|swift|m|mm|h|dart|ts|tsx|mts|cts|js|jsx|mjs|cjs|vue|css|scss|sass|less|html?|xml|strings)$/i
-
-/** Path segments that must never be indexed (deps / build / IDE junk). */
-const INDEX_SKIP_SEGMENTS = new Set([
-  '.git',
-  'node_modules',
-  'miniprogram_npm',
-  'bower_components',
-  'build',
-  'dist',
-  'out',
-  'target',
-  'bin',
-  'obj',
-  'Pods',
-  'DerivedData',
-  'Carthage',
-  '.dart_tool',
-  '.gradle',
-  '.idea',
-  '.next',
-  '.nuxt',
-  '.output',
-  '.turbo',
-  '.cache',
-  'coverage',
-  '__pycache__',
-  'vendor',
-  'venv',
-  '.venv',
-])
 
 const MAX_INDEXED_FILES = 25_000
 
@@ -70,11 +41,6 @@ function rememberIndex(key: string, index: SourceIndex): SourceIndex {
 /** Exported for tests / diagnostics. */
 export function clearSourceIndexCache(): void {
   indexCache.clear()
-}
-
-function pathHasSkippedSegment(rel: string): boolean {
-  const parts = rel.replace(/\\/g, '/').split('/')
-  return parts.some((p) => INDEX_SKIP_SEGMENTS.has(p))
 }
 
 function isGeneratedOrVendoredFile(rel: string): boolean {
@@ -162,6 +128,16 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
   /** hook token → stylesheets that declare it (avoids O(files×styles) scans). */
   const stylesByHook = new Map<string, string[]>()
   const lookup = buildPathLookup(files)
+  /** Cache language detection across the three passes. */
+  const langByRel = new Map<string, ReturnType<typeof detectLanguage>>()
+  const langOf = (rel: string) => {
+    let lang = langByRel.get(rel)
+    if (lang === undefined) {
+      lang = detectLanguage(rel)
+      langByRel.set(rel, lang)
+    }
+    return lang
+  }
 
   const ensure = (target: string) => {
     let set = reverseDeps.get(target)
@@ -174,7 +150,7 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
 
   // Pass 1: declared symbols and style hooks
   for (const [rel, content] of files) {
-    const lang = detectLanguage(rel)
+    const lang = langOf(rel)
     for (const sym of extractDeclaredSymbols(content, lang)) {
       const list = bySymbol.get(sym) ?? []
       list.push(rel)
@@ -192,7 +168,7 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
 
   // Pass 2: references
   for (const [rel, content] of files) {
-    const lang = detectLanguage(rel)
+    const lang = langOf(rel)
     const raw = collectRawReferences(content, lang)
     const targets = new Set<string>()
 
@@ -251,7 +227,7 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
 
   // Pass 3: style hooks usage -> stylesheet
   for (const [rel, content] of files) {
-    const lang = detectLanguage(rel)
+    const lang = langOf(rel)
     if (lang !== 'vue' && lang !== 'html' && lang !== 'javascript') continue
     const used = extractStyleHooks(content, lang)
     for (const h of used) {
@@ -264,17 +240,28 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
   return { files, reverseDeps }
 }
 
+const READ_CONCURRENCY = 32
+
 export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
-  const files = new Map<string, string>()
+  const candidates: { rel: string; abs: string }[] = []
   await walk(rootDir, rootDir, async (rel, abs) => {
     if (!isIndexedSource(rel)) return
-    if (files.size >= MAX_INDEXED_FILES) return
-    try {
-      files.set(rel, await readFile(abs, 'utf8'))
-    } catch {
-      // ignore unreadable
-    }
+    if (candidates.length >= MAX_INDEXED_FILES) return
+    candidates.push({ rel, abs })
   })
+  const files = new Map<string, string>()
+  for (let i = 0; i < candidates.length; i += READ_CONCURRENCY) {
+    const chunk = candidates.slice(i, i + READ_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ({ rel, abs }) => {
+        try {
+          files.set(rel, await readFile(abs, 'utf8'))
+        } catch {
+          // ignore unreadable
+        }
+      }),
+    )
+  }
   return buildIndexFromFileMap(files)
 }
 
@@ -328,7 +315,7 @@ async function walk(
   } catch {
     return
   }
-  const skip = INDEX_SKIP_SEGMENTS
+  const skip = SKIP_DIR_NAMES
   for (const entry of entries) {
     const abs = path.join(dir, entry.name)
     if (entry.isDirectory()) {

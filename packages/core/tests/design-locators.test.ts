@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { androidComposeAdapter } from '../src/design/adapters/android-compose.js'
 import { iosSwiftuiAdapter } from '../src/design/adapters/ios-swiftui.js'
-import { discoverAllPages } from '../src/design/index.js'
+import {
+  clearDiscoverPagesCache,
+  discoverAllPages,
+  resolveCodePage,
+} from '../src/design/index.js'
 
 const dirs: string[] = []
 async function makeRoot(): Promise<string> {
@@ -14,6 +18,7 @@ async function makeRoot(): Promise<string> {
 }
 
 afterEach(async () => {
+  clearDiscoverPagesCache()
   while (dirs.length) {
     const dir = dirs.pop()!
     await rm(dir, { recursive: true, force: true })
@@ -115,5 +120,63 @@ describe('discoverAllPages across adapters', () => {
     const adapters = new Set(pages.map((p) => p.adapterId))
     expect(adapters.has('android-xml')).toBe(true)
     expect(adapters.has('android-compose')).toBe(true)
+  })
+})
+
+describe('resolveCodePage', () => {
+  it('resolves a precise page without requiring a prior full discover', async () => {
+    const root = await makeRoot()
+    const layoutDir = path.join(root, 'app/src/main/res/layout')
+    await mkdir(layoutDir, { recursive: true })
+    const rel = 'app/src/main/res/layout/login.xml'
+    await writeFile(
+      path.join(root, rel),
+      [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"',
+        '    android:layout_width="match_parent"',
+        '    android:layout_height="match_parent">',
+        '  <TextView android:text="登录" android:layout_width="wrap_content" android:layout_height="wrap_content"/>',
+        '</LinearLayout>',
+      ].join('\n'),
+    )
+
+    const page = await resolveCodePage(root, 'android-xml', rel)
+    expect(page).toBeTruthy()
+    expect(page!.adapterId).toBe('android-xml')
+    expect(page!.precise).toBe(true)
+    expect(page!.relativePath).toBe(rel.replace(/\\/g, '/'))
+    expect(page!.absolutePath).toContain('login.xml')
+  })
+
+  it('returns undefined when the file is missing', async () => {
+    const root = await makeRoot()
+    const page = await resolveCodePage(root, 'android-xml', 'missing/layout.xml')
+    expect(page).toBeUndefined()
+  })
+
+  it('reuses discover cache when available', async () => {
+    const root = await makeRoot()
+    const layoutDir = path.join(root, 'app/src/main/res/layout')
+    await mkdir(layoutDir, { recursive: true })
+    const rel = 'app/src/main/res/layout/cached.xml'
+    await writeFile(
+      path.join(root, rel),
+      [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"',
+        '    android:layout_width="match_parent"',
+        '    android:layout_height="match_parent"/>',
+      ].join('\n'),
+    )
+
+    const discovered = await discoverAllPages(root)
+    const fromDiscover = discovered.find(
+      (p) => p.adapterId === 'android-xml' && p.relativePath === rel,
+    )
+    expect(fromDiscover).toBeTruthy()
+
+    const resolved = await resolveCodePage(root, 'android-xml', rel)
+    expect(resolved?.fingerprint.controlCount).toBe(fromDiscover!.fingerprint.controlCount)
   })
 })

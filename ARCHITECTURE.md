@@ -48,3 +48,11 @@ Adapters cover Android (XML / Compose / View), iOS (Xib / SwiftUI / UIKit), Flut
 - Client is a **React Slot** right-sidebar tab (no iframe).
 - UI talks to Host over **same-origin** routes: `/tracescope/v1/*`.
 - Harness can also consume `@rebornace/tracescope-mcp` via `@deepseek-ai/dsh-mcp-client` if desired.
+- Shared agent execute layer: `@rebornace/dsh-tracescope/agent-api` (MCP + Host tools + `/jobs`).
+- Impact-analysis indexing skips dependency/build dirs (`SKIP_DIR_NAMES`) and caches per commit in-process.
+
+## Intentional non-goals (for now)
+
+- Splitting mega-files (`visual-flow.ts`, design adapters) — high churn / risk; do in dedicated refactors.
+- Deleting `panel-server.ts` legacy `/api/*` — still used by standalone MCP panel open.
+- Scaffold packages `adapters/*` and `browser-extension` — out of 0.2.x delivery scope.

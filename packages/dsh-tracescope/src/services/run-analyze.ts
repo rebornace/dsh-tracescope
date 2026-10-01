@@ -3,8 +3,6 @@
  * agile work items, export md/csv and persist the report. Used by the
  * `/analyze` route and the `/tracescope` command.
  */
-import { mkdir, writeFile } from 'node:fs/promises'
-import path from 'node:path'
 import {
   analyzeCodeupImpact,
   analyzeImpact,
@@ -16,6 +14,7 @@ import {
   type GitAuth,
 } from '@rebornace/tracescope-core'
 import type { CodeupBodyAuth } from './request-auth.js'
+import { writeReportExports } from './write-report-exports.js'
 
 export interface RunAnalyzeArgs {
   repoPath: string
@@ -62,9 +61,7 @@ export async function runAnalyze(args: RunAnalyzeArgs) {
   const markdown = exportReportMarkdown(report)
   const csv = exportReportCsv(report)
   if (args.exportDir) {
-    await mkdir(args.exportDir, { recursive: true })
-    await writeFile(path.join(args.exportDir, 'tracescope-report.md'), markdown, 'utf8')
-    await writeFile(path.join(args.exportDir, 'tracescope-report.csv'), csv, 'utf8')
+    await writeReportExports(args.exportDir, markdown, csv)
   }
   let stored = null
   if (args.persist !== false) {

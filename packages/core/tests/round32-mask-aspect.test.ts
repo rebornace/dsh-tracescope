@@ -78,7 +78,8 @@ describe('lanhu mask + aspectRatio', () => {
 describe('CSS clip-path + aspect-ratio', () => {
   it('fingerprints clip-path shapes and stores aspect-ratio', () => {
     expect(parseCssClipPath('circle(50% at 50% 50%)')).toBe('circle')
-    expect(parseCssClipPath('polygon(0 0, 100% 0, 100% 100%)')).toBe('polygon:3')
+    // polygon keeps vertex count + rounded % points when present (see round42).
+    expect(parseCssClipPath('polygon(0 0, 100% 0, 100% 100%)')).toBe('polygon:3:100,100')
     const parsed = parseCssDeclarations(
       'clip-path: ellipse(40% 50%); aspect-ratio: 16 / 9; overflow: hidden',
     )

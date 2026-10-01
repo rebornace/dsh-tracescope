@@ -5,9 +5,18 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.0 — 2026-10-01
+
+- **设计差异分析升为主能力**：与「功能影响分析」并列。以 Figma / 蓝湖设计稿为准，静态对比代码实现（design-only，不依赖 App 运行时渲染）；支持差异清单多选定位、对照图高亮、指定代码文件、关联文件加深、AI 协助分析写回、复制差异 / 提交缺陷 / 导出报告。
+- **覆盖栈**：Android（XML / Compose / View）、iOS（Xib / SwiftUI / UIKit）、Flutter、React Native、Harmony ArkUI、Web（HTML / React / Vue / Svelte / Angular）、小程序、uni-app、Taro、.NET MAUI；对比分层 L0 指纹匹配 → L1 属性级 → L2 启发式 → L3 AI 协助。
+- **功能影响分析加速**：依赖索引改为路径/符号哈希查找；跳过 `node_modules` / `dist` / `.next` / `Pods` 等；同 commit 进程内缓存。
+- **MCP 完整工具面**：与 DSH Host 对齐（影响面 + 手测写回 + 设计差异 / 快照 / 页面匹配）；执行层共用 `@rebornace/dsh-tracescope/agent-api`。
+- Design diff is now a first-class pillar alongside impact analysis; MCP parity + indexing speedups included.
+
 ## 0.1.13 — 2026-10-01
 
 - **功能影响分析加速**：「生成验证清单」依赖索引由全量扫描改为路径/符号哈希查找；约 2000 源文件时索引构建从十余秒降到约数十毫秒量级。进一步跳过 `node_modules` / `dist` / `.next` / `Pods` 等目录与压缩包文件，并对同一 commit 做进程内索引缓存；本地模式误扫依赖目录时曾会极慢。
+- **工程优化**：统一跳过目录常量（设计发现与影响分析共用）；`git cat-file` 流式读缓冲避免反复 `Buffer.concat`；侧栏 `/jobs` 与 MCP 共用 `createHandtestJob`；panel `/api/commits|/api/analyze` 复用 `repo-history`/`runAnalyze`；`discoverAllPages` 短时缓存；MCP 去掉多余的 core 直连依赖。
 - **MCP 完整工具面**：`@rebornace/tracescope-mcp` 与 DSH Host 对齐，补齐 `get_diff` / 手测 job 创建与写回 / UI 走查 / 设计快照 / 页面匹配等全部 Agent 能力；执行逻辑抽到 `@rebornace/dsh-tracescope/agent-api`，任意 MCP 客户端可独立走完分析→写回流程。
 - **DSH 工具补齐**：新增 `tracescope_list_commits`、`tracescope_create_handtest_job`、`tracescope_start_visual_review`、`tracescope_start_page_rematch`，与 MCP 同名同语义。
 

@@ -39,7 +39,9 @@ describe('figma innerShadow + blur', () => {
     })
     expect(doc.root.style.elevation).toBe(8)
     expect(doc.root.style.innerShadow).toBe(6)
-    expect(doc.root.style.blur).toBe(10)
+    // LAYER_BLUR → blur; BACKGROUND_BLUR → backdropBlur (see round36).
+    expect(doc.root.style.blur).toBe(4)
+    expect(doc.root.style.backdropBlur).toBe(10)
   })
 })
 
@@ -146,11 +148,17 @@ describe('declarative blur + offset', () => {
     expect(n.box.x).toBe(10)
     expect(n.box.y).toBe(20)
 
-    const blurNear = flutterSourceToDesignDoc(
+    const layerBlur = flutterSourceToDesignDoc(
+      `ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), child: Text('Hi'))`,
+      'Home',
+    )
+    expect(leaf(layerBlur).style.blur).toBe(5)
+
+    const backdrop = flutterSourceToDesignDoc(
       `Text('Hi', style: TextStyle(fontSize: 14)); BackdropFilter(filter: ImageFilter.blur(sigmaX: 5)`,
       'Home',
     )
-    expect(leaf(blurNear).style.blur).toBe(5)
+    expect(leaf(backdrop).style.backdropBlur).toBe(5)
   })
 
   it('parses RN left/top translate', () => {

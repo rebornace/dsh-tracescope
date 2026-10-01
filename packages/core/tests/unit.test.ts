@@ -234,7 +234,7 @@ describe('chat publish helpers', () => {
         { id: 'wi-1', subject: '登录页改版', category: 'Req', description: '验证 SSO' },
       ],
     })
-    expect(prompt).toContain('关联的敏捷工作项')
+    expect(prompt).toContain('关联工作项')
     expect(prompt).toContain('登录页改版')
     expect(prompt).toContain('wi-1')
   })

@@ -1,57 +1,58 @@
 # TraceScope
 
-**版本: `0.1.13`**（MCP 完整工具面与 DSH 对齐；设计稿 UI 走查 design-only）
+**版本: `0.2.0`**
 
-功能节点见 [更新日志](./CHANGELOG.md)。下面是**当前版本**能力，不是 0.1.0 的快照。
+功能节点见 [更新日志](./CHANGELOG.md)。[中文](./README.md) · [English](./README.en.md)
 
-[中文](./README.md) · [English](./README.en.md)
+TraceScope（仓库名 `dsh-tracescope`）帮助开发者与测试回答两类问题：
 
-TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代码改动会影响什么」的人——**开发者、测试都适用**。给定两个版本（稳定 → 待测，或任意基线 → 目标提交），它从代码差异快速生成**影响面清单**：直接变更 + 反向依赖波及。
+| 能力 | 解决什么 | 典型场景 |
+|------|----------|----------|
+| **功能影响分析** | 这次代码改动会影响哪些页面 / 模块？ | 提测前自查、划定回归范围、生成验证清单 |
+| **设计差异分析** | 实现和 Figma / 蓝湖稿差在哪？ | UI 走查、还原度核对、差异定位与缺陷回传 |
 
-- **开发者**：提交 / 合并前用它自查改动面，确认波及的页面与模块，按清单自检后再提测；发现问题可直接记录并提交 issue
-- **测试 / QA**：快速确定回归范围，把清单当作变更验证 checklist，逐项核对、标注、截图，并提交缺陷、导出报告
+核对、标注、截图、附件与 issue 提交可在 **官方 DeepSeek Harness 桌面端**（以及 Web）右侧栏完成；也可通过 MCP 在 Cursor / Claude 等客户端调用同一套能力。
 
-核对、标注、截图、附件与 issue 提交都能在 DeepSeek Harness **Web / Desktop** 右侧栏完成；也可以通过 MCP 在 Cursor / Claude 等任意客户端里调用分析能力。
+## 包结构
 
-能力通过两层分发（详见 [ARCHITECTURE.md](./ARCHITECTURE.md)）：
+| 包 | 作用 |
+|----|------|
+| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 确定性分析引擎（影响面索引 + 设计对比） |
+| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH 插件：Host API + 右侧栏 UI（本版本主路径） |
+| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | MCP Server，与 DSH 工具面一致 |
 
-| 表面 | 作用 |
-|------|------|
-| `@rebornace/tracescope-core` | 确定性影响面分析引擎（与 Agent 无关） |
-| `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
-| `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
+架构细节见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
-## 当前能力（0.1.13）
+## 功能影响分析
 
-- **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）。本地 Git 按**提交对象**建索引，不要求工作区文件此刻能被打开
-- **支持语言（反向依赖波及）**：
-  - 移动端：Kotlin、Java（与 Kotlin 互调）、Swift（与 ObjC 互调）、Objective-C、Dart/Flutter
-  - Web：TypeScript / JavaScript、Vue、CSS / SCSS / Sass / Less、HTML
-  - 其他语言仍列入**直接变更**（git diff 不限语言），但不推导静态波及
-- **读取方式**：本地 Git，或**云效代码接口**兜底（无 Git 时只出直接变更清单；模型对话仍可读 diff）
-- **远端缓存**：新同步为 bare 对象库（`~/.tracescope/repos`）。已有完整检出可继续用
-- **人话功能名**：`tracescope.modules.yml` 映射 → 静态标题抽取 → 启发式命名
-- **DSH 右侧栏**：多仓库、远端认证、默认同步「待测 / 稳定」版本；加载中锁定其它操作
-- **生成影响面清单**：确定性分析并落盘；同版本对比只保留最新一条历史
-- **模型对话分析**：创建聊天任务、写入会话草稿、`tracescope_publish_handtest` 回写清单
-- **逐项标注**：通过 / 失败 / 跳过 / 重置；问题项可填备注 + **每条最多 3 张截图**
-- **任务级附件**：视频 / 文档等挂在整份对比任务上（最多 8 个，不跟单条 checklist）
-- **关联云效敏捷任务**：类型可多选，任务可多选，辅助生成清单种子 / 模型提示
-- **协作平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook
-  - 提交时可**修改默认标题**  
-  - 云效：任务附件真实上传；截图嵌入工作项**详情**对应条目（`![文件名](embedUrl)`）  
-  - 云效目录请求可在面板查看日志（不含 token）
-- **设计稿 UI 走查**：以 Figma / 蓝湖为准的静态对比（Android / iOS / Flutter / RN / Harmony / Web / 小程序 / uni-app / Taro / MAUI），支持属性级与启发式对比，并可一键发起 AI 协助分析
-  - 蓝湖：粘贴项目/设计稿链接 + 浏览器 Cookie（登录后从 DevTools 复制）；有 `image_id` 扫单稿，否则扫整个项目
-  - 蓝湖协议说明参考了社区项目 [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server)（Cookie、`/api/project/image(s)`、`json_url`）；本仓库实现为自研适配器 `packages/core/src/design/sources/lanhu.ts`，映射到内部 `DesignDoc`，未拷贝其客户端/DDS/MCP 代码
-- **导出**：Markdown / CSV；复制问题反馈
-- **本机数据**：`~/.tracescope/`（认证、协作平台配置、报告、附件、远端缓存）
+给定两个版本（稳定 → 待测，或任意基线 → 目标提交）：
+
+- **直接变更 + 反向依赖波及**（默认深度 2）；本地 Git 按**提交对象**建索引，不要求工作区文件此刻可读
+- **波及语言**：Kotlin / Java、Swift / Objective-C、Dart/Flutter；TypeScript / JavaScript、Vue、CSS 系、HTML。其他语言仍进直接变更清单，但不推导静态波及
+- **读取方式**：本地 Git，或**云效代码接口**兜底（无静态波及；模型对话仍可读 diff）
+- **人话功能名**：`tracescope.modules.yml` → 静态标题 → 启发式命名
+- **清单工作流**：生成 / 模型对话分析 → 逐项通过·失败·跳过 → 备注与截图（每条最多 3 张）→ 任务级附件 → 导出 Markdown / CSV → 提交协作平台缺陷
+
+## 设计差异分析
+
+以 **Figma / 蓝湖** 设计稿为准，对代码做**静态**对比（不依赖 App 运行时渲染）：
+
+- **页面发现**：Android（XML / Compose / View）、iOS（Xib / SwiftUI / UIKit）、Flutter、React Native、Harmony ArkUI、Web（HTML / React / Vue / Svelte / Angular）、小程序、uni-app、Taro、.NET MAUI
+- **对比分层**：L0 指纹匹配 → L1 属性级静态树 → L2 启发式文案 / 控件规模 → L3 AI 协助分析
+- **侧栏能力**：设计稿对照图与差异清单、多选定位高亮、指定代码文件、关联文件展开、复制差异 / 提交缺陷 / 导出报告
+- **蓝湖**：粘贴项目或设计稿链接 + 浏览器 Cookie；有 `image_id` 扫单稿，否则扫项目。协议参考了社区 [lanhu-mcp-server](https://github.com/DC911360/lanhu-mcp-server)；本仓库适配器为自研（`packages/core/src/design/sources/lanhu.ts`）
+
+## 协作与本机数据
+
+- **协作平台**：云效 / GitHub Issues / GitLab Issues / 通用 Webhook（可改默认标题；云效支持附件上传与详情内嵌图）
+- **可选关联云效敏捷任务**：多选类型与任务，辅助清单种子 / 提示词
+- **本机目录** `~/.tracescope/`：认证、协作配置、报告、附件、远端仓库缓存
 
 ## 环境要求
 
 - Node.js `>= 20`
 - pnpm `9.x`（仓库声明 `packageManager: pnpm@9.6.0`）
-- 使用 DSH 插件时：已安装 DeepSeek Harness（**Web** 或 **Desktop**），并能执行 `dsh plugin`
+- 使用 DSH 插件时：已安装 **官方 DeepSeek Harness 桌面端**（推荐）或 Web
 
 ## 安装与构建
 
@@ -61,106 +62,63 @@ pnpm build
 pnpm test
 ```
 
-常用命令：
-
 ```bash
-# 仅构建 / 测试核心引擎
+# 常用分包命令
 pnpm --filter @rebornace/tracescope-core build
 pnpm --filter @rebornace/tracescope-core test
-
-# 构建 DSH 插件与 MCP
 pnpm --filter @rebornace/dsh-tracescope build
 pnpm --filter @rebornace/tracescope-mcp build
 ```
 
-## 安装到 DSH（Web / Desktop）
+## 安装到 DeepSeek Harness（推荐官方桌面端）
 
-插件包：[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)（含 `dsh.bundle` + 右侧栏 Client，Web / Desktop 同一包）。
+插件包：[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)。**官方 DeepSeek Harness 桌面端与 Web 使用同一包。**
 
-按 [DSH 官方发布说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.zh.md)，优先用 **npm 预构建包**（无需 `allowBuilds`）。
+### 方式一：官方桌面端插件选项（推荐）
 
-### 方式一：dsh-market 插件市场搜索安装（推荐）
+1. 安装并打开 [DeepSeek Harness 官方桌面端](https://github.com/deepseek-ai/deepseek-harness)
+2. 打开桌面端里的 **插件** 选项
+3. 按界面提示添加插件，包名填：`@rebornace/dsh-tracescope`
+4. 安装完成后打开右侧栏 **TraceScope** 标签（或在会话中使用 `/tracescope`）
 
-1. 在 DSH **Web** 或 **Desktop** 中打开 [dsh-market](https://github.com/dsh-market/dsh-market) 市场面板  
-2. 搜索关键词：`tracescope`、`dsh-tracescope`、`影响面`、`自查` 或 `手测`  
-3. 选择 **TraceScope** / `rebornace/dsh-tracescope#dsh-tracescope`，一键安装到当前 profile  
+### 方式二：命令行（可选）
 
-已收录于 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（[PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)）。npm 包带 `dsh-plugin` 等关键词，便于市场与 registry 检索。
-
-### 方式二：命令行安装（Web 与 Desktop）
+适合脚本化或本机调试；细节见 [官方安装说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.zh.md)。
 
 ```bash
-# DSH Web
-dsh plugin --profile web add @rebornace/dsh-tracescope
-
-# DSH Desktop
 dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
-若本机默认走 npmmirror 且尚未同步到最新依赖，可临时在对应 profile 目录写入 `.npmrc`：
+### 社区收录
 
-```ini
-registry=https://registry.npmjs.org/
-```
+本插件已收录于：
 
-再执行上面的 `dsh plugin add`。
+- [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins)（[PR #522](https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/522)）
+- [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（[PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)）
 
-### 方式三：本地路径 / GitHub
-
-```bash
-pnpm --filter @rebornace/dsh-tracescope build
-
-# Web
-dsh plugin --profile web add <repo>/packages/dsh-tracescope
-# Desktop
-dsh plugin --profile desktop add <repo>/packages/dsh-tracescope
-
-# 或 GitHub（需为 prepare 构建授权，见官方文档）
-dsh plugin --profile web add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
-dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/dsh-tracescope
-```
-
-### 安装后
-
-1. 重启 / 刷新对应 profile（Web 浏览器会话或 Desktop）  
-2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
-3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
-
-### npm 包（0.1.13）
-
-| 包 | 用途 |
-|----|------|
-| [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) | DSH bundle（含 `dsh.bundle` + Client Slot），Web / Desktop 通用 |
-| [`@rebornace/tracescope-core`](https://www.npmjs.com/package/@rebornace/tracescope-core) | 分析引擎（插件依赖） |
-| [`@rebornace/tracescope-mcp`](https://www.npmjs.com/package/@rebornace/tracescope-mcp) | 独立 MCP Server |
+也可在 [dsh-market](https://github.com/dsh-market/dsh-market) 等市场面板中搜索浏览；日常安装请优先用官方桌面端插件选项。
 
 ## 使用流程
 
-适用于开发者提测前自查，也适用于测试确定回归范围，步骤相同：
+### A. 功能影响分析
 
-1. **选仓库与读取方式**：本地路径或远端 URL。默认「本地 Git」（HTTPS Token / SSH 私钥可记住）。没有 git 或缓存一直失败时，可改成「云效代码接口」，地址用 `https://codeup.aliyun.com/<组织ID>/组/仓库.git`，令牌用云效 Token 或 HTTPS Token（需代码读权限）
-2. **同步版本**：同步后自动选最新分支，默认待测（目标）= 最新提交、稳定（基线）= 次新提交；也可手动改。云效接口模式按默认分支拉近期提交
-3. **（可选）协作平台**：仓库配置里选云效 / GitHub / GitLab / Webhook 并保存  
-   - 云效：填 token → 拉取企业 → 选项目 / 缺陷类型 / 负责人
-4. **（可选）关联敏捷任务**：勾选类型 → 拉取任务 → 多选后，再点「生成清单」或「模型对话分析」
-5. **生成清单**或**模型对话分析**（有清单时会二次确认）。云效接口模式的确定性清单只有直接变更
-6. **逐项核对并标注**：按清单走查，标记通过 / 失败 / 跳过；有问题填写备注、添加截图（可选文件或 Ctrl+V）
-7. **任务附件**：在清单区域上传录像 / 文档（小文件选文件；大视频可用本机绝对路径）
-8. **复制问题反馈** / **提交 issue（缺陷）**（可改标题） / **导出报告**
+1. **选仓库与读取方式**：本地路径或远端 URL（默认本地 Git；无 git 时可改云效代码接口）
+2. **同步版本**：默认同步后待测 = 最新提交、稳定 = 次新提交；可手动改
+3. （可选）配置协作平台、关联敏捷任务
+4. **生成清单**或**模型对话分析**
+5. 逐项核对标注 → 任务附件 → 复制问题反馈 / 提交缺陷 / 导出报告
+
+### B. 设计差异分析
+
+1. 打开侧栏中的设计差异 / UI 走查入口
+2. 粘贴 **Figma** 链接（需 Token）或 **蓝湖** 链接（需 Cookie）
+3. 选择代码仓库与目标页面（可接受推荐匹配，也可指定文件 / 重新匹配）
+4. 查看静态差异清单与对照图高亮；需要时发起 **AI 协助分析**
+5. 复制差异、提交缺陷或导出报告（协作平台配置与功能影响分析共用）
 
 ## 可选：模块映射
 
 示例见 [examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。分析时可指定该文件，把路径规则映射成产品功能名与风险等级。
-
-## 本机数据目录
-
-| 路径 | 内容 |
-|------|------|
-| `~/.tracescope/auth.json`（及认证存储） | Git 远端凭据（可选记住） |
-| `~/.tracescope/tracker.json` | 协作平台配置 |
-| `~/.tracescope/reports/` | 影响面清单最新版 + 历史索引 |
-| `~/.tracescope/attachments/<reportKey>/` | 任务级附件二进制 |
-| `~/.tracescope/repos/` | 远端仓库本地缓存（如适用） |
 
 ## MCP（任意 Agent）
 
@@ -182,8 +140,6 @@ pnpm --filter @rebornace/tracescope-mcp build
 }
 ```
 
-MCP tools（0.1.13，与 DSH Host 工具面一致）：
-
 | Tool | 说明 |
 |------|------|
 | `tracescope_open_panel` | 打开本机可视化面板 |
@@ -192,30 +148,23 @@ MCP tools（0.1.13，与 DSH Host 工具面一致）：
 | `tracescope_analyze_impact` | 确定性影响面分析 |
 | `tracescope_create_handtest_job` | 创建手测对话任务并返回提示词 |
 | `tracescope_publish_handtest` | 写回手测清单 |
-| `tracescope_start_visual_review` | 创建 UI 走查任务并返回提示词 |
+| `tracescope_start_visual_review` | 创建设计差异分析任务并返回提示词 |
 | `tracescope_get_design_snapshot` | 按需拉取设计树快照 |
-| `tracescope_publish_visual_findings` | 写回 UI 走查结论 |
-| `tracescope_start_page_rematch` | 创建设计页↔文件匹配任务 |
+| `tracescope_publish_visual_findings` | 写回设计差异结论 |
+| `tracescope_start_page_rematch` | 创建设计页 ↔ 文件匹配任务 |
 | `tracescope_publish_page_rematch` | 写回文件匹配推荐 |
 
-工具执行层与 DSH 共用 `@rebornace/dsh-tracescope/agent-api`，任意 MCP 客户端（Cursor / Claude 等）可走完与侧栏相同的分析 → 写回流程。
-
-## 包一览
-
-| 包 | 版本 | 说明 |
-|----|------|------|
-| `@rebornace/tracescope-core` | 0.1.13 | 分析、报告存储、云效 / Tracker、导出 |
-| `@rebornace/dsh-tracescope` | 0.1.13 | DSH Host + React Slot Client |
-| `@rebornace/tracescope-mcp` | 0.1.13 | MCP Server（完整 Agent 工具面） |
-| `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
+执行层与 DSH 共用 `@rebornace/dsh-tracescope/agent-api`。
 
 ## 已知限制
 
 - **云效代码接口**模式没有本地静态波及；要波及分析请用本地 Git
-- 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`，附件列表里仍可能出现对应文件（平台能力限制）
-- GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制；多为描述文本 / Webhook JSON 元数据
+- 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`
+- GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制
+- 设计差异为静态对比，不替代真机 / 浏览器运行时截图比对
 - 友盟 Adapter、Android USB、浏览器扩展录制等仍为后续路线图
-- 插件市场卡片上的版本号不是每次 npm 发布后立刻更新
+- `adapters/*`、`browser-extension` 仅为脚手架，**未纳入 0.2.0 交付**
+- 插件市场卡片上的版本号可能滞后于 npm `latest`
 
 ## 开发
 
@@ -224,8 +173,6 @@ pnpm install
 pnpm -r run typecheck
 pnpm test
 ```
-
-架构说明：[ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ## License
 
