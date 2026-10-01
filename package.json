@@ -1,8 +1,8 @@
 {
   "name": "dsh-tracescope",
   "private": true,
-  "version": "0.1.13",
-  "description": "TraceScope: git-diff impact scoping and test-trace analysis for DeepSeek Harness",
+  "version": "0.2.0",
+  "description": "TraceScope: git-diff impact scoping and design↔code visual diff for DeepSeek Harness",
   "license": "MIT",
   "packageManager": "pnpm@9.6.0",
   "scripts": {

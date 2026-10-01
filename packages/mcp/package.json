@@ -1,7 +1,7 @@
 {
   "name": "@rebornace/tracescope-mcp",
-  "version": "0.1.13",
-  "description": "TraceScope MCP server — full agent tool surface for any MCP-capable client",
+  "version": "0.2.0",
+  "description": "TraceScope MCP server — impact analysis + design diff tools for any MCP client",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@rebornace/dsh-tracescope": "workspace:0.1.13",
-    "@rebornace/tracescope-core": "workspace:0.1.13",
+    "@rebornace/dsh-tracescope": "workspace:0.2.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

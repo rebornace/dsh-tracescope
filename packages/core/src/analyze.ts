@@ -170,10 +170,11 @@ export async function analyzeImpact(options: AnalyzeImpactOptions): Promise<Impa
     existing.risk = maxRisk(existing.risk, fileRisk)
     // Prefer keeping direct over ripple if same group
     if (existing.kind === 'ripple' && kind === 'direct') existing.kind = 'direct'
+    const seen = new Set(existing.evidence.map((x) => x.detail))
     for (const e of [...evidence, ...extra]) {
-      if (!existing.evidence.some((x) => x.detail === e.detail)) {
-        existing.evidence.push(e)
-      }
+      if (seen.has(e.detail)) continue
+      seen.add(e.detail)
+      existing.evidence.push(e)
     }
   }
 

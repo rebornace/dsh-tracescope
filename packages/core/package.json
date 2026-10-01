@@ -1,7 +1,7 @@
 {
   "name": "@rebornace/tracescope-core",
-  "version": "0.1.13",
-  "description": "Git-diff impact analysis and hand-test scope reports for TraceScope",
+  "version": "0.2.0",
+  "description": "Git-diff impact analysis and design↔code visual compare for TraceScope",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

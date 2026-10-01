@@ -1,71 +1,24 @@
 /**
  * Jobs routes: start a chat-analysis job (`/jobs`) and poll a job (`/job`).
+ * Create uses the shared agent-api helper so MCP and the sidebar stay in sync.
  */
 import type { Context } from '../dsh-shims.js'
-import { registerRoute, parseFetchFlag } from '../http/route-helpers.js'
-import {
-  buildChatAnalysisPrompt,
-  parseAgileWorkItemRefs,
-  parseGitAuth,
-  resolveGitRepo,
-} from '@rebornace/tracescope-core'
-import {
-  readAccessMode,
-  resolveCodeupAuth,
-  resolveRequestGitAuth,
-} from '../services/request-auth.js'
-import { createJob, getJob } from '../jobs.js'
+import { registerRoute } from '../http/route-helpers.js'
+import { createHandtestJob } from '../agent-api.js'
+import { getJob } from '../jobs.js'
 
 export function registerJobsRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/jobs',
     method: 'POST',
     run: async (body) => {
-      const repoInput = String(body.repoPath ?? body.repo ?? '')
-      const baseCommit = String(body.baseCommit ?? '')
-      const headCommit = String(body.headCommit ?? '')
-      if (!repoInput || !baseCommit || !headCommit) {
-        throw new Error('需要 repoPath、baseCommit、headCommit')
-      }
-      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoInput)
-      const fetchRemote = parseFetchFlag(body.fetch, true)
-      const accessMode = readAccessMode(body)
-      const codeup = accessMode === 'codeup' ? await resolveCodeupAuth(body) : undefined
-      const resolved =
-        accessMode === 'codeup'
-          ? {
-              input: repoInput,
-              repoPath: repoInput,
-              source: 'codeup' as const,
-              remoteUrl: repoInput,
-              synced: false,
-              authMode: 'https' as const,
-            }
-          : await resolveGitRepo(repoInput, { fetch: fetchRemote, auth })
-      const job = createJob({
-        repoInput,
-        repoPath: resolved.repoPath,
-        baseCommit,
-        headCommit,
-        auth,
-        accessMode,
-        codeup,
-      })
-      const relatedWorkItems = parseAgileWorkItemRefs(body.relatedWorkItems)
-      const prompt = buildChatAnalysisPrompt({
-        jobId: job.id,
-        repoPath: repoInput,
-        baseCommit,
-        headCommit,
-        relatedWorkItems,
-        accessMode,
-      })
+      const result = await createHandtestJob(body)
       return {
-        jobId: job.id,
-        status: job.status,
-        prompt,
-        resolved,
-        relatedWorkItems,
+        jobId: result.jobId,
+        status: result.status,
+        prompt: result.prompt,
+        resolved: result.resolved,
+        relatedWorkItems: result.relatedWorkItems,
       }
     },
   })

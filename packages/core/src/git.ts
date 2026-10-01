@@ -327,6 +327,95 @@ export async function gitListTree(repoPath: string, commit: string): Promise<str
 const MAX_BLOB_BYTES = 1_500_000
 
 /**
+ * Growable byte buffer for streaming git cat-file output.
+ * Avoids O(n²) `Buffer.concat` on every stdout chunk.
+ */
+class ByteQueue {
+  private chunks: Buffer[] = []
+  private head = 0
+  private length = 0
+
+  get size(): number {
+    return this.length
+  }
+
+  push(chunk: Buffer): void {
+    if (!chunk.length) return
+    this.chunks.push(chunk)
+    this.length += chunk.length
+  }
+
+  /** Absolute index of first `byte` from current head, or -1. */
+  indexOf(byte: number): number {
+    let absolute = 0
+    for (let i = 0; i < this.chunks.length; i++) {
+      const chunk = this.chunks[i]!
+      const start = i === 0 ? this.head : 0
+      for (let j = start; j < chunk.length; j++) {
+        if (chunk[j] === byte) return absolute
+        absolute += 1
+      }
+    }
+    return -1
+  }
+
+  /** Peek / consume helpers that compact when the first chunk is exhausted. */
+  private compact(): void {
+    while (this.chunks.length && this.head >= this.chunks[0]!.length) {
+      this.head -= this.chunks[0]!.length
+      this.chunks.shift()
+    }
+  }
+
+  take(n: number): Buffer {
+    if (n <= 0) return Buffer.alloc(0)
+    if (n > this.length) throw new Error('ByteQueue.take beyond size')
+    if (this.chunks.length === 1) {
+      const chunk = this.chunks[0]!
+      const out = chunk.subarray(this.head, this.head + n)
+      this.head += n
+      this.length -= n
+      this.compact()
+      // Copy so callers can retain the slice after further queue mutation.
+      return Buffer.from(out)
+    }
+    const out = Buffer.allocUnsafe(n)
+    let written = 0
+    while (written < n) {
+      const chunk = this.chunks[0]!
+      const available = chunk.length - this.head
+      const need = n - written
+      const take = Math.min(available, need)
+      chunk.copy(out, written, this.head, this.head + take)
+      this.head += take
+      written += take
+      this.length -= take
+      this.compact()
+    }
+    return out
+  }
+
+  /**
+   * Drop the first `n` bytes without copying (used after reading a header line
+   * when the body size is known and we will `take` next).
+   */
+  skip(n: number): void {
+    if (n <= 0) return
+    if (n > this.length) throw new Error('ByteQueue.skip beyond size')
+    let remaining = n
+    while (remaining > 0) {
+      const chunk = this.chunks[0]!
+      const available = chunk.length - this.head
+      const step = Math.min(available, remaining)
+      this.head += step
+      remaining -= step
+      this.length -= step
+      this.compact()
+    }
+  }
+}
+
+/**
  * Read blobs at `commit:path` without a checkout. Skips missing or oversized blobs.
  * Responses are matched to `relativePaths` in request order.
  */
@@ -348,7 +437,7 @@ export function readGitBlobs(
     })
     child.on('error', reject)
 
-    let buf = Buffer.alloc(0)
+    const queue = new ByteQueue()
     let readingBody = false
     let size = 0
     let index = 0
@@ -356,10 +445,11 @@ export function readGitBlobs(
     const consume = () => {
       for (;;) {
         if (!readingBody) {
-          const nl = buf.indexOf(0x0a)
+          const nl = queue.indexOf(0x0a)
           if (nl < 0) return
-          const header = buf.subarray(0, nl).toString('utf8')
-          buf = buf.subarray(nl + 1)
+          const headerBuf = queue.take(nl)
+          queue.skip(1) // newline
+          const header = headerBuf.toString('utf8')
           if (header.endsWith(' missing')) {
             index += 1
             continue
@@ -372,10 +462,11 @@ export function readGitBlobs(
           }
           readingBody = true
         }
-        if (buf.length < size + 1) return
+        // body + trailing newline from git cat-file --batch
+        if (queue.size < size + 1) return
+        const body = queue.take(size)
+        queue.skip(1)
         const rel = relativePaths[index]
-        const body = buf.subarray(0, size)
-        buf = buf.subarray(size + 1)
         index += 1
         readingBody = false
         if (rel && body.length <= MAX_BLOB_BYTES) {
@@ -385,7 +476,7 @@ export function readGitBlobs(
     }
 
     child.stdout.on('data', (chunk: Buffer) => {
-      buf = Buffer.concat([buf, chunk])
+      queue.push(chunk)
       consume()
     })
     child.on('close', (code) => {

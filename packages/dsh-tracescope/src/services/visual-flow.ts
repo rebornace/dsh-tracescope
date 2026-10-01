@@ -14,6 +14,7 @@ import {
   resolveGitRepo,
   type DesignDoc,
   discoverAllPages,
+  resolveCodePage,
   designFingerprint,
   renderFigmaNode,
   getPlatformAdapter,
@@ -88,8 +89,8 @@ import type {
   AndroidRenderContext,
   RenderedAndroidItem,
   CodePage,
+  XmlElement,
 } from '@rebornace/tracescope-core'
-import type { XmlElement } from '@rebornace/tracescope-core'
 import type { Context } from '../dsh-shims.js'
 import { completeWithHostLlm, extractJsonBlock } from './llm-helper.js'
 import { readFile, readdir, stat } from 'node:fs/promises'
@@ -370,11 +371,8 @@ export async function compareDesignAgainstPage(
   const ctx = await resolveVisualRepo(repoInput, body)
   const design = await loadDesign(body)
 
-  // Re-discover pages to obtain the selected page object.
-  const pages = await discoverAllPages(ctx.checkoutPath)
-  const page = pages.find(
-    (p) => p.adapterId === adapterId && p.relativePath === relativePath,
-  )
+  // Resolve the selected page without a full multi-adapter walk when possible.
+  const page = await resolveCodePage(ctx.checkoutPath, adapterId, relativePath)
   if (!page) throw new Error('所选页面已不存在，请重新匹配')
 
   const pageMeta = {
@@ -1528,12 +1526,9 @@ export async function compareHighFidelity(
       precise: false,
       fingerprint: { texts: [], nameTokens: [], controlCount: 0 },
     }
-    // Prefer fingerprint from discovery when available.
+    // Prefer fingerprint from discovery when available (single-adapter / cache).
     try {
-      const pages = await discoverAllPages(ctx.checkoutPath)
-      const hit = pages.find(
-        (p) => p.adapterId === adapterId && p.relativePath === relativePath,
-      )
+      const hit = await resolveCodePage(ctx.checkoutPath, adapterId, relativePath)
       if (hit) page = hit
     } catch {
       /* keep defaults */
@@ -2641,10 +2636,7 @@ export async function buildCodeVisualAnalysis(
   // Best-effort static diffs already computed by the same engine the board uses.
   let staticDiffSummary: string | undefined
   try {
-    const pages = await discoverAllPages(ctx.checkoutPath)
-    const page = pages.find(
-      (p) => p.adapterId === adapterId && p.relativePath === relativePath,
-    )
+    const page = await resolveCodePage(ctx.checkoutPath, adapterId, relativePath)
     if (page) {
       const cmp = await compareDesignWithPage(design, page)
       if (cmp.result?.diffs) {

@@ -1,32 +1,26 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  analyzeImpact,
-  analyzeCodeupImpact,
   buildAndroidResources,
   compareVisualDocs,
   exportReportCsv,
   exportReportMarkdown,
   fetchFigmaDoc,
-  getCodeupRepository,
-  listCodeupBranches,
-  listCodeupCommits,
-  listGitRefs,
-  listRecentCommits,
-  loadRememberedYunxiaoAccess,
   normalizeAndroidLayout,
   normalizeUIKitDoc,
   parseGitAuth,
-  resolveCodeupTarget,
-  resolveGitRepo,
-  gitFetchRef,
   EMPTY_ANDROID_RESOURCES,
   type AndroidResources,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
+import { parseFetchFlag } from './http/route-helpers.js'
+import { loadCodeupHistory, loadRepoHistory } from './services/repo-history.js'
+import { runAnalyze } from './services/run-analyze.js'
+import { resolveCodeupAuth, resolveRequestGitAuth } from './services/request-auth.js'
+import { writeReportExports } from './services/write-report-exports.js'
 
 const DEFAULT_PORT = 3927
 
@@ -54,14 +48,6 @@ async function readBody(req: IncomingMessage): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
   }
   return Buffer.concat(chunks).toString('utf8')
-}
-
-function parseFetchFlag(value: string | null, fallback: boolean): boolean {
-  if (value === null || value === '') return fallback
-  const s = value.toLowerCase()
-  if (s === '1' || s === 'true' || s === 'yes') return true
-  if (s === '0' || s === 'false' || s === 'no') return false
-  return fallback
 }
 
 function contentType(filePath: string): string {
@@ -177,68 +163,30 @@ async function handleApi(
         sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
         return true
       }
-      const fetchRemote = parseFetchFlag(
-        body.fetch === undefined || body.fetch === null ? null : String(body.fetch),
-        true,
-      )
-      const auth = parseGitAuth(body.auth)
+      const fetchRemote = parseFetchFlag(body.fetch, true)
       if (body.accessMode === 'codeup') {
-        const codeup = body.codeup ?? {}
-        const target = resolveCodeupTarget(repoPath, {
-          organizationId: codeup.organizationId,
-          repositoryId: codeup.repositoryId,
+        const codeup = await resolveCodeupAuth({
+          accessMode: 'codeup',
+          codeup: body.codeup ?? {},
         })
-        const remembered = await loadRememberedYunxiaoAccess()
-        const incoming = (codeup.token ?? '').trim()
-        const token =
-          incoming && incoming !== '••••••••' ? incoming : remembered.token
-        const req = {
-          endpoint: codeup.endpoint || remembered.endpoint,
-          token,
-        }
-        const repo = await getCodeupRepository(target, req)
-        const commitRef = refName || repo.defaultBranch
-        const [commits, branches] = await Promise.all([
-          listCodeupCommits(target, {
-            ...req,
-            refName: commitRef,
-            perPage: Number.isFinite(limit) ? limit : 40,
-          }),
-          listCodeupBranches(target, req),
-        ])
-        sendJson(res, 200, {
-          resolved: {
-            input: repoPath,
-            repoPath,
-            source: 'codeup',
-            remoteUrl: repoPath,
-            synced: false,
-            authMode: 'https',
-          },
-          commits,
-          refs: branches,
-          defaultBranch: repo.defaultBranch,
-          commitRef,
-        })
+        const history = await loadCodeupHistory(
+          repoPath,
+          Number.isFinite(limit) ? limit : 40,
+          codeup,
+          refName || undefined,
+        )
+        sendJson(res, 200, history)
         return true
       }
-      const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote, auth })
-      if (refName && !/^[0-9a-f]{7,40}$/i.test(refName)) {
-        try {
-          await gitFetchRef(resolved.repoPath, refName, auth)
-        } catch {
-          /* listRecentCommits will report if the ref is still missing */
-        }
-      }
-      const [commits, refs] = await Promise.all([
-        listRecentCommits(resolved.repoPath, {
-          limit: Number.isFinite(limit) ? limit : 40,
-          allRefs: !refName,
-          ref: refName || undefined,
-        }),
-        listGitRefs(resolved.repoPath),
-      ])
-      sendJson(res, 200, { resolved, commits, refs, commitRef: refName || undefined })
+      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath)
+      const history = await loadRepoHistory(
+        repoPath,
+        Number.isFinite(limit) ? limit : 40,
+        fetchRemote,
+        auth,
+        refName || undefined,
+      )
+      sendJson(res, 200, history)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
@@ -255,15 +203,17 @@ async function handleApi(
     }
     try {
       const fetchRemote = parseFetchFlag(url.searchParams.get('fetch'), true)
-      const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote })
-      const [commits, refs] = await Promise.all([
-        listRecentCommits(resolved.repoPath, {
-          limit: Number.isFinite(limit) ? limit : 40,
-          allRefs: true,
-        }),
-        listGitRefs(resolved.repoPath),
-      ])
-      sendJson(res, 200, { resolved, commits, refs })
+      const history = await loadRepoHistory(
+        repoPath,
+        Number.isFinite(limit) ? limit : 40,
+        fetchRemote,
+        undefined,
+      )
+      sendJson(res, 200, {
+        resolved: history.resolved,
+        commits: history.commits,
+        refs: history.refs,
+      })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
@@ -274,58 +224,37 @@ async function handleApi(
   if (url.pathname === '/api/analyze' && req.method === 'POST') {
     try {
       const raw = await readBody(req)
-      const body = JSON.parse(raw) as {
-        repoPath?: string
-        baseCommit?: string
-        headCommit?: string
-        rippleDepth?: number
-        modulesConfigPath?: string
-        exportDir?: string
-        fetchRemote?: boolean
-        fetch?: boolean
-        auth?: unknown
-        accessMode?: string
-        codeup?: {
-          endpoint?: string
-          token?: string
-          organizationId?: string
-          repositoryId?: string
-        }
-      }
-      if (!body.repoPath || !body.baseCommit || !body.headCommit) {
+      const body = JSON.parse(raw) as Record<string, unknown>
+      const repoPath = String(body.repoPath ?? '')
+      const baseCommit = String(body.baseCommit ?? '')
+      const headCommit = String(body.headCommit ?? '')
+      if (!repoPath || !baseCommit || !headCommit) {
         sendJson(res, 400, { error: '需要 repoPath、baseCommit、headCommit' })
         return true
       }
-      const report =
-        body.accessMode === 'codeup'
-          ? await analyzeCodeupImpact({
-              remote: body.repoPath,
-              baseCommit: body.baseCommit,
-              headCommit: body.headCommit,
-              endpoint: body.codeup?.endpoint,
-              token:
-                (body.codeup?.token ?? '').trim() && (body.codeup?.token ?? '').trim() !== '••••••••'
-                  ? body.codeup?.token ?? ''
-                  : (await loadRememberedYunxiaoAccess()).token,
-              organizationId: body.codeup?.organizationId,
-              repositoryId: body.codeup?.repositoryId,
-              modulesConfigPath: body.modulesConfigPath,
-            })
-          : await analyzeImpact({
-              repoPath: body.repoPath,
-              baseCommit: body.baseCommit,
-              headCommit: body.headCommit,
-              rippleDepth: body.rippleDepth,
-              modulesConfigPath: body.modulesConfigPath,
-              fetchRemote: body.fetchRemote ?? body.fetch,
-              auth: parseGitAuth(body.auth),
-            })
-      const markdown = exportReportMarkdown(report)
-      const csv = exportReportCsv(report)
-      if (body.exportDir) {
-        await writeExports(body.exportDir, markdown, csv)
-      }
-      sendJson(res, 200, { report, markdown, csv })
+      const accessMode = body.accessMode === 'codeup' ? 'codeup' : 'git'
+      const result = await runAnalyze({
+        repoPath,
+        baseCommit,
+        headCommit,
+        rippleDepth: typeof body.rippleDepth === 'number' ? body.rippleDepth : undefined,
+        modulesConfigPath:
+          typeof body.modulesConfigPath === 'string' ? body.modulesConfigPath : undefined,
+        exportDir: typeof body.exportDir === 'string' ? body.exportDir : undefined,
+        fetchRemote:
+          body.fetchRemote !== undefined || body.fetch !== undefined
+            ? parseFetchFlag(body.fetchRemote ?? body.fetch, false)
+            : undefined,
+        auth: await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath),
+        accessMode,
+        codeup: accessMode === 'codeup' ? await resolveCodeupAuth(body) : undefined,
+        persist: false,
+      })
+      sendJson(res, 200, {
+        report: result.report,
+        markdown: result.markdown,
+        csv: result.csv,
+      })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       sendJson(res, 400, { error: message })
@@ -346,7 +275,7 @@ async function handleApi(
       }
       const markdown = exportReportMarkdown(body.report)
       const csv = exportReportCsv(body.report)
-      await writeExports(body.exportDir, markdown, csv)
+      await writeReportExports(body.exportDir, markdown, csv)
       sendJson(res, 200, {
         ok: true,
         files: [
@@ -419,12 +348,6 @@ async function handleApi(
   }
 
   return false
-}
-
-async function writeExports(exportDir: string, markdown: string, csv: string): Promise<void> {
-  await mkdir(exportDir, { recursive: true })
-  await writeFile(path.join(exportDir, 'tracescope-report.md'), markdown, 'utf8')
-  await writeFile(path.join(exportDir, 'tracescope-report.csv'), csv, 'utf8')
 }
 
 function getStartDir(): string {
