@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.1`**
+**Version: `0.2.2`**
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). [中文](./README.md) · [English](./README.en.md)
 
@@ -73,19 +73,22 @@ pnpm --filter @rebornace/tracescope-mcp build
 
 Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope). **The same package works on official DeepSeek Harness Desktop and Web.**
 
+> **Version note:** Community market cards can lag (e.g. still show `0.1.11`). Trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope). Install with an explicit version, or remove the old package first.
+
 ### Option 1: Official Desktop Plugins UI (recommended)
 
 1. Install and open [DeepSeek Harness official Desktop](https://github.com/deepseek-ai/deepseek-harness)
-2. Open the **Plugins** option in the Desktop app
-3. Follow the on-screen prompts to add a plugin; use package name: `@rebornace/dsh-tracescope`
-4. After install, open the **TraceScope** right-sidebar tab (or use `/tracescope` in a session)
+2. Open **Plugins**; if an older build is installed, remove `@rebornace/dsh-tracescope` first
+3. Follow the prompts and add: `@rebornace/dsh-tracescope@0.2.2` (or `@rebornace/dsh-tracescope@latest`)
+4. Confirm the sidebar shows **0.2.2+** (includes design diff), then open the **TraceScope** tab
 
 ### Option 2: CLI (optional)
 
 For scripting or local debugging; see the [official install guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md).
 
 ```bash
-dsh plugin --profile desktop add @rebornace/dsh-tracescope
+dsh plugin --profile desktop remove @rebornace/dsh-tracescope
+dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.2
 ```
 
 ### Community catalogs
@@ -95,7 +98,7 @@ Listed in:
 - [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) ([PR #522](https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/522))
 - [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) ([PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388))
 
-You can also browse [dsh-market](https://github.com/dsh-market/dsh-market) and similar UIs; prefer the official Desktop Plugins option for day-to-day installs.
+You can also browse [dsh-market](https://github.com/dsh-market/dsh-market); **the card version is not the installed version** — check npm / the sidebar.
 
 ## Workflows
 

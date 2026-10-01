@@ -5,6 +5,12 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.2 — 2026-10-01
+
+- **修复官方桌面端 `untrusted request`**：侧栏常见 `Origin: null` / 无 Referer 时不再被误拒；仍拒绝带具体外站 Origin 的跨站请求。
+- **安装说明**：标明社区市场版本可能滞后，建议安装 `@rebornace/dsh-tracescope@0.2.2` / `@latest`。
+- Fix Desktop opaque-Origin false rejects; document pinned install when market cards lag.
+
 ## 0.2.1 — 2026-10-01
 
 - **安全扫描误报收敛**：SSH 私钥输入框占位符不再写死 `.ssh` 示例路径；`git cat-file` 子进程显式 `shell: false`；本机面板回环地址补充说明。

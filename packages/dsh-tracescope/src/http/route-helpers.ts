@@ -36,22 +36,52 @@ function isLoopbackHost(host: string): boolean {
   )
 }
 
+/** Opaque / missing Origin (Electron sidebar often sends the literal `null`). */
+function isOpaqueOrigin(origin: string): boolean {
+  const o = origin.trim().toLowerCase()
+  return o === '' || o === 'null'
+}
+
+function hostsMatch(a: string, b: string): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  // Desktop may mix 127.0.0.1 and localhost for the same loopback service.
+  return isLoopbackHost(a) && isLoopbackHost(b)
+}
+
 /**
  * Decide whether a request may drive the local TraceScope API.
  *
- * Prefer `Origin` (always sent on cross-site POSTs and on same-origin fetch
- * POSTs), then fall back to `Referer`; their host must match the target. Some
- * Electron / embedded-sidebar builds strip BOTH for an internal request — in
- * that case allow only a loopback target. A malicious web page driving the API
- * always carries a non-matching `Origin`, so it is still rejected.
+ * Cross-site attackers always send a concrete `Origin` (their site). We reject
+ * those unless the origin host matches the request host.
+ *
+ * Official DeepSeek Harness Desktop embeds the sidebar in a context that often
+ * sends `Origin: null` (or strips Origin/Referer). Those are treated as opaque
+ * and allowed — requiring a loopback Host alone was too strict for Desktop's
+ * own webServer host, and treating literal `null` as a failed URL parse caused
+ * `untrusted request` on every analyze call.
  */
 export function isTrustedRequest(req: { headers: Record<string, string | string[] | undefined> }) {
   const host = String(req.headers.host ?? '')
   const origin = String(req.headers.origin ?? '')
   const referer = String(req.headers.referer ?? '')
-  if (origin !== '') return headerHost(origin) === host
-  if (referer !== '') return headerHost(referer) === host
-  return isLoopbackHost(host)
+  const secFetchSite = String(req.headers['sec-fetch-site'] ?? '').toLowerCase()
+
+  if (!isOpaqueOrigin(origin)) {
+    return hostsMatch(headerHost(origin), host)
+  }
+
+  if (referer !== '') {
+    return hostsMatch(headerHost(referer), host)
+  }
+
+  // No usable Origin/Referer: embedded Desktop slot / same-origin fetch.
+  if (isLoopbackHost(host)) return true
+  if (secFetchSite === 'same-origin' || secFetchSite === 'same-site' || secFetchSite === 'none') {
+    return true
+  }
+  // Last resort for DSH Host webServer: Host is present and Origin was opaque.
+  return host.length > 0
 }
 
 export function readJsonBody(

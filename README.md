@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.2.1`**
+**版本: `0.2.2`**
 
 功能节点见 [更新日志](./CHANGELOG.md)。[中文](./README.md) · [English](./README.en.md)
 
@@ -74,19 +74,22 @@ pnpm --filter @rebornace/tracescope-mcp build
 
 插件包：[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)。**官方 DeepSeek Harness 桌面端与 Web 使用同一包。**
 
+> **版本注意**：社区插件市场卡片上的版本号可能滞后（例如仍显示 `0.1.11`），以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 为准。安装时请填写带版本号的包名，或先卸旧版再装最新版。
+
 ### 方式一：官方桌面端插件选项（推荐）
 
 1. 安装并打开 [DeepSeek Harness 官方桌面端](https://github.com/deepseek-ai/deepseek-harness)
-2. 打开桌面端里的 **插件** 选项
-3. 按界面提示添加插件，包名填：`@rebornace/dsh-tracescope`
-4. 安装完成后打开右侧栏 **TraceScope** 标签（或在会话中使用 `/tracescope`）
+2. 打开桌面端里的 **插件** 选项；若已装旧版，先移除 `@rebornace/dsh-tracescope`
+3. 按界面提示添加插件，包名建议填：`@rebornace/dsh-tracescope@0.2.2`（或 `@rebornace/dsh-tracescope@latest`）
+4. 确认侧栏 / 关于里显示的版本为 **0.2.2+**（含设计差异分析）后，打开右侧栏 **TraceScope**
 
 ### 方式二：命令行（可选）
 
 适合脚本化或本机调试；细节见 [官方安装说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.zh.md)。
 
 ```bash
-dsh plugin --profile desktop add @rebornace/dsh-tracescope
+dsh plugin --profile desktop remove @rebornace/dsh-tracescope
+dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.2
 ```
 
 ### 社区收录
@@ -96,7 +99,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 - [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins)（[PR #522](https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/522)）
 - [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)（[PR #5388](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/5388)）
 
-也可在 [dsh-market](https://github.com/dsh-market/dsh-market) 等市场面板中搜索浏览；日常安装请优先用官方桌面端插件选项。
+也可在 [dsh-market](https://github.com/dsh-market/dsh-market) 等市场面板中搜索浏览；**市场显示版本不等于已安装版本**，请以 npm / 侧栏实际版本为准。
 
 ## 使用流程
 
