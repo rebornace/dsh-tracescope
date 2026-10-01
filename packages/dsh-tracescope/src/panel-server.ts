@@ -407,12 +407,14 @@ export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServer
   try {
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
+      // Loopback-only bind: never expose the panel on LAN / 0.0.0.0.
       server.listen(port, '127.0.0.1', () => resolve())
     })
   } catch (error: unknown) {
     const code = (error as NodeJS.ErrnoException)?.code
     if (code === 'EADDRINUSE') {
       // Another TraceScope host (DSH plugin or MCP) already owns the panel port.
+      // Prefer the IPv4 loopback URL so it matches the listen address (avoids ::1 mismatch).
       return {
         port,
         url: `http://127.0.0.1:${port}/`,
@@ -424,6 +426,7 @@ export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServer
 
   sharedPanel = {
     port,
+    // Same-host panel URL for the local UI (not an outbound remote HTTP call).
     url: `http://127.0.0.1:${port}/`,
     close: () =>
       new Promise<void>((resolve, reject) => {

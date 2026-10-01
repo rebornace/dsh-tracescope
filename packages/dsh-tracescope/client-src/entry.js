@@ -4573,7 +4573,7 @@
                               jsx('input', {
                                 style: styles.input,
                                 value: authKey,
-                                placeholder: '本机 SSH 私钥文件路径，如 ~/.ssh/id_ed25519',
+                                placeholder: '本机 SSH 私钥文件的绝对路径',
                                 onChange: function (e) {
                                   setAuthKey(e.target.value)
                                 },

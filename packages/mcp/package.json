@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/tracescope-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TraceScope MCP server — impact analysis + design diff tools for any MCP client",
   "license": "MIT",
   "type": "module",
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@rebornace/dsh-tracescope": "workspace:0.2.0",
+    "@rebornace/dsh-tracescope": "workspace:0.2.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {

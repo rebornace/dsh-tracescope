@@ -418,6 +418,9 @@ class ByteQueue {
 /**
  * Read blobs at `commit:path` without a checkout. Skips missing or oversized blobs.
  * Responses are matched to `relativePaths` in request order.
+ *
+ * Uses `spawn` (not a shell) with a fixed argv list so path contents never reach a
+ * command interpreter — required for streaming `git cat-file --batch`.
  */
 export function readGitBlobs(
   repoPath: string,
@@ -430,6 +433,8 @@ export function readGitBlobs(
     const child = spawn('git', ['-c', 'safe.directory=*', 'cat-file', '--batch'], {
       cwd: repoPath,
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true,
     })
     const stderrChunks: Buffer[] = []
     child.stderr?.on('data', (chunk: Buffer) => {

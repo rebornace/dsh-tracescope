@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.0`**
+**Version: `0.2.1`**
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). [中文](./README.md) · [English](./README.en.md)
 
