@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.1.12`** (design-only Figma / Lanhu UI review across mobile/web/miniprogram stacks)
+**Version: `0.1.13`** (full MCP agent surface parity with DSH; design-only Figma / Lanhu UI review)
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). The feature list below is the **current** release, not the 0.1.0 snapshot.
 
@@ -21,7 +21,7 @@ Distribution layers (see [ARCHITECTURE.md](./ARCHITECTURE.md)):
 | `@rebornace/tracescope-mcp` | MCP server for Cursor / Claude / any MCP client |
 | `@rebornace/dsh-tracescope` | DSH plugin: Host APIs + embedded sidebar UI (primary path for this release) |
 
-## Current capabilities (0.1.12)
+## Current capabilities (0.1.13)
 
 - **Two-commit impact**: direct changes + reverse-dependency ripple (default depth 2). Local git indexes **commit objects**, not whatever files happen to be readable in the work tree
 - **Languages with ripple**: mobile — Kotlin, Java (Kotlin interop), Swift (ObjC interop), Objective-C, Dart/Flutter; web — TypeScript/JavaScript, Vue, CSS/SCSS/Sass/Less, HTML. Other languages still appear in **direct changes** (git diff is language-agnostic) but without static ripple.
@@ -116,7 +116,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. Open the **TraceScope** right-sidebar tab (may auto-open on new sessions)
 3. Or use `/tracescope` Host capabilities from the session
 
-### npm packages (0.1.12)
+### npm packages (0.1.13)
 
 | Package | Role |
 |---------|------|
@@ -168,17 +168,25 @@ See [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 |------|---------|
 | `tracescope_open_panel` | Open local visual panel |
 | `tracescope_list_commits` | List commits / refs |
+| `tracescope_get_diff` | Page unified diffs |
 | `tracescope_analyze_impact` | Deterministic impact analysis |
+| `tracescope_create_handtest_job` | Create hand-test chat job + starter prompt |
+| `tracescope_publish_handtest` | Publish hand-test checklist |
+| `tracescope_start_visual_review` | Start UI review job + starter prompt |
+| `tracescope_get_design_snapshot` | On-demand design tree snapshot |
+| `tracescope_publish_visual_findings` | Publish UI review findings |
+| `tracescope_start_page_rematch` | Start page↔file rematch job |
+| `tracescope_publish_page_rematch` | Publish rematch picks |
 
-Additional DSH Host tools (e.g. `tracescope_get_diff`, `tracescope_publish_handtest`) support chat-driven analysis inside Web / Desktop.
+Same execute layer as DSH via `@rebornace/dsh-tracescope/agent-api` — any MCP client can run the full analyze → publish loop.
 
 ## Packages
 
 | Package | Version | Notes |
 |---------|---------|-------|
-| `@rebornace/tracescope-core` | 0.1.12 | Analysis, storage, Yunxiao/tracker, export |
-| `@rebornace/dsh-tracescope` | 0.1.12 | DSH Host + React Slot client |
-| `@rebornace/tracescope-mcp` | 0.1.12 | MCP server |
+| `@rebornace/tracescope-core` | 0.1.13 | Analysis, storage, Yunxiao/tracker, export |
+| `@rebornace/dsh-tracescope` | 0.1.13 | DSH Host + React Slot client |
+| `@rebornace/tracescope-mcp` | 0.1.13 | MCP server (full agent tool surface) |
 | `adapters/*`, `browser-extension` | stubs | **Out of scope for 0.1.0 delivery** |
 
 ## Known limitations

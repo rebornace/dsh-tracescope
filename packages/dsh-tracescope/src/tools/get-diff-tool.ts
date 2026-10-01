@@ -3,8 +3,8 @@
  */
 import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
-import { getDiffChunk } from '../services/diff-chunk.js'
-import { parseAuthFromToolArgs, toolText } from './tool-helpers.js'
+import { getDiffTool } from '../agent-api.js'
+import { toolText } from './tool-helpers.js'
 
 export function registerGetDiffTool(ctx: Context) {
   ctx.tools?.register(
@@ -68,20 +68,7 @@ export function registerGetDiffTool(ctx: Context) {
         },
       },
       async execute(args: Record<string, unknown>) {
-        const pathsRaw = typeof args.paths === 'string' ? args.paths : ''
-        const paths = pathsRaw
-          .split(',')
-          .map((p) => p.trim())
-          .filter(Boolean)
-        return await getDiffChunk({
-          repoPath: String(args.repoPath),
-          baseCommit: String(args.baseCommit),
-          headCommit: String(args.headCommit),
-          paths: paths.length ? paths : undefined,
-          offset: typeof args.offset === 'number' ? args.offset : undefined,
-          limit: typeof args.limit === 'number' ? args.limit : undefined,
-          auth: parseAuthFromToolArgs(args),
-        })
+        return await getDiffTool(args)
       },
     }),
   )

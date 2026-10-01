@@ -46,7 +46,7 @@ const IMPACT_ANALYSIS_SKILL: SkillRegistrationLike = {
 - 用中文；结论要可执行。
 
 ## 工具
-- \`tracescope_list_commits\` / \`tracescope_get_diff\` / \`tracescope_analyze_impact\`
+- \`tracescope_create_handtest_job\`（无侧栏任务单时先创建） / \`tracescope_list_commits\` / \`tracescope_get_diff\` / \`tracescope_analyze_impact\`
 - Codeup 模式：优先 tracescope / Codeup，不要假设本机有 git
 - \`tracescope_publish_handtest\`：写回清单
 
@@ -88,6 +88,7 @@ const UI_REVIEW_SKILL: SkillRegistrationLike = {
 5. 代码：按任务单依赖清单阅读真实源码，不要臆造未列出的文件。
 
 ## 工具
+- \`tracescope_start_visual_review\`（无侧栏任务单时先创建）
 - \`tracescope_get_design_snapshot\`：按需设计树快照
 - \`tracescope_publish_visual_findings\`：写回差异结论
 
@@ -120,6 +121,7 @@ const PAGE_MATCH_SKILL: SkillRegistrationLike = {
 - **不要**访问 figma.com，**不要**调用 Figma REST API。
 - **必须**调用 \`tracescope_publish_page_rematch\` 写回。可多次写回。
 - 静态候选仅作线索；可推荐列表外更佳路径。
+- 无侧栏任务单时先调用 \`tracescope_start_page_rematch\` 获取 jobId 与候选提示词。
 
 ## 步骤
 1. 必要时打开候选或搜索路由 / 页面名 / 文案，不要只凭文件名臆断。

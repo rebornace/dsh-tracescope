@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.1.12`**（设计稿 UI 走查 design-only；多栈静态对比 + AI 协助分析）
+**版本: `0.1.13`**（MCP 完整工具面与 DSH 对齐；设计稿 UI 走查 design-only）
 
 功能节点见 [更新日志](./CHANGELOG.md)。下面是**当前版本**能力，不是 0.1.0 的快照。
 
@@ -21,7 +21,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向所有需要理解「一次代�
 | `@rebornace/tracescope-mcp` | MCP Server，供 Cursor / Claude 等任意 MCP 客户端调用 |
 | `@rebornace/dsh-tracescope` | DSH 插件：Host API + 右侧栏嵌入 UI（本版本主路径） |
 
-## 当前能力（0.1.12）
+## 当前能力（0.1.13）
 
 - **双 Commit 影响面**：直接变更 + 反向依赖波及（默认深度 2）。本地 Git 按**提交对象**建索引，不要求工作区文件此刻能被打开
 - **支持语言（反向依赖波及）**：
@@ -126,7 +126,7 @@ dsh plugin --profile desktop add github:rebornace/dsh-tracescope#path:packages/d
 2. 打开右侧栏 **TraceScope** 标签（新会话可能自动打开）  
 3. 或在会话中使用 `/tracescope` 相关能力（Host tools + 面板）
 
-### npm 包（0.1.12）
+### npm 包（0.1.13）
 
 | 包 | 用途 |
 |----|------|
@@ -182,23 +182,31 @@ pnpm --filter @rebornace/tracescope-mcp build
 }
 ```
 
-MCP tools（0.1.0）：
+MCP tools（0.1.13，与 DSH Host 工具面一致）：
 
 | Tool | 说明 |
 |------|------|
 | `tracescope_open_panel` | 打开本机可视化面板 |
 | `tracescope_list_commits` | 列出仓库提交 / 引用 |
+| `tracescope_get_diff` | 分页拉取统一 diff |
 | `tracescope_analyze_impact` | 确定性影响面分析 |
+| `tracescope_create_handtest_job` | 创建手测对话任务并返回提示词 |
+| `tracescope_publish_handtest` | 写回手测清单 |
+| `tracescope_start_visual_review` | 创建 UI 走查任务并返回提示词 |
+| `tracescope_get_design_snapshot` | 按需拉取设计树快照 |
+| `tracescope_publish_visual_findings` | 写回 UI 走查结论 |
+| `tracescope_start_page_rematch` | 创建设计页↔文件匹配任务 |
+| `tracescope_publish_page_rematch` | 写回文件匹配推荐 |
 
-DSH Host 内还注册了会话侧工具（例如 `tracescope_get_diff`、`tracescope_publish_handtest`），供「模型对话分析」使用。
+工具执行层与 DSH 共用 `@rebornace/dsh-tracescope/agent-api`，任意 MCP 客户端（Cursor / Claude 等）可走完与侧栏相同的分析 → 写回流程。
 
 ## 包一览
 
 | 包 | 版本 | 说明 |
 |----|------|------|
-| `@rebornace/tracescope-core` | 0.1.12 | 分析、报告存储、云效 / Tracker、导出 |
-| `@rebornace/dsh-tracescope` | 0.1.12 | DSH Host + React Slot Client |
-| `@rebornace/tracescope-mcp` | 0.1.12 | MCP Server |
+| `@rebornace/tracescope-core` | 0.1.13 | 分析、报告存储、云效 / Tracker、导出 |
+| `@rebornace/dsh-tracescope` | 0.1.13 | DSH Host + React Slot Client |
+| `@rebornace/tracescope-mcp` | 0.1.13 | MCP Server（完整 Agent 工具面） |
 | `adapters/*`、`browser-extension` | 脚手架 | **未纳入 0.1.0 交付范围** |
 
 ## 已知限制

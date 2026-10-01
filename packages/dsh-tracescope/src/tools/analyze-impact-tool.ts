@@ -3,9 +3,8 @@
  */
 import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
-import { runAnalyze } from '../services/run-analyze.js'
-import { parseAuthFromToolArgs, toolText } from './tool-helpers.js'
-import { findJobForRepo } from '../jobs.js'
+import { analyzeImpactTool } from '../agent-api.js'
+import { toolText } from './tool-helpers.js'
 
 export function registerAnalyzeImpactTool(ctx: Context) {
   ctx.tools?.register(
@@ -68,45 +67,7 @@ export function registerAnalyzeImpactTool(ctx: Context) {
         },
       },
       async execute(args: Record<string, unknown>) {
-        const repoPath = String(args.repoPath)
-        const baseCommit = String(args.baseCommit)
-        const headCommit = String(args.headCommit)
-        const job = findJobForRepo(repoPath, baseCommit, headCommit)
-        const result = await runAnalyze({
-          repoPath: job?.accessMode === 'codeup' ? job.repoInput : repoPath,
-          baseCommit,
-          headCommit,
-          rippleDepth: typeof args.rippleDepth === 'number' ? args.rippleDepth : undefined,
-          modulesConfigPath:
-            typeof args.modulesConfigPath === 'string' ? args.modulesConfigPath : undefined,
-          exportDir: typeof args.exportDir === 'string' ? args.exportDir : undefined,
-          fetchRemote: typeof args.fetchRemote === 'boolean' ? args.fetchRemote : undefined,
-          auth: parseAuthFromToolArgs(args),
-          accessMode: job?.accessMode,
-          codeup: job?.codeup,
-        })
-        const summary = [
-          `直接项 ${result.report.direct.length} · 可能波及 ${result.report.ripple.length}`,
-          '（规则分析；对话结论请用 tracescope_publish_handtest 回写面板）',
-          '',
-          '## 直接项',
-          ...result.report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
-          '',
-          '## 可能波及',
-          ...result.report.ripple.map((i) => `- [${i.risk}] ${i.displayName}`),
-        ].join('\n')
-        return {
-          summary,
-          directCount: result.report.direct.length,
-          rippleCount: result.report.ripple.length,
-          changedFileCount: result.report.changedFiles.length,
-          markdown: result.markdown,
-          csv: result.csv,
-          repoPath: result.report.repoPath,
-          baseCommit: result.report.baseCommit,
-          headCommit: result.report.headCommit,
-          modelEnriched: result.report.modelEnriched,
-        }
+        return await analyzeImpactTool(args)
       },
     }),
   )

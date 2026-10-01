@@ -5,6 +5,12 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.1.13 — 2026-10-01
+
+- **功能影响分析加速**：「生成验证清单」依赖索引由全量扫描改为路径/符号哈希查找；约 2000 源文件时索引构建从十余秒降到约数十毫秒量级。进一步跳过 `node_modules` / `dist` / `.next` / `Pods` 等目录与压缩包文件，并对同一 commit 做进程内索引缓存；本地模式误扫依赖目录时曾会极慢。
+- **MCP 完整工具面**：`@rebornace/tracescope-mcp` 与 DSH Host 对齐，补齐 `get_diff` / 手测 job 创建与写回 / UI 走查 / 设计快照 / 页面匹配等全部 Agent 能力；执行逻辑抽到 `@rebornace/dsh-tracescope/agent-api`，任意 MCP 客户端可独立走完分析→写回流程。
+- **DSH 工具补齐**：新增 `tracescope_list_commits`、`tracescope_create_handtest_job`、`tracescope_start_visual_review`、`tracescope_start_page_rematch`，与 MCP 同名同语义。
+
 ## 0.1.12 — 2026-09-30
 
 - **设计差异分析（试验）**：与「功能影响分析」并列的设计稿↔代码差异能力（原「UI 设计对比」等）；差异清单支持多选定位（再点取消）；对照图先出图再后台清理备注层。

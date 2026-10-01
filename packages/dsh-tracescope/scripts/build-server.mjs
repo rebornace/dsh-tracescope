@@ -9,9 +9,10 @@
  *
  * Bundling with esbuild inlines `@rebornace/tracescope-core` (and its `yaml`
  * dependency) into the output. Node built-ins stay external because the host
- * supplies them. Two entries are built:
+ * supplies them. Three entries are built:
  *   - src/index.ts        -> dist/index.js        (plugin entry)
  *   - src/panel-server.ts -> dist/panel-server.js (standalone panel server)
+ *   - src/agent-api.ts    -> dist/agent-api.js    (shared MCP / agent handlers)
  */
 import { build } from 'esbuild'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -23,7 +24,9 @@ const pkgDir = resolve(here, '..')
 
 const entries = [
   { in: resolve(pkgDir, 'src/index.ts'), out: 'index.js' },
-  { in: resolve(pkgDir, 'src/panel-server.ts'), out: 'panel-server.js' }]
+  { in: resolve(pkgDir, 'src/panel-server.ts'), out: 'panel-server.js' },
+  { in: resolve(pkgDir, 'src/agent-api.ts'), out: 'agent-api.js' },
+]
 
 const requireBanner = `import { createRequire as __createRequire } from 'node:module';
 const require = __createRequire(import.meta.url);

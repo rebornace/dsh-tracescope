@@ -16,11 +16,83 @@ export interface SourceIndex {
 const INDEXED_EXT =
   /\.(kt|kts|java|swift|m|mm|h|dart|ts|tsx|mts|cts|js|jsx|mjs|cjs|vue|css|scss|sass|less|html?|xml|strings)$/i
 
-function isIndexedSource(rel: string): boolean {
-  const lang = detectLanguage(rel)
+/** Path segments that must never be indexed (deps / build / IDE junk). */
+const INDEX_SKIP_SEGMENTS = new Set([
+  '.git',
+  'node_modules',
+  'miniprogram_npm',
+  'bower_components',
+  'build',
+  'dist',
+  'out',
+  'target',
+  'bin',
+  'obj',
+  'Pods',
+  'DerivedData',
+  'Carthage',
+  '.dart_tool',
+  '.gradle',
+  '.idea',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.turbo',
+  '.cache',
+  'coverage',
+  '__pycache__',
+  'vendor',
+  'venv',
+  '.venv',
+])
+
+const MAX_INDEXED_FILES = 25_000
+
+/** In-process cache: same local repo + commit should not re-read every blob. */
+const INDEX_CACHE_LIMIT = 8
+const indexCache = new Map<string, SourceIndex>()
+
+function cacheKey(repoPath: string, commit: string): string {
+  return `${path.resolve(repoPath).replace(/\\/g, '/')}@${commit}`
+}
+
+function rememberIndex(key: string, index: SourceIndex): SourceIndex {
+  if (indexCache.has(key)) indexCache.delete(key)
+  indexCache.set(key, index)
+  while (indexCache.size > INDEX_CACHE_LIMIT) {
+    const oldest = indexCache.keys().next().value
+    if (oldest === undefined) break
+    indexCache.delete(oldest)
+  }
+  return index
+}
+
+/** Exported for tests / diagnostics. */
+export function clearSourceIndexCache(): void {
+  indexCache.clear()
+}
+
+function pathHasSkippedSegment(rel: string): boolean {
+  const parts = rel.replace(/\\/g, '/').split('/')
+  return parts.some((p) => INDEX_SKIP_SEGMENTS.has(p))
+}
+
+function isGeneratedOrVendoredFile(rel: string): boolean {
+  const base = path.posix.basename(rel.replace(/\\/g, '/'))
+  if (/\.min\.(js|css)$/i.test(base)) return true
+  if (/\.bundle\.(js|css)$/i.test(base)) return true
+  if (/\.snap$/i.test(base)) return true
+  return false
+}
+
+export function isIndexedSource(rel: string): boolean {
+  const normalized = rel.replace(/\\/g, '/')
+  if (pathHasSkippedSegment(normalized)) return false
+  if (isGeneratedOrVendoredFile(normalized)) return false
+  const lang = detectLanguage(normalized)
   if (lang === 'other') return false
-  if (lang === 'resource') return /\.(xml|strings)$/i.test(rel)
-  return INDEXED_EXT.test(rel.replace(/\\/g, '/'))
+  if (lang === 'resource') return /\.(xml|strings)$/i.test(normalized)
+  return INDEXED_EXT.test(normalized)
 }
 
 function normalizeSpec(spec: string): string {
@@ -38,13 +110,36 @@ function specCandidates(spec: string): string[] {
   return [...cands]
 }
 
-function resolveSpecifier(spec: string, files: Map<string, string>): string[] {
+type PathLookup = {
+  /** normalizeSpec(path) → concrete repo-relative paths */
+  byNormalized: Map<string, string[]>
+  /** basename without extension → concrete paths */
+  byStem: Map<string, string[]>
+}
+
+function buildPathLookup(files: Map<string, string>): PathLookup {
+  const byNormalized = new Map<string, string[]>()
+  const byStem = new Map<string, string[]>()
+  for (const f of files.keys()) {
+    const nf = normalizeSpec(f)
+    const nList = byNormalized.get(nf)
+    if (nList) nList.push(f)
+    else byNormalized.set(nf, [f])
+    const stem = path.basename(f).replace(/\.[^.]+$/, '')
+    const sList = byStem.get(stem)
+    if (sList) sList.push(f)
+    else byStem.set(stem, [f])
+  }
+  return { byNormalized, byStem }
+}
+
+function resolveSpecifier(spec: string, lookup: PathLookup): string[] {
   const out = new Set<string>()
   const addPath = (p: string) => {
-    const cands = specCandidates(p)
-    for (const f of files.keys()) {
-      const nf = normalizeSpec(f)
-      if (cands.some((c) => nf === normalizeSpec(c))) out.add(f)
+    for (const c of specCandidates(p)) {
+      for (const hit of lookup.byNormalized.get(normalizeSpec(c)) ?? []) {
+        out.add(hit)
+      }
     }
   }
 
@@ -64,7 +159,9 @@ function resolveSpecifier(spec: string, files: Map<string, string>): string[] {
 export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
   const reverseDeps = new Map<string, Set<string>>()
   const bySymbol = new Map<string, string[]>()
-  const styleHooks = new Map<string, Set<string>>()
+  /** hook token → stylesheets that declare it (avoids O(files×styles) scans). */
+  const stylesByHook = new Map<string, string[]>()
+  const lookup = buildPathLookup(files)
 
   const ensure = (target: string) => {
     let set = reverseDeps.get(target)
@@ -84,7 +181,13 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
       bySymbol.set(sym, list)
     }
     const hooks = extractStyleHooks(content, lang)
-    if (hooks.size) styleHooks.set(rel, hooks)
+    if (hooks.size) {
+      for (const h of hooks) {
+        const list = stylesByHook.get(h)
+        if (list) list.push(rel)
+        else stylesByHook.set(h, [rel])
+      }
+    }
   }
 
   // Pass 2: references
@@ -117,7 +220,7 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
     for (const spec of raw.specifiers) {
       if (/^[a-z]+:\/\//i.test(spec) && !spec.startsWith('package:')) continue
       for (const relSpec of resolveRel(spec)) {
-        for (const t of resolveSpecifier(relSpec, files)) {
+        for (const t of resolveSpecifier(relSpec, lookup)) {
           if (t !== rel) targets.add(t)
         }
       }
@@ -137,10 +240,9 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
         for (const t of bySymbol.get(v) ?? []) {
           if (t !== rel) targets.add(t)
         }
-        // Also match by file stem
-        for (const f of files.keys()) {
-          const stem = path.basename(f).replace(/\.[^.]+$/, '')
-          if (stem === v && f !== rel) targets.add(f)
+        // Also match by file stem (O(1) via precomputed index)
+        for (const f of lookup.byStem.get(v) ?? []) {
+          if (f !== rel) targets.add(f)
         }
       }
     }
@@ -152,13 +254,9 @@ export function buildIndexFromFileMap(files: Map<string, string>): SourceIndex {
     const lang = detectLanguage(rel)
     if (lang !== 'vue' && lang !== 'html' && lang !== 'javascript') continue
     const used = extractStyleHooks(content, lang)
-    for (const [styleFile, hooks] of styleHooks) {
-      if (styleFile === rel) continue
-      for (const h of used) {
-        if (hooks.has(h)) {
-          ensure(styleFile).add(rel)
-          break
-        }
+    for (const h of used) {
+      for (const styleFile of stylesByHook.get(h) ?? []) {
+        if (styleFile !== rel) ensure(styleFile).add(rel)
       }
     }
   }
@@ -170,6 +268,7 @@ export async function buildSourceIndex(rootDir: string): Promise<SourceIndex> {
   const files = new Map<string, string>()
   await walk(rootDir, rootDir, async (rel, abs) => {
     if (!isIndexedSource(rel)) return
+    if (files.size >= MAX_INDEXED_FILES) return
     try {
       files.set(rel, await readFile(abs, 'utf8'))
     } catch {
@@ -183,10 +282,16 @@ export async function buildSourceIndexAtCommit(
   repoPath: string,
   commit: string,
 ): Promise<SourceIndex> {
+  const key = cacheKey(repoPath, commit)
+  const cached = indexCache.get(key)
+  if (cached) {
+    // Refresh LRU order.
+    return rememberIndex(key, cached)
+  }
   const names = await gitListTree(repoPath, commit)
-  const wanted = names.filter(isIndexedSource)
+  const wanted = names.filter(isIndexedSource).slice(0, MAX_INDEXED_FILES)
   const files = await readGitBlobs(repoPath, commit, wanted)
-  return buildIndexFromFileMap(files)
+  return rememberIndex(key, buildIndexFromFileMap(files))
 }
 
 export function rippleFrom(
@@ -223,7 +328,7 @@ async function walk(
   } catch {
     return
   }
-  const skip = new Set(['node_modules', '.git', 'build', 'Pods', 'dist', '.dart_tool'])
+  const skip = INDEX_SKIP_SEGMENTS
   for (const entry of entries) {
     const abs = path.join(dir, entry.name)
     if (entry.isDirectory()) {

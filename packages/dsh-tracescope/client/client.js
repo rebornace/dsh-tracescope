@@ -8392,7 +8392,7 @@ function TraceScopePanelBody() {
                     }),
                     jsx5("p", {
                       style: { margin: "4px 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
-                      children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「视觉走查」共用同一套平台配置。"
+                      children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「设计差异分析」共用同一套平台配置。"
                     }),
                     jsxs5("label", {
                       style: styles.label,
