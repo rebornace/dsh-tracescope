@@ -192,22 +192,11 @@ function resolveDimen(
   return undefined
 }
 
-/** Parse a <shape> XML drawable into a CSS-friendly description. */
-function parseShapeDrawable(
-  xml: string,
+/** Parse a `<shape>` element into a CSS-friendly description. */
+function parseShapeElement(
+  root: XmlElement,
   values: AndroidValueResources,
-): ParsedDrawable {
-  let root: XmlElement
-  try {
-    root = parseXml(xml)
-  } catch {
-    return { kind: 'unsupported', raw: 'invalid-xml' }
-  }
-
-  // Only simple <shape> is converted precisely; selector/layer-list/ripple are
-  // reported unsupported so the renderer shows a neutral placeholder.
-  if (root.tag !== 'shape') return { kind: 'unsupported', raw: root.tag }
-
+): ParsedDrawableShape {
   const shape: ParsedDrawableShape = {
     kind: 'shape',
     shape: attr(root, 'android:shape') ?? 'rectangle',
@@ -248,6 +237,203 @@ function parseShapeDrawable(
     }
   }
   return shape
+}
+
+/** Flatten `<layer-list>` / `<level-list>`: topmost / highest-level solid wins. */
+function parseLayerListDrawable(
+  root: XmlElement,
+  values: AndroidValueResources,
+): ParsedDrawable {
+  let backgroundColor: string | undefined
+  let cornerRadius: number | undefined
+  let stroke: ParsedDrawableShape['stroke']
+  let gradient: DesignGradient | undefined
+  let bestLevel = -Infinity
+  const isLevelList = root.tag === 'level-list'
+  for (const item of root.children) {
+    if (item.tag !== 'item') continue
+    const rawLevel = item.attrs['android:maxLevel'] ?? item.attrs['android:minLevel']
+    const level =
+      isLevelList && rawLevel !== undefined && Number.isFinite(Number(rawLevel))
+        ? Number(rawLevel)
+        : bestLevel + 1
+    if (isLevelList && level < bestLevel) continue
+    const drawable = attr(item, 'android:drawable')
+    if (drawable?.startsWith('@drawable/')) {
+      continue
+    }
+    const color = resolveColor(attr(item, 'android:color'), values)
+    let got = false
+    if (color) {
+      backgroundColor = color
+      got = true
+    }
+    for (const child of item.children) {
+      if (child.tag === 'shape') {
+        const layer = parseShapeElement(child, values)
+        if (layer.backgroundColor) backgroundColor = layer.backgroundColor
+        if (layer.cornerRadius !== undefined) cornerRadius = layer.cornerRadius
+        if (layer.stroke) stroke = layer.stroke
+        if (layer.gradient) gradient = layer.gradient
+        got = true
+      }
+    }
+    if (got) bestLevel = level
+  }
+  if (!backgroundColor && cornerRadius === undefined && !stroke && !gradient) {
+    return { kind: 'unsupported', raw: root.tag }
+  }
+  return {
+    kind: 'shape',
+    shape: 'rectangle',
+    backgroundColor,
+    cornerRadius,
+    stroke,
+    gradient,
+  }
+}
+
+/** Unwrap `<inset>` / `<clip>` / `<scale>` / `<rotate>` to the nested shape fill. */
+function parseInsetDrawable(
+  root: XmlElement,
+  values: AndroidValueResources,
+): ParsedDrawable {
+  for (const child of root.children) {
+    if (child.tag === 'shape') return parseShapeElement(child, values)
+    if (child.tag === 'layer-list') return parseLayerListDrawable(child, values)
+    if (
+      child.tag === 'inset' ||
+      child.tag === 'clip' ||
+      child.tag === 'scale' ||
+      child.tag === 'rotate'
+    ) {
+      return parseInsetDrawable(child, values)
+    }
+  }
+  return { kind: 'unsupported', raw: root.tag }
+}
+
+/** Parse shape / layer-list / inset / clip / scale / rotate XML drawable. */
+function parseShapeDrawable(
+  xml: string,
+  values: AndroidValueResources,
+): ParsedDrawable {
+  let root: XmlElement
+  try {
+    root = parseXml(xml)
+  } catch {
+    return { kind: 'unsupported', raw: 'invalid-xml' }
+  }
+
+  if (root.tag === 'shape') return parseShapeElement(root, values)
+  if (root.tag === 'layer-list' || root.tag === 'level-list') {
+    return parseLayerListDrawable(root, values)
+  }
+  if (
+    root.tag === 'inset' ||
+    root.tag === 'clip' ||
+    root.tag === 'scale' ||
+    root.tag === 'rotate'
+  ) {
+    return parseInsetDrawable(root, values)
+  }
+  // transition / animation-list / ripple / vector
+  if (
+    root.tag === 'transition' ||
+    root.tag === 'animation-list' ||
+    root.tag === 'animated-selector' ||
+    root.tag === 'ripple'
+  ) {
+    let maskRadius: number | undefined
+    for (const item of root.children) {
+      if (item.tag !== 'item') continue
+      const isMask = /mask/i.test(item.attrs['android:id'] ?? '')
+      for (const child of item.children) {
+        if (child.tag === 'shape') {
+          const shape = parseShapeElement(child, values)
+          if (isMask) {
+            if (shape.cornerRadius !== undefined) maskRadius = shape.cornerRadius
+            continue
+          }
+          if (maskRadius !== undefined && shape.cornerRadius === undefined) {
+            shape.cornerRadius = maskRadius
+          }
+          return shape
+        }
+      }
+      if (isMask) continue
+      const color = resolveColor(attr(item, 'android:color'), values)
+      if (color) {
+        return {
+          kind: 'shape',
+          shape: 'rectangle',
+          backgroundColor: color,
+          cornerRadius: maskRadius,
+        }
+      }
+    }
+    if (root.tag === 'ripple') {
+      const rippleColor = resolveColor(attr(root, 'android:color'), values)
+      if (rippleColor) {
+        return {
+          kind: 'shape',
+          shape: 'rectangle',
+          backgroundColor: rippleColor,
+          cornerRadius: maskRadius,
+        }
+      }
+    }
+    return { kind: 'unsupported', raw: root.tag }
+  }
+  if (root.tag === 'vector') {
+    const tint = resolveColor(attr(root, 'android:tint'), values)
+    if (tint) return { kind: 'shape', shape: 'rectangle', backgroundColor: tint }
+    const walk = (el: XmlElement): ParsedDrawable | undefined => {
+      if (el.tag === 'path') {
+        const fill = resolveColor(attr(el, 'android:fillColor'), values)
+        if (fill) return { kind: 'shape', shape: 'rectangle', backgroundColor: fill }
+      }
+      for (const child of el.children) {
+        const hit = walk(child)
+        if (hit) return hit
+      }
+      return undefined
+    }
+    return walk(root) ?? { kind: 'unsupported', raw: 'vector' }
+  }
+  if (root.tag === 'adaptive-icon') {
+    let backgroundColor: string | undefined
+    for (const child of root.children) {
+      if (child.tag !== 'background' && child.tag !== 'foreground') continue
+      const drawable = attr(child, 'android:drawable')
+      if (drawable?.startsWith('@color/') || drawable?.startsWith('#')) {
+        const c = resolveColor(drawable, values)
+        if (c && child.tag === 'background') backgroundColor = c
+        else if (c && !backgroundColor) backgroundColor = c
+      }
+      for (const nested of child.children) {
+        if (nested.tag === 'shape') {
+          const shape = parseShapeElement(nested, values)
+          if (shape.backgroundColor && (child.tag === 'background' || !backgroundColor)) {
+            backgroundColor = shape.backgroundColor
+          }
+        }
+        if (nested.tag === 'vector') {
+          const tint = resolveColor(attr(nested, 'android:tint'), values)
+          const fill = nested.children.find((c) => c.tag === 'path')
+          const pathFill = fill ? resolveColor(attr(fill, 'android:fillColor'), values) : undefined
+          const c = tint ?? pathFill
+          if (c && (child.tag === 'background' || !backgroundColor)) backgroundColor = c
+        }
+      }
+    }
+    if (backgroundColor) {
+      return { kind: 'shape', shape: 'rectangle', backgroundColor, cornerRadius: 18 }
+    }
+    return { kind: 'unsupported', raw: 'adaptive-icon' }
+  }
+  // selector remain unsupported placeholders for the hifi renderer.
+  return { kind: 'unsupported', raw: root.tag }
 }
 
 /** Discover every `res` root under the project (each Android module has one). */
@@ -294,7 +480,15 @@ export interface AndroidValueResourcesWithSources {
 }
 
 async function parseValueResources(resRoot: string): Promise<AndroidValueResourcesWithSources> {
-  const raw: AndroidResources = { dimens: {}, colors: {} }
+  const raw: AndroidResources = {
+    dimens: {},
+    colors: {},
+    strings: {},
+    styles: {},
+    styleParents: {},
+    attrs: {},
+    drawables: {},
+  }
   const strings: Record<string, string> = {}
   const pendingColors: Array<{ name: string; value: string }> = []
   const pendingDimens: Array<{ name: string; value: string }> = []

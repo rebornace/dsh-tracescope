@@ -134,4 +134,21 @@ describe('buildCodeVisualPrompt', () => {
     expect(prompt).not.toContain('[1:2] frame Home')
     expect(prompt).not.toContain('设计树快照')
   })
+
+  it('never embeds data: / base64 design images in the prompt', () => {
+    const prompt = buildCodeVisualPrompt({
+      designName: '首页',
+      figmaUrl: 'https://lanhuapp.com/#/item?image_id=x',
+      designImageUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      designRasterInPanel: true,
+      repoPath: '/repo',
+      codeRelativePath: 'a.xml',
+      dependencyManifest: '- a.xml',
+      jobId: 'job-b64',
+    })
+    expect(prompt).not.toContain('base64,iVBOR')
+    expect(prompt).not.toMatch(/data:image\/[a-z]+;base64,/i)
+    expect(prompt).toContain('侧栏对照板')
+    expect(prompt).toContain('请勿将 base64')
+  })
 })

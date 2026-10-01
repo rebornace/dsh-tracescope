@@ -9,6 +9,7 @@ import { parseXml, type XmlElement } from '../xml-lite.js'
 import type { CodePage, PageFingerprint, PlatformAdapter } from './adapter-types.js'
 import type { DesignDoc, DesignNode, DesignStyle, HexColor } from '../types.js'
 import { parseCssColor } from './web-css.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 
 function localName(tag: string): string {
   const i = tag.indexOf(':')
@@ -69,10 +70,67 @@ function parseThickness(
   return undefined
 }
 
+function applyMauiVisualStateDefaults(el: XmlElement, style: DesignStyle): void {
+  const setters: Array<{ property: string; value: string }> = []
+  const visit = (node: XmlElement) => {
+    const tag = localName(node.tag)
+    if (tag === 'visualstate') {
+      const name = (attr(node, 'x:Name', 'Name') ?? '').toLowerCase()
+      // Prefer Normal; also accept empty name as default.
+      if (name && name !== 'normal' && name !== 'common' && name !== 'normalstate') {
+        for (const c of node.children) visit(c)
+        return
+      }
+      const collectSetters = (n: XmlElement) => {
+        if (localName(n.tag) === 'setter') {
+          const property = attr(n, 'Property') ?? ''
+          const value = attr(n, 'Value') ?? n.text?.trim() ?? ''
+          if (property && value) setters.push({ property, value })
+        }
+        for (const c of n.children) collectSetters(c)
+      }
+      collectSetters(node)
+    }
+    for (const c of node.children) visit(c)
+  }
+  visit(el)
+
+  for (const { property, value } of setters) {
+    const prop = property.replace(/^[^.]+\./, '') // Button.BackgroundColor → BackgroundColor
+    if (/backgroundcolor|background/i.test(prop) && !style.backgroundColor) {
+      const c = parseMauiColor(value)
+      if (c) style.backgroundColor = c
+    }
+    if (/textcolor|color$/i.test(prop) && !/background/i.test(prop) && !style.color) {
+      const c = parseMauiColor(value)
+      if (c) style.color = c
+    }
+    if (/fontsize/i.test(prop) && style.fontSize === undefined) {
+      const n = parseLength(value)
+      if (n !== undefined) style.fontSize = n
+    }
+    if (/cornerradius/i.test(prop) && style.cornerRadius === undefined) {
+      const n = parseLength(value)
+      if (n !== undefined) style.cornerRadius = n
+    }
+  }
+}
+
 function convert(el: XmlElement, seq: { n: number }): DesignNode | null {
   const tag = localName(el.tag)
   // Skip xaml root noise
   if (tag === 'contentpage.toolbaritems' || tag === 'contentpage.resources') return null
+  // Skip VisualState machinery as nodes
+  if (
+    tag === 'visualstatemanager.visualstategroups' ||
+    tag === 'visualstategrouplist' ||
+    tag === 'visualstategroup' ||
+    tag === 'visualstate' ||
+    tag === 'visualstate.setters' ||
+    tag === 'setter'
+  ) {
+    return null
+  }
 
   const style: DesignStyle = {}
   const color = parseMauiColor(attr(el, 'TextColor', 'Color'))
@@ -83,6 +141,9 @@ function convert(el: XmlElement, seq: { n: number }): DesignNode | null {
   if (fontSize !== undefined) style.fontSize = fontSize
   const radius = parseLength(attr(el, 'CornerRadius'))
   if (radius !== undefined) style.cornerRadius = radius
+
+  // Fill missing colours / sizes from VisualState Normal setters.
+  applyMauiVisualStateDefaults(el, style)
 
   const fontAttrs = attr(el, 'FontAttributes')
   if (fontAttrs && /bold/i.test(fontAttrs)) style.fontWeight = 700
@@ -223,6 +284,7 @@ export const mauiXamlAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const xaml = await readFile(page.absolutePath, 'utf8')
-    return normalizeMauiXaml(xaml, path.basename(page.relativePath, '.xaml'))
+    const ctx = await loadNativeStyleContext(page.absolutePath, xaml, 'maui')
+    return normalizeMauiXaml(ctx.source, path.basename(page.relativePath, '.xaml'))
   },
 }

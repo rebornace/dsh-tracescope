@@ -8,6 +8,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { extractStringLiterals } from './source-text.js'
 import { swiftuiSourceToDesignDoc } from './declarative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -62,6 +63,7 @@ export const iosSwiftuiAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return swiftuiSourceToDesignDoc(src, path.basename(page.relativePath, '.swift'))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'swiftui')
+    return swiftuiSourceToDesignDoc(ctx.source, path.basename(page.relativePath, '.swift'))
   },
 }

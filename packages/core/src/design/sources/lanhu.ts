@@ -13,12 +13,15 @@
  */
 import type {
   DesignDoc,
+  DesignFill,
   DesignGradient,
   DesignNode,
   DesignNodeKind,
+  DesignShadow,
   DesignStyle,
   HexColor,
 } from '../types.js'
+import { estimateTextAdvance, estimateTextBlock } from '../text-metrics.js'
 
 const LANHU_HOSTS = new Set([
   'lanhuapp.com',
@@ -89,6 +92,59 @@ function parseColor(c: unknown): HexColor | undefined {
   const o = c as { r?: number; g?: number; b?: number; a?: number }
   if (typeof o.r !== 'number' || typeof o.g !== 'number' || typeof o.b !== 'number') return undefined
   return rgbaToHex(o.r, o.g, o.b, typeof o.a === 'number' ? o.a : 1)
+}
+
+/** Apply a fill-level opacity (0–1) onto an already-parsed hex colour. */
+function withFillOpacity(hex: HexColor | undefined, opacity: unknown): HexColor | undefined {
+  if (!hex) return undefined
+  const op = Number(opacity)
+  if (!Number.isFinite(op) || !(op < 1)) return hex
+  const raw = hex.replace(/^#/, '')
+  let r = 0
+  let g = 0
+  let b = 0
+  let a = 255
+  if (raw.length === 3) {
+    r = parseInt(raw[0]! + raw[0]!, 16)
+    g = parseInt(raw[1]! + raw[1]!, 16)
+    b = parseInt(raw[2]! + raw[2]!, 16)
+  } else if (raw.length >= 6) {
+    r = parseInt(raw.slice(0, 2), 16)
+    g = parseInt(raw.slice(2, 4), 16)
+    b = parseInt(raw.slice(4, 6), 16)
+    if (raw.length === 8) a = parseInt(raw.slice(6, 8), 16)
+  } else {
+    return hex
+  }
+  return rgbaToHex(r, g, b, (a / 255) * op)
+}
+
+/** Normalize blend mode tokens to CSS mix-blend-mode; omit normal/pass-through. */
+function normalizeLanhuBlendMode(raw: string): string | undefined {
+  const key = raw.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  if (!key || key === 'normal' || key === 'pass-through' || key === 'passthrough') {
+    return undefined
+  }
+  const allowed = new Set([
+    'multiply',
+    'screen',
+    'overlay',
+    'darken',
+    'lighten',
+    'color-dodge',
+    'color-burn',
+    'hard-light',
+    'soft-light',
+    'difference',
+    'exclusion',
+    'hue',
+    'saturation',
+    'color',
+    'luminosity',
+    'plus-darker',
+    'plus-lighter',
+  ])
+  return allowed.has(key) ? key : undefined
 }
 
 /** True when the URL looks like a Lanhu design / project link. */
@@ -247,6 +303,86 @@ interface RawLayer {
   children?: RawLayer[]
   fills?: Array<Record<string, unknown>>
   borders?: Array<Record<string, unknown>>
+  shadows?: Array<Record<string, unknown>>
+  shadow?: Record<string, unknown> | Array<Record<string, unknown>>
+  blur?: number
+  layerBlur?: number
+  gaussianBlur?: number
+  backdropBlur?: number
+  backgroundBlur?: number
+  position?: string
+  layoutPositioning?: string
+  rowGap?: number
+  columnGap?: number
+  blendMode?: string
+  blend?: string
+  /** Rotation in degrees when present on the annotation. */
+  rotation?: number
+  rotate?: number
+  angle?: number
+  scaleX?: number
+  scaleY?: number
+  skewX?: number
+  skewY?: number
+  zIndex?: number
+  z_index?: number
+  strokeAlign?: string
+  /** Clip overflowing children when present. */
+  clipsContent?: boolean
+  overflow?: string
+  isMask?: boolean
+  maskType?: string
+  clipPath?: string
+  aspectRatio?: number
+  minWidth?: number
+  maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  maxLines?: number
+  textTruncation?: string
+  textOverflow?: string
+  textAlignVertical?: string
+  flexDirection?: string
+  layoutMode?: string
+  alignItems?: string
+  justifyContent?: string
+  sizingHorizontal?: string
+  sizingVertical?: string
+  layoutSizingHorizontal?: string
+  layoutSizingVertical?: string
+  flexWrap?: string
+  layoutWrap?: string
+  alignContent?: string
+  counterAxisAlignContent?: string
+  order?: number | string
+  gridTemplate?: string
+  alignSelf?: string
+  layoutAlign?: string
+  flexGrow?: number | string
+  layoutGrow?: number | string
+  flexShrink?: number | string
+  transformOrigin?: string
+  visibility?: string
+  display?: string
+  whiteSpace?: string
+  wordBreak?: string
+  wordSpacing?: number | string
+  textIndent?: number | string
+  paragraphIndent?: number | string
+  direction?: string
+  writingMode?: string
+  filter?: string
+  outline?: string
+  perspective?: number | string
+  rotateX?: number | string
+  rotateY?: number | string
+  borderStyle?: string
+  strokeStyle?: string
+  strokeDashes?: number[]
+  strokeCap?: string
+  strokeJoin?: string
+  paragraphSpacing?: number
+  lineCount?: number
   text?: {
     text?: string
     value?: string
@@ -404,12 +540,45 @@ function convertStyle(raw: RawLayer, scale: number, kind: DesignNodeKind): Desig
   const gradientFill = fills.find((f) => f.type === 'gradient')
   const imageFill = fills.find((f) => f.type === 'image')
 
+  // Full fill stack (top→bottom) for multi-paint layers.
+  const fillStack: DesignFill[] = []
+  for (const f of fills) {
+    const t = String(f.type ?? '').toLowerCase()
+    if ((t === 'color' || t === 'solid') && f.color) {
+      const color = withFillOpacity(parseColor(f.color), f.opacity ?? f.alpha)
+      if (color) {
+        fillStack.push({
+          type: 'solid',
+          color,
+          ...(typeof f.opacity === 'number' && f.opacity < 1
+            ? { opacity: Math.round(Number(f.opacity) * 100) / 100 }
+            : typeof f.alpha === 'number' && Number(f.alpha) < 1
+              ? { opacity: Math.round(Number(f.alpha) * 100) / 100 }
+              : {}),
+        })
+      }
+    } else if (t === 'gradient') {
+      const g = parseGradient(f)
+      if (g) fillStack.push({ type: 'gradient', gradient: g })
+    } else if (t === 'image') {
+      const url = (f.image as { url?: string } | undefined)?.url
+      fillStack.push({
+        type: 'image',
+        imageFit: 'cover',
+        ...(url ? { imageRef: url } : {}),
+      })
+    }
+  }
+  if (fillStack.length) style.fills = fillStack
+
   if (kind === 'text') {
     const typo = raw.style || {}
     const textInfo = raw.textInfo || {}
     if (typo.textColor) style.color = parseColor(typo.textColor)
     else if (textInfo.color) style.color = parseColor(textInfo.color)
-    else if (solid?.color) style.color = parseColor(solid.color)
+    else if (solid?.color) {
+      style.color = withFillOpacity(parseColor(solid.color), solid.opacity ?? solid.alpha)
+    }
     if (typeof typo.fontFamily === 'string') style.fontFamily = typo.fontFamily
     const fontSize = Number(typo.fontSize ?? textInfo.size ?? textInfo.fontSize)
     if (Number.isFinite(fontSize) && fontSize > 0) {
@@ -420,13 +589,48 @@ function convertStyle(raw: RawLayer, scale: number, kind: DesignNodeKind): Desig
     if (typeof typo.letterSpacing === 'number' || typeof typo.kerning === 'number') {
       style.letterSpacing = round(to1x(Number(typo.letterSpacing ?? typo.kerning ?? 0), scale))
     }
+    const para = Number(typo.paragraphSpacing ?? typo.paragraphGap ?? raw.paragraphSpacing)
+    if (Number.isFinite(para) && para > 0) style.paragraphSpacing = round(to1x(para, scale))
     const align = String(typo.textAlign || 'left')
     if (align === 'center' || align === 'right' || align === 'justify') style.textAlign = align
     else style.textAlign = 'left'
+    const valign = String(
+      typo.textAlignVertical ?? typo.verticalAlign ?? raw.textAlignVertical ?? '',
+    ).toLowerCase()
+    if (valign === 'center' || valign === 'middle') style.textAlignVertical = 'center'
+    else if (valign === 'bottom') style.textAlignVertical = 'bottom'
+    else if (valign === 'top') style.textAlignVertical = 'top'
+    if (
+      typo.italic === true ||
+      /italic|oblique/i.test(String(typo.fontStyle ?? typo.style ?? ''))
+    ) {
+      style.fontStyle = 'italic'
+    }
+    const decoRaw = String(
+      typo.textDecoration ?? typo.decoration ?? typo.underline ?? '',
+    ).toLowerCase()
+    if (/underline/.test(decoRaw) && /line-?through|strike/.test(decoRaw)) {
+      style.textDecoration = 'underline line-through'
+    } else if (/underline/.test(decoRaw) || typo.underline === true) {
+      style.textDecoration = 'underline'
+    } else if (/line-?through|strike/.test(decoRaw)) {
+      style.textDecoration = 'line-through'
+    }
+    const caseRaw = String(
+      typo.textTransform ?? typo.textCase ?? typo.case ?? '',
+    ).toLowerCase()
+    if (caseRaw === 'uppercase' || caseRaw === 'upper') style.textTransform = 'uppercase'
+    else if (caseRaw === 'lowercase' || caseRaw === 'lower') style.textTransform = 'lowercase'
+    else if (caseRaw === 'capitalize' || caseRaw === 'title') style.textTransform = 'capitalize'
   } else {
     const gradient = gradientFill ? parseGradient(gradientFill) : undefined
     if (gradient) style.gradient = gradient
-    else if (solid?.color) style.backgroundColor = parseColor(solid.color)
+    else if (solid?.color) {
+      style.backgroundColor = withFillOpacity(
+        parseColor(solid.color),
+        solid.opacity ?? solid.alpha,
+      )
+    }
     if (imageFill) {
       style.imageFit = 'cover'
       const url = (imageFill.image as { url?: string } | undefined)?.url
@@ -444,10 +648,407 @@ function convertStyle(raw: RawLayer, scale: number, kind: DesignNodeKind): Desig
     }
     const radius = Number(border.radius ?? 0)
     if (radius > 0) style.cornerRadius = round(to1x(radius, scale))
+    // Per-side thickness when present (Sketch / 蓝湖 occasional export).
+    const sides = ['top', 'right', 'bottom', 'left'] as const
+    for (const side of sides) {
+      const key = `thickness${side[0]!.toUpperCase()}${side.slice(1)}`
+      const v = Number(border[key] ?? border[`${side}Width`] ?? border[side])
+      if (Number.isFinite(v) && v > 0) {
+        const w = round(to1x(v, scale))
+        if (side === 'top') style.borderTopWidth = w
+        else if (side === 'right') style.borderRightWidth = w
+        else if (side === 'bottom') style.borderBottomWidth = w
+        else style.borderLeftWidth = w
+      }
+    }
+    const alignRaw = String(
+      border.position ?? border.align ?? border.strokeAlign ?? raw.strokeAlign ?? '',
+    )
+      .trim()
+      .toLowerCase()
+    if (alignRaw === 'inside' || alignRaw === 'inner') style.strokeAlign = 'inside'
+    else if (alignRaw === 'outside' || alignRaw === 'outer') style.strokeAlign = 'outside'
+    else if (alignRaw === 'center' || alignRaw === 'centre' || alignRaw === 'middle') {
+      style.strokeAlign = 'center'
+    }
+  }
+
+  const shadowList: Array<Record<string, unknown>> = Array.isArray(raw.shadows)
+    ? raw.shadows
+    : Array.isArray(raw.shadow)
+      ? raw.shadow
+      : raw.shadow
+        ? [raw.shadow]
+        : []
+  let bestOuter: DesignShadow | undefined
+  let bestInner: DesignShadow | undefined
+  const stack: DesignShadow[] = []
+  for (const sh of shadowList) {
+    if (sh.isEnabled === false || sh.enabled === false) continue
+    const blur = Number(sh.blur ?? sh.blurRadius ?? sh.radius ?? 0)
+    if (!Number.isFinite(blur) || blur < 0) continue
+    const offsetX = Number(
+      sh.offsetX ?? sh.x ?? (sh.offset as { x?: number } | undefined)?.x ?? 0,
+    )
+    const offsetY = Number(
+      sh.offsetY ?? sh.y ?? (sh.offset as { y?: number } | undefined)?.y ?? 0,
+    )
+    const spreadRaw = Number(sh.spread ?? sh.spreadRadius)
+    const color =
+      parseColor(sh.color) ??
+      (typeof sh.color === 'string' && sh.color.startsWith('#')
+        ? (sh.color.toLowerCase() as HexColor)
+        : undefined)
+    const inset =
+      sh.inset === true ||
+      sh.inner === true ||
+      /inner|inset/i.test(String(sh.type ?? sh.style ?? ''))
+    const candidate: DesignShadow = {
+      offsetX: round(to1x(Number.isFinite(offsetX) ? offsetX : 0, scale)),
+      offsetY: round(to1x(Number.isFinite(offsetY) ? offsetY : 0, scale)),
+      blur: round(to1x(blur, scale)),
+      ...(Number.isFinite(spreadRaw) ? { spread: round(to1x(spreadRaw, scale)) } : {}),
+      ...(color ? { color } : {}),
+      ...(inset ? { inset: true } : {}),
+    }
+    stack.push(candidate)
+    if (inset) {
+      if (!bestInner || candidate.blur >= bestInner.blur) bestInner = candidate
+    } else if (!bestOuter || candidate.blur >= bestOuter.blur) {
+      bestOuter = candidate
+    }
+  }
+  if (stack.length) style.shadows = stack
+  if (bestOuter) {
+    style.shadow = bestOuter
+    style.elevation = bestOuter.blur
+  }
+  if (bestInner) {
+    style.insetShadow = bestInner
+    style.innerShadow = bestInner.blur
+  }
+
+  const layerBlur = Number(
+    raw.blur ?? raw.layerBlur ?? (raw.style?.blur as number | undefined) ?? raw.gaussianBlur,
+  )
+  if (Number.isFinite(layerBlur) && layerBlur > 0) {
+    style.blur = round(to1x(layerBlur, scale))
+  }
+  const backdropBlur = Number(
+    raw.backdropBlur ??
+      raw.backgroundBlur ??
+      (raw.style?.backdropBlur as number | undefined) ??
+      (raw.style?.backgroundBlur as number | undefined),
+  )
+  if (Number.isFinite(backdropBlur) && backdropBlur > 0) {
+    style.backdropBlur = round(to1x(backdropBlur, scale))
+  }
+  const posRaw = String(
+    raw.position ?? raw.layoutPositioning ?? raw.style?.position ?? '',
+  ).toLowerCase()
+  if (
+    posRaw === 'absolute' ||
+    posRaw === 'relative' ||
+    posRaw === 'fixed' ||
+    posRaw === 'sticky'
+  ) {
+    style.position = posRaw
+  }
+  const rowGap = Number(raw.rowGap ?? raw.style?.rowGap)
+  if (Number.isFinite(rowGap) && rowGap > 0) {
+    style.rowGap = round(to1x(rowGap, scale))
+    if (style.gap === undefined) style.gap = style.rowGap
+  }
+  const columnGap = Number(raw.columnGap ?? raw.style?.columnGap)
+  if (Number.isFinite(columnGap) && columnGap > 0) {
+    style.columnGap = round(to1x(columnGap, scale))
+    if (style.gap === undefined) style.gap = style.columnGap
+  }
+
+  const blendRaw = String(
+    raw.blendMode ?? raw.blend ?? raw.style?.blendMode ?? raw.style?.mixBlendMode ?? '',
+  ).trim()
+  if (blendRaw) {
+    const bm = normalizeLanhuBlendMode(blendRaw)
+    if (bm) style.blendMode = bm
   }
 
   const opacity = typeof raw.opacity === 'number' ? raw.opacity : Number(raw.style?.opacity)
   if (Number.isFinite(opacity) && opacity < 1) style.opacity = Math.round(opacity * 100) / 100
+
+  const rotRaw = Number(
+    raw.rotation ??
+      raw.rotate ??
+      raw.angle ??
+      raw.style?.rotation ??
+      raw.style?.rotate ??
+      raw.style?.angle,
+  )
+  if (Number.isFinite(rotRaw) && Math.abs(rotRaw) > 0.5) {
+    // Heuristic: |r| ≤ 2π+ε → radians (plugin-style); else degrees.
+    const deg =
+      Math.abs(rotRaw) <= Math.PI * 2 + 0.01 ? (rotRaw * 180) / Math.PI : rotRaw
+    if (Math.abs(deg) > 0.5) style.rotation = Math.round(deg * 100) / 100
+  }
+
+  const sx = Number(raw.scaleX ?? raw.style?.scaleX ?? (raw as { scale?: number }).scale)
+  const sy = Number(raw.scaleY ?? raw.style?.scaleY ?? (raw as { scale?: number }).scale)
+  if (Number.isFinite(sx) && Math.abs(sx - 1) > 0.02) {
+    style.scaleX = Math.round(sx * 1000) / 1000
+  }
+  if (Number.isFinite(sy) && Math.abs(sy - 1) > 0.02) {
+    style.scaleY = Math.round(sy * 1000) / 1000
+  }
+
+  const skewX = Number(raw.skewX ?? raw.style?.skewX)
+  const skewY = Number(raw.skewY ?? raw.style?.skewY)
+  if (Number.isFinite(skewX) && Math.abs(skewX) > 0.5) {
+    style.skewX = Math.round(skewX * 100) / 100
+  }
+  if (Number.isFinite(skewY) && Math.abs(skewY) > 0.5) {
+    style.skewY = Math.round(skewY * 100) / 100
+  }
+
+  const zRaw = Number(raw.zIndex ?? raw.z_index ?? raw.style?.zIndex ?? raw.style?.z_index)
+  if (Number.isFinite(zRaw) && zRaw !== 0) style.zIndex = Math.round(zRaw)
+
+  if (
+    raw.clipsContent === true ||
+    /^(hidden|clip)$/i.test(String(raw.overflow ?? raw.style?.overflow ?? ''))
+  ) {
+    style.overflow = 'hidden'
+  } else if (/^(scroll|auto)$/i.test(String(raw.overflow ?? raw.style?.overflow ?? ''))) {
+    style.overflow = 'scroll'
+  }
+
+  if (raw.isMask === true) {
+    const mt = String(raw.maskType ?? raw.style?.maskType ?? '').toLowerCase()
+    if (mt.includes('lumin')) style.clipPath = 'mask:luminance'
+    else if (mt.includes('vector')) style.clipPath = 'mask:vector'
+    else style.clipPath = 'mask:alpha'
+    if (!style.overflow) style.overflow = 'hidden'
+  }
+  const clipRaw = String(raw.clipPath ?? raw.style?.clipPath ?? '').trim().toLowerCase()
+  if (clipRaw && !style.clipPath) {
+    if (clipRaw.startsWith('circle')) style.clipPath = 'circle'
+    else if (clipRaw.startsWith('ellipse')) style.clipPath = 'ellipse'
+    else if (clipRaw.startsWith('inset')) style.clipPath = 'inset'
+    else if (clipRaw.startsWith('polygon')) style.clipPath = 'polygon'
+    else if (clipRaw.startsWith('path')) style.clipPath = 'path'
+    else style.clipPath = 'custom'
+  }
+
+  const ar = Number(raw.aspectRatio ?? raw.style?.aspectRatio)
+  if (Number.isFinite(ar) && ar > 0) style.aspectRatio = Math.round(ar * 1000) / 1000
+
+  const minW = Number(raw.minWidth ?? raw.style?.minWidth)
+  const maxW = Number(raw.maxWidth ?? raw.style?.maxWidth)
+  const minH = Number(raw.minHeight ?? raw.style?.minHeight)
+  const maxH = Number(raw.maxHeight ?? raw.style?.maxHeight)
+  if (Number.isFinite(minW) && minW > 0) style.minWidth = round(to1x(minW, scale))
+  if (Number.isFinite(maxW) && maxW > 0) style.maxWidth = round(to1x(maxW, scale))
+  if (Number.isFinite(minH) && minH > 0) style.minHeight = round(to1x(minH, scale))
+  if (Number.isFinite(maxH) && maxH > 0) style.maxHeight = round(to1x(maxH, scale))
+
+  const flexDir = String(raw.flexDirection ?? raw.layoutMode ?? raw.style?.flexDirection ?? '')
+    .toLowerCase()
+  if (flexDir === 'row' || flexDir === 'horizontal') style.flexDirection = 'row'
+  else if (flexDir === 'column' || flexDir === 'vertical') style.flexDirection = 'column'
+  const alignItems = String(raw.alignItems ?? raw.style?.alignItems ?? '').toLowerCase()
+  if (alignItems === 'center') style.alignItems = 'center'
+  else if (alignItems === 'flex-end' || alignItems === 'end') style.alignItems = 'end'
+  else if (alignItems === 'flex-start' || alignItems === 'start') style.alignItems = 'start'
+  else if (alignItems === 'stretch') style.alignItems = 'stretch'
+  const justify = String(raw.justifyContent ?? raw.style?.justifyContent ?? '').toLowerCase()
+  if (justify === 'center') style.justifyContent = 'center'
+  else if (justify === 'flex-end' || justify === 'end') style.justifyContent = 'end'
+  else if (justify === 'flex-start' || justify === 'start') style.justifyContent = 'start'
+  else if (justify === 'space-between') style.justifyContent = 'space-between'
+  else if (justify === 'space-around') style.justifyContent = 'space-around'
+  else if (justify === 'space-evenly') style.justifyContent = 'space-evenly'
+
+  const sizeH = String(raw.sizingHorizontal ?? raw.layoutSizingHorizontal ?? raw.style?.sizingHorizontal ?? '')
+    .toLowerCase()
+  if (sizeH === 'fixed' || sizeH === 'hug' || sizeH === 'fill') style.sizingHorizontal = sizeH
+  const sizeV = String(raw.sizingVertical ?? raw.layoutSizingVertical ?? raw.style?.sizingVertical ?? '')
+    .toLowerCase()
+  if (sizeV === 'fixed' || sizeV === 'hug' || sizeV === 'fill') style.sizingVertical = sizeV
+
+  const flexWrap = String(raw.flexWrap ?? raw.layoutWrap ?? raw.style?.flexWrap ?? '').toLowerCase()
+  if (flexWrap === 'wrap' || flexWrap === 'wrap-reverse') style.flexWrap = 'wrap'
+  else if (flexWrap === 'nowrap') style.flexWrap = 'nowrap'
+  const alignContent = String(
+    raw.alignContent ?? raw.counterAxisAlignContent ?? raw.style?.alignContent ?? '',
+  ).toLowerCase()
+  if (alignContent === 'center') style.alignContent = 'center'
+  else if (alignContent === 'flex-end' || alignContent === 'end') style.alignContent = 'end'
+  else if (alignContent === 'flex-start' || alignContent === 'start') style.alignContent = 'start'
+  else if (alignContent === 'stretch' || alignContent === 'auto') style.alignContent = 'stretch'
+  else if (alignContent === 'space-between' || alignContent === 'space_between') {
+    style.alignContent = 'space-between'
+  } else if (alignContent === 'space-around' || alignContent === 'space_around') {
+    style.alignContent = 'space-around'
+  } else if (alignContent === 'space-evenly' || alignContent === 'space_evenly') {
+    style.alignContent = 'space-evenly'
+  }
+  const orderRaw = raw.order ?? raw.style?.order
+  if (typeof orderRaw === 'number' && orderRaw !== 0) style.order = orderRaw
+  else if (typeof orderRaw === 'string') {
+    const n = Number.parseInt(orderRaw, 10)
+    if (Number.isFinite(n) && n !== 0) style.order = n
+  }
+  const gridTemplate = String(
+    raw.gridTemplate ?? raw.style?.gridTemplate ?? '',
+  ).trim()
+  if (gridTemplate) style.gridTemplate = gridTemplate.toLowerCase()
+  const alignSelf = String(raw.alignSelf ?? raw.layoutAlign ?? raw.style?.alignSelf ?? '').toLowerCase()
+  if (alignSelf === 'center') style.alignSelf = 'center'
+  else if (alignSelf === 'flex-end' || alignSelf === 'end' || alignSelf === 'max') style.alignSelf = 'end'
+  else if (alignSelf === 'flex-start' || alignSelf === 'start' || alignSelf === 'min') {
+    style.alignSelf = 'start'
+  } else if (alignSelf === 'stretch') style.alignSelf = 'stretch'
+  const flexGrowRaw = raw.flexGrow ?? raw.layoutGrow ?? raw.style?.flexGrow
+  if (typeof flexGrowRaw === 'number' && flexGrowRaw > 0) {
+    style.flexGrow = Math.round(flexGrowRaw * 1000) / 1000
+  } else if (typeof flexGrowRaw === 'string') {
+    const n = Number.parseFloat(flexGrowRaw)
+    if (Number.isFinite(n) && n > 0) style.flexGrow = Math.round(n * 1000) / 1000
+  }
+  const flexShrinkRaw = raw.flexShrink ?? raw.style?.flexShrink
+  if (typeof flexShrinkRaw === 'number' && Number.isFinite(flexShrinkRaw)) {
+    style.flexShrink = Math.round(flexShrinkRaw * 1000) / 1000
+  } else if (typeof flexShrinkRaw === 'string') {
+    const n = Number.parseFloat(flexShrinkRaw)
+    if (Number.isFinite(n)) style.flexShrink = Math.round(n * 1000) / 1000
+  }
+
+  const transformOrigin = String(
+    raw.transformOrigin ?? raw.style?.transformOrigin ?? '',
+  ).trim()
+  if (transformOrigin) style.transformOrigin = transformOrigin
+  const visibility = String(raw.visibility ?? raw.style?.visibility ?? '').toLowerCase()
+  if (visibility === 'hidden' || visibility === 'collapse' || visibility === 'visible') {
+    style.visibility = visibility
+  }
+  const display = String(raw.display ?? raw.style?.display ?? '').toLowerCase()
+  if (
+    display === 'none' ||
+    display === 'flex' ||
+    display === 'inline-flex' ||
+    display === 'grid' ||
+    display === 'block' ||
+    display === 'inline'
+  ) {
+    style.display = display
+  }
+  const whiteSpace = String(raw.whiteSpace ?? raw.style?.whiteSpace ?? '').toLowerCase()
+  if (
+    whiteSpace === 'nowrap' ||
+    whiteSpace === 'pre' ||
+    whiteSpace === 'pre-wrap' ||
+    whiteSpace === 'pre-line' ||
+    whiteSpace === 'normal'
+  ) {
+    style.whiteSpace = whiteSpace
+  }
+  const wordBreak = String(raw.wordBreak ?? raw.style?.wordBreak ?? '').toLowerCase()
+  if (
+    wordBreak === 'break-all' ||
+    wordBreak === 'keep-all' ||
+    wordBreak === 'break-word' ||
+    wordBreak === 'normal'
+  ) {
+    style.wordBreak = wordBreak
+  }
+  const wordSpacingRaw = raw.wordSpacing ?? raw.style?.wordSpacing
+  if (typeof wordSpacingRaw === 'number' && Math.abs(wordSpacingRaw) > 0.01) {
+    style.wordSpacing = round(to1x(wordSpacingRaw, scale))
+  } else if (typeof wordSpacingRaw === 'string') {
+    const n = Number.parseFloat(wordSpacingRaw)
+    if (Number.isFinite(n) && Math.abs(n) > 0.01) style.wordSpacing = round(to1x(n, scale))
+  }
+  const textIndentRaw =
+    raw.textIndent ?? raw.paragraphIndent ?? raw.style?.textIndent ?? raw.style?.paragraphIndent
+  if (typeof textIndentRaw === 'number' && Math.abs(textIndentRaw) > 0.5) {
+    style.textIndent = round(to1x(textIndentRaw, scale))
+  } else   if (typeof textIndentRaw === 'string') {
+    const n = Number.parseFloat(textIndentRaw)
+    if (Number.isFinite(n) && Math.abs(n) > 0.5) style.textIndent = round(to1x(n, scale))
+  }
+  const direction = String(raw.direction ?? raw.style?.direction ?? '').toLowerCase()
+  if (direction === 'rtl' || direction === 'ltr') style.direction = direction
+  const writingMode = String(raw.writingMode ?? raw.style?.writingMode ?? '').toLowerCase()
+  if (
+    writingMode === 'vertical-rl' ||
+    writingMode === 'vertical-lr' ||
+    writingMode === 'horizontal-tb'
+  ) {
+    style.writingMode = writingMode
+  }
+  const filterRaw = String(raw.filter ?? raw.style?.filter ?? '').trim()
+  if (filterRaw) style.filter = filterRaw.toLowerCase()
+  const outlineRaw = String(raw.outline ?? raw.style?.outline ?? '').trim()
+  if (outlineRaw) style.outline = outlineRaw.toLowerCase()
+  const persp = Number(raw.perspective ?? raw.style?.perspective)
+  if (Number.isFinite(persp) && persp > 0) style.perspective = round(to1x(persp, scale))
+  const rotX = Number(raw.rotateX ?? raw.style?.rotateX)
+  if (Number.isFinite(rotX) && Math.abs(rotX) > 0.5) style.rotateX = Math.round(rotX * 100) / 100
+  const rotY = Number(raw.rotateY ?? raw.style?.rotateY)
+  if (Number.isFinite(rotY) && Math.abs(rotY) > 0.5) style.rotateY = Math.round(rotY * 100) / 100
+
+  const borderStyleRaw = String(
+    raw.borderStyle ?? raw.style?.borderStyle ?? raw.strokeStyle ?? '',
+  ).toLowerCase()
+  if (borderStyleRaw === 'dashed' || borderStyleRaw === 'dotted' || borderStyleRaw === 'solid') {
+    style.borderStyle = borderStyleRaw
+  }
+  const dashArr = Array.isArray(raw.strokeDashes)
+    ? raw.strokeDashes
+    : Array.isArray(raw.style?.strokeDashes)
+      ? (raw.style!.strokeDashes as unknown[])
+      : []
+  if (!style.borderStyle && dashArr.length) {
+    const nums = dashArr.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    if (nums.length) {
+      const max = Math.max(...nums)
+      const min = Math.min(...nums)
+      style.borderStyle = max <= 2 && max / Math.max(min, 0.01) <= 1.5 ? 'dotted' : 'dashed'
+      style.strokeDashArray = nums.map((n) => String(Math.round(n * 100) / 100)).join(',')
+    }
+  } else if (dashArr.length && !style.strokeDashArray) {
+    const nums = dashArr.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    if (nums.length) {
+      style.strokeDashArray = nums.map((n) => String(Math.round(n * 100) / 100)).join(',')
+    }
+  }
+  const strokeCap = String(raw.strokeCap ?? raw.style?.strokeCap ?? '').toLowerCase()
+  if (strokeCap === 'round' || strokeCap === 'square' || strokeCap === 'butt') {
+    style.strokeCap = strokeCap
+  }
+  const strokeJoin = String(raw.strokeJoin ?? raw.style?.strokeJoin ?? '').toLowerCase()
+  if (strokeJoin === 'round' || strokeJoin === 'bevel' || strokeJoin === 'miter') {
+    style.strokeJoin = strokeJoin
+  }
+
+  const maxLines = Number(
+    raw.maxLines ?? raw.style?.maxLines ?? raw.style?.numberOfLines ?? raw.lineCount,
+  )
+  if (Number.isFinite(maxLines) && maxLines > 0) {
+    style.maxLines = Math.round(maxLines)
+  }
+  const truncRaw = String(
+    raw.textTruncation ??
+      raw.textOverflow ??
+      raw.style?.textOverflow ??
+      raw.style?.textTruncation ??
+      '',
+  ).toLowerCase()
+  if (/ellipsis|ending|truncate/.test(truncRaw)) {
+    style.textOverflow = 'ellipsis'
+    if (style.maxLines === undefined) style.maxLines = 1
+  } else if (/clip/.test(truncRaw)) {
+    style.textOverflow = 'clip'
+  }
 
   return style
 }
@@ -483,6 +1084,33 @@ function convertLayer(
   if (dds?.imageUrl && !style.imageRef) {
     style.imageRef = dds.imageUrl
     if (!style.imageFit) style.imageFit = 'cover'
+  }
+  if (kind === 'text' && text) {
+    const fs = typeof style.fontSize === 'number' ? style.fontSize : 14
+    const metricOpts = {
+      letterSpacing:
+        typeof style.letterSpacing === 'number' ? style.letterSpacing : undefined,
+      fontWeight: style.fontWeight,
+    }
+    style.textAdvanceWidth = estimateTextAdvance(text, fs, metricOpts)
+    const maxW =
+      typeof style.maxWidth === 'number'
+        ? style.maxWidth
+        : Number.isFinite(geom.width)
+          ? round(geom.width)
+          : undefined
+    const lh = typeof style.lineHeight === 'number' ? style.lineHeight : undefined
+    const block = estimateTextBlock(text, fs, {
+      ...metricOpts,
+      maxWidth: maxW,
+      lineHeight: lh,
+    })
+    let lines = block.lines
+    if (typeof style.maxLines === 'number' && style.maxLines > 0) {
+      lines = Math.min(lines, style.maxLines)
+    }
+    const lineH = lh ?? Math.round(fs * 1.2 * 100) / 100
+    style.textBlockHeight = Math.round(lineH * lines * 100) / 100
   }
 
   return {
@@ -674,13 +1302,25 @@ export async function fetchLanhuPreviewDataUrl(
   options: LanhuClientOptions,
 ): Promise<string> {
   const remote = await fetchLanhuPreviewUrl(urlOrParts, options)
-  const response = await lanhuFetch(remote, options)
+  const cookie = options.cookie.trim()
+  if (!cookie) throw new Error('需要蓝湖 Cookie（从浏览器登录态复制）')
+  const headers: Record<string, string> = {
+    Cookie: cookie,
+    Accept: 'image/*,*/*;q=0.8',
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  }
+  const auth = options.authorization?.trim()
+  if (auth) headers.Authorization = auth
+  const fetchImpl = options.fetchImpl ?? fetch
+  const response = await fetchImpl(remote, { headers, redirect: 'follow' })
   if (!response.ok) {
     throw new Error(`蓝湖预览图下载失败：${response.status} ${response.statusText}`)
   }
   const contentType = response.headers.get('content-type') || 'image/png'
   const buf = Buffer.from(await response.arrayBuffer())
-  if (buf.byteLength > 6 * 1024 * 1024) throw new Error('蓝湖预览图过大')
+  // Full-page compare rasters can exceed thumbnail size; keep aligned with proxy-image.
+  if (buf.byteLength > 8 * 1024 * 1024) throw new Error('蓝湖预览图过大')
   const mime = contentType.startsWith('image/') ? contentType.split(';')[0]! : 'image/png'
   return `data:${mime};base64,${buf.toString('base64')}`
 }

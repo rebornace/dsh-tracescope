@@ -105,12 +105,30 @@ export function buildVisualChatPrompt(input: VisualChatPromptInput): string {
 
 export type CodeVisualManifestMode = 'android-xml' | 'source-files'
 
+/** Drop data: / non-http URLs so prompts never embed base64 image blobs. */
+export function promptSafeImageUrl(url: string | undefined | null): string | undefined {
+  if (url == null) return undefined
+  const trimmed = String(url).trim()
+  if (!trimmed) return undefined
+  if (/^data:/i.test(trimmed)) return undefined
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return undefined
+}
+
 export interface CodeVisualPromptInput {
   designName: string
   figmaUrl: string
+  /** http(s) only — never a data: URL. */
   designImageUrl?: string
+  /**
+   * True when a raster exists in the TraceScope panel (may be a data URL that
+   * must not be pasted into the prompt).
+   */
+  designRasterInPanel?: boolean
   designSnapshot?: string
   staticDiffSummary?: string
+  /** Dynamic/sparse code regions — call out uncertainty in findings. */
+  dynamicRegionsCatalog?: string
   repoPath: string
   platformLabel?: string
   codeRelativePath: string
@@ -127,20 +145,29 @@ export function buildCodeVisualPrompt(input: CodeVisualPromptInput): string {
       ? '\u4F9D\u8D56\u6E05\u5355\uff08\u8BF7\u6309\u6E05\u5355\u9605\u8BFB\u771F\u5B9E\u6E90\u7801\uff09\uFF1A'
       : '\u5165\u53E3\u4E0E\u5173\u8054\u6587\u4EF6\uff08\u8BF7\u6309\u6E05\u5355\u9605\u8BFB\u771F\u5B9E\u6E90\u7801\uff09\uFF1A'
 
+  const safeImage = promptSafeImageUrl(input.designImageUrl)
+  const designImageLine = safeImage
+    ? `\u8BBE\u8BA1\u6E32\u67D3\u56FE\uff08http\uff0c\u53EF\u76F4\u63A5\u6253\u5F00\uff09\uFF1A${safeImage}`
+    : input.designRasterInPanel
+      ? '\u8BBE\u8BA1\u6E32\u67D3\u56FE\uff1A\u5DF2\u5728 TraceScope \u4FA7\u680F\u5BF9\u7167\u677F\u5C55\u793A\uff08\u8BF7\u52FF\u5C06 base64 / data URL \u8D34\u8FDB\u63D0\u793A\u8BCD\uff09\uFF1B\u9700\u8981\u8282\u70B9\u7ED3\u6784/\u6587\u6848\u65F6\u8C03\u7528 tracescope_get_design_snapshot\u3002'
+      : '\u8BBE\u8BA1\u6E32\u67D3\u56FE\uFF1A\u6682\u65E0\uFF1B\u9700\u8981\u8282\u70B9\u7ED3\u6784/\u6587\u6848\u65F6\u8C03\u7528 tracescope_get_design_snapshot\u3002'
+
   return [
     '\u8BF7\u5148\u52A0\u8F7D skill \u300Ctracescope-ui-review\u300D\uFF0C\u6309\u5176\u6D41\u7A0B\u5B8C\u6210\u672C\u9875 UI \u8D70\u67E5\uFF0C\u518D\u7528\u5DE5\u5177\u5199\u56DE\u4FA7\u680F\u3002',
     '\u4E0D\u8981\u8BBF\u95EE figma.com\uFF0C\u4E5F\u4E0D\u8981\u8C03\u7528 Figma REST API\u3002',
+    '\u4E0D\u8981\u5728\u56DE\u590D\u6216\u5DE5\u5177\u53C2\u6570\u91CC\u5D4C\u5165 data:image / base64 \u56FE\u7247\u3002',
     '',
     input.jobId ? `\u4EFB\u52A1 ID\uFF1A${input.jobId}` : '',
     `\u8BBE\u8BA1\u9875\uFF1A${input.designName}`,
     `\u4ED3\u5E93\uFF1A${input.repoPath}`,
     `\u6280\u672F\u6808\uFF1A${input.platformLabel ?? 'Android XML'}`,
     `\u5165\u53E3\u6587\u4EF6\uFF1A${input.codeRelativePath}`,
-    input.designImageUrl
-      ? `\u8BBE\u8BA1\u6E32\u67D3\u56FE\uff08\u591A\u6A21\u6001\u53EF\u76F4\u63A5\u67E5\u770B\uff09\uFF1A${input.designImageUrl}`
-      : '\u8BBE\u8BA1\u6E32\u67D3\u56FE\uFF1A\u6682\u65E0\uFF1B\u9700\u8981\u8282\u70B9\u7ED3\u6784/\u6587\u6848\u65F6\u8C03\u7528 tracescope_get_design_snapshot\u3002',
+    designImageLine,
     input.staticDiffSummary
       ? `\u9759\u6001\u5DEE\u5F02\u6458\u8981\uff08\u4EC5\u4F5C\u7EBF\u7D22\uff09\uFF1A\n${input.staticDiffSummary}`
+      : '',
+    input.dynamicRegionsCatalog
+      ? `\u4EE3\u7801\u4FA7\u52A8\u6001\u533A\u57DF\uff08\u8FD0\u884C\u65F6\u6570\u636E\u4E0D\u786E\u5B9A\uff0c\u8BF7\u5728 findings \u4E2D\u6807\u660E\u5E76\u7ED9\u51FA\u8BBE\u8BA1\u7A3F\u671F\u671B\uff09\uFF1A\n${input.dynamicRegionsCatalog}`
       : '',
     input.gitSummary ? `Git \u4E0A\u4E0B\u6587\uFF1A\n${input.gitSummary}` : '',
     '',
@@ -148,7 +175,8 @@ export function buildCodeVisualPrompt(input: CodeVisualPromptInput): string {
     input.dependencyManifest,
     '',
     '\u9700\u8981\u8BBE\u8BA1\u6811/\u8282\u70B9\u7EC6\u8282\u65F6\uFF1Atracescope_get_design_snapshot\uff08\u4F20\u4E0A\u6587 jobId\uff09\u3002',
-    '\u5199\u56DE\u5DE5\u5177\uFF1Atracescope_publish_visual_findings\uFF08jobId \u5FC5\u987B\u4E0E\u4E0A\u6587\u4E00\u81F4\uFF09\u3002',
+    '\u5199\u56DE tracescope_publish_visual_findings \u65F6\uff1anodeId \u5FC5\u987B\u662F\u8BBE\u8BA1\u5FEB\u7167\u6216\u9759\u6001\u5DEE\u5F02\u6458\u8981\u91CC\u7684\u771F\u5B9E id\uff08\u5982 12:345\uff09\uff1b\u4E0D\u77E5\u9053\u5219\u7559\u7A7A\u5E76\u5199\u6E05 location/\u671F\u671B\u6587\u6848\uff0c\u7981\u6B62\u626D\u9020 id\u3002',
+    '\u5199\u56DE\u5DE5\u5177\uFF1Atracescope_publish_visual_findings\uff08jobId \u5FC5\u987B\u4E0E\u4E0A\u6587\u4E00\u81F4\uff09\uFF0C\u4EE5\u5DEE\u5F02\u6E05\u5355\u4E3A\u4E3B\uff08\u4E0D\u505A\u50CF\u7D20\u7EA7 UI \u8FD8\u539F\u9884\u89C8\uff09\u3002',
   ]
     .filter((l) => l !== '')
     .join('\n')
@@ -283,6 +311,7 @@ export function formatDesignSnapshot(
 
 export function formatStaticDiffSummary(
   diffs: Array<{
+    designNodeId?: string
     nodeName?: string
     property?: string
     severity?: string
@@ -298,7 +327,8 @@ export function formatStaticDiffSummary(
     .map((d, i) => {
       const sev =
         d.severity === 'high' ? '\u9AD8' : d.severity === 'medium' ? '\u4E2D' : '\u4F4E'
-      return `${i + 1}. [${sev}] ${d.nodeName || '?'} \u00b7 ${d.property || '?'}\uff1a\u671F\u671B ${formatPromptValue(d.expected)} / \u5B9E\u9645 ${formatPromptValue(d.actual)}`
+      const id = d.designNodeId ? ` id=${d.designNodeId}` : ''
+      return `${i + 1}. [${sev}] ${d.nodeName || '?'}${id} \u00b7 ${d.property || '?'}\uff1a\u671F\u671B ${formatPromptValue(d.expected)} / \u5B9E\u9645 ${formatPromptValue(d.actual)}`
     })
     .join('\n')
 }

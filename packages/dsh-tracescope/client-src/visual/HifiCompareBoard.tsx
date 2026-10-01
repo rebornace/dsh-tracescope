@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DiffBox } from './HifiScreen.js'
 import type { PageFindings } from './panel-types.js'
+import { resolveFindingNodeId } from './resolve-finding-node.js'
 import {
   copyTextToClipboard,
   defaultVisualDefectSubject,
@@ -18,8 +19,20 @@ interface HifiCompareData {
   designImageUrl?: string
   designNoteMasks?: NoteMask[]
   chatPrompt?: string
+  relatedFiles?: Array<{ relativePath: string; role: string; reason?: string }>
   designHifiTree: HifiTreeNode
-  /** Retained for API compat / AI patches; not rendered in the single-pane board. */
+  /** Full design id→box table (preferred for hotspot; covers folded icon children). */
+  designNodeBoxes?: Array<{
+    id: string
+    x: number
+    y: number
+    width: number
+    height: number
+    name?: string
+    kind?: string
+    text?: string
+  }>
+  /** Server may still return this; board focuses on design raster + diff list. */
   codeHifiTree?: HifiTreeNode
   aiInferenceNote?: string
   fromCache?: boolean
@@ -38,11 +51,37 @@ interface HifiTreeNode {
   name: string
   kind: string
   text?: string
+  imageUrl?: string
   x: number
   y: number
   width: number
   height: number
+  dynamic?: boolean
+  aiInferred?: boolean
+  aiNote?: string
+  itemRendered?: boolean
+  style?: Record<string, unknown>
+  inferredChildren?: HifiTreeNode[]
   children: HifiTreeNode[]
+}
+
+function relatedRoleLabel(role: string): string {
+  switch (role) {
+    case 'sibling':
+      return '同目录'
+    case 'import':
+      return '引用'
+    case 'include':
+      return 'include'
+    case 'style':
+      return '样式'
+    case 'resource':
+      return '资源'
+    case 'entry':
+      return '入口'
+    default:
+      return role || '关联'
+  }
 }
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 0 } as const
@@ -75,10 +114,89 @@ const PROP_LABEL: Record<string, string> = {
   color: '文字颜色',
   fontSize: '字号',
   cornerRadius: '圆角',
+  cornerRadii: '四角圆角',
   borderWidth: '边框粗细',
   borderColor: '边框颜色',
+  borderTopWidth: '上边框宽',
+  borderRightWidth: '右边框宽',
+  borderBottomWidth: '下边框宽',
+  borderLeftWidth: '左边框宽',
+  borderTopColor: '上边框色',
+  borderRightColor: '右边框色',
+  borderBottomColor: '下边框色',
+  borderLeftColor: '左边框色',
   fontWeight: '字重',
   opacity: '透明度',
+  elevation: '阴影/海拔',
+  shadow: '外阴影',
+  innerShadow: '内阴影',
+  insetShadow: '内阴影参数',
+  shadows: '阴影叠层',
+  blur: '模糊',
+  blendMode: '混合模式',
+  rotation: '旋转',
+  scaleX: '缩放X',
+  scaleY: '缩放Y',
+  skewX: '倾斜X',
+  skewY: '倾斜Y',
+  zIndex: '层叠顺序',
+  fills: '填充叠层',
+  strokeAlign: '描边对齐',
+  textAlign: '对齐',
+  textDecoration: '文字装饰',
+  textTransform: '文字大小写',
+  overflow: '溢出裁剪',
+  clipPath: '裁剪路径',
+  aspectRatio: '宽高比',
+  maxLines: '最大行数',
+  textOverflow: '文本溢出',
+  minWidth: '最小宽度',
+  maxWidth: '最大宽度',
+  minHeight: '最小高度',
+  maxHeight: '最大高度',
+  textAdvanceWidth: '文本固有宽',
+  textBlockHeight: '文本块高',
+  flexDirection: '主轴方向',
+  alignItems: '交叉轴对齐',
+  justifyContent: '主轴分布',
+  fontStyle: '字体样式',
+  textAlignVertical: '垂直对齐',
+  borderStyle: '描边样式',
+  strokeDashArray: '虚线间隔',
+  strokeCap: '线帽',
+  strokeJoin: '线连接',
+  paragraphSpacing: '段间距',
+  sizingHorizontal: '横向尺寸模式',
+  sizingVertical: '纵向尺寸模式',
+  backdropBlur: '背景模糊',
+  position: '定位',
+  rowGap: '行间距',
+  columnGap: '列间距',
+  flexWrap: '换行',
+  alignContent: '多行对齐',
+  order: '排列顺序',
+  gridTemplate: '网格轨道',
+  alignSelf: '自身对齐',
+  flexGrow: '弹性放大',
+  flexShrink: '弹性缩小',
+  transformOrigin: '变换原点',
+  visibility: '可见性',
+  display: '显示',
+  whiteSpace: '空白处理',
+  wordBreak: '断词',
+  wordSpacing: '词间距',
+  textIndent: '首行缩进',
+  perspective: '透视',
+  rotateX: 'X轴旋转',
+  rotateY: 'Y轴旋转',
+  textShadow: '文字阴影',
+  direction: '书写方向',
+  writingMode: '书写模式',
+  filter: '滤镜',
+  outline: '轮廓',
+  imageFit: '图片适配',
+  imagePosition: '图片锚点',
+  gradient: '渐变',
   text: '文案',
   controlCount: '控件规模',
 }
@@ -152,7 +270,7 @@ export function HifiCompareBoard({
   onOpenTrackerSettings?: () => void
   onActionHint?: (message: string) => void
 }) {
-  const [activeDesignId, setActiveDesignId] = useState('')
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
   const [chatNote, setChatNote] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ai' | 'rule'>('all')
   const storeKey = useMemo(() => diffStoreKey(data), [data])
@@ -161,14 +279,13 @@ export function HifiCompareBoard({
   )
   const [hiddenLayerIds, setHiddenLayerIds] = useState<string[]>(() => loadHiddenLayers(storeKey))
   const [pickHint, setPickHint] = useState('')
-  const [layerBusy, setLayerBusy] = useState(false)
   const userEraseRef = useRef(false)
   const eraseDoneHintRef = useRef('已删除图层（可点「恢复已删除图层」撤销）。')
 
   useEffect(() => {
     setOverrides(loadDiffOverrides(storeKey))
     setHiddenLayerIds(loadHiddenLayers(storeKey))
-    setActiveDesignId('')
+    setSelectedKeys(new Set())
   }, [storeKey])
 
   useEffect(() => {
@@ -190,9 +307,30 @@ export function HifiCompareBoard({
   const diffs = data.result.diffs as unknown as DiffBox[]
 
   const designBoxById = useMemo(() => {
-    const map = new Map<string, { x: number; y: number; width: number; height: number; name: string; kind: string; text?: string }>()
+    const map = new Map<
+      string,
+      { x: number; y: number; width: number; height: number; name: string; kind: string; text?: string }
+    >()
+    const put = (
+      idRaw: string,
+      box: { x: number; y: number; width: number; height: number; name?: string; kind?: string; text?: string },
+    ) => {
+      const id = String(idRaw ?? '').trim()
+      if (!id || map.has(id)) return
+      map.set(id, {
+        x: Number(box.x) || 0,
+        y: Number(box.y) || 0,
+        width: Number(box.width) || 0,
+        height: Number(box.height) || 0,
+        name: box.name || id,
+        kind: box.kind || 'frame',
+        text: box.text,
+      })
+    }
+    // Prefer the full DesignDoc flat table (includes icon-group descendants).
+    for (const b of data.designNodeBoxes ?? []) put(b.id, b)
     const walk = (n: HifiTreeNode): void => {
-      map.set(n.id, {
+      put(n.id, {
         x: n.x,
         y: n.y,
         width: n.width,
@@ -201,13 +339,64 @@ export function HifiCompareBoard({
         kind: n.kind,
         text: n.text,
       })
-      for (const c of n.children) walk(c)
+      for (const c of n.inferredChildren ?? []) walk(c)
+      for (const c of n.children ?? []) walk(c)
     }
     walk(data.designHifiTree)
+    for (const m of data.designNoteMasks ?? []) {
+      put(String(m.nodeId ?? ''), {
+        x: m.x,
+        y: m.y,
+        width: m.width,
+        height: m.height,
+        name: m.text,
+        kind: 'text',
+        text: m.text,
+      })
+    }
     return map
-  }, [data.designHifiTree])
+  }, [data.designHifiTree, data.designNodeBoxes, data.designNoteMasks])
+
+  /** Exact id, then digit-compact / colon-dash normalized match. */
+  const resolveDesignBox = useMemo(() => {
+    const compactIndex = new Map<string, string>()
+    const normalizeIndex = new Map<string, string>()
+    for (const id of designBoxById.keys()) {
+      const compact = id.replace(/[^0-9]/g, '')
+      if (compact && !compactIndex.has(compact)) compactIndex.set(compact, id)
+      const norm = id.replace(/-/g, ':')
+      if (!normalizeIndex.has(norm)) normalizeIndex.set(norm, id)
+    }
+    return (rawId: string) => {
+      const id = String(rawId ?? '').trim()
+      if (!id) return undefined
+      const direct = designBoxById.get(id)
+      if (direct) return direct
+      const norm = id.replace(/-/g, ':')
+      const viaNorm = normalizeIndex.get(norm)
+      if (viaNorm) return designBoxById.get(viaNorm)
+      const compact = id.replace(/[^0-9]/g, '')
+      if (compact) {
+        const viaCompact = compactIndex.get(compact)
+        if (viaCompact) return designBoxById.get(viaCompact)
+      }
+      return undefined
+    }
+  }, [designBoxById])
 
   const aiFindings = findings?.findings ?? []
+
+  const findingLocators = useMemo(
+    () =>
+      [...designBoxById.entries()].map(([id, box]) => ({
+        id,
+        name: box.name,
+        text: box.text,
+        width: box.width,
+        height: box.height,
+      })),
+    [designBoxById],
+  )
 
   const unifiedItems = useMemo(() => {
     const compact = (id: string) => id.replace(/[^0-9]/g, '')
@@ -215,17 +404,42 @@ export function HifiCompareBoard({
     const items: UnifiedItem[] = []
 
     for (const f of aiFindings) {
-      const designId = (f.nodeId ?? '').trim()
+      const rawNodeId = (f.nodeId ?? '').trim()
       const haystack = `${f.title} ${f.location ?? ''} ${f.expected ?? ''} ${f.actual ?? ''} ${f.suggestion ?? ''}`.toLowerCase()
       let codeId = ''
+      let linkedDesignId = ''
       diffs.forEach((d, idx) => {
-        if (!designId || !d.designNodeId) return
-        if (compact(d.designNodeId) !== compact(designId)) return
-        if (propertyCovered(d.property, haystack)) {
+        if (!d.designNodeId) return
+        const sameId =
+          rawNodeId &&
+          compact(d.designNodeId) === compact(rawNodeId)
+        const nameInFinding =
+          d.nodeName &&
+          (haystack.includes(String(d.nodeName).toLowerCase()) ||
+            (f.location || '').toLowerCase().includes(String(d.nodeName).toLowerCase()))
+        if (!sameId && !nameInFinding) return
+        if (sameId && propertyCovered(d.property, haystack)) {
           absorbed.add(idx)
-          if (!codeId && d.codeNodeId) codeId = d.codeNodeId
         }
+        if (!linkedDesignId) linkedDesignId = String(d.designNodeId)
+        if (!codeId && d.codeNodeId) codeId = String(d.codeNodeId)
       })
+
+      const resolved =
+        resolveFindingNodeId(
+          {
+            title: f.title,
+            nodeId: rawNodeId || linkedDesignId || undefined,
+            location: f.location,
+            expected: f.expected,
+            actual: f.actual,
+            suggestion: f.suggestion,
+          },
+          findingLocators,
+        ) ||
+        linkedDesignId ||
+        rawNodeId
+
       items.push({
         key: 'ai-' + items.length,
         source: 'ai',
@@ -236,7 +450,7 @@ export function HifiCompareBoard({
         actual: f.actual,
         codeSource: f.codeSource,
         suggestion: f.suggestion,
-        designId,
+        designId: String(resolved || ''),
         codeId,
       })
     }
@@ -250,8 +464,8 @@ export function HifiCompareBoard({
         headline: `${PROP_LABEL[d.property] ?? d.property} · ${d.nodeName}`,
         expected: d.expected === undefined ? undefined : String(d.expected),
         actual: d.actual === undefined ? undefined : String(d.actual),
-        designId: d.designNodeId ?? '',
-        codeId: d.codeNodeId ?? '',
+        designId: String(d.designNodeId ?? ''),
+        codeId: String(d.codeNodeId ?? ''),
         needsReview: d.needsReview,
       })
     })
@@ -263,7 +477,7 @@ export function HifiCompareBoard({
       return 0
     })
     return items
-  }, [aiFindings, diffs])
+  }, [aiFindings, diffs, findingLocators])
 
   const displayItems = useMemo(() => {
     return unifiedItems
@@ -319,32 +533,41 @@ export function HifiCompareBoard({
   }
 
   const copyDiffs = async () => {
-    if (!visibleItems.length) {
-      hint('当前没有可复制的差异')
+    const targets = selectedKeys.size
+      ? visibleItems.filter((i) => selectedKeys.has(i.key))
+      : visibleItems
+    if (!targets.length) {
+      hint(selectedKeys.size ? '当前选中项无可复制差异' : '当前没有可复制的差异')
       return
     }
     try {
-      await copyTextToClipboard(formatVisualDiffCopyText(visibleItems, actionMeta))
-      hint(`已复制 ${visibleItems.length} 条差异`)
+      await copyTextToClipboard(formatVisualDiffCopyText(targets, actionMeta))
+      hint(`已复制 ${targets.length} 条差异`)
     } catch (err) {
       hint(`复制失败：${(err as Error).message}`)
     }
   }
 
   const exportDiffs = () => {
-    if (!visibleItems.length) {
-      hint('当前没有可导出的差异')
+    const targets = selectedKeys.size
+      ? visibleItems.filter((i) => selectedKeys.has(i.key))
+      : visibleItems
+    if (!targets.length) {
+      hint(selectedKeys.size ? '当前选中项无可导出差异' : '当前没有可导出的差异')
       return
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const filename = `tracescope-ui-diff-${stamp}.md`
-    downloadTextFile(filename, formatVisualDiffExportMarkdown(visibleItems, actionMeta))
+    downloadTextFile(filename, formatVisualDiffExportMarkdown(targets, actionMeta))
     hint(`已导出：${filename}`)
   }
 
   const submitDiffs = () => {
-    if (!visibleItems.length) {
-      hint('当前没有可提交的差异')
+    const targets = selectedKeys.size
+      ? visibleItems.filter((i) => selectedKeys.has(i.key))
+      : visibleItems
+    if (!targets.length) {
+      hint(selectedKeys.size ? '当前选中项无可提交差异' : '当前没有可提交的差异')
       return
     }
     if (!trackerReady) {
@@ -369,12 +592,12 @@ export function HifiCompareBoard({
     }
     openConfirmDialog({
       title: '提交缺陷？',
-      message: `将把 ${visibleItems.length} 条 UI 差异提交到协作平台（${trackerProvider || '已配置'}）。可修改下方标题后再提交。`,
+      message: `将把 ${targets.length} 条 UI 差异提交到协作平台（${trackerProvider || '已配置'}）。可修改下方标题后再提交。`,
       inputLabel: '缺陷标题',
-      inputValue: defaultVisualDefectSubject(visibleItems, actionMeta),
+      inputValue: defaultVisualDefectSubject(targets, actionMeta),
       confirmLabel: '提交',
       onConfirm: (subject) => {
-        const report = unifiedItemsToFailReport(visibleItems, actionMeta)
+        const report = unifiedItemsToFailReport(targets, actionMeta)
         void fetch('/tracescope/v1/tracker-submit', {
           method: 'POST',
           credentials: 'same-origin',
@@ -393,7 +616,7 @@ export function HifiCompareBoard({
             if (!r.ok) throw new Error(data.error || '提交失败')
             let tip = `已提交到 ${data.provider || trackerProvider || '协作平台'}`
             if (data.id) tip += `（ID ${data.id}）`
-            tip += `，共 ${data.count || visibleItems.length} 条。`
+            tip += `，共 ${data.count || targets.length} 条。`
             if (data.url) tip += ` 链接：${data.url}`
             hint(tip)
           })
@@ -404,24 +627,6 @@ export function HifiCompareBoard({
     })
   }
 
-  const markerDiffs = useMemo(() => {
-    const fromRules = displayItems
-      .filter((i) => i.designId && designBoxById.has(i.designId))
-      .map((i) => ({
-        designId: i.designId,
-        severity: i.severity,
-        key: i.key,
-      }))
-    const best = new Map<string, { designId: string; severity: UnifiedItem['severity']; key: string }>()
-    for (const m of fromRules) {
-      const prev = best.get(m.designId)
-      if (!prev || SEVERITY_RANK[m.severity] > SEVERITY_RANK[prev.severity]) {
-        best.set(m.designId, m)
-      }
-    }
-    return [...best.values()]
-  }, [displayItems, designBoxById])
-
   const visibleNoteMasks = useMemo(() => {
     const hidden = new Set(hiddenLayerIds)
     // Auto-detected designer notes: always erase from the raster (true removal).
@@ -429,7 +634,7 @@ export function HifiCompareBoard({
     // Manual layer deletes: erase those boxes too.
     const manual: NoteMask[] = []
     for (const id of hiddenLayerIds) {
-      const box = designBoxById.get(id)
+      const box = resolveDesignBox(id)
       if (!box || box.width <= 0 || box.height <= 0) continue
       if (id === data.designHifiTree.id) continue
       // Prefer the auto mask's fill hint when the same node was detected as a note.
@@ -455,18 +660,19 @@ export function HifiCompareBoard({
       byId.set(key, m)
     }
     return [...byId.values()]
-  }, [data.designNoteMasks, hiddenLayerIds, designBoxById, data.designHifiTree.id])
+  }, [data.designNoteMasks, hiddenLayerIds, resolveDesignBox, data.designHifiTree.id])
 
   // Click targets must include pruned annotation boxes (they are gone from the tree).
   const pickBoxes = useMemo(() => {
     const map = new Map(designBoxById)
     for (const m of data.designNoteMasks ?? []) {
-      if (!m.nodeId || map.has(m.nodeId)) continue
-      map.set(m.nodeId, {
-        x: m.x,
-        y: m.y,
-        width: m.width,
-        height: m.height,
+      const id = String(m.nodeId ?? '')
+      if (!id || map.has(id)) continue
+      map.set(id, {
+        x: Number(m.x) || 0,
+        y: Number(m.y) || 0,
+        width: Number(m.width) || 0,
+        height: Number(m.height) || 0,
         name: m.text,
         kind: 'text',
         text: m.text,
@@ -483,11 +689,66 @@ export function HifiCompareBoard({
   const w = data.viewport.width * computedScale
   const h = data.viewport.height * computedScale
 
-  function selectItem(designId: string) {
-    setActiveDesignId(designId)
+  const selectedHotspots = useMemo(() => {
+    const out: Array<{
+      key: string
+      color: string
+      box: { x: number; y: number; width: number; height: number }
+    }> = []
+    const seenBoxes = new Set<string>()
+    for (const item of visibleItems) {
+      if (!selectedKeys.has(item.key) || !item.designId) continue
+      const box = resolveDesignBox(item.designId)
+      if (!box || box.width <= 0 || box.height <= 0) continue
+      const boxKey = `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)},${Math.round(box.height)}`
+      // Same node may back multiple findings; keep one overlay per box, prefer higher severity.
+      const existingIdx = out.findIndex((h) => {
+        const k = `${Math.round(h.box.x)},${Math.round(h.box.y)},${Math.round(h.box.width)},${Math.round(h.box.height)}`
+        return k === boxKey
+      })
+      const color = SEVERITY_TEXT[item.severity]
+      if (existingIdx >= 0) {
+        const prev = out[existingIdx]!
+        const prevRank =
+          prev.color === SEVERITY_TEXT.high ? 3 : prev.color === SEVERITY_TEXT.medium ? 2 : 1
+        const nextRank = item.severity === 'high' ? 3 : item.severity === 'medium' ? 2 : 1
+        if (nextRank > prevRank) out[existingIdx] = { key: item.key, color, box }
+        continue
+      }
+      if (seenBoxes.has(boxKey)) continue
+      seenBoxes.add(boxKey)
+      out.push({ key: item.key, color, box })
+    }
+    return out
+  }, [visibleItems, selectedKeys, resolveDesignBox])
+
+  const designFrameRef = useRef<HTMLDivElement | null>(null)
+
+  function toggleItem(item: UnifiedItem) {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(item.key)) next.delete(item.key)
+      else next.add(item.key)
+      return next
+    })
+    const willSelect = !selectedKeys.has(item.key)
+    if (willSelect) {
+      if (item.designId && !resolveDesignBox(item.designId)) {
+        setPickHint('该差异缺少可定位的设计节点坐标，无法在对照图上高亮。')
+      } else {
+        setPickHint('')
+        requestAnimationFrame(() => {
+          designFrameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        })
+      }
+    } else {
+      setPickHint('')
+    }
   }
+
   function clearMarkers() {
-    setActiveDesignId('')
+    setSelectedKeys(new Set())
+    setPickHint('')
   }
 
   function patchOverride(key: string, patch: DiffOverride) {
@@ -504,8 +765,7 @@ export function HifiCompareBoard({
     if (!nodeId) return
     userEraseRef.current = true
     eraseDoneHintRef.current = '已删除图层（可点「恢复已删除图层」撤销）。'
-    setLayerBusy(true)
-    setPickHint('正在删除图层…')
+    setPickHint('正在清理图层…')
     setHiddenLayerIds((prev) => (prev.includes(nodeId) ? prev : [...prev, nodeId]))
   }
 
@@ -588,6 +848,31 @@ export function HifiCompareBoard({
           {data.page.kindLabel ?? data.page.adapterId} · {data.page.relativePath}
         </span>
       </div>
+      {(data.relatedFiles?.length ?? 0) > 1 ? (
+        <details style={{ marginBottom: 8, fontSize: 11, color: '#5f584c' }}>
+          <summary style={{ cursor: 'pointer', userSelect: 'none' }}>
+            关联文件 {data.relatedFiles!.length - 1} 个（入口仍为上方单文件）
+          </summary>
+          <ul
+            style={{
+              margin: '6px 0 0',
+              paddingLeft: 18,
+              maxHeight: 120,
+              overflow: 'auto',
+              lineHeight: 1.5,
+            }}
+          >
+            {data.relatedFiles!
+              .filter((f) => f.role !== 'entry')
+              .map((f) => (
+                <li key={f.relativePath} title={f.reason || f.role}>
+                  <span style={{ color: '#8a7f70' }}>[{relatedRoleLabel(f.role)}]</span>{' '}
+                  {f.relativePath}
+                </li>
+              ))}
+          </ul>
+        </details>
+      ) : null}
       <div style={{ fontSize: 11, color: '#8a7f70', marginBottom: 6 }}>
         自动删除识别到的设计师备注；也可点击图上图层继续删除（从渲染图中擦除该区域像素，不是盖白块）。
         {hiddenLayerIds.length ? (
@@ -597,7 +882,6 @@ export function HifiCompareBoard({
             onClick={() => {
               userEraseRef.current = true
               eraseDoneHintRef.current = '已恢复图层。'
-              setLayerBusy(true)
               setPickHint('正在恢复图层…')
               setHiddenLayerIds([])
             }}
@@ -608,21 +892,13 @@ export function HifiCompareBoard({
       </div>
       {pickHint ? <div style={{ fontSize: 11, color: '#0f6e56', marginBottom: 6 }}>{pickHint}</div> : null}
 
-      <div style={{ ...COL.frame, width: w, height: h }}>
+      <div ref={designFrameRef} style={{ ...COL.frame, width: w, height: h, position: 'relative' }}>
         <div style={{ transform: `scale(${computedScale})`, transformOrigin: 'top left' }}>
           <RasterDesignView
             imageUrl={data.designImageUrl}
             viewport={data.viewport}
             eraseRegions={visibleNoteMasks}
-            busy={layerBusy}
-            hotspot={activeDesignId ? designBoxById.get(activeDesignId) : undefined}
-            hotspotColor={
-              markerDiffs.find((m) => m.designId === activeDesignId)
-                ? SEVERITY_TEXT[markerDiffs.find((m) => m.designId === activeDesignId)!.severity]
-                : '#0f6e56'
-            }
             onBusyChange={(busy) => {
-              setLayerBusy(busy)
               if (!busy && userEraseRef.current) {
                 userEraseRef.current = false
                 setPickHint(eraseDoneHintRef.current)
@@ -642,6 +918,26 @@ export function HifiCompareBoard({
             }}
           />
         </div>
+        {selectedHotspots.map((spot) => (
+          <div
+            key={spot.key + ':' + Math.round(spot.box.x) + ',' + Math.round(spot.box.y)}
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: spot.box.x * computedScale,
+              top: spot.box.y * computedScale,
+              width: Math.max(4, spot.box.width * computedScale),
+              height: Math.max(4, spot.box.height * computedScale),
+              border: `2px solid ${spot.color}`,
+              background: `${spot.color}33`,
+              boxShadow: `0 0 0 1px #fff, 0 0 0 3px ${spot.color}`,
+              boxSizing: 'border-box',
+              pointerEvents: 'none',
+              zIndex: 6,
+              borderRadius: 2,
+            }}
+          />
+        ))}
       </div>
 
       {data.aiInferenceNote ? <div style={COL.aiNote}>{data.aiInferenceNote}</div> : null}
@@ -658,28 +954,36 @@ export function HifiCompareBoard({
           }}
         >
           <strong style={{ fontSize: 12 }}>
-            差异清单（{visibleItems.length}，点击可在设计稿上定位）
+            差异清单（{visibleItems.length}
+            {selectedKeys.size ? `，已选 ${selectedKeys.size}` : ''}
+            ，点击多选 / 再点取消）
           </strong>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" style={COL.aiBtn} onClick={sendToChat}>
               AI 协助分析
             </button>
             <button type="button" style={COL.clearBtn} onClick={() => void copyDiffs()}>
-              复制差异
+              {selectedKeys.size ? `复制选中(${selectedKeys.size})` : '复制差异'}
             </button>
             <button type="button" style={COL.clearBtn} onClick={submitDiffs}>
-              提交缺陷
+              {selectedKeys.size ? `提交选中(${selectedKeys.size})` : '提交缺陷'}
             </button>
             <button type="button" style={COL.clearBtn} onClick={exportDiffs}>
-              导出报告
+              {selectedKeys.size ? `导出选中(${selectedKeys.size})` : '导出报告'}
             </button>
             {onRegenerate ? (
               <button type="button" style={COL.clearBtn} onClick={onRegenerate}>
                 重新生成
               </button>
             ) : null}
-            <button type="button" style={COL.clearBtn} onClick={clearMarkers}>
-              清除高亮
+            <button
+              type="button"
+              style={COL.clearBtn}
+              onClick={clearMarkers}
+              disabled={!selectedKeys.size}
+              title="清除清单选中与对照图高亮"
+            >
+              清除选中
             </button>
           </div>
         </div>
@@ -693,13 +997,13 @@ export function HifiCompareBoard({
 
         <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
           {visibleItems.slice(0, 80).map((item) => {
-            const isActive = item.designId && activeDesignId === item.designId
+            const isActive = selectedKeys.has(item.key)
             return (
               <UnifiedCard
                 key={item.key}
                 item={item}
-                active={!!isActive}
-                onSelect={() => selectItem(item.designId)}
+                active={isActive}
+                onSelect={() => toggleItem(item)}
                 onDelete={() => patchOverride(item.key, { deleted: true })}
                 onOpenEditor={(mode) => {
                   if (typeof openConfirmDialog !== 'function') {
@@ -976,6 +1280,7 @@ function UnifiedCard({
       <div
         role="button"
         tabIndex={0}
+        aria-pressed={active}
         onClick={onSelect}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -992,6 +1297,26 @@ function UnifiedCard({
         }}
       >
         <div>
+          <span
+            aria-hidden
+            style={{
+              display: 'inline-block',
+              width: 14,
+              height: 14,
+              marginRight: 6,
+              borderRadius: 3,
+              border: '1px solid ' + (active ? '#0f6e56' : '#c4bba8'),
+              background: active ? '#0f6e56' : '#fff',
+              color: '#fff',
+              fontSize: 10,
+              lineHeight: '12px',
+              textAlign: 'center',
+              verticalAlign: 'middle',
+              fontWeight: 700,
+            }}
+          >
+            {active ? '✓' : ''}
+          </span>
           <span style={{ color: SEVERITY_TEXT[item.severity], fontWeight: 700 }}>
             [{SEVERITY_LABEL[item.severity]}]
           </span>{' '}
@@ -1080,33 +1405,41 @@ function sampleRingColor(
   imgW: number,
   imgH: number,
 ): string {
-  const pad = 2
-  const points: Array<[number, number]> = []
-  for (let i = 0; i <= 4; i += 1) {
-    const t = i / 4
-    points.push([x + w * t, Math.max(0, y - pad)])
-    points.push([x + w * t, Math.min(imgH - 1, y + h + pad)])
-    points.push([Math.max(0, x - pad), y + h * t])
-    points.push([Math.min(imgW - 1, x + w + pad), y + h * t])
+  // One getImageData for the pad ring — per-pixel getImageData is extremely slow.
+  const pad = 3
+  const left = Math.max(0, Math.floor(x - pad))
+  const top = Math.max(0, Math.floor(y - pad))
+  const right = Math.min(imgW, Math.ceil(x + w + pad))
+  const bottom = Math.min(imgH, Math.ceil(y + h + pad))
+  const rw = Math.max(1, right - left)
+  const rh = Math.max(1, bottom - top)
+  let data: ImageData
+  try {
+    data = ctx.getImageData(left, top, rw, rh)
+  } catch {
+    return '#f5f5f5'
   }
+  const innerL = Math.max(0, Math.floor(x) - left)
+  const innerT = Math.max(0, Math.floor(y) - top)
+  const innerR = Math.min(rw, Math.ceil(x + w) - left)
+  const innerB = Math.min(rh, Math.ceil(y + h) - top)
   let r = 0
   let g = 0
   let b = 0
   let n = 0
-  for (const [px, py] of points) {
-    const ix = Math.round(Math.min(imgW - 1, Math.max(0, px)))
-    const iy = Math.round(Math.min(imgH - 1, Math.max(0, py)))
-    try {
-      const d = ctx.getImageData(ix, iy, 1, 1).data
-      r += d[0] ?? 0
-      g += d[1] ?? 0
-      b += d[2] ?? 0
+  const px = data.data
+  for (let row = 0; row < rh; row += 2) {
+    for (let col = 0; col < rw; col += 2) {
+      const inside = row >= innerT && row < innerB && col >= innerL && col < innerR
+      if (inside) continue
+      const i = (row * rw + col) * 4
+      r += px[i] ?? 0
+      g += px[i + 1] ?? 0
+      b += px[i + 2] ?? 0
       n += 1
-    } catch {
-      /* ignore */
     }
   }
-  if (!n) return '#ffffff'
+  if (!n) return '#f5f5f5'
   return `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})`
 }
 
@@ -1179,8 +1512,8 @@ function paintRegionsOnCanvas(
 }
 
 /**
- * Erase note/hidden-layer rectangles. Caches the proxied source and reuses the
- * last canvas when only new regions are added (incremental delete is fast).
+ * Erase note/hidden-layer rectangles. Downscales oversized rasters and reuses
+ * the last canvas when only new regions are added (incremental delete is fast).
  */
 async function eraseRegionsFromImage(
   imageUrl: string,
@@ -1211,23 +1544,30 @@ async function eraseRegionsFromImage(
     const ctx = canvas.getContext('2d')
     if (ctx && added.length) {
       paintRegionsOnCanvas(ctx, canvas, added, logicalSize)
-      const resultUrl = canvas.toDataURL('image/jpeg', 0.92)
+      const resultUrl = canvas.toDataURL('image/jpeg', 0.82)
       eraseSession = { imageUrl, keys, canvas, resultUrl }
       return resultUrl
     }
   }
 
   const img = await loadHtmlImage(source)
+  const natW = img.naturalWidth || img.width
+  const natH = img.naturalHeight || img.height
+  // Cap working resolution so first-pass toDataURL stays responsive on Retina
+  // Figma exports (scale=2). Display is already scaled down in the panel.
+  const maxEdge = Math.max(960, Math.round(Math.max(logicalSize.width, logicalSize.height) * 2))
+  const scale = Math.min(1, maxEdge / Math.max(natW, natH, 1))
   const canvas = document.createElement('canvas')
-  canvas.width = img.naturalWidth || img.width
-  canvas.height = img.naturalHeight || img.height
+  canvas.width = Math.max(1, Math.round(natW * scale))
+  canvas.height = Math.max(1, Math.round(natH * scale))
   const ctx = canvas.getContext('2d')
   if (!ctx) return imageUrl
-  ctx.drawImage(img, 0, 0)
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
   paintRegionsOnCanvas(ctx, canvas, regions, logicalSize)
   let resultUrl: string
   try {
-    resultUrl = canvas.toDataURL('image/jpeg', 0.92)
+    resultUrl = canvas.toDataURL('image/jpeg', 0.82)
   } catch {
     return imageUrl
   }
@@ -1239,59 +1579,53 @@ function RasterDesignView({
   imageUrl,
   viewport,
   eraseRegions,
-  busy,
-  hotspot,
-  hotspotColor,
   onPick,
   onBusyChange,
 }: {
   imageUrl?: string
   viewport: { width: number; height: number }
   eraseRegions?: NoteMask[]
-  busy?: boolean
-  hotspot?: { x: number; y: number; width: number; height: number }
-  hotspotColor?: string
   onPick?: (x: number, y: number) => void
   onBusyChange?: (busy: boolean) => void
 }) {
   const [displayUrl, setDisplayUrl] = useState(imageUrl || '')
-  const [erasing, setErasing] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
   const regionsSig = JSON.stringify(
     (eraseRegions ?? []).map((r) => [r.nodeId, r.x, r.y, r.width, r.height, r.maskColor]),
   )
-
-  // Warm the proxy cache as soon as the raster URL is known.
-  useEffect(() => {
-    if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-      void loadProxiedDesignImage(imageUrl).catch(() => undefined)
-    }
-  }, [imageUrl])
 
   useEffect(() => {
     let cancelled = false
     if (!imageUrl) {
       setDisplayUrl('')
-      onBusyChange?.(false)
+      setCleaning(false)
       return
     }
     const regions = eraseRegions ?? []
-    if (!regions.length) {
-      setDisplayUrl(imageUrl)
-      setErasing(false)
-      onBusyChange?.(false)
+    // Always show the latest original first; cleanup swaps in later.
+    setDisplayUrl(imageUrl)
+    const needsProxy = /^https?:\/\//i.test(imageUrl)
+    if (!regions.length && !needsProxy) {
+      setCleaning(false)
       return
     }
-    setErasing(true)
-    onBusyChange?.(true)
+
+    setCleaning(true)
     ;(async () => {
       try {
+        if (!regions.length) {
+          const url = needsProxy ? await loadProxiedDesignImage(imageUrl) : imageUrl
+          if (!cancelled) setDisplayUrl(url)
+          return
+        }
         const url = await eraseRegionsFromImage(imageUrl, regions, viewport)
         if (!cancelled) setDisplayUrl(url)
       } catch {
         if (!cancelled) setDisplayUrl(imageUrl)
       } finally {
         if (!cancelled) {
-          setErasing(false)
+          setCleaning(false)
+          // Signal completion so parent can clear "正在清理…" hints.
           onBusyChange?.(false)
         }
       }
@@ -1320,8 +1654,6 @@ function RasterDesignView({
     )
   }
 
-  const showBusy = erasing || !!busy
-
   return (
     <div
       style={{
@@ -1329,10 +1661,10 @@ function RasterDesignView({
         width: viewport.width,
         height: viewport.height,
         overflow: 'hidden',
-        cursor: onPick && !showBusy ? 'crosshair' : 'default',
+        cursor: onPick ? 'crosshair' : 'default',
       }}
       onClick={(e) => {
-        if (!onPick || showBusy) return
+        if (!onPick) return
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
         const x = ((e.clientX - rect.left) / rect.width) * viewport.width
         const y = ((e.clientY - rect.top) / rect.height) * viewport.height
@@ -1350,56 +1682,26 @@ function RasterDesignView({
           objectFit: 'fill',
           display: 'block',
           pointerEvents: 'none',
-          filter: showBusy ? 'brightness(0.72)' : undefined,
         }}
       />
-      {showBusy ? (
+      {cleaning ? (
         <div
           style={{
             position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(16,24,40,0.38)',
-            pointerEvents: 'none',
+            left: 8,
+            bottom: 8,
             zIndex: 2,
+            pointerEvents: 'none',
+            background: 'rgba(16,24,40,0.72)',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 600,
+            borderRadius: 6,
+            padding: '4px 8px',
           }}
         >
-          <div
-            style={{
-              background: '#fff',
-              color: '#101828',
-              borderRadius: 10,
-              padding: '10px 14px',
-              fontSize: 13,
-              fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(16,24,40,0.2)',
-              textAlign: 'center',
-              lineHeight: 1.5,
-            }}
-          >
-            正在删除图层…
-            <div style={{ fontSize: 11, fontWeight: 500, color: '#667085', marginTop: 2 }}>
-              首次稍慢，之后会更快
-            </div>
-          </div>
+          正在清理备注…
         </div>
-      ) : null}
-      {hotspot ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: hotspot.x,
-            top: hotspot.y,
-            width: hotspot.width,
-            height: hotspot.height,
-            border: `2px solid ${hotspotColor ?? '#0f6e56'}`,
-            boxSizing: 'border-box',
-            pointerEvents: 'none',
-            zIndex: 1,
-          }}
-        />
       ) : null}
     </div>
   )

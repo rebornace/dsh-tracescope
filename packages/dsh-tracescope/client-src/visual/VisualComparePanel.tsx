@@ -6,6 +6,53 @@ import type { PageFindings } from './panel-types.js'
 
 export type { PageFindings } from './panel-types.js'
 
+interface HifiTreeLike {
+  id: string
+  name: string
+  kind: string
+  width: number
+  height: number
+  dynamic?: boolean
+  itemRendered?: boolean
+  inferredChildren?: unknown[]
+  children?: HifiTreeLike[]
+}
+
+/** Dynamic/sparse regions for the AI fill-template prompt. */
+function collectDynamicRegionsFromHifi(root: HifiTreeLike | undefined): Array<{
+  id: string
+  name: string
+  width: number
+  height: number
+  filled: boolean
+  itemRendered: boolean
+}> {
+  if (!root) return []
+  const out: Array<{
+    id: string
+    name: string
+    width: number
+    height: number
+    filled: boolean
+    itemRendered: boolean
+  }> = []
+  const walk = (n: HifiTreeLike): void => {
+    if (n.dynamic || n.kind === 'dynamic') {
+      out.push({
+        id: n.id,
+        name: n.name,
+        width: Math.round(n.width),
+        height: Math.round(n.height),
+        filled: Boolean(n.inferredChildren?.length),
+        itemRendered: Boolean(n.itemRendered),
+      })
+    }
+    for (const c of n.children ?? []) walk(c)
+  }
+  walk(root)
+  return out
+}
+
 async function post(path: string, body: unknown) {
   const r = await fetch(path, {
     method: 'POST',
@@ -51,7 +98,10 @@ export interface VisualComparePanelProps {
 const UI_CONFIG_PREFIX = 'tracescope.ui.'
 const UI_CONFIG_GLOBAL_PREFIX = 'tracescope.ui.global.'
 const UI_CONFIG_FIGMA_URL = 'figmaUrl'
+/** Figma personal access token (figd_…). Never store Lanhu cookies here. */
 const UI_CONFIG_FIGMA_TOKEN = 'figmaToken'
+/** Lanhu browser Cookie — kept separate so switching design sources does not clobber Figma. */
+const UI_CONFIG_LANHU_COOKIE = 'lanhuCookie'
 /** Saved design-link history (shared across repos). */
 const SAVED_LINKS_KEY = 'tracescope.ui.savedFigmaLinks'
 const MAX_SAVED_LINKS = 12
@@ -91,7 +141,8 @@ function writeStorage(key: string, value: string) {
 function hasRepoUiConfig(repoInput: string): boolean {
   return (
     readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null ||
-    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null
+    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null ||
+    readStorage(uiRepoKey(repoInput, UI_CONFIG_LANHU_COOKIE)) != null
   )
 }
 
@@ -166,11 +217,69 @@ function isLikelyFigmaUrl(url: string): boolean {
 }
 
 function isLikelyLanhuUrl(url: string): boolean {
-  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url.trim())
+  try {
+    const host = new URL(url.trim()).hostname.toLowerCase()
+    return host.includes('lanhuapp.com') || host.includes('lanhu.woa.com')
+  } catch {
+    return /lanhuapp\.com|lanhu\.woa\.com/i.test(url)
+  }
 }
 
 function isLikelyDesignUrl(url: string): boolean {
   return isLikelyFigmaUrl(url) || isLikelyLanhuUrl(url)
+}
+
+function credentialFieldForUrl(url: string): string {
+  return isLikelyLanhuUrl(url) ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN
+}
+
+function looksLikeFigmaToken(value: string): boolean {
+  return /^figd_/i.test(value.trim())
+}
+
+/** Heuristic: Lanhu cookies are long and usually contain "=" / ";". */
+function looksLikeLanhuCookie(value: string): boolean {
+  const v = value.trim()
+  if (!v || looksLikeFigmaToken(v)) return false
+  return /[;=]/.test(v) || v.length >= 64
+}
+
+/**
+ * Resolve the credential for the current design URL.
+ * Figma token and Lanhu cookie are stored under different keys so neither
+ * overwrites the other when the user switches links.
+ */
+function resolveDesignCredential(repoInput: string, url: string): string {
+  const lanhu = isLikelyLanhuUrl(url)
+  const field = lanhu ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN
+  const dedicated = hasRepoUiConfig(repoInput)
+    ? readRepoUiConfig(repoInput, field)
+    : readGlobalUiConfig(field)
+
+  if (lanhu) {
+    if (dedicated.trim()) return dedicated
+    // Legacy: cookie was saved under figmaToken — relocate once.
+    const legacy = hasRepoUiConfig(repoInput)
+      ? readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
+      : readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN)
+    if (legacy.trim() && looksLikeLanhuCookie(legacy)) {
+      writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, legacy)
+      return legacy
+    }
+    return ''
+  }
+
+  // Figma: only accept token-shaped values from the figmaToken key.
+  if (dedicated.trim() && !looksLikeLanhuCookie(dedicated)) return dedicated
+  if (dedicated.trim() && looksLikeLanhuCookie(dedicated)) {
+    // Cookie was wrongly stored as figmaToken — move it to lanhuCookie.
+    const existingLanhu = hasRepoUiConfig(repoInput)
+      ? readRepoUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE)
+      : readGlobalUiConfig(UI_CONFIG_LANHU_COOKIE)
+    if (!existingLanhu.trim()) writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, dedicated)
+    return ''
+  }
+  return ''
 }
 
 function readSavedLinks(): SavedFigmaLink[] {
@@ -222,7 +331,7 @@ export function VisualComparePanel({
 }: VisualComparePanelProps) {
   const [figmaUrl, setFigmaUrlState] = useState(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
   const [figmaToken, setFigmaTokenState] = useState(() =>
-    resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN),
+    resolveDesignCredential(repoInput, resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL)),
   )
   const [savedLinks, setSavedLinks] = useState<SavedFigmaLink[]>(() => readSavedLinks())
   const [busy, setBusy] = useState(false)
@@ -282,12 +391,20 @@ export function VisualComparePanel({
   const rematchTokenRef = useRef(0)
 
   const setFigmaUrl = (value: string) => {
+    const next = value.trim()
+    const prevLanhu = isLikelyLanhuUrl(figmaUrl)
+    const nextLanhu = isLikelyLanhuUrl(next)
     setFigmaUrlState(value)
-    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim())
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, next)
+    // When switching Figma ↔ 蓝湖, show the credential stored for that source
+    // (do not wipe the other key).
+    if (prevLanhu !== nextLanhu) {
+      setFigmaTokenState(resolveDesignCredential(repoInput, next))
+    }
   }
   const setFigmaToken = (value: string) => {
     setFigmaTokenState(value)
-    writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim())
+    writeUiConfig(repoInput, credentialFieldForUrl(figmaUrl), value.trim())
   }
   const clearFigmaUrl = () => {
     setFigmaUrlState('')
@@ -295,7 +412,7 @@ export function VisualComparePanel({
   }
   const clearFigmaToken = () => {
     setFigmaTokenState('')
-    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_TOKEN)
+    clearUiConfigField(repoInput, credentialFieldForUrl(figmaUrl))
   }
   const saveCurrentLink = () => {
     if (!figmaUrl.trim()) return
@@ -317,11 +434,16 @@ export function VisualComparePanel({
   // it has one; otherwise keep the currently filled values (shared design).
   useEffect(() => {
     if (hasRepoUiConfig(repoInput)) {
-      setFigmaUrlState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
-      setFigmaTokenState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN))
+      const url = readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL)
+      setFigmaUrlState(url)
+      setFigmaTokenState(resolveDesignCredential(repoInput, url))
     } else {
-      setFigmaUrlState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_URL))
-      setFigmaTokenState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN))
+      const url = readGlobalUiConfig(UI_CONFIG_FIGMA_URL)
+      setFigmaUrlState((prev) => prev || url)
+      setFigmaTokenState((prev) => {
+        if (prev) return prev
+        return resolveDesignCredential(repoInput, url || prev)
+      })
     }
     setError('')
     setHifiData(null)
@@ -602,11 +724,19 @@ export function VisualComparePanel({
         designId,
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
+        dynamicRegions: collectDynamicRegionsFromHifi(
+          (hifiData as { codeHifiTree?: HifiTreeLike } | null)?.codeHifiTree,
+        ),
       })
       const prompt = (res as { prompt?: string }).prompt
       const jobId = (res as { jobId?: string }).jobId
       const promptDesignImage = (res as { designImageUrl?: string }).designImageUrl
-      if (!designImageUrl && !promptDesignImage) {
+      const designRasterInPanel = Boolean(
+        (res as { designRasterInPanel?: boolean }).designRasterInPanel ||
+          designImageUrl ||
+          promptDesignImage,
+      )
+      if (!designRasterInPanel) {
         const proceed = window.confirm(
           '准备提示词时仍未拿到设计稿渲染图。继续发送可能导致效果差且浪费 token。\n\n是否仍要填入会话？',
         )
@@ -629,7 +759,7 @@ export function VisualComparePanel({
       }
       if (jobId) setPendingJob({ jobId, designId, kind: 'findings' })
       setError(
-        designImageUrl || promptDesignImage
+        designRasterInPanel
           ? '✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。'
           : '✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。',
       )
@@ -696,8 +826,26 @@ export function VisualComparePanel({
       {busy ? (
         <LoadingOverlay message={busyMessage} elapsedSeconds={elapsed} />
       ) : null}
-      <strong>UI 走查：设计稿 ↔ 代码</strong>
+      <strong>
+        设计差异分析
+        <span
+          style={{
+            marginLeft: 8,
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#8a5a00',
+            background: '#fff4d6',
+            border: '1px solid #f0d48a',
+            borderRadius: 4,
+            padding: '1px 6px',
+            verticalAlign: 'middle',
+          }}
+        >
+          试验
+        </span>
+      </strong>
       <p style={S.hint}>
+        对照设计稿与代码实现，列出布局 / 样式 / 文案等差异（试验功能，结果请人工复核）。
         支持 <b>Figma</b> 与 <b>蓝湖</b>：粘贴设计稿链接与访问凭证后扫描。
         Figma 填 Personal Access Token；蓝湖填浏览器 Cookie（登录 lanhuapp.com 后从 DevTools 复制）。
         链接带页面定位（Figma <code>node-id</code> / 蓝湖 <code>image_id</code>）时优先该页；否则扫描整个文件/项目。
@@ -795,7 +943,7 @@ export function VisualComparePanel({
       ) : null}
 
       <label style={S.label}>
-        {isLikelyLanhuUrl(figmaUrl) ? '蓝湖 Cookie' : '访问凭证（Figma Token / 蓝湖 Cookie）'}
+        {isLikelyLanhuUrl(figmaUrl) ? '蓝湖 Cookie' : 'Figma Token'}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             style={{ ...S.input, flex: 1, marginTop: 0 }}
@@ -805,7 +953,7 @@ export function VisualComparePanel({
             placeholder={
               isLikelyLanhuUrl(figmaUrl)
                 ? '从浏览器 DevTools → Network 请求头复制 Cookie'
-                : 'figd_... 或蓝湖 Cookie'
+                : 'figd_…（与蓝湖 Cookie 分开保存）'
             }
             onChange={(e) => setFigmaToken(e.target.value)}
           />
@@ -813,7 +961,7 @@ export function VisualComparePanel({
             type="button"
             style={S.miniBtn}
             disabled={busy || !figmaToken.trim()}
-            title="清除已保存的凭证"
+            title={isLikelyLanhuUrl(figmaUrl) ? '清除已保存的蓝湖 Cookie' : '清除已保存的 Figma Token'}
             onClick={clearFigmaToken}
           >
             清除
@@ -822,7 +970,7 @@ export function VisualComparePanel({
       </label>
 
       <p style={{ ...S.hint, margin: '2px 0 8px' }}>
-        「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。
+        「界面对比」生成设计对照图与静态差异清单；「AI 协助分析」补充/纠正差异项并写回下方清单（不做代码 UI 还原预览）。
         蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。
       </p>
 

@@ -12,7 +12,10 @@ import type {
   ComparedValue,
   DesignDoc,
   DesignDiff,
+  DesignFill,
+  DesignGradient,
   DesignNode,
+  DesignShadow,
   DiffSeverity,
   UnmatchedNode,
   UnresolvedValue,
@@ -37,27 +40,186 @@ const LENGTH_PROPERTIES: VisualProperty[] = [
   'paddingRight',
   'paddingBottom',
   'paddingLeft',
+  'gap',
+  'rowGap',
+  'columnGap',
+  'flexGrow',
+  'flexShrink',
+  'order',
+  'minWidth',
+  'maxWidth',
+  'minHeight',
+  'maxHeight',
+  'textAdvanceWidth',
+  'textBlockHeight',
   'cornerRadius',
   'borderWidth',
+  'borderTopWidth',
+  'borderRightWidth',
+  'borderBottomWidth',
+  'borderLeftWidth',
+  'elevation',
+  'innerShadow',
+  'blur',
+  'backdropBlur',
+  'rotation',
+  'scaleX',
+  'scaleY',
+  'skewX',
+  'skewY',
+  'perspective',
+  'rotateX',
+  'rotateY',
+  'zIndex',
+  'aspectRatio',
   'fontSize',
   'lineHeight',
   'letterSpacing',
+  'paragraphSpacing',
+  'wordSpacing',
+  'textIndent',
+  'maxLines',
 ]
 
 const COLOR_PROPERTIES: VisualProperty[] = [
   'backgroundColor',
   'color',
   'borderColor',
+  'borderTopColor',
+  'borderRightColor',
+  'borderBottomColor',
+  'borderLeftColor',
 ]
 
 const STRING_PROPERTIES: VisualProperty[] = ['fontFamily']
+
+/** Exact-match visual enums / tokens already normalised by adapters. */
+const ENUM_PROPERTIES: VisualProperty[] = [
+  'textAlign',
+  'textAlignVertical',
+  'fontStyle',
+  'textDecoration',
+  'textTransform',
+  'textOverflow',
+  'overflow',
+  'clipPath',
+  'flexDirection',
+  'alignItems',
+  'justifyContent',
+  'flexWrap',
+  'alignContent',
+  'alignSelf',
+  'sizingHorizontal',
+  'sizingVertical',
+  'borderStyle',
+  'strokeDashArray',
+  'strokeCap',
+  'strokeJoin',
+  'position',
+  'transformOrigin',
+  'visibility',
+  'display',
+  'whiteSpace',
+  'wordBreak',
+  'gridTemplate',
+  'direction',
+  'writingMode',
+  'filter',
+  'outline',
+  'imageFit',
+  'imagePosition',
+  'blendMode',
+  'strokeAlign',
+]
 
 /** High-impact properties drive the top severity for a node mismatch. */
 const HIGH_PROPERTIES = new Set<VisualProperty>([
   'backgroundColor',
   'color',
   'fontSize',
+  'imageFit',
+  'gradient',
 ])
+
+function serializeCornerRadii(radii: [number, number, number, number]): string {
+  return radii.map((n) => Math.round(n * 100) / 100).join(',')
+}
+
+function serializeGradient(gradient: DesignGradient): string {
+  const stops = gradient.stops
+    .map((s) => `${s.color.toLowerCase()}@${Math.round(s.position * 1000) / 1000}`)
+    .join(',')
+  return `${gradient.type}:${Math.round(gradient.cssAngle * 100) / 100}:${stops}`
+}
+
+/** Fingerprint for L1 shadow compare: ox,oy,blur,spread,color[,inset]. */
+export function serializeShadow(shadow: DesignShadow): string {
+  const ox = Math.round(shadow.offsetX * 100) / 100
+  const oy = Math.round(shadow.offsetY * 100) / 100
+  const blur = Math.round(shadow.blur * 100) / 100
+  const spread =
+    shadow.spread !== undefined ? Math.round(shadow.spread * 100) / 100 : 0
+  const color = (shadow.color ?? '').toLowerCase()
+  const inset = shadow.inset ? 'i' : 'o'
+  return `${ox},${oy},${blur},${spread},${color},${inset}`
+}
+
+/** Ordered stack fingerprint; empty → undefined. */
+export function serializeShadows(shadows: DesignShadow[]): string | undefined {
+  if (!shadows.length) return undefined
+  return shadows.map(serializeShadow).join('|')
+}
+
+/** Fingerprint for a fill stack (type + key visual token). */
+export function serializeFills(fills: DesignFill[]): string | undefined {
+  if (!fills.length) return undefined
+  return fills
+    .map((f) => {
+      if (f.type === 'solid') return `solid:${(f.color ?? '').toLowerCase()}`
+      if (f.type === 'gradient' && f.gradient) return `gradient:${serializeGradient(f.gradient)}`
+      if (f.type === 'image') return `image:${f.imageRef ?? ''}:${f.imageFit ?? ''}`
+      return f.type
+    })
+    .join('|')
+}
+
+function shadowClose(expected: string, actual: string): boolean {
+  const parseOne = (s: string) => {
+    const a = s.split(',')
+    return {
+      nums: a.slice(0, 4).map(Number),
+      color: (a[4] ?? '').toLowerCase(),
+      inset: (a[5] ?? 'o').toLowerCase(),
+    }
+  }
+  // Multi-shadow stacks use `|`.
+  const expParts = expected.split('|')
+  const actParts = actual.split('|')
+  if (expParts.length !== actParts.length) return false
+  for (let i = 0; i < expParts.length; i++) {
+    const a = parseOne(expParts[i]!)
+    const b = parseOne(actParts[i]!)
+    if (a.nums.length < 4 || b.nums.length < 4) return false
+    for (let j = 0; j < 4; j++) {
+      if (!Number.isFinite(a.nums[j]) || !Number.isFinite(b.nums[j])) return false
+      if (Math.abs(a.nums[j]! - b.nums[j]!) > NUMERIC_TOLERANCE) return false
+    }
+    if (a.inset !== b.inset) return false
+    if (a.color && b.color && !colorsEqual(a.color, b.color)) return false
+  }
+  return true
+}
+
+function cornerRadiiClose(expected: string, actual: string): boolean {
+  const a = expected.split(',').map(Number)
+  const b = actual.split(',').map(Number)
+  if (a.length !== 4 || b.length !== 4) return expected === actual
+  for (let i = 0; i < 4; i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) return false
+    if (Math.abs(a[i]! - b[i]!) > NUMERIC_TOLERANCE) return false
+  }
+  return true
+}
 
 /** Raw tokens that mean "size is dynamic / device-driven", not a fixed artboard px. */
 const DYNAMIC_SIZE_RAW =
@@ -279,6 +441,20 @@ function colorsEqual(expected: string, actual: string): boolean {
   )
 }
 
+/** Bake node-level opacity into a hex colour's alpha channel. */
+function colorWithOpacity(color: string, opacity: number | undefined): string {
+  if (opacity === undefined || !(opacity < 1)) return color
+  const p = parseHex(color)
+  if (!p) return color
+  const a = Math.max(0, Math.min(255, Math.round(p.a * opacity)))
+  const hex = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${hex(p.r)}${hex(p.g)}${hex(p.b)}${hex(a)}`
+}
+
+function nodeOpacity(node: DesignNode): number | undefined {
+  return typeof node.style.opacity === 'number' ? node.style.opacity : undefined
+}
+
 function severityFor(property: VisualProperty, delta: number): DiffSeverity {
   if (HIGH_PROPERTIES.has(property) && delta >= 4) return 'high'
   if (delta >= 8) return 'high'
@@ -290,9 +466,25 @@ function severityFor(property: VisualProperty, delta: number): DiffSeverity {
 const DEFAULTABLE_TYPOGRAPHY = new Set<VisualProperty>([
   'lineHeight',
   'letterSpacing',
+  'paragraphSpacing',
   'fontFamily',
   'fontWeight',
 ])
+
+/** Relative tolerance for line-height (platform metrics differ: px vs multiplier). */
+const LINE_HEIGHT_RELATIVE_TOLERANCE = 0.2
+
+function isDefaultLetterSpacing(v: ComparedValue): boolean {
+  return typeof v === 'number' && Math.abs(v) <= NUMERIC_TOLERANCE
+}
+
+/** Design line-height that looks like an AUTO / platform default for the font size. */
+function isDefaultishLineHeight(lineHeight: number, fontSize: number | undefined): boolean {
+  if (fontSize === undefined || !(fontSize > 0)) return false
+  const ratio = lineHeight / fontSize
+  // AUTO (~1.0) through common body defaults (~1.2–1.5).
+  return ratio >= 0.95 && ratio <= 1.55
+}
 
 function nestedText(node: DesignNode): DesignNode | undefined {
   return node.children.find((ch) => ch.kind === 'text')
@@ -305,6 +497,8 @@ const TYPO_FROM_LEAF: VisualProperty[] = [
   'fontSize',
   'lineHeight',
   'letterSpacing',
+  'textDecoration',
+  'textTransform',
 ]
 
 function leafTypography(node: DesignNode, property: VisualProperty): ComparedValue | undefined {
@@ -316,6 +510,8 @@ function leafTypography(node: DesignNode, property: VisualProperty): ComparedVal
     : property === 'fontWeight' ? leaf.style.fontWeight
     : property === 'fontSize' ? leaf.style.fontSize
     : property === 'lineHeight' ? leaf.style.lineHeight
+    : property === 'textDecoration' ? leaf.style.textDecoration
+    : property === 'textTransform' ? leaf.style.textTransform
     : leaf.style.letterSpacing
   return v === undefined ? undefined : (v as ComparedValue)
 }
@@ -331,10 +527,39 @@ function getNodeValue(
     const v = node.box[property]
     return typeof v === 'number' ? v : undefined
   }
+  if (property === 'cornerRadii') {
+    const radii = node.style.cornerRadii
+    return radii ? serializeCornerRadii(radii) : undefined
+  }
+  if (property === 'gradient') {
+    return node.style.gradient ? serializeGradient(node.style.gradient) : undefined
+  }
+  if (property === 'shadow') {
+    return node.style.shadow ? serializeShadow(node.style.shadow) : undefined
+  }
+  if (property === 'textShadow') {
+    return node.style.textShadow ? serializeShadow(node.style.textShadow) : undefined
+  }
+  if (property === 'insetShadow') {
+    return node.style.insetShadow ? serializeShadow(node.style.insetShadow) : undefined
+  }
+  if (property === 'shadows') {
+    return node.style.shadows?.length
+      ? serializeShadows(node.style.shadows)
+      : undefined
+  }
+  if (property === 'fills') {
+    return node.style.fills?.length ? serializeFills(node.style.fills) : undefined
+  }
   // A merged design control keeps its label's typography on the inner text leaf.
   if (borrowLeafTypography && node.kind !== 'text' && TYPO_FROM_LEAF.includes(property)) {
     const borrowed = leafTypography(node, property)
     if (borrowed !== undefined) return borrowed
+  }
+  if (property === 'textAlign') {
+    const leaf = borrowLeafTypography && node.kind !== 'text' ? nestedText(node) : undefined
+    const align = leaf?.style.textAlign ?? node.style.textAlign
+    return align
   }
   return node.style[property as keyof typeof node.style] as ComparedValue | undefined
 }
@@ -345,8 +570,16 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     ...LENGTH_PROPERTIES,
     ...COLOR_PROPERTIES,
     ...STRING_PROPERTIES,
+    ...ENUM_PROPERTIES,
     'fontWeight',
     'opacity',
+    'cornerRadii',
+    'gradient',
+    'shadow',
+    'insetShadow',
+    'shadows',
+    'textShadow',
+    'fills',
   ]
 
   for (const property of allProperties) {
@@ -379,6 +612,208 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     }
     if (actual === undefined) {
       if (DEFAULTABLE_TYPOGRAPHY.has(property)) {
+        // letterSpacing 0 is the platform default — missing code value is fine.
+        if (property === 'letterSpacing' && isDefaultLetterSpacing(expected)) continue
+        // AUTO / typical body line-height with no code override → skip noise.
+        if (property === 'lineHeight' && typeof expected === 'number') {
+          const fs = getNodeValue(design, 'fontSize', merged)
+          if (typeof fs === 'number' && isDefaultishLineHeight(expected, fs)) continue
+        }
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'low',
+          needsReview: true,
+        })
+        continue
+      }
+      // Platform default: design tools emit left; code often omits gravity/align.
+      if (property === 'textAlign' && String(expected).toLowerCase() === 'left') {
+        continue
+      }
+      // Fully opaque is the default; code omitting opacity is fine.
+      if (property === 'opacity' && Number(expected) >= 0.99) {
+        continue
+      }
+      // Near-zero rotation is the default.
+      if (property === 'rotation' && Math.abs(Number(expected)) <= 0.5) {
+        continue
+      }
+      // Identity scale is the default.
+      if (
+        (property === 'scaleX' || property === 'scaleY') &&
+        Math.abs(Number(expected) - 1) <= 0.02
+      ) {
+        continue
+      }
+      // Near-zero skew / default z-index.
+      if (
+        (property === 'skewX' || property === 'skewY') &&
+        Math.abs(Number(expected)) <= 0.5
+      ) {
+        continue
+      }
+      if (property === 'zIndex' && Number(expected) === 0) {
+        continue
+      }
+      // Center stroke is the common default.
+      if (property === 'strokeAlign' && String(expected).toLowerCase() === 'center') {
+        continue
+      }
+      // Default text decoration / transform / overflow.
+      if (
+        (property === 'textDecoration' || property === 'textTransform') &&
+        String(expected).toLowerCase() === 'none'
+      ) {
+        continue
+      }
+      if (property === 'overflow' && String(expected).toLowerCase() === 'visible') {
+        continue
+      }
+      if (property === 'textOverflow' && String(expected).toLowerCase() === 'clip') {
+        continue
+      }
+      // Continuous stroke is the default; dashed/dotted are notable.
+      if (property === 'borderStyle' && String(expected).toLowerCase() === 'solid') {
+        continue
+      }
+      if (property === 'strokeCap' && String(expected).toLowerCase() === 'butt') {
+        continue
+      }
+      if (property === 'strokeJoin' && String(expected).toLowerCase() === 'miter') {
+        continue
+      }
+      // Fixed sizing is the common artboard default when code uses explicit dp.
+      if (
+        (property === 'sizingHorizontal' || property === 'sizingVertical') &&
+        String(expected).toLowerCase() === 'fixed'
+      ) {
+        continue
+      }
+      // static/relative positioning is the common default.
+      if (
+        property === 'position' &&
+        (String(expected).toLowerCase() === 'relative' ||
+          String(expected).toLowerCase() === 'static')
+      ) {
+        continue
+      }
+      // nowrap is the flex default.
+      if (property === 'flexWrap' && String(expected).toLowerCase() === 'nowrap') {
+        continue
+      }
+      if (
+        property === 'alignContent' &&
+        (String(expected).toLowerCase() === 'stretch' ||
+          String(expected).toLowerCase() === 'normal' ||
+          String(expected).toLowerCase() === 'start')
+      ) {
+        continue
+      }
+      if (property === 'order' && Number(expected) === 0) {
+        continue
+      }
+      if (property === 'visibility' && String(expected).toLowerCase() === 'visible') {
+        continue
+      }
+      if (property === 'whiteSpace' && String(expected).toLowerCase() === 'normal') {
+        continue
+      }
+      if (property === 'wordBreak' && String(expected).toLowerCase() === 'normal') {
+        continue
+      }
+      if (
+        (property === 'wordSpacing' || property === 'textIndent') &&
+        Number(expected) === 0
+      ) {
+        continue
+      }
+      if (
+        property === 'transformOrigin' &&
+        /^(50%\s*50%|center)$/i.test(String(expected).trim())
+      ) {
+        continue
+      }
+      if (property === 'direction' && String(expected).toLowerCase() === 'ltr') {
+        continue
+      }
+      if (
+        property === 'writingMode' &&
+        String(expected).toLowerCase() === 'horizontal-tb'
+      ) {
+        continue
+      }
+      // Gradients / full shadows / blend / rotation / fills / scale / clip often flatten in code; soft-review.
+      if (
+        property === 'gradient' ||
+        property === 'imagePosition' ||
+        property === 'shadow' ||
+        property === 'insetShadow' ||
+        property === 'shadows' ||
+        property === 'textShadow' ||
+        property === 'fills' ||
+        property === 'blendMode' ||
+        property === 'strokeAlign' ||
+        property === 'rotation' ||
+        property === 'scaleX' ||
+        property === 'scaleY' ||
+        property === 'skewX' ||
+        property === 'skewY' ||
+        property === 'perspective' ||
+        property === 'rotateX' ||
+        property === 'rotateY' ||
+        property === 'zIndex' ||
+        property === 'textDecoration' ||
+        property === 'textTransform' ||
+        property === 'overflow' ||
+        property === 'clipPath' ||
+        property === 'aspectRatio' ||
+        property === 'textOverflow' ||
+        property === 'maxLines' ||
+        property === 'minWidth' ||
+        property === 'maxWidth' ||
+        property === 'minHeight' ||
+        property === 'maxHeight' ||
+        property === 'textAdvanceWidth' ||
+        property === 'textBlockHeight' ||
+        property === 'flexDirection' ||
+        property === 'alignItems' ||
+        property === 'justifyContent' ||
+        property === 'flexWrap' ||
+        property === 'alignContent' ||
+        property === 'alignSelf' ||
+        property === 'flexGrow' ||
+        property === 'flexShrink' ||
+        property === 'order' ||
+        property === 'gridTemplate' ||
+        property === 'transformOrigin' ||
+        property === 'visibility' ||
+        property === 'display' ||
+        property === 'whiteSpace' ||
+        property === 'wordBreak' ||
+        property === 'wordSpacing' ||
+        property === 'textIndent' ||
+        property === 'direction' ||
+        property === 'writingMode' ||
+        property === 'filter' ||
+        property === 'outline' ||
+        property === 'fontStyle' ||
+        property === 'textAlignVertical' ||
+        property === 'borderStyle' ||
+        property === 'strokeDashArray' ||
+        property === 'strokeCap' ||
+        property === 'strokeJoin' ||
+        property === 'sizingHorizontal' ||
+        property === 'sizingVertical' ||
+        property === 'backdropBlur' ||
+        property === 'position' ||
+        property === 'rowGap' ||
+        property === 'columnGap'
+      ) {
         diffs.push({
           designNodeId: design.id,
           codeNodeId: code.id,
@@ -403,7 +838,361 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     }
 
     if (COLOR_PROPERTIES.includes(property)) {
-      if (!colorsEqual(String(expected), String(actual))) {
+      const expC = colorWithOpacity(String(expected), nodeOpacity(design))
+      const actC = colorWithOpacity(String(actual), nodeOpacity(code))
+      if (!colorsEqual(expC, actC)) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected: expC,
+          actual: actC,
+          severity: HIGH_PROPERTIES.has(property) ? 'medium' : 'low',
+        })
+      }
+      continue
+    }
+
+    if (property === 'cornerRadii') {
+      if (!cornerRadiiClose(String(expected), String(actual))) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'medium',
+        })
+      }
+      continue
+    }
+
+    if (property === 'gradient') {
+      if (String(expected).toLowerCase() !== String(actual).toLowerCase()) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'medium',
+        })
+      }
+      continue
+    }
+
+    if (property === 'shadow' || property === 'insetShadow' || property === 'shadows' || property === 'textShadow') {
+      if (!shadowClose(String(expected), String(actual))) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'low',
+          needsReview: true,
+        })
+      }
+      continue
+    }
+
+    if (property === 'fills') {
+      if (String(expected).toLowerCase() !== String(actual).toLowerCase()) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'low',
+          needsReview: true,
+        })
+      }
+      continue
+    }
+
+    // Rotation: near-zero is noise; soft relative otherwise.
+    if (property === 'rotation' || property === 'rotateX' || property === 'rotateY') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const delta = Math.abs(expN - actN)
+      if (delta <= 0.5) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: delta >= 5 ? 'medium' : 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // perspective: soft relative.
+    if (property === 'perspective') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const delta = Math.abs(expN - actN)
+      if (delta <= 1) continue
+      const scale = Math.max(Math.abs(expN), Math.abs(actN), 1)
+      if (delta / scale <= 0.05) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // Scale: identity is noise; soft relative otherwise.
+    if (property === 'scaleX' || property === 'scaleY') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const delta = Math.abs(expN - actN)
+      if (delta <= 0.02) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: delta >= 0.15 ? 'medium' : 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // Skew: near-zero noise; soft otherwise.
+    if (property === 'skewX' || property === 'skewY') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const delta = Math.abs(expN - actN)
+      if (delta <= 0.5) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: delta >= 5 ? 'medium' : 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // zIndex: exact soft-review.
+    if (property === 'zIndex') {
+      if (Number(expected) === Number(actual)) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // aspectRatio: relative soft-review.
+    if (property === 'aspectRatio') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      if (!Number.isFinite(expN) || !Number.isFinite(actN) || expN <= 0 || actN <= 0) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'low',
+          needsReview: true,
+        })
+        continue
+      }
+      const rel = Math.abs(expN - actN) / Math.max(expN, actN)
+      if (rel <= 0.02) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: rel >= 0.15 ? 'medium' : 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // textAdvanceWidth / textBlockHeight / min-max sizes: relative soft-review.
+    if (
+      property === 'textAdvanceWidth' ||
+      property === 'textBlockHeight' ||
+      property === 'minWidth' ||
+      property === 'maxWidth' ||
+      property === 'minHeight' ||
+      property === 'maxHeight'
+    ) {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      if (!Number.isFinite(expN) || !Number.isFinite(actN)) {
+        diffs.push({
+          designNodeId: design.id,
+          codeNodeId: code.id,
+          nodeName: design.name,
+          property,
+          expected,
+          actual,
+          severity: 'low',
+          needsReview: true,
+        })
+        continue
+      }
+      const scale = Math.max(Math.abs(expN), Math.abs(actN), 1)
+      const rel = Math.abs(expN - actN) / scale
+      if (rel <= 0.08 || Math.abs(expN - actN) <= NUMERIC_TOLERANCE) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: rel >= 0.25 ? 'medium' : 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // maxLines: exact integer soft-review.
+    if (property === 'maxLines') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      if (expN === actN) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // flexGrow / flexShrink: platforms map weight differently; soft exact.
+    if (property === 'flexGrow' || property === 'flexShrink') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      if (Math.abs(expN - actN) <= 0.01) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // order: exact integer soft-review (platforms often omit 0).
+    if (property === 'order') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      if (expN === actN) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    // wordSpacing / textIndent: platforms approximate; soft relative.
+    if (property === 'wordSpacing' || property === 'textIndent') {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const delta = Math.abs(expN - actN)
+      if (delta <= NUMERIC_TOLERANCE) continue
+      const scale = Math.max(Math.abs(expN), Math.abs(actN), 1)
+      if (delta / scale <= 0.05) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
+
+    if (ENUM_PROPERTIES.includes(property)) {
+      if (String(expected).toLowerCase() !== String(actual).toLowerCase()) {
+        const soft =
+          property === 'textDecoration' ||
+          property === 'textTransform' ||
+          property === 'textOverflow' ||
+          property === 'overflow' ||
+          property === 'clipPath' ||
+          property === 'flexDirection' ||
+          property === 'alignItems' ||
+          property === 'justifyContent' ||
+          property === 'flexWrap' ||
+          property === 'alignContent' ||
+          property === 'alignSelf' ||
+          property === 'transformOrigin' ||
+          property === 'visibility' ||
+          property === 'display' ||
+          property === 'whiteSpace' ||
+          property === 'wordBreak' ||
+          property === 'gridTemplate' ||
+          property === 'direction' ||
+          property === 'writingMode' ||
+          property === 'filter' ||
+          property === 'outline' ||
+          property === 'fontStyle' ||
+          property === 'textAlignVertical' ||
+          property === 'borderStyle' ||
+          property === 'strokeDashArray' ||
+          property === 'strokeCap' ||
+          property === 'strokeJoin' ||
+          property === 'sizingHorizontal' ||
+          property === 'sizingVertical' ||
+          property === 'position' ||
+          property === 'blendMode' ||
+          property === 'strokeAlign' ||
+          property === 'imagePosition'
         diffs.push({
           designNodeId: design.id,
           codeNodeId: code.id,
@@ -412,13 +1201,17 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
           expected,
           actual,
           severity: HIGH_PROPERTIES.has(property) ? 'medium' : 'low',
+          ...(soft ? { needsReview: true } : {}),
         })
       }
       continue
     }
 
     if (property === 'fontWeight' || property === 'opacity') {
-      if (Number(expected) !== Number(actual)) {
+      const expN = Number(expected)
+      const actN = Number(actual)
+      const tol = property === 'opacity' ? 0.02 : 0
+      if (Math.abs(expN - actN) > tol) {
         diffs.push({
           designNodeId: design.id,
           codeNodeId: code.id,
@@ -454,6 +1247,23 @@ function comparePair(design: DesignNode, code: DesignNode, merged: boolean): Des
     const actN = Number(actual)
     const delta = Math.abs(expN - actN)
     if (delta <= NUMERIC_TOLERANCE) continue
+
+    // Line-height: platforms measure differently (multiplier vs px); soft relative.
+    if (property === 'lineHeight') {
+      const scale = Math.max(Math.abs(expN), Math.abs(actN), 1)
+      if (delta / scale <= LINE_HEIGHT_RELATIVE_TOLERANCE) continue
+      diffs.push({
+        designNodeId: design.id,
+        codeNodeId: code.id,
+        nodeName: design.name,
+        property,
+        expected,
+        actual,
+        severity: 'low',
+        needsReview: true,
+      })
+      continue
+    }
 
     // Width / height: design artboards use fixed px; phones vary. Responsive
     // stretch is not a visual bug — skip within tolerance, else soft review only.

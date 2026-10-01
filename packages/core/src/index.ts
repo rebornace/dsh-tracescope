@@ -188,7 +188,7 @@ export {
   type ModelJsonCaller,
   type ModelScopeDraft,
 } from './enrich.js'
-export { buildChatAnalysisPrompt, buildVisualChatPrompt, buildCodeVisualPrompt, buildPageRematchPrompt, formatDesignSnapshot, formatStaticDiffSummary } from './chat-prompt.js'
+export { buildChatAnalysisPrompt, buildVisualChatPrompt, buildCodeVisualPrompt, buildPageRematchPrompt, promptSafeImageUrl, formatDesignSnapshot, formatStaticDiffSummary } from './chat-prompt.js'
 export type { VisualChatDiff, VisualChatPromptInput, CodeVisualPromptInput, CodeVisualManifestMode, PageRematchCandidate, PageRematchPromptInput } from './chat-prompt.js'
 
 export {
@@ -210,6 +210,14 @@ export {
 export type { CachedEntry } from './visual-cache.js'
 export { parseVisualFindings, parseVisualRenderPatches } from './visual-findings-publish.js'
 export {
+  extractCandidateNodeIds,
+  resolveFindingNodeId,
+  designDocToFindingLocators,
+  enrichVisualFindingsNodeIds,
+  type FindingNodeLocator,
+  type FindingNodeHints,
+} from './design/resolve-finding-node.js'
+export {
   buildReportFromPublishedItems,
   parsePublishedHandtestItems,
   type PublishedHandtestItem,
@@ -222,8 +230,10 @@ export type {
   DesignBox,
   DesignDiff,
   DesignDoc,
+  DesignGradient,
   DesignNode,
   DesignNodeKind,
+  DesignShadow,
   DesignStyle,
   DiffSeverity,
   Edges,
@@ -240,6 +250,7 @@ export type {
 } from './design/types.js'
 export {
   figmaColorToHex,
+  normalizeFigmaBlendMode,
   fetchFigmaDoc,
   normalizeFigmaTree,
   parseFigmaUrl,
@@ -260,6 +271,7 @@ export {
   fetchLanhuDoc,
   fetchLanhuPreviewUrl,
   fetchLanhuPreviewUrls,
+  fetchLanhuPreviewDataUrl,
   fetchLanhuPreviewDataUrls,
   fetchLanhuProjectInventory,
   type LanhuClientOptions,
@@ -270,23 +282,57 @@ export {
 } from './design/sources/lanhu.js'
 export {
   buildAndroidResources,
+  EMPTY_ANDROID_RESOURCES,
   normalizeAndroidLayout,
   parseAndroidDimension,
+  resolveAndroidStyleAttrs,
+  registerAndroidColorFile,
+  androidResourceDirRank,
+  loadAndroidXmlResources,
+  parseConstraintDimensionRatio,
+  collectConstraintGuides,
+  applyConstraintChainWeights,
+  applyConstraintFlowLayout,
   type AndroidResources,
+  type AndroidUiMode,
   type DimensionToken,
 } from './design/adapters/android-xml.js'
-export { normalizeUIKitDoc } from './design/adapters/ios-xib.js'
+export {
+  normalizeUIKitDoc,
+  loadIosAssetCatalogColors,
+  parseColorsetContents,
+  extractNamedColorsFromIb,
+  resolveIosDynamicTypeSize,
+  IOS_DYNAMIC_TYPE_SIZES,
+} from './design/adapters/ios-xib.js'
 export { compareVisualDocs, type CompareOptions } from './design/compare.js'
 export { heuristicCompare } from './design/heuristic-compare.js'
 export {
   parseCssColor,
   parseCssLength,
+  parseCssAspectRatio,
+  parseCssObjectPosition,
+  parseCssBoxShadowElevation,
   parseCssDeclarations,
   parseSimpleClassRules,
   parseSimpleStyleRules,
+  preprocessStylesheet,
+  filterPrefersColorSchemeBlocks,
+  resolveCssColorSchemePrefer,
+  rewriteLightDarkFunctions,
+  filterContainerQueryBlocks,
+  applyFlexGapLayout,
+  applyDocumentOrderStack,
+  containerQueryMatches,
+  DEFAULT_CSS_CONTAINER,
+  extractFlexGapHint,
   type SimpleStyleRules,
 } from './design/adapters/web-css.js'
 export { markupToDesignDoc, collectMarkupTexts, countMarkupControls } from './design/adapters/web-markup.js'
+export {
+  loadAssociatedStyles,
+  collectStyleSpecifiers,
+} from './design/adapters/load-associated-styles.js'
 export { normalizeMauiXaml } from './design/adapters/maui-xaml.js'
 export { analyzeAdapterBindings, type AdapterBindings } from './design/adapter-binding.js'
 export { walkFiles } from './design/fs-walk.js'
@@ -352,7 +398,52 @@ export {
   formatDependencyManifest,
   type LayoutDependencyManifest,
 } from './design/deps-manifest.js'
+export {
+  resolveRelatedSourceFiles,
+  formatRelatedSourceFilesManifest,
+  relatedFromAndroidManifest,
+  relatedFilesAbsolute,
+  type RelatedSourceFile,
+  type RelatedSourceFilesResult,
+  type RelatedFileRole,
+} from './design/related-source-files.js'
+export {
+  expandDesignDocWithRelated,
+  isDesignDocCandidatePath,
+  normalizeComponentKey,
+  moduleKeyFromPath,
+  type RelatedDesignDocInput,
+} from './design/expand-related-design-doc.js'
 export { hifiTreeToDesignDoc } from './design/hifi-to-design-doc.js'
+export {
+  applyVisualRenderPatches,
+  collectDynamicRegionCatalog,
+  type RenderPatchableNode,
+  type ApplyRenderPatchesResult,
+} from './design/apply-visual-render-patches.js'
+export {
+  seedDynamicFromDesign,
+  seedListTilesFromDesign,
+  applyDesignTextsToTiles,
+  isPreviewPlaceholderText,
+  collectDesignTextsSorted,
+  findTiledGroups,
+} from './design/seed-dynamic-from-design.js'
+export {
+  estimateTextAdvance,
+  estimateTextBlock,
+  charAdvanceUnit,
+  isWideChar,
+  type TextMetricOptions,
+} from './design/text-metrics.js'
+export {
+  tileListTemplate,
+  makeListFrame,
+  cloneDesignNode,
+  clampListTileCount,
+  DEFAULT_LIST_TILE_COUNT,
+  MAX_LIST_TILE_COUNT,
+} from './design/list-template-expand.js'
 export {
   classifyCodePage,
   classifyDesignPage,

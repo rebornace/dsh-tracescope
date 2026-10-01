@@ -194,6 +194,16 @@ export function PageMappingOverview({
   const [scanning, setScanning] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [rematchingId, setRematchingId] = useState('')
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
+
+  useEffect(() => {
+    if (!preview) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreview(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [preview])
 
   // Tick an elapsed-seconds counter while a scan runs so the button clearly
   // shows progress instead of looking frozen on a large file.
@@ -592,6 +602,9 @@ export function PageMappingOverview({
                         }}
                         rematching={rematchingId === mapping.designId}
                         busy={busy || scanning || !!rematchingId}
+                        onOpenPreview={(url) =>
+                          setPreview({ url, name: mapping.designName || mapping.designId })
+                        }
                       />
                     ))}
                   </div>
@@ -599,6 +612,37 @@ export function PageMappingOverview({
               </div>
             )
           })}
+        </div>
+      ) : null}
+
+      {preview ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="设计稿原图"
+          style={OV.previewOverlay}
+          onClick={() => setPreview(null)}
+        >
+          <div style={OV.previewPanel} onClick={(e) => e.stopPropagation()}>
+            <div style={OV.previewHeader}>
+              <strong
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {preview.name || '设计稿原图'}
+              </strong>
+              <button type="button" style={OV.previewClose} onClick={() => setPreview(null)}>
+                关闭
+              </button>
+            </div>
+            <div style={OV.previewBody}>
+              <img src={preview.url} alt={preview.name || '设计稿原图'} style={OV.previewImg} />
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
@@ -621,6 +665,7 @@ interface PageCardProps {
   onAiRematch: () => void
   rematching?: boolean
   busy?: boolean
+  onOpenPreview?: (url: string) => void
 }
 
 type ThumbState = 'idle' | 'loading' | 'done' | 'error'
@@ -641,9 +686,9 @@ function PageCard({
   onAiRematch,
   rematching,
   busy: cardBusy,
+  onOpenPreview,
 }: PageCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [fileQuery, setFileQuery] = useState('')
   const [thumbState, setThumbState] = useState<ThumbState>('idle')
   const [thumbUrl, setThumbUrl] = useState('')
   // Bumped to re-run the thumbnail fetch when the user clicks retry or when the
@@ -736,12 +781,6 @@ function PageCard({
     setThumbNonce((n) => n + 1)
   }
 
-  const fileResults = useMemo(() => {
-    const q = fileQuery.trim().toLowerCase()
-    const list = q ? allCodeFiles.filter((f) => f.relativePath.toLowerCase().includes(q)) : allCodeFiles
-    return list.slice(0, 30)
-  }, [fileQuery, allCodeFiles])
-
   // Thumbnail fits inside a fixed card width while preserving the design ratio.
   const thumbHeight = 150 / aspect
 
@@ -759,12 +798,20 @@ function PageCard({
     >
       <div ref={setThumbEl} style={{ ...OV.thumbWrap, height: Math.min(thumbHeight, 230) }}>
         {thumbState === 'done' && thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt={mapping.designName}
-            style={OV.thumbImg}
-            onError={() => retryThumb(true)}
-          />
+          <button
+            type="button"
+            style={OV.thumbOpenBtn}
+            title="点击查看原图"
+            onClick={() => onOpenPreview?.(thumbUrl)}
+          >
+            <img
+              src={thumbUrl}
+              alt={mapping.designName}
+              style={OV.thumbImg}
+              onError={() => retryThumb(true)}
+            />
+            <span style={OV.thumbOpenHint}>查看原图</span>
+          </button>
         ) : thumbState === 'loading' ? (
           <div style={OV.thumbFallback}>缩略图加载中…</div>
         ) : (
@@ -799,7 +846,12 @@ function PageCard({
 
       <div style={OV.cardName} title={mapping.designName}>{mapping.designName}</div>
 
-      <button type="button" style={OV.fileBox} onClick={() => setPickerOpen(!pickerOpen)}>
+      <button
+        type="button"
+        style={OV.fileBox}
+        onClick={() => setPickerOpen(true)}
+        title={selFile?.relativePath || '指定代码文件'}
+      >
         {selFile ? (
           <span title={selFile.relativePath}>
             {isConfirmed ? '✓ ' : ''}
@@ -810,6 +862,11 @@ function PageCard({
           <span style={{ color: '#b42318' }}>点此指定代码文件 →</span>
         )}
       </button>
+      {selFile ? (
+        <div style={OV.filePathHint} title={selFile.relativePath}>
+          {selFile.relativePath}
+        </div>
+      ) : null}
       <button
         type="button"
         style={OV.rematchLink}
@@ -821,58 +878,17 @@ function PageCard({
       </button>
 
       {pickerOpen ? (
-        <div style={OV.picker}>
-          <div style={OV.pickerLabel}>自动建议</div>
-          {mapping.candidates.length ? (
-            mapping.candidates.slice(0, 8).map((c) => {
-              const active =
-                !!selected &&
-                c.adapterId === selected.adapterId &&
-                c.relativePath === selected.relativePath
-              return (
-              <button
-                key={c.adapterId + c.relativePath}
-                type="button"
-                style={{
-                  ...OV.pickItem,
-                  ...(active
-                    ? { borderColor: '#0f6e56', background: '#f2f8f5' }
-                    : null),
-                }}
-                onClick={() => {
-                  onChoose({ adapterId: c.adapterId, relativePath: c.relativePath })
-                  setPickerOpen(false)
-                }}
-              >
-                <span style={{ color: '#0f6e56', fontWeight: 700 }}>{Math.round(c.score * 100)}%</span>
-                <span style={OV.pickPath}>{c.relativePath}</span>
-                {active ? <span style={{ color: '#0f6e56', fontWeight: 700 }}>已选</span> : null}
-              </button>
-              )
-            })
-          ) : (
-            <div style={OV.pickerLabel}>无自动建议，请搜索。</div>
-          )}
-          <input
-            style={OV.fileSearch}
-            value={fileQuery}
-            placeholder="在全部布局文件中搜索…"
-            onChange={(e) => setFileQuery(e.target.value)}
-          />
-          {fileResults.map((f) => (
-            <button
-              key={f.adapterId + f.relativePath}
-              type="button"
-              style={OV.pickItem}
-              onClick={() => {
-                onChoose({ adapterId: f.adapterId, relativePath: f.relativePath })
-                setPickerOpen(false)
-              }}
-            >
-              <span style={OV.pickPath}>{f.relativePath}</span>
-            </button>
-          ))}
-        </div>
+        <CodeFilePickerModal
+          designName={mapping.designName || mapping.designId}
+          candidates={mapping.candidates}
+          allCodeFiles={allCodeFiles}
+          selected={selected}
+          onChoose={(file) => {
+            onChoose(file)
+            setPickerOpen(false)
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
       ) : null}
 
       <div style={OV.actionRow}>
@@ -916,6 +932,219 @@ function PageCard({
         >
           AI 协助分析
         </button>
+      </div>
+    </div>
+  )
+}
+
+function fileDir(rel: string): string {
+  const i = rel.lastIndexOf('/')
+  return i <= 0 ? '.' : rel.slice(0, i)
+}
+
+function fileName(rel: string): string {
+  const i = rel.lastIndexOf('/')
+  return i < 0 ? rel : rel.slice(i + 1)
+}
+
+interface CodeFilePickerModalProps {
+  designName: string
+  candidates: Candidate[]
+  allCodeFiles: CodeFile[]
+  selected?: SelectedCodeFile
+  onChoose: (file: SelectedCodeFile) => void
+  onClose: () => void
+}
+
+function CodeFilePickerModal({
+  designName,
+  candidates,
+  allCodeFiles,
+  selected,
+  onChoose,
+  onClose,
+}: CodeFilePickerModalProps) {
+  const [query, setQuery] = useState('')
+  const [collapsedDirs, setCollapsedDirs] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return allCodeFiles
+    return allCodeFiles.filter((f) => {
+      const path = f.relativePath.toLowerCase()
+      const name = fileName(f.relativePath).toLowerCase()
+      const kind = (f.kindLabel || '').toLowerCase()
+      return path.includes(q) || name.includes(q) || kind.includes(q)
+    })
+  }, [query, allCodeFiles])
+
+  const groups = useMemo(() => {
+    const map = new Map<string, CodeFile[]>()
+    for (const f of filtered) {
+      const dir = fileDir(f.relativePath)
+      const list = map.get(dir) || []
+      list.push(f)
+      map.set(dir, list)
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dir, files]) => ({
+        dir,
+        files: files.slice().sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
+      }))
+  }, [filtered])
+
+  const visibleCandidates = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return candidates
+    return candidates.filter((c) => {
+      const path = c.relativePath.toLowerCase()
+      const name = fileName(c.relativePath).toLowerCase()
+      return path.includes(q) || name.includes(q)
+    })
+  }, [query, candidates])
+
+  function isActive(adapterId: string, relativePath: string) {
+    return (
+      !!selected && selected.adapterId === adapterId && selected.relativePath === relativePath
+    )
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="指定代码文件"
+      style={OV.pickerOverlay}
+      onClick={onClose}
+    >
+      <div style={OV.pickerPanel} onClick={(e) => e.stopPropagation()}>
+        <div style={OV.pickerHeader}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={OV.pickerTitle}>指定代码文件</div>
+            <div style={OV.pickerSubtitle} title={designName}>
+              {designName}
+            </div>
+          </div>
+          <button type="button" style={OV.pickerClose} onClick={onClose}>
+            关闭
+          </button>
+        </div>
+
+        <div style={OV.pickerSearchRow}>
+          <input
+            autoFocus
+            style={OV.pickerSearchInput}
+            value={query}
+            placeholder="搜索文件名、路径或类型…（支持部分匹配）"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span style={OV.pickerCount}>
+            {filtered.length}/{allCodeFiles.length}
+          </span>
+        </div>
+
+        <div style={OV.pickerBody}>
+          {visibleCandidates.length ? (
+            <div style={OV.pickerSection}>
+              <div style={OV.pickerSectionTitle}>自动建议</div>
+              <div style={OV.pickerSuggestList}>
+                {visibleCandidates.slice(0, 12).map((c) => {
+                  const active = isActive(c.adapterId, c.relativePath)
+                  return (
+                    <button
+                      key={'sug-' + c.adapterId + c.relativePath}
+                      type="button"
+                      style={{
+                        ...OV.pickerFileRow,
+                        ...(active ? OV.pickerFileRowActive : null),
+                      }}
+                      onClick={() =>
+                        onChoose({ adapterId: c.adapterId, relativePath: c.relativePath })
+                      }
+                    >
+                      <span style={OV.pickerScore}>{Math.round(c.score * 100)}%</span>
+                      <span style={OV.pickerFileMeta}>
+                        <span style={OV.pickerFileName}>{fileName(c.relativePath)}</span>
+                        <span style={OV.pickerFileDir}>{fileDir(c.relativePath)}</span>
+                      </span>
+                      <span style={OV.pickerKind}>{c.kindLabel}</span>
+                      {active ? <span style={OV.pickerCheck}>✓</span> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <div style={OV.pickerSection}>
+            <div style={OV.pickerSectionTitle}>
+              全部布局文件
+              {query.trim() ? ` · 匹配 ${filtered.length}` : ''}
+            </div>
+            {groups.length === 0 ? (
+              <div style={OV.pickerEmpty}>没有匹配的文件，试试更短的关键词。</div>
+            ) : (
+              groups.map(({ dir, files }) => {
+                const collapsed = !!collapsedDirs[dir]
+                return (
+                  <div key={dir} style={OV.pickerDirBlock}>
+                    <button
+                      type="button"
+                      style={OV.pickerDirHeader}
+                      onClick={() =>
+                        setCollapsedDirs({ ...collapsedDirs, [dir]: !collapsed })
+                      }
+                    >
+                      <span>{collapsed ? '▸' : '▾'}</span>
+                      <span style={OV.pickerDirPath} title={dir}>
+                        {dir}
+                      </span>
+                      <span style={OV.pickerDirCount}>{files.length}</span>
+                    </button>
+                    {collapsed
+                      ? null
+                      : files.map((f) => {
+                          const active = isActive(f.adapterId, f.relativePath)
+                          return (
+                            <button
+                              key={f.adapterId + f.relativePath}
+                              type="button"
+                              style={{
+                                ...OV.pickerFileRow,
+                                ...(active ? OV.pickerFileRowActive : null),
+                              }}
+                              onClick={() =>
+                                onChoose({
+                                  adapterId: f.adapterId,
+                                  relativePath: f.relativePath,
+                                })
+                              }
+                              title={f.relativePath}
+                            >
+                              <span style={OV.pickerFileMeta}>
+                                <span style={OV.pickerFileName}>{fileName(f.relativePath)}</span>
+                                <span style={OV.pickerFileDir}>{f.relativePath}</span>
+                              </span>
+                              <span style={OV.pickerKind}>{f.kindLabel}</span>
+                              {active ? <span style={OV.pickerCheck}>✓</span> : null}
+                            </button>
+                          )
+                        })}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1018,6 +1247,29 @@ const OV: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  thumbOpenBtn: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    padding: 0,
+    margin: 0,
+    border: 'none',
+    background: 'transparent',
+    cursor: 'zoom-in',
+    display: 'block',
+  },
+  thumbOpenHint: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#fff',
+    background: 'rgba(0,0,0,0.55)',
+    borderRadius: 99,
+    padding: '2px 8px',
+    pointerEvents: 'none',
+  },
   thumbFallback: {
     width: '100%',
     height: '100%',
@@ -1098,40 +1350,196 @@ const OV: Record<string, React.CSSProperties> = {
     textDecoration: 'underline',
     fontWeight: 600,
   },
-  picker: {
+  filePathHint: {
+    fontSize: 10,
+    color: '#8a7f70',
+    lineHeight: 1.35,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    padding: '0 2px',
+  },
+  pickerOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 10020,
+    background: 'rgba(20, 18, 14, 0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  pickerPanel: {
+    width: 'min(640px, 96vw)',
+    maxHeight: '88vh',
+    background: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: 4,
-    border: '1px solid #e6dfd0',
+    boxShadow: '0 18px 48px rgba(0,0,0,0.35)',
+  },
+  pickerHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '12px 14px',
+    borderBottom: '1px solid #ece5d8',
+    background: '#faf7f1',
+  },
+  pickerTitle: { fontSize: 14, fontWeight: 700, color: '#3f3a30' },
+  pickerSubtitle: {
+    fontSize: 11,
+    color: '#8a7f70',
+    marginTop: 2,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  pickerClose: {
+    border: '1px solid #d9d2c4',
+    background: '#fff',
+    color: '#5f584c',
+    borderRadius: 7,
+    padding: '4px 10px',
+    fontSize: 12,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  pickerSearchRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 14px',
+    borderBottom: '1px solid #ece5d8',
+  },
+  pickerSearchInput: {
+    flex: 1,
+    boxSizing: 'border-box',
+    padding: '8px 10px',
+    border: '1px solid #d9d2c4',
     borderRadius: 8,
-    padding: 6,
+    fontSize: 13,
+  },
+  pickerCount: {
+    fontSize: 11,
+    color: '#8a7f70',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  pickerBody: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '8px 12px 14px',
+  },
+  pickerSection: { marginBottom: 12 },
+  pickerSectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#8a7f70',
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  pickerSuggestList: { display: 'flex', flexDirection: 'column', gap: 4 },
+  pickerEmpty: { fontSize: 12, color: '#8a7f70', padding: '12px 4px' },
+  pickerDirBlock: {
+    border: '1px solid #ece5d8',
+    borderRadius: 8,
+    marginBottom: 6,
+    overflow: 'hidden',
     background: '#fdfbf7',
   },
-  pickerLabel: { fontSize: 10, color: '#8a7f70' },
-  pickItem: {
+  pickerDirHeader: {
+    width: '100%',
     display: 'flex',
-    gap: 6,
     alignItems: 'center',
+    gap: 6,
+    padding: '6px 8px',
+    border: 'none',
+    background: '#f3eee4',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#5f584c',
+    textAlign: 'left',
+  },
+  pickerDirPath: {
+    flex: 1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  },
+  pickerDirCount: {
     fontSize: 10,
-    border: '1px solid #ece5d8',
-    borderRadius: 6,
-    padding: '4px 6px',
+    background: '#e7e0d0',
+    borderRadius: 99,
+    padding: '0 7px',
+    flexShrink: 0,
+  },
+  pickerFileRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '7px 10px',
+    border: 'none',
+    borderBottom: '1px solid #f0ebe1',
     background: '#fff',
     cursor: 'pointer',
-  },
-  pickPath: {
-    flex: 1,
     textAlign: 'left',
+  },
+  pickerFileRowActive: {
+    background: '#f2f8f5',
+    boxShadow: 'inset 3px 0 0 #0f6e56',
+  },
+  pickerScore: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#0f6e56',
+    width: 36,
+    flexShrink: 0,
+  },
+  pickerFileMeta: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+  },
+  pickerFileName: {
+    fontSize: 13,
+    fontWeight: 600,
     color: '#3f3a30',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  fileSearch: {
-    padding: '4px 7px',
-    border: '1px solid #d9d2c4',
-    borderRadius: 6,
-    fontSize: 11,
+  pickerFileDir: {
+    fontSize: 10,
+    color: '#8a7f70',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  },
+  pickerKind: {
+    fontSize: 10,
+    color: '#5f584c',
+    background: '#f3eee4',
+    borderRadius: 99,
+    padding: '2px 7px',
+    flexShrink: 0,
+    maxWidth: 90,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  pickerCheck: {
+    color: '#0f6e56',
+    fontWeight: 700,
+    fontSize: 13,
+    flexShrink: 0,
   },
   actionRow: {
     display: 'flex',
@@ -1161,5 +1569,59 @@ const OV: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
+  },
+  previewOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 10000,
+    background: 'rgba(20, 18, 14, 0.72)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  previewPanel: {
+    width: 'min(920px, 96vw)',
+    maxHeight: '92vh',
+    background: '#1c1915',
+    borderRadius: 12,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+  },
+  previewHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 14px',
+    color: '#f4f1ea',
+    fontSize: 13,
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+  },
+  previewClose: {
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'transparent',
+    color: '#f4f1ea',
+    borderRadius: 7,
+    padding: '4px 10px',
+    fontSize: 12,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  previewBody: {
+    flex: 1,
+    overflow: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    background: '#11100e',
+  },
+  previewImg: {
+    maxWidth: '100%',
+    maxHeight: '78vh',
+    objectFit: 'contain',
+    display: 'block',
   },
 }

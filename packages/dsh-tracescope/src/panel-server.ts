@@ -23,6 +23,7 @@ import {
   resolveCodeupTarget,
   resolveGitRepo,
   gitFetchRef,
+  EMPTY_ANDROID_RESOURCES,
   type AndroidResources,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
@@ -108,7 +109,7 @@ async function discoverAndroidResources(resRoot: string): Promise<AndroidResourc
       .filter((d) => d.isDirectory() && /^values/.test(d.name))
       .map((d) => path.join(resDir, d.name))
   } catch {
-    return { dimens: {}, colors: {} }
+    return { ...EMPTY_ANDROID_RESOURCES }
   }
   const files: string[] = []
   for (const dir of valueDirs) {
@@ -388,7 +389,7 @@ async function handleApi(
       const codeXml = await readFile(codePath, 'utf8')
       const kind = inferCodeKind(codePath)
 
-      let resources: AndroidResources = { dimens: {}, colors: {} }
+      let resources: AndroidResources = { ...EMPTY_ANDROID_RESOURCES }
       let resolvedResRoot: string | undefined
       if (kind === 'android-xml') {
         resolvedResRoot = await findAndroidResRoot(codePath)

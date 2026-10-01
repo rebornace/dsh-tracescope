@@ -10,6 +10,8 @@ import {
   parseVisualRenderPatches,
   saveVisualFindings,
   visualFindingsKey,
+  designDocToFindingLocators,
+  enrichVisualFindingsNodeIds,
 } from '@rebornace/tracescope-core'
 import { getVisualJob, publishVisualJobFindings } from '../visual-jobs.js'
 import { toolText } from './tool-helpers.js'
@@ -36,7 +38,7 @@ export function registerPublishVisualFindingsTool(ctx: Context) {
           type: 'string',
           required: false,
           description:
-            'Optional JSON array that reconstructs the CODE render for runtime/sparse regions so the panel visually populates: [{targetNodeId,targetLabel,nodes:[{kind:"text"|"image",text,imageUrl,rx,ry,width,height,style:{backgroundColor,color,fontSize,fontWeight,borderRadius,borderWidth,borderColor,textAlign,imageFit}}]}]. rx/ry are relative to targetNodeId top-left; content follows the design.',
+            'Optional (usually omit). Legacy JSON for experimental visual patches; the panel focuses on findings diffs, not code UI restore.',
         },
         summary: {
           type: 'string',
@@ -75,7 +77,14 @@ export function registerPublishVisualFindingsTool(ctx: Context) {
             throw new Error('findings 不是合法 JSON')
           }
         }
-        const findings = parseVisualFindings(parsed)
+        const findingsRaw = parseVisualFindings(parsed)
+        const findings =
+          job.designDoc?.root
+            ? enrichVisualFindingsNodeIds(
+                findingsRaw,
+                designDocToFindingLocators(job.designDoc.root),
+              )
+            : findingsRaw
 
         // Optional visual reconstruction of the code render (runtime/sparse
         // regions). Parse + validate before attaching; a malformed patch is
@@ -125,7 +134,7 @@ export function registerPublishVisualFindingsTool(ctx: Context) {
             (f) => `- [${f.severity}] ${f.title}${f.suggestion ? `：${f.suggestion}` : ''}`,
           ),
           renderPatch && renderPatch.length
-            ? `同时回传了 ${renderPatch.length} 组动态区域补丁（供后续扩展使用）。`
+            ? `（另收到 ${renderPatch.length} 组实验性 renderPatch，侧栏以差异清单为准，不再做代码还原预览。）`
             : '',
         ]
           .filter((l) => l !== '')

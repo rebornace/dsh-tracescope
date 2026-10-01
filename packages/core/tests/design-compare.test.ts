@@ -248,7 +248,8 @@ describe('compare engine', () => {
     }
     const code: DesignDoc = { root: node, scale: 1, source: 'android-xml' }
     const result = compareVisualDocs(design, code)
-    expect(result.diffs).toHaveLength(0)
+    // Soft needsReview (textAdvanceWidth / fills fingerprint when code omits) is OK.
+    expect(result.diffs.filter((d) => !d.needsReview)).toHaveLength(0)
     expect(result.comparedPairs).toBeGreaterThan(0)
   })
 })

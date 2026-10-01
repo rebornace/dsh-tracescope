@@ -11,6 +11,7 @@ import {
   miniprogramFingerprint,
   miniprogramToDesignDoc,
 } from './miniprogram-shared.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 export interface MiniprogramKind {
   id: AdapterId
@@ -71,7 +72,12 @@ export function createMiniprogramAdapter(kind: MiniprogramKind): PlatformAdapter
 
     async toDesignDoc(page: CodePage): Promise<DesignDoc> {
       const markup = await readFile(page.absolutePath, 'utf8')
-      const css = await readSiblingStyle(page.absolutePath, kind.styleExt)
+      const sibling = await readSiblingStyle(page.absolutePath, kind.styleExt)
+      const css = await loadAssociatedStyles({
+        entryAbsolutePath: page.absolutePath,
+        sourceText: markup,
+        inlineCss: sibling,
+      })
       return miniprogramToDesignDoc(
         markup,
         css,
