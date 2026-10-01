@@ -8,6 +8,7 @@
 | Local panel `127.0.0.1:3927` | Visual UI for testers (agent-agnostic) |
 | `@rebornace/tracescope-mcp` | **All agent capabilities** via MCP (Cursor / Claude / any MCP client) |
 | `@rebornace/dsh-tracescope` | **DSH-native shell**: Host panel server + slash command + **embedded right-sidebar UI** |
+| `@rebornace/dsh-tracescope/agent-api` | Shared execute layer used by both DSH tools and MCP |
 
 Rule: every analysis / panel capability that Agents need must be reachable through MCP.  
 DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**, not exclusive business logic.
@@ -16,11 +17,18 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 
 | Capability | MCP | DSH plugin |
 |------------|-----|------------|
-| Analyze git impact | `tracescope_analyze_impact` | tool + `/tracescope` CLI mode |
-| List commits | `tracescope_list_commits` | panel UI |
 | Open visual panel | `tracescope_open_panel` | `/tracescope` / auto-start Host server |
+| List commits | `tracescope_list_commits` | tool + panel UI |
+| Page git diff | `tracescope_get_diff` | tool |
+| Analyze git impact | `tracescope_analyze_impact` | tool + `/tracescope` CLI mode |
+| Start hand-test chat job | `tracescope_create_handtest_job` | tool + `/tracescope/v1/jobs` |
+| Publish hand-test checklist | `tracescope_publish_handtest` | tool |
+| Start UI review job | `tracescope_start_visual_review` | tool + sidebar「AI 协助分析」 |
+| Design tree snapshot | `tracescope_get_design_snapshot` | tool |
+| Publish UI findings | `tracescope_publish_visual_findings` | tool |
+| Start page rematch | `tracescope_start_page_rematch` | tool + sidebar「重新推荐文件」 |
+| Publish rematch picks | `tracescope_publish_page_rematch` | tool |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
-| Design UI review (Figma/Lanhu vs code) | `tracescope_publish_visual_findings` + chat prompt | Visual panel + `/tracescope/v1/*` compare routes |
 | Crash adapters / USB / extension | future MCP tools | future Host/Client surfaces |
 
 ## Design UI review (design-only)

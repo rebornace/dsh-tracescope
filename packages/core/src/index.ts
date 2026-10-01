@@ -51,6 +51,8 @@ export {
   ensureReadableCheckout,
   listGitRefs,
   listRecentCommits,
+  type GitCommitInfo,
+  type GitRefInfo,
 } from './git.js'
 export {
   isGitRemoteUrl,
