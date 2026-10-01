@@ -9,6 +9,7 @@ import type { AdapterId, CodePage } from './adapters/adapter-types.js'
 import { normalizeText } from './page-fingerprint.js'
 import { countMatches, extractUiTexts } from './adapters/source-text.js'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
 const CONTROL_PATTERNS: Partial<Record<AdapterId, RegExp>> = {
   'android-compose':
@@ -84,6 +85,7 @@ function countControlSites(src: string, adapterId: AdapterId): number {
 export async function heuristicCompare(
   design: DesignDoc,
   page: CodePage,
+  options?: { relatedAbsolutePaths?: string[] },
 ): Promise<VisualCompareResult> {
   let src = ''
   try {
@@ -100,6 +102,19 @@ export async function heuristicCompare(
         },
       ],
       comparedPairs: 0,
+    }
+  }
+
+  // Fold related module sources so literals/controls in child components count.
+  const relatedPaths = (options?.relatedAbsolutePaths ?? []).filter(
+    (p) => p && path.resolve(p) !== path.resolve(page.absolutePath),
+  )
+  for (const abs of relatedPaths.slice(0, 24)) {
+    try {
+      const extra = await readFile(abs, 'utf8')
+      if (extra) src += `\n${extra}`
+    } catch {
+      /* skip missing */
     }
   }
 

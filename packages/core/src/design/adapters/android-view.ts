@@ -11,6 +11,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractStringLiterals } from './source-text.js'
 import { androidViewSourceToDesignDoc } from './imperative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -75,7 +76,8 @@ function makeAdapter(
 
     async toDesignDoc(page: CodePage): Promise<DesignDoc> {
       const src = await readFile(page.absolutePath, 'utf8')
-      return androidViewSourceToDesignDoc(src, path.basename(page.relativePath))
+      const ctx = await loadNativeStyleContext(page.absolutePath, src, 'android-view')
+      return androidViewSourceToDesignDoc(ctx.source, path.basename(page.relativePath))
     },
   }
 }

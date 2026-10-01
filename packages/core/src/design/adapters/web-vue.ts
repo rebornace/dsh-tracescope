@@ -13,6 +13,7 @@ import {
   markupToDesignDoc,
 } from './web-markup.js'
 import { extractStringLiterals } from './source-text.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 function splitSfc(src: string): { template: string; style: string; script: string } {
   const template = src.match(/<template\b[^>]*>([\s\S]*?)<\/template>/i)?.[1] ?? ''
@@ -75,6 +76,11 @@ export const webVueAdapter: PlatformAdapter = {
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
     const { template, style } = splitSfc(src)
-    return markupToDesignDoc(template, style, path.basename(page.relativePath, '.vue'))
+    const css = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+      inlineCss: style,
+    })
+    return markupToDesignDoc(template, css, path.basename(page.relativePath, '.vue'))
   },
 }

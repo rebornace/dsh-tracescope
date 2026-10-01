@@ -7,6 +7,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractStringLiterals } from './source-text.js'
 import { arkuiSourceToDesignDoc } from './declarative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -62,6 +63,7 @@ export const harmonyArkuiAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return arkuiSourceToDesignDoc(src, path.basename(page.relativePath, '.ets'))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'arkui')
+    return arkuiSourceToDesignDoc(ctx.source, path.basename(page.relativePath, '.ets'))
   },
 }

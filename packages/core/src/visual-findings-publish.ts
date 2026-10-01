@@ -115,8 +115,14 @@ export function parseVisualRenderPatches(raw: unknown): VisualRenderPatch[] {
             : 'text'
       const imageUrl = str(nObj.imageUrl, 2000)
       const text = str(nObj.text, 300)
+      const style = patchStyleOf(nObj.style)
       if (kind === 'image' && !imageUrl) continue
-      if (kind !== 'image' && !text) continue
+      // Allow style-only cards (background / border) without text — needed for
+      // list item templates (card chrome under design copy).
+      const isChrome =
+        (kind === 'view' || kind === 'frame') &&
+        !!(style?.backgroundColor || style?.borderColor || style?.borderWidth)
+      if (kind !== 'image' && !text && !isChrome) continue
       nodes.push({
         kind,
         text,
@@ -125,7 +131,7 @@ export function parseVisualRenderPatches(raw: unknown): VisualRenderPatch[] {
         ry: num(nObj.ry, -200, 4000, 0),
         width,
         height,
-        style: patchStyleOf(nObj.style),
+        style,
       })
     }
     if (!nodes.length) continue

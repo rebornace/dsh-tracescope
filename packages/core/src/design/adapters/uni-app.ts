@@ -13,6 +13,7 @@ import {
   markupToDesignDoc,
 } from './web-markup.js'
 import { extractStringLiterals } from './source-text.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 function splitVueLike(src: string): { template: string; style: string; script: string } {
   const template =
@@ -136,9 +137,14 @@ export const uniAppAdapter: PlatformAdapter = {
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
     const { template, style } = splitVueLike(src)
+    const css = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+      inlineCss: style,
+    })
     return markupToDesignDoc(
       toHtmlish(template),
-      style,
+      css,
       path.basename(page.relativePath).replace(/\.(vue|nvue)$/i, ''),
     )
   },

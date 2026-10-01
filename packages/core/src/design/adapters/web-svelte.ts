@@ -13,6 +13,7 @@ import {
   markupToDesignDoc,
 } from './web-markup.js'
 import { extractStringLiterals } from './source-text.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 function splitSvelte(src: string): { markup: string; style: string; script: string } {
   const style = [...src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
@@ -75,6 +76,11 @@ export const webSvelteAdapter: PlatformAdapter = {
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
     const { markup, style } = splitSvelte(src)
-    return markupToDesignDoc(markup, style, path.basename(page.relativePath, '.svelte'))
+    const css = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+      inlineCss: style,
+    })
+    return markupToDesignDoc(markup, css, path.basename(page.relativePath, '.svelte'))
   },
 }

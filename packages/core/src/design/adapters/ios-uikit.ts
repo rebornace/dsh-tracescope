@@ -10,6 +10,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractStringLiterals } from './source-text.js'
 import { uikitSourceToDesignDoc } from './imperative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -85,7 +86,8 @@ export const iosUikitObjcAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return uikitSourceToDesignDoc(src, path.basename(page.relativePath))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'swiftui')
+    return uikitSourceToDesignDoc(ctx.source, path.basename(page.relativePath))
   },
 }
 
@@ -122,6 +124,7 @@ export const iosUikitSwiftAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return uikitSourceToDesignDoc(src, path.basename(page.relativePath))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'swiftui')
+    return uikitSourceToDesignDoc(ctx.source, path.basename(page.relativePath))
   },
 }

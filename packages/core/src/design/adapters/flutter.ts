@@ -7,6 +7,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractStringLiterals } from './source-text.js'
 import { flutterSourceToDesignDoc } from './declarative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -64,6 +65,7 @@ export const flutterAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return flutterSourceToDesignDoc(src, path.basename(page.relativePath, '.dart'))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'flutter')
+    return flutterSourceToDesignDoc(ctx.source, path.basename(page.relativePath, '.dart'))
   },
 }

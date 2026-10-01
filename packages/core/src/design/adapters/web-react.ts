@@ -10,6 +10,7 @@ import { countMatches, extractUiTexts } from './source-text.js'
 import type { CodePage, PageFingerprint, PlatformAdapter } from './adapter-types.js'
 import type { DesignDoc } from '../types.js'
 import { markupToDesignDoc } from './web-markup.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 const RN_IMPORT = /from\s+['"]react-native['"]|require\(\s*['"]react-native['"]\s*\)/
 const TARO_IMPORT = /from\s+['"]@tarojs\//
@@ -72,7 +73,8 @@ function jsStyleObjectToCss(objBody: string): string {
 
 /**
  * Best-effort JSX → HTML fragment for the shared markup converter.
- * Keeps lowercase DOM tags; drops components; flattens static styles.
+ * Keeps lowercase DOM tags and PascalCase components (as placeholders);
+ * flattens static styles.
  */
 export function jsxToHtmlish(src: string): string {
   let s = src
@@ -88,14 +90,21 @@ export function jsxToHtmlish(src: string): string {
   // className="x" → class="x"
   s = s.replace(/\bclassName=/g, 'class=')
 
-  // Remove JSX expressions {foo} that aren't style (already handled).
-  // Keep string children; strip other braces content to avoid parser confusion.
-  s = s.replace(/\{[^{}]*\}/g, ' ')
+  // CSS modules: class={styles.title} / class={styles['title']} → class="title"
+  s = s.replace(/\bclass=\{\s*styles\.([A-Za-z_][\w]*)\s*\}/g, 'class="$1"')
+  s = s.replace(/\bclass=\{\s*styles\[(['"])([^'"]+)\1\]\s*\}/g, 'class="$2"')
+  s = s.replace(/\bclass=\{\s*cx\([^)]*styles\.([A-Za-z_][\w]*)[^)]*\)\s*\}/g, 'class="$1"')
 
-  // Extract return ( ... ) or => ( ... ) JSX blocks roughly: keep tags only.
-  // Self-close void-ish custom components away.
-  s = s.replace(/<[A-Z][\w.]*\b[^>]*\/>/g, ' ')
-  s = s.replace(/<[A-Z][\w.]*\b[^>]*>[\s\S]*?<\/[A-Z][\w.]*>/g, ' ')
+  // Strip JS expression braces, but keep brace bodies that still contain tags
+  // (e.g. function Page(){ return <div/> } — otherwise the whole body vanishes).
+  s = s.replace(/\{([^{}]*)\}/g, (_all, inner: string) => (/</.test(inner) ? inner : ' '))
+
+  // Normalize member components: <Foo.Bar /> → <FooBar />
+  s = s.replace(/<([A-Z][\w]*)\.([A-Z][\w]*)\b/g, '<$1$2')
+  s = s.replace(/<\/([A-Z][\w]*)\.([A-Z][\w]*)>/g, '</$1$2>')
+
+  // Self-closing components → paired empty tags so markupToDesignDoc keeps them.
+  s = s.replace(/<([A-Z][\w]*)\b([^>]*)\/>/g, '<$1$2></$1>')
 
   return s
 }
@@ -138,6 +147,10 @@ export const webReactAdapter: PlatformAdapter = {
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
     const htmlish = jsxToHtmlish(src)
-    return markupToDesignDoc(htmlish, '', path.basename(page.relativePath))
+    const css = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+    })
+    return markupToDesignDoc(htmlish, css, path.basename(page.relativePath))
   },
 }

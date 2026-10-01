@@ -23,9 +23,142 @@ export interface HifiStyle {
   borderRadii?: [number, number, number, number]
   borderWidth?: number
   borderColor?: string
+  borderTopWidth?: number
+  borderRightWidth?: number
+  borderBottomWidth?: number
+  borderLeftWidth?: number
+  borderTopColor?: string
+  borderRightColor?: string
+  borderBottomColor?: string
+  borderLeftColor?: string
   gradient?: HifiGradient
   opacity?: number
+  /** Approximate elevation / outer shadow blur in logical px. */
+  elevation?: number
+  /** Approximate inner / inset shadow blur. */
+  innerShadow?: number
+  /** Layer / backdrop blur radius. */
+  blur?: number
+  /** Primary outer shadow (offset + blur + optional colour/spread). */
+  shadow?: {
+    offsetX: number
+    offsetY: number
+    blur: number
+    spread?: number
+    color?: string
+    inset?: boolean
+  }
+  /** Primary inset shadow. */
+  insetShadow?: {
+    offsetX: number
+    offsetY: number
+    blur: number
+    spread?: number
+    color?: string
+    inset?: boolean
+  }
+  /** Full shadow stack. */
+  shadows?: Array<{
+    offsetX: number
+    offsetY: number
+    blur: number
+    spread?: number
+    color?: string
+    inset?: boolean
+  }>
+  /** CSS mix-blend-mode. */
+  blendMode?: string
+  /** Clockwise rotation in degrees. */
+  rotation?: number
+  /** Non-uniform scale factors. */
+  scaleX?: number
+  scaleY?: number
+  skewX?: number
+  skewY?: number
+  zIndex?: number
+  /** Stroke alignment relative to the path. */
+  strokeAlign?: 'inside' | 'outside' | 'center'
+  /** Full fill stack (solid / gradient / image). */
+  fills?: Array<{
+    type: 'solid' | 'gradient' | 'image'
+    color?: string
+    gradient?: HifiGradient
+    imageRef?: string
+    imageFit?: 'fill' | 'contain' | 'cover'
+    opacity?: number
+  }>
   textAlign?: string
+  textDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through'
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  overflow?: 'visible' | 'hidden' | 'scroll'
+  clipPath?: string
+  aspectRatio?: number
+  maxLines?: number
+  textOverflow?: 'clip' | 'ellipsis'
+  minWidth?: number
+  maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  textAdvanceWidth?: number
+  textBlockHeight?: number
+  flexDirection?: 'row' | 'column'
+  alignItems?: 'start' | 'center' | 'end' | 'stretch'
+  justifyContent?:
+    | 'start'
+    | 'center'
+    | 'end'
+    | 'space-between'
+    | 'space-around'
+    | 'space-evenly'
+  fontStyle?: 'normal' | 'italic'
+  textAlignVertical?: 'top' | 'center' | 'bottom'
+  borderStyle?: 'solid' | 'dashed' | 'dotted'
+  strokeDashArray?: string
+  strokeCap?: 'butt' | 'round' | 'square'
+  strokeJoin?: 'miter' | 'round' | 'bevel'
+  paragraphSpacing?: number
+  sizingHorizontal?: 'fixed' | 'hug' | 'fill'
+  sizingVertical?: 'fixed' | 'hug' | 'fill'
+  backdropBlur?: number
+  position?: 'absolute' | 'relative' | 'fixed' | 'sticky'
+  rowGap?: number
+  columnGap?: number
+  flexWrap?: 'nowrap' | 'wrap'
+  alignContent?:
+    | 'start'
+    | 'center'
+    | 'end'
+    | 'stretch'
+    | 'space-between'
+    | 'space-around'
+    | 'space-evenly'
+  order?: number
+  gridTemplate?: string
+  alignSelf?: 'start' | 'center' | 'end' | 'stretch'
+  flexGrow?: number
+  flexShrink?: number
+  transformOrigin?: string
+  visibility?: 'visible' | 'hidden' | 'collapse'
+  display?: 'none' | 'flex' | 'inline-flex' | 'grid' | 'block' | 'inline'
+  whiteSpace?: 'normal' | 'nowrap' | 'pre' | 'pre-wrap' | 'pre-line'
+  wordBreak?: 'normal' | 'break-all' | 'keep-all' | 'break-word'
+  wordSpacing?: number
+  textIndent?: number
+  perspective?: number
+  rotateX?: number
+  rotateY?: number
+  textShadow?: {
+    offsetX: number
+    offsetY: number
+    blur: number
+    spread?: number
+    color?: string
+    inset?: boolean
+  }
+  direction?: 'ltr' | 'rtl'
+  writingMode?: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
+  filter?: string
+  outline?: string
   /** Text line height in logical units. */
   lineHeight?: number
   /** How an image is fitted into its box. */
@@ -158,13 +291,272 @@ function nodeBaseStyle(node: HifiNode): CSSProperties {
     s.borderWidth = st.borderWidth
     s.borderColor = st.borderColor
   }
+  const applySide = (
+    width: number | undefined,
+    color: string | undefined,
+    setW: (v: number) => void,
+    setC: (v: string) => void,
+    setS: (v: string) => void,
+  ) => {
+    if (!width) return
+    setS('solid')
+    setW(width)
+    if (color || st.borderColor) setC((color ?? st.borderColor)!)
+  }
+  applySide(
+    st.borderTopWidth,
+    st.borderTopColor,
+    (v) => {
+      s.borderTopWidth = v
+    },
+    (v) => {
+      s.borderTopColor = v
+    },
+    (v) => {
+      s.borderTopStyle = v
+    },
+  )
+  applySide(
+    st.borderRightWidth,
+    st.borderRightColor,
+    (v) => {
+      s.borderRightWidth = v
+    },
+    (v) => {
+      s.borderRightColor = v
+    },
+    (v) => {
+      s.borderRightStyle = v
+    },
+  )
+  applySide(
+    st.borderBottomWidth,
+    st.borderBottomColor,
+    (v) => {
+      s.borderBottomWidth = v
+    },
+    (v) => {
+      s.borderBottomColor = v
+    },
+    (v) => {
+      s.borderBottomStyle = v
+    },
+  )
+  applySide(
+    st.borderLeftWidth,
+    st.borderLeftColor,
+    (v) => {
+      s.borderLeftWidth = v
+    },
+    (v) => {
+      s.borderLeftColor = v
+    },
+    (v) => {
+      s.borderLeftStyle = v
+    },
+  )
   if (typeof st.opacity === 'number') s.opacity = st.opacity
+  const shadows: string[] = []
+  if (st.shadows?.length) {
+    for (const sh of st.shadows) {
+      const color = sh.color ?? (sh.inset ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.22)')
+      const spread = sh.spread ?? 0
+      const prefix = sh.inset ? 'inset ' : ''
+      shadows.push(
+        `${prefix}${sh.offsetX}px ${sh.offsetY}px ${sh.blur}px ${spread}px ${color}`,
+      )
+    }
+  } else {
+    if (st.shadow) {
+      const sh = st.shadow
+      const color = sh.color ?? 'rgba(0,0,0,0.22)'
+      const spread = sh.spread ?? 0
+      shadows.push(
+        `${sh.offsetX}px ${sh.offsetY}px ${sh.blur}px ${spread}px ${color}`,
+      )
+    } else if (typeof st.elevation === 'number' && st.elevation > 0) {
+      const blur = Math.round(st.elevation * 100) / 100
+      const y = Math.round(st.elevation * 0.35 * 100) / 100
+      shadows.push(`0 ${y}px ${blur}px rgba(0,0,0,0.22)`)
+    }
+    if (st.insetShadow) {
+      const sh = st.insetShadow
+      const color = sh.color ?? 'rgba(0,0,0,0.18)'
+      const spread = sh.spread ?? 0
+      shadows.push(
+        `inset ${sh.offsetX}px ${sh.offsetY}px ${sh.blur}px ${spread}px ${color}`,
+      )
+    } else if (typeof st.innerShadow === 'number' && st.innerShadow > 0) {
+      const blur = Math.round(st.innerShadow * 100) / 100
+      shadows.push(`inset 0 1px ${blur}px rgba(0,0,0,0.18)`)
+    }
+  }
+  if (shadows.length) s.boxShadow = shadows.join(', ')
+  if (typeof st.blur === 'number' && st.blur > 0) {
+    s.filter = `blur(${Math.round(st.blur * 100) / 100}px)`
+  }
+  if (st.blendMode) s.mixBlendMode = st.blendMode as CSSProperties['mixBlendMode']
+  {
+    const parts: string[] = []
+    if (typeof st.rotation === 'number' && Math.abs(st.rotation) > 0.5) {
+      parts.push(`rotate(${st.rotation}deg)`)
+    }
+    const sx = typeof st.scaleX === 'number' ? st.scaleX : undefined
+    const sy = typeof st.scaleY === 'number' ? st.scaleY : undefined
+    if (sx !== undefined || sy !== undefined) {
+      parts.push(`scale(${sx ?? 1}, ${sy ?? 1})`)
+    }
+    if (typeof st.skewX === 'number' && Math.abs(st.skewX) > 0.5) {
+      parts.push(`skewX(${st.skewX}deg)`)
+    }
+    if (typeof st.skewY === 'number' && Math.abs(st.skewY) > 0.5) {
+      parts.push(`skewY(${st.skewY}deg)`)
+    }
+    if (parts.length) s.transform = parts.join(' ')
+  }
+  if (typeof st.zIndex === 'number') s.zIndex = st.zIndex
   if (st.color) s.color = st.color
   if (st.fontSize) s.fontSize = st.fontSize
   if (st.fontWeight) s.fontWeight = st.fontWeight
   if (st.fontFamily) s.fontFamily = fontStackOf(st.fontFamily)
   if (st.lineHeight) s.lineHeight = st.lineHeight
   if (st.textAlign) s.textAlign = st.textAlign === 'right' ? 'right' : st.textAlign === 'left' ? 'left' : 'center'
+  if (st.textDecoration && st.textDecoration !== 'none') {
+    s.textDecorationLine = st.textDecoration
+  }
+  if (st.textTransform && st.textTransform !== 'none') {
+    s.textTransform = st.textTransform
+  }
+  if (st.overflow && st.overflow !== 'visible') {
+    s.overflow = st.overflow
+  }
+  if (st.clipPath) {
+    if (st.clipPath === 'circle') s.clipPath = 'circle(50%)'
+    else if (st.clipPath === 'ellipse') s.clipPath = 'ellipse(50% 50% at 50% 50%)'
+    else if (st.clipPath.startsWith('mask')) {
+      // Mask layers: approximate with hidden overflow; exact mask needs sibling wiring.
+      if (!s.overflow || s.overflow === 'visible') s.overflow = 'hidden'
+    } else if (st.clipPath === 'outline' || st.clipPath === 'inset') {
+      if (!s.overflow || s.overflow === 'visible') s.overflow = 'hidden'
+    }
+  }
+  if (typeof st.aspectRatio === 'number' && st.aspectRatio > 0) {
+    s.aspectRatio = String(st.aspectRatio)
+  }
+  if (typeof st.minWidth === 'number' && st.minWidth > 0) s.minWidth = st.minWidth
+  if (typeof st.maxWidth === 'number' && st.maxWidth > 0) s.maxWidth = st.maxWidth
+  if (typeof st.minHeight === 'number' && st.minHeight > 0) s.minHeight = st.minHeight
+  if (typeof st.maxHeight === 'number' && st.maxHeight > 0) s.maxHeight = st.maxHeight
+  if (st.flexDirection) s.flexDirection = st.flexDirection
+  if (st.alignItems) {
+    s.alignItems =
+      st.alignItems === 'start'
+        ? 'flex-start'
+        : st.alignItems === 'end'
+          ? 'flex-end'
+          : st.alignItems
+  }
+  if (st.justifyContent) {
+    s.justifyContent =
+      st.justifyContent === 'start'
+        ? 'flex-start'
+        : st.justifyContent === 'end'
+          ? 'flex-end'
+          : st.justifyContent
+  }
+  if (st.fontStyle === 'italic') s.fontStyle = 'italic'
+  if (st.borderStyle && st.borderStyle !== 'solid') s.borderStyle = st.borderStyle
+  if (typeof st.backdropBlur === 'number' && st.backdropBlur > 0) {
+    s.backdropFilter = `blur(${st.backdropBlur}px)`
+    // Safari
+    ;(s as CSSProperties & { WebkitBackdropFilter?: string }).WebkitBackdropFilter =
+      `blur(${st.backdropBlur}px)`
+  }
+  if (st.position) s.position = st.position
+  if (typeof st.rowGap === 'number') s.rowGap = st.rowGap
+  if (typeof st.columnGap === 'number') s.columnGap = st.columnGap
+  if (st.flexWrap) s.flexWrap = st.flexWrap
+  if (st.alignContent) {
+    s.alignContent =
+      st.alignContent === 'start'
+        ? 'flex-start'
+        : st.alignContent === 'end'
+          ? 'flex-end'
+          : st.alignContent
+  }
+  if (typeof st.order === 'number') s.order = st.order
+  if (st.gridTemplate) {
+    // Fingerprint `cols:…|rows:…` → CSS grid-template-*
+    const cols = st.gridTemplate.match(/cols:([^|]+)/)?.[1]?.trim()
+    const rows = st.gridTemplate.match(/rows:([^|]+)/)?.[1]?.trim()
+    if (cols) s.gridTemplateColumns = cols
+    if (rows) s.gridTemplateRows = rows
+    if (!s.display) s.display = 'grid'
+  }
+  if (st.alignSelf) {
+    s.alignSelf =
+      st.alignSelf === 'start'
+        ? 'flex-start'
+        : st.alignSelf === 'end'
+          ? 'flex-end'
+          : st.alignSelf
+  }
+  if (typeof st.flexGrow === 'number') s.flexGrow = st.flexGrow
+  if (typeof st.flexShrink === 'number') s.flexShrink = st.flexShrink
+  if (st.transformOrigin) s.transformOrigin = st.transformOrigin
+  if (st.visibility) s.visibility = st.visibility
+  if (st.display) s.display = st.display
+  if (st.whiteSpace) s.whiteSpace = st.whiteSpace
+  if (st.wordBreak) s.wordBreak = st.wordBreak
+  if (typeof st.wordSpacing === 'number') s.wordSpacing = st.wordSpacing
+  if (typeof st.textIndent === 'number') s.textIndent = st.textIndent
+  if (typeof st.perspective === 'number') s.perspective = st.perspective
+  if (typeof st.rotateX === 'number' || typeof st.rotateY === 'number') {
+    const parts: string[] = []
+    if (typeof st.rotateX === 'number') parts.push(`rotateX(${st.rotateX}deg)`)
+    if (typeof st.rotateY === 'number') parts.push(`rotateY(${st.rotateY}deg)`)
+    s.transform = [s.transform, ...parts].filter(Boolean).join(' ')
+  }
+  if (st.textShadow) {
+    const ts = st.textShadow
+    s.textShadow = `${ts.offsetX}px ${ts.offsetY}px ${ts.blur}px ${ts.color ?? '#000'}`
+  }
+  if (st.direction) s.direction = st.direction
+  if (st.writingMode) s.writingMode = st.writingMode
+  if (st.filter) {
+    const cssFilter = st.filter
+      .split('|')
+      .map((part) => {
+        const [fn, val] = part.split(':')
+        return fn && val !== undefined ? `${fn}(${val})` : ''
+      })
+      .filter(Boolean)
+      .join(' ')
+    if (cssFilter) {
+      s.filter = [typeof s.filter === 'string' ? s.filter : '', cssFilter]
+        .filter(Boolean)
+        .join(' ')
+    }
+  }
+  if (st.outline) {
+    const [w, styleName, color] = st.outline.split(',')
+    if (w && styleName) s.outline = `${w}px ${styleName} ${color || 'currentColor'}`
+  }
+  if (st.textAlignVertical === 'center') s.alignItems = s.alignItems ?? 'center'
+  if (st.textOverflow) s.textOverflow = st.textOverflow
+  if (typeof st.maxLines === 'number' && st.maxLines > 0) {
+    if (st.maxLines === 1) {
+      s.whiteSpace = 'nowrap'
+      if (!s.textOverflow) s.textOverflow = 'ellipsis'
+      if (!s.overflow || s.overflow === 'visible') s.overflow = 'hidden'
+    } else {
+      s.display = '-webkit-box'
+      ;(s as CSSProperties & { WebkitLineClamp?: number }).WebkitLineClamp = st.maxLines
+      ;(s as CSSProperties & { WebkitBoxOrient?: string }).WebkitBoxOrient = 'vertical'
+      if (!s.overflow || s.overflow === 'visible') s.overflow = 'hidden'
+      if (!s.textOverflow) s.textOverflow = 'ellipsis'
+    }
+  }
   return s
 }
 

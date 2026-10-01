@@ -1,12 +1,16 @@
 /**
  * Lightweight HTML/Vue-template → DesignDoc conversion for static compare.
  * Produces a flat-ish tree of elements that carry text and/or resolvable styles.
+ * Custom component tags (PascalCase / kebab-case / unknown tags) become
+ * placeholder view nodes so related modules can be inlined by name later.
  */
 import type { DesignDoc, DesignNode, DesignNodeKind } from '../types.js'
 import {
   decodeBasicEntities,
   parseCssDeclarations,
   parseSimpleStyleRules,
+  applyFlexGapLayout,
+  applyDocumentOrderStack,
 } from './web-css.js'
 import { normalizeText } from '../page-fingerprint.js'
 
@@ -35,9 +39,68 @@ const TEXT_TAGS = new Set([
   'section',
 ])
 
+/** Tags handled as native markup — everything else is treated as a component slot. */
+const BUILTIN_TAGS = new Set([
+  ...TEXT_TAGS,
+  'img',
+  'header',
+  'footer',
+  'nav',
+  'main',
+  'ul',
+  'ol',
+  'form',
+  'input',
+  'textarea',
+  'select',
+  'option',
+  'table',
+  'tr',
+  'thead',
+  'tbody',
+  'html',
+  'head',
+  'body',
+  'script',
+  'style',
+  'meta',
+  'link',
+  'br',
+  'hr',
+  'fragment',
+  'template',
+  'slot',
+  'transition',
+  'component',
+  // miniprogram natives (pre-mapped or raw)
+  'view',
+  'text',
+  'image',
+  'navigator',
+  'scroll-view',
+  'swiper',
+  'swiper-item',
+  'block',
+  'icon',
+  'progress',
+  'rich-text',
+  'picker',
+  'slider',
+  'switch',
+  'checkbox',
+  'radio',
+  'canvas',
+  'video',
+  'audio',
+  'map',
+  'web-view',
+  'cover-view',
+  'cover-image',
+])
+
 function kindFor(tag: string): DesignNodeKind {
-  if (tag === 'img') return 'image'
-  if (TEXT_TAGS.has(tag)) return 'text'
+  if (tag === 'img' || tag === 'image') return 'image'
+  if (TEXT_TAGS.has(tag) || tag === 'text') return 'text'
   return 'view'
 }
 
@@ -94,9 +157,13 @@ export function collectMarkupTexts(html: string): string[] {
   return [...texts]
 }
 
+function isBuiltinTag(tag: string): boolean {
+  return BUILTIN_TAGS.has(tag.toLowerCase())
+}
+
 /**
  * Build a DesignDoc from HTML-like markup + optional CSS.
- * Each styled / textual element becomes a child of the root frame.
+ * Native elements and custom component tags become children of the root frame.
  */
 export function markupToDesignDoc(
   html: string,
@@ -107,6 +174,12 @@ export function markupToDesignDoc(
   const { classes, ids } = parseSimpleStyleRules(cssText)
   const children: DesignNode[] = []
   let seq = 0
+  const seenSpans = new Set<string>()
+
+  const pushSpan = (start: number, end: number) => {
+    seenSpans.add(`${start}:${end}`)
+  }
+  const already = (start: number, end: number) => seenSpans.has(`${start}:${end}`)
 
   const tagRe =
     /<(img|p|span|a|label|h[1-6]|button|li|td|th|strong|em|b|i|small|div|section|header|footer|nav|main|ul|ol|form|input|textarea)\b([^>]*)>(?:([^<]*)<\/\1>)?/gi
@@ -132,6 +205,7 @@ export function markupToDesignDoc(
     const hasStyle = Object.keys(parsed.style).length > 0 || parsed.width || parsed.height
     if (!text && !hasStyle && tag === 'div') continue
 
+    pushSpan(m.index, m.index + m[0].length)
     children.push({
       id: attrs.id || `web-${seq++}`,
       name: attrs['aria-label'] || attrs.alt || text || tag,
@@ -147,6 +221,45 @@ export function markupToDesignDoc(
       children: [],
     })
   }
+
+  // Custom / unknown component tags → placeholder views for later inlining.
+  const customRe = /<([A-Za-z][\w.-]*)\b([^>]*?)(?:\/>|>([^<]*)<\/\1\s*>)/g
+  while ((m = customRe.exec(body))) {
+    const rawTag = m[1] ?? ''
+    if (!rawTag || isBuiltinTag(rawTag)) continue
+    if (already(m.index, m.index + m[0].length)) continue
+
+    const openAttrs = m[2] ?? ''
+    const inner = (m[3] ?? '').replace(/\s+/g, ' ').trim()
+    const attrs = attrsOf(`<x ${openAttrs}>`)
+    const idCss = attrs.id ? ids.get(attrs.id) ?? '' : ''
+    const css = [idCss, classCss(attrs.class, classes), attrs.style ?? '']
+      .filter(Boolean)
+      .join(';')
+    const parsed = parseCssDeclarations(css)
+    const slotText = inner
+      ? decodeBasicEntities(inner)
+      : attrs['aria-label'] || attrs.title || undefined
+
+    pushSpan(m.index, m.index + m[0].length)
+    children.push({
+      id: `cmp:${rawTag}:${seq++}`,
+      name: rawTag,
+      kind: 'view',
+      text: slotText || undefined,
+      box: {
+        x: parsed.x,
+        y: parsed.y,
+        width: parsed.width,
+        height: parsed.height,
+      },
+      style: parsed.style,
+      children: [],
+    })
+  }
+
+  applyFlexGapLayout(children, cssText)
+  applyDocumentOrderStack(children)
 
   return {
     root: {

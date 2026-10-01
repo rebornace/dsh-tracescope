@@ -66,6 +66,10 @@ export interface CodePage {
   /** Whether property-level comparison is supported for this page. */
   precise: boolean
   fingerprint: PageFingerprint
+  /** Optional analysis hints (e.g. Android light/dark resource preference). */
+  hints?: {
+    uiMode?: 'light' | 'dark'
+  }
 }
 
 /**

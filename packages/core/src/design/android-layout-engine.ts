@@ -17,6 +17,7 @@ import type {
   ParsedDrawableBitmap,
   ParsedDrawableShape,
 } from './android-resources.js'
+import { estimateTextBlock } from './text-metrics.js'
 
 export interface AndroidRenderContext {
   colors: Record<string, string>
@@ -46,6 +47,8 @@ export interface HifiRenderNode {
     color?: string
     fontSize?: number
     fontWeight?: number
+    /** Resolved letter-spacing in px (from android:letterSpacing em × textSize). */
+    letterSpacing?: number
     /** Raw font family from the design; the client wraps it in a CJK fallback stack. */
     fontFamily?: string
     borderRadius?: number
@@ -53,9 +56,140 @@ export interface HifiRenderNode {
     borderRadii?: [number, number, number, number]
     borderWidth?: number
     borderColor?: string
+    borderTopWidth?: number
+    borderRightWidth?: number
+    borderBottomWidth?: number
+    borderLeftWidth?: number
+    borderTopColor?: string
+    borderRightColor?: string
+    borderBottomColor?: string
+    borderLeftColor?: string
     gradient?: ParsedDrawableShape['gradient']
     opacity?: number
+    /** Approximate elevation / outer shadow blur in logical px. */
+    elevation?: number
+    /** Approximate inner / inset shadow blur. */
+    innerShadow?: number
+    /** Layer / backdrop blur radius. */
+    blur?: number
+    /** Primary outer shadow. */
+    shadow?: {
+      offsetX: number
+      offsetY: number
+      blur: number
+      spread?: number
+      color?: string
+    }
+    /** Primary inset shadow. */
+    insetShadow?: {
+      offsetX: number
+      offsetY: number
+      blur: number
+      spread?: number
+      color?: string
+      inset?: boolean
+    }
+    /** Full shadow stack. */
+    shadows?: Array<{
+      offsetX: number
+      offsetY: number
+      blur: number
+      spread?: number
+      color?: string
+      inset?: boolean
+    }>
+    /** CSS mix-blend-mode. */
+    blendMode?: string
+    /** Clockwise rotation in degrees. */
+    rotation?: number
+    scaleX?: number
+    scaleY?: number
+    skewX?: number
+    skewY?: number
+    zIndex?: number
+    /** Stroke alignment relative to the path. */
+    strokeAlign?: 'inside' | 'outside' | 'center'
+    /** Full fill stack. */
+    fills?: Array<{
+      type: 'solid' | 'gradient' | 'image'
+      color?: string
+      gradient?: ParsedDrawableShape['gradient']
+      imageRef?: string
+      imageFit?: 'fill' | 'contain' | 'cover'
+      opacity?: number
+    }>
     textAlign?: string
+    textDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through'
+    textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+    overflow?: 'visible' | 'hidden' | 'scroll'
+    clipPath?: string
+    aspectRatio?: number
+    maxLines?: number
+    textOverflow?: 'clip' | 'ellipsis'
+    minWidth?: number
+    maxWidth?: number
+    minHeight?: number
+    maxHeight?: number
+    textAdvanceWidth?: number
+    textBlockHeight?: number
+    flexDirection?: 'row' | 'column'
+    alignItems?: 'start' | 'center' | 'end' | 'stretch'
+    justifyContent?:
+      | 'start'
+      | 'center'
+      | 'end'
+      | 'space-between'
+      | 'space-around'
+      | 'space-evenly'
+    fontStyle?: 'normal' | 'italic'
+    textAlignVertical?: 'top' | 'center' | 'bottom'
+    borderStyle?: 'solid' | 'dashed' | 'dotted'
+    strokeDashArray?: string
+    strokeCap?: 'butt' | 'round' | 'square'
+    strokeJoin?: 'miter' | 'round' | 'bevel'
+    paragraphSpacing?: number
+    sizingHorizontal?: 'fixed' | 'hug' | 'fill'
+    sizingVertical?: 'fixed' | 'hug' | 'fill'
+    backdropBlur?: number
+    position?: 'absolute' | 'relative' | 'fixed' | 'sticky'
+    rowGap?: number
+    columnGap?: number
+    flexWrap?: 'nowrap' | 'wrap'
+    alignContent?:
+      | 'start'
+      | 'center'
+      | 'end'
+      | 'stretch'
+      | 'space-between'
+      | 'space-around'
+      | 'space-evenly'
+    order?: number
+    gridTemplate?: string
+    alignSelf?: 'start' | 'center' | 'end' | 'stretch'
+    flexGrow?: number
+    flexShrink?: number
+    transformOrigin?: string
+    visibility?: 'visible' | 'hidden' | 'collapse'
+    display?: 'none' | 'flex' | 'inline-flex' | 'grid' | 'block' | 'inline'
+    whiteSpace?: 'normal' | 'nowrap' | 'pre' | 'pre-wrap' | 'pre-line'
+    wordBreak?: 'normal' | 'break-all' | 'keep-all' | 'break-word'
+    wordSpacing?: number
+    textIndent?: number
+    perspective?: number
+    rotateX?: number
+    rotateY?: number
+    textShadow?: {
+      offsetX: number
+      offsetY: number
+      blur: number
+      spread?: number
+      color?: string
+      inset?: boolean
+    }
+    direction?: 'ltr' | 'rtl'
+    writingMode?: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
+    filter?: string
+    outline?: string
     /** Text line height in logical units. */
     lineHeight?: number
     /** How an image is fitted: 'fill' stretches, 'cover' crops, 'contain' letterboxes. */
@@ -212,34 +346,8 @@ function bitmapLogicalSize(
 }
 
 // ---------------------------------------------------------------------------
-// Text measurement
+// Text measurement (shared with DesignDoc L1 heuristics)
 // ---------------------------------------------------------------------------
-
-function isWideChar(ch: string): boolean {
-  const code = ch.codePointAt(0) ?? 0
-  // CJK / full-width advance ~1em.
-  return code >= 0x1100 && (
-    code <= 0x115f ||
-    code === 0x2329 || code === 0x232a ||
-    (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
-    (code >= 0xac00 && code <= 0xd7a3) ||
-    (code >= 0xf900 && code <= 0xfaff) ||
-    (code >= 0xfe30 && code <= 0xfe4f) ||
-    (code >= 0xff00 && code <= 0xff60) ||
-    (code >= 0xffe0 && code <= 0xffe6) ||
-    (code >= 0x20000 && code <= 0x3fffd)
-  )
-}
-
-function textAdvance(text: string, fontSize: number): number {
-  let w = 0
-  for (const ch of text) {
-    if (ch === ' ') w += fontSize * 0.32
-    else if (isWideChar(ch)) w += fontSize * 1.02
-    else w += fontSize * 0.54
-  }
-  return w
-}
 
 interface MeasuredText {
   width: number
@@ -252,29 +360,17 @@ function measureText(
   fontSize: number,
   maxWidth: number | null,
   lineSpacing: number,
+  opts?: { letterSpacing?: number; fontWeight?: number | string },
 ): MeasuredText {
   const lineHeight = fontSize * lineSpacing
-  if (maxWidth === null || textAdvance(text, fontSize) <= maxWidth) {
-    return { width: textAdvance(text, fontSize), height: lineHeight }
-  }
-  // Greedy wrap by character (handles CJK) and word runs (latin).
-  const lines: string[] = []
-  let current = ''
-  let currentW = 0
-  for (const ch of text) {
-    const adv = ch === ' ' ? fontSize * 0.32 : isWideChar(ch) ? fontSize * 1.02 : fontSize * 0.54
-    if (currentW + adv > maxWidth && current) {
-      lines.push(current)
-      current = ch === ' ' ? '' : ch
-      currentW = ch === ' ' ? 0 : adv
-    } else {
-      current += ch
-      currentW += adv
-    }
-  }
-  if (current) lines.push(current)
-  const maxLine = Math.max(...lines.map((l) => textAdvance(l, fontSize)))
-  return { width: maxLine, height: lineHeight * lines.length }
+  const block = estimateTextBlock(text, fontSize, {
+    maxWidth: maxWidth === null ? undefined : maxWidth,
+    lineHeight,
+    letterSpacing: opts?.letterSpacing,
+    fontWeight: opts?.fontWeight,
+    wordWrap: true,
+  })
+  return { width: block.width, height: block.height }
 }
 
 // ---------------------------------------------------------------------------
@@ -454,6 +550,14 @@ async function buildNode(
     if (Number.isFinite(n)) style.fontSize = n
   }
   if (/\bbold\b/i.test(a['android:textStyle'] ?? '')) style.fontWeight = 700
+  // android:letterSpacing is in em (fraction of textSize).
+  const letterSpacingRaw = a['android:letterSpacing']
+  if (letterSpacingRaw !== undefined && style.fontSize) {
+    const em = Number(letterSpacingRaw.trim())
+    if (Number.isFinite(em)) {
+      style.letterSpacing = Math.round(em * style.fontSize * 100) / 100
+    }
+  }
   const alpha = Number(a['android:alpha'])
   if (Number.isFinite(alpha)) style.opacity = alpha
   const gravity = a['android:gravity']
@@ -547,7 +651,11 @@ function intrinsicContent(node: EngineNode): { w: number; h: number } {
   const kind = nodeKindOf(node.tag, node.el, node.dynamic)
   if (kind === 'text') {
     const fontSize = node.style.fontSize ?? DEFAULT_TEXT_SIZE
-    const m = measureText(node.text ?? '', fontSize, null, LINE_SPACING)
+    const m = measureText(node.text ?? '', fontSize, null, LINE_SPACING, {
+      letterSpacing:
+        typeof node.style.letterSpacing === 'number' ? node.style.letterSpacing : undefined,
+      fontWeight: node.style.fontWeight,
+    })
     return { w: m.width, h: m.height }
   }
   if (kind === 'image') {

@@ -12,6 +12,7 @@ import {
   countMarkupControls,
   markupToDesignDoc,
 } from './web-markup.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 
 async function readMaybe(abs: string): Promise<string> {
   try {
@@ -126,9 +127,14 @@ export const webAngularAdapter: PlatformAdapter = {
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
     const { template, css } = await loadTemplateAndStyles(page.absolutePath, src)
+    const merged = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+      inlineCss: css,
+    })
     return markupToDesignDoc(
       template,
-      css,
+      merged,
       path.basename(page.relativePath).replace(/\.component\.ts$/i, ''),
     )
   },

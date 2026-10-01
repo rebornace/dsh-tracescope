@@ -7,6 +7,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractUiTexts } from './source-text.js'
 import { reactNativeSourceToDesignDoc } from './declarative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -69,8 +70,9 @@ export const reactNativeAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'rn')
     return reactNativeSourceToDesignDoc(
-      src,
+      ctx.source,
       path.basename(page.relativePath).replace(/\.(tsx|ts|jsx|js)$/i, ''),
     )
   },

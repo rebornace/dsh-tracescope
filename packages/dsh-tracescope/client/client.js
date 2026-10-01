@@ -245,6 +245,15 @@ function PageMappingOverview({
   const [scanning, setScanning] = (0, import_react.useState)(false);
   const [elapsed, setElapsed] = (0, import_react.useState)(0);
   const [rematchingId, setRematchingId] = (0, import_react.useState)("");
+  const [preview, setPreview] = (0, import_react.useState)(null);
+  (0, import_react.useEffect)(() => {
+    if (!preview) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [preview]);
   (0, import_react.useEffect)(() => {
     if (!scanning) return;
     const started = Date.now();
@@ -600,13 +609,42 @@ function PageMappingOverview({
                 void requestRematchPrompt(mapping.designId);
               },
               rematching: rematchingId === mapping.designId,
-              busy: busy || scanning || !!rematchingId
+              busy: busy || scanning || !!rematchingId,
+              onOpenPreview: (url) => setPreview({ url, name: mapping.designName || mapping.designId })
             },
             mapping.designId
           )) })
         ] }, g.id);
       })
-    ] }) : null
+    ] }) : null,
+    preview ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "div",
+      {
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": "设计稿原图",
+        style: OV.previewOverlay,
+        onClick: () => setPreview(null),
+        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.previewPanel, onClick: (e) => e.stopPropagation(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.previewHeader, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "strong",
+              {
+                style: {
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap"
+                },
+                children: preview.name || "设计稿原图"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.previewClose, onClick: () => setPreview(null), children: "关闭" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.previewBody, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", { src: preview.url, alt: preview.name || "设计稿原图", style: OV.previewImg }) })
+        ] })
+      }
+    ) : null
   ] });
 }
 function PageCard({
@@ -624,10 +662,10 @@ function PageCard({
   onAiAnalyze,
   onAiRematch,
   rematching,
-  busy: cardBusy
+  busy: cardBusy,
+  onOpenPreview
 }) {
   const [pickerOpen, setPickerOpen] = (0, import_react.useState)(false);
-  const [fileQuery, setFileQuery] = (0, import_react.useState)("");
   const [thumbState, setThumbState] = (0, import_react.useState)("idle");
   const [thumbUrl, setThumbUrl] = (0, import_react.useState)("");
   const [thumbNonce, setThumbNonce] = (0, import_react.useState)(0);
@@ -699,11 +737,6 @@ function PageCard({
     setThumbState("loading");
     setThumbNonce((n) => n + 1);
   }
-  const fileResults = (0, import_react.useMemo)(() => {
-    const q = fileQuery.trim().toLowerCase();
-    const list = q ? allCodeFiles.filter((f) => f.relativePath.toLowerCase().includes(q)) : allCodeFiles;
-    return list.slice(0, 30);
-  }, [fileQuery, allCodeFiles]);
   const thumbHeight = 150 / aspect;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "div",
@@ -717,13 +750,25 @@ function PageCard({
       },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: setThumbEl, style: { ...OV.thumbWrap, height: Math.min(thumbHeight, 230) }, children: [
-          thumbState === "done" && thumbUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "img",
+          thumbState === "done" && thumbUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "button",
             {
-              src: thumbUrl,
-              alt: mapping.designName,
-              style: OV.thumbImg,
-              onError: () => retryThumb(true)
+              type: "button",
+              style: OV.thumbOpenBtn,
+              title: "点击查看原图",
+              onClick: () => onOpenPreview?.(thumbUrl),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "img",
+                  {
+                    src: thumbUrl,
+                    alt: mapping.designName,
+                    style: OV.thumbImg,
+                    onError: () => retryThumb(true)
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.thumbOpenHint, children: "查看原图" })
+              ]
             }
           ) : thumbState === "loading" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.thumbFallback, children: "缩略图加载中…" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.thumbRetry, onClick: retryThumb, children: "缩略图加载失败，点此重试" }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { ...OV.statusTag, color: status.dot }, children: [
@@ -751,11 +796,21 @@ function PageCard({
           ) : null
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.cardName, title: mapping.designName, children: mapping.designName }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.fileBox, onClick: () => setPickerOpen(!pickerOpen), children: selFile ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { title: selFile.relativePath, children: [
-          isConfirmed ? "✓ " : "",
-          selFile.relativePath.split("/").pop(),
-          selCandidate ? ` · ${Math.round(selCandidate.score * 100)}%` : ""
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#b42318" }, children: "点此指定代码文件 →" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            style: OV.fileBox,
+            onClick: () => setPickerOpen(true),
+            title: selFile?.relativePath || "指定代码文件",
+            children: selFile ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { title: selFile.relativePath, children: [
+              isConfirmed ? "✓ " : "",
+              selFile.relativePath.split("/").pop(),
+              selCandidate ? ` · ${Math.round(selCandidate.score * 100)}%` : ""
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#b42318" }, children: "点此指定代码文件 →" })
+          }
+        ),
+        selFile ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.filePathHint, title: selFile.relativePath, children: selFile.relativePath }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
           "button",
           {
@@ -767,57 +822,20 @@ function PageCard({
             children: rematching ? "准备中…" : "AI 推荐文件"
           }
         ),
-        pickerOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.picker, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerLabel, children: "自动建议" }),
-          mapping.candidates.length ? mapping.candidates.slice(0, 8).map((c) => {
-            const active2 = !!selected && c.adapterId === selected.adapterId && c.relativePath === selected.relativePath;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "button",
-              {
-                type: "button",
-                style: {
-                  ...OV.pickItem,
-                  ...active2 ? { borderColor: "#0f6e56", background: "#f2f8f5" } : null
-                },
-                onClick: () => {
-                  onChoose({ adapterId: c.adapterId, relativePath: c.relativePath });
-                  setPickerOpen(false);
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: "#0f6e56", fontWeight: 700 }, children: [
-                    Math.round(c.score * 100),
-                    "%"
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickPath, children: c.relativePath }),
-                  active2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: "#0f6e56", fontWeight: 700 }, children: "已选" }) : null
-                ]
-              },
-              c.adapterId + c.relativePath
-            );
-          }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerLabel, children: "无自动建议，请搜索。" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "input",
-            {
-              style: OV.fileSearch,
-              value: fileQuery,
-              placeholder: "在全部布局文件中搜索…",
-              onChange: (e) => setFileQuery(e.target.value)
-            }
-          ),
-          fileResults.map((f) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "button",
-            {
-              type: "button",
-              style: OV.pickItem,
-              onClick: () => {
-                onChoose({ adapterId: f.adapterId, relativePath: f.relativePath });
-                setPickerOpen(false);
-              },
-              children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickPath, children: f.relativePath })
+        pickerOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          CodeFilePickerModal,
+          {
+            designName: mapping.designName || mapping.designId,
+            candidates: mapping.candidates,
+            allCodeFiles,
+            selected,
+            onChoose: (file) => {
+              onChoose(file);
+              setPickerOpen(false);
             },
-            f.adapterId + f.relativePath
-          ))
-        ] }) : null,
+            onClose: () => setPickerOpen(false)
+          }
+        ) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.actionRow, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "button",
@@ -855,6 +873,186 @@ function PageCard({
           )
         ] })
       ]
+    }
+  );
+}
+function fileDir(rel) {
+  const i = rel.lastIndexOf("/");
+  return i <= 0 ? "." : rel.slice(0, i);
+}
+function fileName(rel) {
+  const i = rel.lastIndexOf("/");
+  return i < 0 ? rel : rel.slice(i + 1);
+}
+function CodeFilePickerModal({
+  designName,
+  candidates,
+  allCodeFiles,
+  selected,
+  onChoose,
+  onClose
+}) {
+  const [query, setQuery] = (0, import_react.useState)("");
+  const [collapsedDirs, setCollapsedDirs] = (0, import_react.useState)({});
+  (0, import_react.useEffect)(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const filtered = (0, import_react.useMemo)(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allCodeFiles;
+    return allCodeFiles.filter((f) => {
+      const path = f.relativePath.toLowerCase();
+      const name2 = fileName(f.relativePath).toLowerCase();
+      const kind = (f.kindLabel || "").toLowerCase();
+      return path.includes(q) || name2.includes(q) || kind.includes(q);
+    });
+  }, [query, allCodeFiles]);
+  const groups = (0, import_react.useMemo)(() => {
+    const map = /* @__PURE__ */ new Map();
+    for (const f of filtered) {
+      const dir = fileDir(f.relativePath);
+      const list = map.get(dir) || [];
+      list.push(f);
+      map.set(dir, list);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([dir, files]) => ({
+      dir,
+      files: files.slice().sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+    }));
+  }, [filtered]);
+  const visibleCandidates = (0, import_react.useMemo)(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return candidates;
+    return candidates.filter((c) => {
+      const path = c.relativePath.toLowerCase();
+      const name2 = fileName(c.relativePath).toLowerCase();
+      return path.includes(q) || name2.includes(q);
+    });
+  }, [query, candidates]);
+  function isActive(adapterId, relativePath) {
+    return !!selected && selected.adapterId === adapterId && selected.relativePath === relativePath;
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "div",
+    {
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "指定代码文件",
+      style: OV.pickerOverlay,
+      onClick: onClose,
+      children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerPanel, onClick: (e) => e.stopPropagation(), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerHeader, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { flex: 1, minWidth: 0 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerTitle, children: "指定代码文件" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerSubtitle, title: designName, children: designName })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: OV.pickerClose, onClick: onClose, children: "关闭" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerSearchRow, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              autoFocus: true,
+              style: OV.pickerSearchInput,
+              value: query,
+              placeholder: "搜索文件名、路径或类型…（支持部分匹配）",
+              onChange: (e) => setQuery(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: OV.pickerCount, children: [
+            filtered.length,
+            "/",
+            allCodeFiles.length
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerBody, children: [
+          visibleCandidates.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerSection, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerSectionTitle, children: "自动建议" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerSuggestList, children: visibleCandidates.slice(0, 12).map((c) => {
+              const active2 = isActive(c.adapterId, c.relativePath);
+              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                "button",
+                {
+                  type: "button",
+                  style: {
+                    ...OV.pickerFileRow,
+                    ...active2 ? OV.pickerFileRowActive : null
+                  },
+                  onClick: () => onChoose({ adapterId: c.adapterId, relativePath: c.relativePath }),
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: OV.pickerScore, children: [
+                      Math.round(c.score * 100),
+                      "%"
+                    ] }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: OV.pickerFileMeta, children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerFileName, children: fileName(c.relativePath) }),
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerFileDir, children: fileDir(c.relativePath) })
+                    ] }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerKind, children: c.kindLabel }),
+                    active2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerCheck, children: "✓" }) : null
+                  ]
+                },
+                "sug-" + c.adapterId + c.relativePath
+              );
+            }) })
+          ] }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerSection, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerSectionTitle, children: [
+              "全部布局文件",
+              query.trim() ? ` · 匹配 ${filtered.length}` : ""
+            ] }),
+            groups.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: OV.pickerEmpty, children: "没有匹配的文件，试试更短的关键词。" }) : groups.map(({ dir, files }) => {
+              const collapsed = !!collapsedDirs[dir];
+              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: OV.pickerDirBlock, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                  "button",
+                  {
+                    type: "button",
+                    style: OV.pickerDirHeader,
+                    onClick: () => setCollapsedDirs({ ...collapsedDirs, [dir]: !collapsed }),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: collapsed ? "▸" : "▾" }),
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerDirPath, title: dir, children: dir }),
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerDirCount, children: files.length })
+                    ]
+                  }
+                ),
+                collapsed ? null : files.map((f) => {
+                  const active2 = isActive(f.adapterId, f.relativePath);
+                  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                    "button",
+                    {
+                      type: "button",
+                      style: {
+                        ...OV.pickerFileRow,
+                        ...active2 ? OV.pickerFileRowActive : null
+                      },
+                      onClick: () => onChoose({
+                        adapterId: f.adapterId,
+                        relativePath: f.relativePath
+                      }),
+                      title: f.relativePath,
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: OV.pickerFileMeta, children: [
+                          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerFileName, children: fileName(f.relativePath) }),
+                          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerFileDir, children: f.relativePath })
+                        ] }),
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerKind, children: f.kindLabel }),
+                        active2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: OV.pickerCheck, children: "✓" }) : null
+                      ]
+                    },
+                    f.adapterId + f.relativePath
+                  );
+                })
+              ] }, dir);
+            })
+          ] })
+        ] })
+      ] })
     }
   );
 }
@@ -978,6 +1176,29 @@ var init_PageMappingOverview = __esm({
         justifyContent: "center"
       },
       thumbImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+      thumbOpenBtn: {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        padding: 0,
+        margin: 0,
+        border: "none",
+        background: "transparent",
+        cursor: "zoom-in",
+        display: "block"
+      },
+      thumbOpenHint: {
+        position: "absolute",
+        left: 6,
+        bottom: 6,
+        fontSize: 10,
+        fontWeight: 600,
+        color: "#fff",
+        background: "rgba(0,0,0,0.55)",
+        borderRadius: 99,
+        padding: "2px 8px",
+        pointerEvents: "none"
+      },
       thumbFallback: {
         width: "100%",
         height: "100%",
@@ -1058,40 +1279,196 @@ var init_PageMappingOverview = __esm({
         textDecoration: "underline",
         fontWeight: 600
       },
-      picker: {
+      filePathHint: {
+        fontSize: 10,
+        color: "#8a7f70",
+        lineHeight: 1.35,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        padding: "0 2px"
+      },
+      pickerOverlay: {
+        position: "fixed",
+        inset: 0,
+        zIndex: 10020,
+        background: "rgba(20, 18, 14, 0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16
+      },
+      pickerPanel: {
+        width: "min(640px, 96vw)",
+        maxHeight: "88vh",
+        background: "#fff",
+        borderRadius: 12,
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        gap: 4,
-        border: "1px solid #e6dfd0",
+        boxShadow: "0 18px 48px rgba(0,0,0,0.35)"
+      },
+      pickerHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "12px 14px",
+        borderBottom: "1px solid #ece5d8",
+        background: "#faf7f1"
+      },
+      pickerTitle: { fontSize: 14, fontWeight: 700, color: "#3f3a30" },
+      pickerSubtitle: {
+        fontSize: 11,
+        color: "#8a7f70",
+        marginTop: 2,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      pickerClose: {
+        border: "1px solid #d9d2c4",
+        background: "#fff",
+        color: "#5f584c",
+        borderRadius: 7,
+        padding: "4px 10px",
+        fontSize: 12,
+        cursor: "pointer",
+        flexShrink: 0
+      },
+      pickerSearchRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "10px 14px",
+        borderBottom: "1px solid #ece5d8"
+      },
+      pickerSearchInput: {
+        flex: 1,
+        boxSizing: "border-box",
+        padding: "8px 10px",
+        border: "1px solid #d9d2c4",
         borderRadius: 8,
-        padding: 6,
+        fontSize: 13
+      },
+      pickerCount: {
+        fontSize: 11,
+        color: "#8a7f70",
+        whiteSpace: "nowrap",
+        flexShrink: 0
+      },
+      pickerBody: {
+        flex: 1,
+        overflow: "auto",
+        padding: "8px 12px 14px"
+      },
+      pickerSection: { marginBottom: 12 },
+      pickerSectionTitle: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: "#8a7f70",
+        marginBottom: 6,
+        letterSpacing: 0.2
+      },
+      pickerSuggestList: { display: "flex", flexDirection: "column", gap: 4 },
+      pickerEmpty: { fontSize: 12, color: "#8a7f70", padding: "12px 4px" },
+      pickerDirBlock: {
+        border: "1px solid #ece5d8",
+        borderRadius: 8,
+        marginBottom: 6,
+        overflow: "hidden",
         background: "#fdfbf7"
       },
-      pickerLabel: { fontSize: 10, color: "#8a7f70" },
-      pickItem: {
+      pickerDirHeader: {
+        width: "100%",
         display: "flex",
-        gap: 6,
         alignItems: "center",
-        fontSize: 10,
-        border: "1px solid #ece5d8",
-        borderRadius: 6,
-        padding: "4px 6px",
-        background: "#fff",
-        cursor: "pointer"
+        gap: 6,
+        padding: "6px 8px",
+        border: "none",
+        background: "#f3eee4",
+        cursor: "pointer",
+        fontSize: 11,
+        fontWeight: 600,
+        color: "#5f584c",
+        textAlign: "left"
       },
-      pickPath: {
+      pickerDirPath: {
         flex: 1,
-        textAlign: "left",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+      },
+      pickerDirCount: {
+        fontSize: 10,
+        background: "#e7e0d0",
+        borderRadius: 99,
+        padding: "0 7px",
+        flexShrink: 0
+      },
+      pickerFileRow: {
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "7px 10px",
+        border: "none",
+        borderBottom: "1px solid #f0ebe1",
+        background: "#fff",
+        cursor: "pointer",
+        textAlign: "left"
+      },
+      pickerFileRowActive: {
+        background: "#f2f8f5",
+        boxShadow: "inset 3px 0 0 #0f6e56"
+      },
+      pickerScore: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: "#0f6e56",
+        width: 36,
+        flexShrink: 0
+      },
+      pickerFileMeta: {
+        flex: 1,
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 1
+      },
+      pickerFileName: {
+        fontSize: 13,
+        fontWeight: 600,
         color: "#3f3a30",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap"
       },
-      fileSearch: {
-        padding: "4px 7px",
-        border: "1px solid #d9d2c4",
-        borderRadius: 6,
-        fontSize: 11
+      pickerFileDir: {
+        fontSize: 10,
+        color: "#8a7f70",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+      },
+      pickerKind: {
+        fontSize: 10,
+        color: "#5f584c",
+        background: "#f3eee4",
+        borderRadius: 99,
+        padding: "2px 7px",
+        flexShrink: 0,
+        maxWidth: 90,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      pickerCheck: {
+        color: "#0f6e56",
+        fontWeight: 700,
+        fontSize: 13,
+        flexShrink: 0
       },
       actionRow: {
         display: "flex",
@@ -1121,8 +1498,176 @@ var init_PageMappingOverview = __esm({
         fontWeight: 600,
         cursor: "pointer",
         whiteSpace: "nowrap"
+      },
+      previewOverlay: {
+        position: "fixed",
+        inset: 0,
+        zIndex: 1e4,
+        background: "rgba(20, 18, 14, 0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16
+      },
+      previewPanel: {
+        width: "min(920px, 96vw)",
+        maxHeight: "92vh",
+        background: "#1c1915",
+        borderRadius: 12,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 18px 48px rgba(0,0,0,0.45)"
+      },
+      previewHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 14px",
+        color: "#f4f1ea",
+        fontSize: 13,
+        borderBottom: "1px solid rgba(255,255,255,0.08)"
+      },
+      previewClose: {
+        border: "1px solid rgba(255,255,255,0.25)",
+        background: "transparent",
+        color: "#f4f1ea",
+        borderRadius: 7,
+        padding: "4px 10px",
+        fontSize: 12,
+        cursor: "pointer",
+        flexShrink: 0
+      },
+      previewBody: {
+        flex: 1,
+        overflow: "auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 12,
+        background: "#11100e"
+      },
+      previewImg: {
+        maxWidth: "100%",
+        maxHeight: "78vh",
+        objectFit: "contain",
+        display: "block"
       }
     };
+  }
+});
+
+// client-src/visual/resolve-finding-node.ts
+function normalize(s) {
+  return s.trim().toLowerCase().replace(/[\s\u3000]+/g, "").replace(/[“”"']/g, "");
+}
+function extractCandidateNodeIds(...parts) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (id) => {
+    const t = id.trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+    const alt = t.includes("-") ? t.replace(/-/g, ":") : t.replace(/:/g, "-");
+    if (alt !== t && !seen.has(alt)) {
+      seen.add(alt);
+      out.push(alt);
+    }
+  };
+  for (const part of parts) {
+    if (!part) continue;
+    for (const m of part.matchAll(/\b\d+:\d+\b/g)) push(m[0]);
+    for (const m of part.matchAll(/\b\d+-\d+\b/g)) push(m[0]);
+    const trimmed = part.trim();
+    if (/^\d+:\d+$/.test(trimmed) || /^\d+-\d+$/.test(trimmed)) push(trimmed);
+    if (/^[A-Za-z0-9_.-]{6,80}$/.test(trimmed) && !/\s/.test(trimmed)) push(trimmed);
+  }
+  return out;
+}
+function compactId(id) {
+  return id.replace(/[^0-9]/g, "");
+}
+function buildIdIndexes(nodes) {
+  const byId = /* @__PURE__ */ new Map();
+  const byCompact = /* @__PURE__ */ new Map();
+  const byNorm = /* @__PURE__ */ new Map();
+  for (const n of nodes) {
+    const id = String(n.id ?? "").trim();
+    if (!id) continue;
+    if (!byId.has(id)) byId.set(id, n);
+    const c = compactId(id);
+    if (c && !byCompact.has(c)) byCompact.set(c, n);
+    const norm = id.replace(/-/g, ":");
+    if (!byNorm.has(norm)) byNorm.set(norm, n);
+  }
+  return { byId, byCompact, byNorm };
+}
+function lookupId(indexes, raw) {
+  const id = raw.trim();
+  if (!id) return void 0;
+  return indexes.byId.get(id) || indexes.byNorm.get(id.replace(/-/g, ":")) || indexes.byCompact.get(compactId(id));
+}
+function scoreNode(node, hints) {
+  const name2 = normalize(node.name || "");
+  const text = normalize(node.text || "");
+  const loc = normalize(hints.location || "");
+  const title = normalize(hints.title || "");
+  const expected = normalize(hints.expected || "");
+  let score = 0;
+  if (expected && text) {
+    if (text === expected) score += 100;
+    else if (expected.length >= 2 && (text.includes(expected) || expected.includes(text))) {
+      score += 70;
+    }
+  }
+  if (loc && name2) {
+    if (name2 === loc) score += 90;
+    else if (loc.length >= 2 && (name2.includes(loc) || loc.includes(name2))) score += 50;
+  }
+  if (title && name2 && name2.length >= 2 && title.includes(name2)) score += 35;
+  if (title && text && text.length >= 2 && title.includes(text)) score += 40;
+  if (loc && text && text.length >= 2 && (loc.includes(text) || text.includes(loc))) score += 25;
+  const w = Math.max(1, Number(node.width) || 1);
+  const h = Math.max(1, Number(node.height) || 1);
+  const area = w * h;
+  score += Math.max(0, 8 - Math.log10(area));
+  return score;
+}
+function resolveFindingNodeId(hints, nodes, options) {
+  if (!nodes.length) return void 0;
+  const minScore = options?.minScore ?? 40;
+  const indexes = buildIdIndexes(nodes);
+  const directCandidates = extractCandidateNodeIds(
+    hints.nodeId,
+    hints.location,
+    hints.title,
+    hints.expected,
+    hints.suggestion
+  );
+  for (const cand of directCandidates) {
+    const hit = lookupId(indexes, cand);
+    if (hit) return hit.id;
+  }
+  if (hints.nodeId) {
+    const hit = lookupId(indexes, hints.nodeId);
+    if (hit) return hit.id;
+  }
+  let best;
+  let bestScore = 0;
+  for (const n of nodes) {
+    const s = scoreNode(n, hints);
+    if (s > bestScore) {
+      bestScore = s;
+      best = n;
+    }
+  }
+  if (best && bestScore >= minScore) return best.id;
+  return void 0;
+}
+var init_resolve_finding_node = __esm({
+  "client-src/visual/resolve-finding-node.ts"() {
+    "use strict";
   }
 });
 
@@ -1249,6 +1794,24 @@ var init_diff_actions = __esm({
 });
 
 // client-src/visual/HifiCompareBoard.tsx
+function relatedRoleLabel(role) {
+  switch (role) {
+    case "sibling":
+      return "同目录";
+    case "import":
+      return "引用";
+    case "include":
+      return "include";
+    case "style":
+      return "样式";
+    case "resource":
+      return "资源";
+    case "entry":
+      return "入口";
+    default:
+      return role || "关联";
+  }
+}
 function formatHifiSavedAt(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -1286,7 +1849,7 @@ function HifiCompareBoard({
   onOpenTrackerSettings,
   onActionHint
 }) {
-  const [activeDesignId, setActiveDesignId] = (0, import_react2.useState)("");
+  const [selectedKeys, setSelectedKeys] = (0, import_react2.useState)(() => /* @__PURE__ */ new Set());
   const [chatNote, setChatNote] = (0, import_react2.useState)("");
   const [sourceFilter, setSourceFilter] = (0, import_react2.useState)("all");
   const storeKey = (0, import_react2.useMemo)(() => diffStoreKey(data), [data]);
@@ -1295,13 +1858,12 @@ function HifiCompareBoard({
   );
   const [hiddenLayerIds, setHiddenLayerIds] = (0, import_react2.useState)(() => loadHiddenLayers(storeKey));
   const [pickHint, setPickHint] = (0, import_react2.useState)("");
-  const [layerBusy, setLayerBusy] = (0, import_react2.useState)(false);
   const userEraseRef = (0, import_react2.useRef)(false);
   const eraseDoneHintRef = (0, import_react2.useRef)("已删除图层（可点「恢复已删除图层」撤销）。");
   (0, import_react2.useEffect)(() => {
     setOverrides(loadDiffOverrides(storeKey));
     setHiddenLayerIds(loadHiddenLayers(storeKey));
-    setActiveDesignId("");
+    setSelectedKeys(/* @__PURE__ */ new Set());
   }, [storeKey]);
   (0, import_react2.useEffect)(() => {
     try {
@@ -1318,8 +1880,22 @@ function HifiCompareBoard({
   const diffs = data.result.diffs;
   const designBoxById = (0, import_react2.useMemo)(() => {
     const map = /* @__PURE__ */ new Map();
+    const put = (idRaw, box) => {
+      const id = String(idRaw ?? "").trim();
+      if (!id || map.has(id)) return;
+      map.set(id, {
+        x: Number(box.x) || 0,
+        y: Number(box.y) || 0,
+        width: Number(box.width) || 0,
+        height: Number(box.height) || 0,
+        name: box.name || id,
+        kind: box.kind || "frame",
+        text: box.text
+      });
+    };
+    for (const b of data.designNodeBoxes ?? []) put(b.id, b);
     const walk = (n) => {
-      map.set(n.id, {
+      put(n.id, {
         x: n.x,
         y: n.y,
         width: n.width,
@@ -1328,28 +1904,90 @@ function HifiCompareBoard({
         kind: n.kind,
         text: n.text
       });
-      for (const c of n.children) walk(c);
+      for (const c of n.inferredChildren ?? []) walk(c);
+      for (const c of n.children ?? []) walk(c);
     };
     walk(data.designHifiTree);
+    for (const m of data.designNoteMasks ?? []) {
+      put(String(m.nodeId ?? ""), {
+        x: m.x,
+        y: m.y,
+        width: m.width,
+        height: m.height,
+        name: m.text,
+        kind: "text",
+        text: m.text
+      });
+    }
     return map;
-  }, [data.designHifiTree]);
+  }, [data.designHifiTree, data.designNodeBoxes, data.designNoteMasks]);
+  const resolveDesignBox = (0, import_react2.useMemo)(() => {
+    const compactIndex = /* @__PURE__ */ new Map();
+    const normalizeIndex = /* @__PURE__ */ new Map();
+    for (const id of designBoxById.keys()) {
+      const compact = id.replace(/[^0-9]/g, "");
+      if (compact && !compactIndex.has(compact)) compactIndex.set(compact, id);
+      const norm = id.replace(/-/g, ":");
+      if (!normalizeIndex.has(norm)) normalizeIndex.set(norm, id);
+    }
+    return (rawId) => {
+      const id = String(rawId ?? "").trim();
+      if (!id) return void 0;
+      const direct = designBoxById.get(id);
+      if (direct) return direct;
+      const norm = id.replace(/-/g, ":");
+      const viaNorm = normalizeIndex.get(norm);
+      if (viaNorm) return designBoxById.get(viaNorm);
+      const compact = id.replace(/[^0-9]/g, "");
+      if (compact) {
+        const viaCompact = compactIndex.get(compact);
+        if (viaCompact) return designBoxById.get(viaCompact);
+      }
+      return void 0;
+    };
+  }, [designBoxById]);
   const aiFindings = findings?.findings ?? [];
+  const findingLocators = (0, import_react2.useMemo)(
+    () => [...designBoxById.entries()].map(([id, box]) => ({
+      id,
+      name: box.name,
+      text: box.text,
+      width: box.width,
+      height: box.height
+    })),
+    [designBoxById]
+  );
   const unifiedItems = (0, import_react2.useMemo)(() => {
     const compact = (id) => id.replace(/[^0-9]/g, "");
     const absorbed = /* @__PURE__ */ new Set();
     const items = [];
     for (const f of aiFindings) {
-      const designId = (f.nodeId ?? "").trim();
+      const rawNodeId = (f.nodeId ?? "").trim();
       const haystack = `${f.title} ${f.location ?? ""} ${f.expected ?? ""} ${f.actual ?? ""} ${f.suggestion ?? ""}`.toLowerCase();
       let codeId = "";
+      let linkedDesignId = "";
       diffs.forEach((d, idx) => {
-        if (!designId || !d.designNodeId) return;
-        if (compact(d.designNodeId) !== compact(designId)) return;
-        if (propertyCovered(d.property, haystack)) {
+        if (!d.designNodeId) return;
+        const sameId = rawNodeId && compact(d.designNodeId) === compact(rawNodeId);
+        const nameInFinding = d.nodeName && (haystack.includes(String(d.nodeName).toLowerCase()) || (f.location || "").toLowerCase().includes(String(d.nodeName).toLowerCase()));
+        if (!sameId && !nameInFinding) return;
+        if (sameId && propertyCovered(d.property, haystack)) {
           absorbed.add(idx);
-          if (!codeId && d.codeNodeId) codeId = d.codeNodeId;
         }
+        if (!linkedDesignId) linkedDesignId = String(d.designNodeId);
+        if (!codeId && d.codeNodeId) codeId = String(d.codeNodeId);
       });
+      const resolved = resolveFindingNodeId(
+        {
+          title: f.title,
+          nodeId: rawNodeId || linkedDesignId || void 0,
+          location: f.location,
+          expected: f.expected,
+          actual: f.actual,
+          suggestion: f.suggestion
+        },
+        findingLocators
+      ) || linkedDesignId || rawNodeId;
       items.push({
         key: "ai-" + items.length,
         source: "ai",
@@ -1360,7 +1998,7 @@ function HifiCompareBoard({
         actual: f.actual,
         codeSource: f.codeSource,
         suggestion: f.suggestion,
-        designId,
+        designId: String(resolved || ""),
         codeId
       });
     }
@@ -1373,8 +2011,8 @@ function HifiCompareBoard({
         headline: `${PROP_LABEL[d.property] ?? d.property} · ${d.nodeName}`,
         expected: d.expected === void 0 ? void 0 : String(d.expected),
         actual: d.actual === void 0 ? void 0 : String(d.actual),
-        designId: d.designNodeId ?? "",
-        codeId: d.codeNodeId ?? "",
+        designId: String(d.designNodeId ?? ""),
+        codeId: String(d.codeNodeId ?? ""),
         needsReview: d.needsReview
       });
     });
@@ -1385,7 +2023,7 @@ function HifiCompareBoard({
       return 0;
     });
     return items;
-  }, [aiFindings, diffs]);
+  }, [aiFindings, diffs, findingLocators]);
   const displayItems = (0, import_react2.useMemo)(() => {
     return unifiedItems.map((item) => {
       const o = overrides[item.key];
@@ -1431,30 +2069,33 @@ function HifiCompareBoard({
     onActionHint?.(message);
   };
   const copyDiffs = async () => {
-    if (!visibleItems.length) {
-      hint("当前没有可复制的差异");
+    const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
+    if (!targets.length) {
+      hint(selectedKeys.size ? "当前选中项无可复制差异" : "当前没有可复制的差异");
       return;
     }
     try {
-      await copyTextToClipboard(formatVisualDiffCopyText(visibleItems, actionMeta));
-      hint(`已复制 ${visibleItems.length} 条差异`);
+      await copyTextToClipboard(formatVisualDiffCopyText(targets, actionMeta));
+      hint(`已复制 ${targets.length} 条差异`);
     } catch (err) {
       hint(`复制失败：${err.message}`);
     }
   };
   const exportDiffs = () => {
-    if (!visibleItems.length) {
-      hint("当前没有可导出的差异");
+    const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
+    if (!targets.length) {
+      hint(selectedKeys.size ? "当前选中项无可导出差异" : "当前没有可导出的差异");
       return;
     }
     const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const filename = `tracescope-ui-diff-${stamp}.md`;
-    downloadTextFile(filename, formatVisualDiffExportMarkdown(visibleItems, actionMeta));
+    downloadTextFile(filename, formatVisualDiffExportMarkdown(targets, actionMeta));
     hint(`已导出：${filename}`);
   };
   const submitDiffs = () => {
-    if (!visibleItems.length) {
-      hint("当前没有可提交的差异");
+    const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
+    if (!targets.length) {
+      hint(selectedKeys.size ? "当前选中项无可提交差异" : "当前没有可提交的差异");
       return;
     }
     if (!trackerReady) {
@@ -1478,12 +2119,12 @@ function HifiCompareBoard({
     }
     openConfirmDialog({
       title: "提交缺陷？",
-      message: `将把 ${visibleItems.length} 条 UI 差异提交到协作平台（${trackerProvider || "已配置"}）。可修改下方标题后再提交。`,
+      message: `将把 ${targets.length} 条 UI 差异提交到协作平台（${trackerProvider || "已配置"}）。可修改下方标题后再提交。`,
       inputLabel: "缺陷标题",
-      inputValue: defaultVisualDefectSubject(visibleItems, actionMeta),
+      inputValue: defaultVisualDefectSubject(targets, actionMeta),
       confirmLabel: "提交",
       onConfirm: (subject) => {
-        const report = unifiedItemsToFailReport(visibleItems, actionMeta);
+        const report = unifiedItemsToFailReport(targets, actionMeta);
         void fetch("/tracescope/v1/tracker-submit", {
           method: "POST",
           credentials: "same-origin",
@@ -1501,7 +2142,7 @@ function HifiCompareBoard({
           if (!r.ok) throw new Error(data2.error || "提交失败");
           let tip = `已提交到 ${data2.provider || trackerProvider || "协作平台"}`;
           if (data2.id) tip += `（ID ${data2.id}）`;
-          tip += `，共 ${data2.count || visibleItems.length} 条。`;
+          tip += `，共 ${data2.count || targets.length} 条。`;
           if (data2.url) tip += ` 链接：${data2.url}`;
           hint(tip);
         }).catch((err) => {
@@ -1510,27 +2151,12 @@ function HifiCompareBoard({
       }
     });
   };
-  const markerDiffs = (0, import_react2.useMemo)(() => {
-    const fromRules = displayItems.filter((i) => i.designId && designBoxById.has(i.designId)).map((i) => ({
-      designId: i.designId,
-      severity: i.severity,
-      key: i.key
-    }));
-    const best = /* @__PURE__ */ new Map();
-    for (const m of fromRules) {
-      const prev = best.get(m.designId);
-      if (!prev || SEVERITY_RANK[m.severity] > SEVERITY_RANK[prev.severity]) {
-        best.set(m.designId, m);
-      }
-    }
-    return [...best.values()];
-  }, [displayItems, designBoxById]);
   const visibleNoteMasks = (0, import_react2.useMemo)(() => {
     const hidden = new Set(hiddenLayerIds);
     const auto = (data.designNoteMasks ?? []).filter((m) => !m.nodeId || !hidden.has(m.nodeId));
     const manual = [];
     for (const id of hiddenLayerIds) {
-      const box = designBoxById.get(id);
+      const box = resolveDesignBox(id);
       if (!box || box.width <= 0 || box.height <= 0) continue;
       if (id === data.designHifiTree.id) continue;
       const autoHit = (data.designNoteMasks ?? []).find((m) => m.nodeId === id);
@@ -1554,16 +2180,17 @@ function HifiCompareBoard({
       byId.set(key, m);
     }
     return [...byId.values()];
-  }, [data.designNoteMasks, hiddenLayerIds, designBoxById, data.designHifiTree.id]);
+  }, [data.designNoteMasks, hiddenLayerIds, resolveDesignBox, data.designHifiTree.id]);
   const pickBoxes = (0, import_react2.useMemo)(() => {
     const map = new Map(designBoxById);
     for (const m of data.designNoteMasks ?? []) {
-      if (!m.nodeId || map.has(m.nodeId)) continue;
-      map.set(m.nodeId, {
-        x: m.x,
-        y: m.y,
-        width: m.width,
-        height: m.height,
+      const id = String(m.nodeId ?? "");
+      if (!id || map.has(id)) continue;
+      map.set(id, {
+        x: Number(m.x) || 0,
+        y: Number(m.y) || 0,
+        width: Number(m.width) || 0,
+        height: Number(m.height) || 0,
         name: m.text,
         kind: "text",
         text: m.text
@@ -1577,11 +2204,57 @@ function HifiCompareBoard({
   }, [data.viewport.width]);
   const w = data.viewport.width * computedScale;
   const h = data.viewport.height * computedScale;
-  function selectItem(designId) {
-    setActiveDesignId(designId);
+  const selectedHotspots = (0, import_react2.useMemo)(() => {
+    const out = [];
+    const seenBoxes = /* @__PURE__ */ new Set();
+    for (const item of visibleItems) {
+      if (!selectedKeys.has(item.key) || !item.designId) continue;
+      const box = resolveDesignBox(item.designId);
+      if (!box || box.width <= 0 || box.height <= 0) continue;
+      const boxKey = `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)},${Math.round(box.height)}`;
+      const existingIdx = out.findIndex((h2) => {
+        const k = `${Math.round(h2.box.x)},${Math.round(h2.box.y)},${Math.round(h2.box.width)},${Math.round(h2.box.height)}`;
+        return k === boxKey;
+      });
+      const color = SEVERITY_TEXT[item.severity];
+      if (existingIdx >= 0) {
+        const prev = out[existingIdx];
+        const prevRank = prev.color === SEVERITY_TEXT.high ? 3 : prev.color === SEVERITY_TEXT.medium ? 2 : 1;
+        const nextRank = item.severity === "high" ? 3 : item.severity === "medium" ? 2 : 1;
+        if (nextRank > prevRank) out[existingIdx] = { key: item.key, color, box };
+        continue;
+      }
+      if (seenBoxes.has(boxKey)) continue;
+      seenBoxes.add(boxKey);
+      out.push({ key: item.key, color, box });
+    }
+    return out;
+  }, [visibleItems, selectedKeys, resolveDesignBox]);
+  const designFrameRef = (0, import_react2.useRef)(null);
+  function toggleItem(item) {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(item.key)) next.delete(item.key);
+      else next.add(item.key);
+      return next;
+    });
+    const willSelect = !selectedKeys.has(item.key);
+    if (willSelect) {
+      if (item.designId && !resolveDesignBox(item.designId)) {
+        setPickHint("该差异缺少可定位的设计节点坐标，无法在对照图上高亮。");
+      } else {
+        setPickHint("");
+        requestAnimationFrame(() => {
+          designFrameRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    } else {
+      setPickHint("");
+    }
   }
   function clearMarkers() {
-    setActiveDesignId("");
+    setSelectedKeys(/* @__PURE__ */ new Set());
+    setPickHint("");
   }
   function patchOverride(key, patch) {
     setOverrides((prev) => {
@@ -1595,8 +2268,7 @@ function HifiCompareBoard({
     if (!nodeId) return;
     userEraseRef.current = true;
     eraseDoneHintRef.current = "已删除图层（可点「恢复已删除图层」撤销）。";
-    setLayerBusy(true);
-    setPickHint("正在删除图层…");
+    setPickHint("正在清理图层…");
     setHiddenLayerIds((prev) => prev.includes(nodeId) ? prev : [...prev, nodeId]);
   }
   function findLayerAt(x, y) {
@@ -1676,6 +2348,34 @@ function HifiCompareBoard({
         data.page.relativePath
       ] })
     ] }),
+    (data.relatedFiles?.length ?? 0) > 1 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("details", { style: { marginBottom: 8, fontSize: 11, color: "#5f584c" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("summary", { style: { cursor: "pointer", userSelect: "none" }, children: [
+        "关联文件 ",
+        data.relatedFiles.length - 1,
+        " 个（入口仍为上方单文件）"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "ul",
+        {
+          style: {
+            margin: "6px 0 0",
+            paddingLeft: 18,
+            maxHeight: 120,
+            overflow: "auto",
+            lineHeight: 1.5
+          },
+          children: data.relatedFiles.filter((f) => f.role !== "entry").map((f) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("li", { title: f.reason || f.role, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: "#8a7f70" }, children: [
+              "[",
+              relatedRoleLabel(f.role),
+              "]"
+            ] }),
+            " ",
+            f.relativePath
+          ] }, f.relativePath))
+        }
+      )
+    ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { fontSize: 11, color: "#8a7f70", marginBottom: 6 }, children: [
       "自动删除识别到的设计师备注；也可点击图上图层继续删除（从渲染图中擦除该区域像素，不是盖白块）。",
       hiddenLayerIds.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
@@ -1686,7 +2386,6 @@ function HifiCompareBoard({
           onClick: () => {
             userEraseRef.current = true;
             eraseDoneHintRef.current = "已恢复图层。";
-            setLayerBusy(true);
             setPickHint("正在恢复图层…");
             setHiddenLayerIds([]);
           },
@@ -1699,37 +2398,56 @@ function HifiCompareBoard({
       ) : null
     ] }),
     pickHint ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: 11, color: "#0f6e56", marginBottom: 6 }, children: pickHint }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { ...COL.frame, width: w, height: h }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { transform: `scale(${computedScale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      RasterDesignView,
-      {
-        imageUrl: data.designImageUrl,
-        viewport: data.viewport,
-        eraseRegions: visibleNoteMasks,
-        busy: layerBusy,
-        hotspot: activeDesignId ? designBoxById.get(activeDesignId) : void 0,
-        hotspotColor: markerDiffs.find((m) => m.designId === activeDesignId) ? SEVERITY_TEXT[markerDiffs.find((m) => m.designId === activeDesignId).severity] : "#0f6e56",
-        onBusyChange: (busy) => {
-          setLayerBusy(busy);
-          if (!busy && userEraseRef.current) {
-            userEraseRef.current = false;
-            setPickHint(eraseDoneHintRef.current);
-          }
-        },
-        onPick: (x, y) => {
-          const id = findLayerAt(x, y);
-          if (!id) {
-            setPickHint("未点中可删除图层，请点文字/标注区域。");
-            return;
-          }
-          const box = pickBoxes.get(id);
-          const label = box?.text || box?.name || id;
-          if (window.confirm(`从对照图中删除图层「${label}」？
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { ref: designFrameRef, style: { ...COL.frame, width: w, height: h, position: "relative" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { transform: `scale(${computedScale})`, transformOrigin: "top left" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        RasterDesignView,
+        {
+          imageUrl: data.designImageUrl,
+          viewport: data.viewport,
+          eraseRegions: visibleNoteMasks,
+          onBusyChange: (busy) => {
+            if (!busy && userEraseRef.current) {
+              userEraseRef.current = false;
+              setPickHint(eraseDoneHintRef.current);
+            }
+          },
+          onPick: (x, y) => {
+            const id = findLayerAt(x, y);
+            if (!id) {
+              setPickHint("未点中可删除图层，请点文字/标注区域。");
+              return;
+            }
+            const box = pickBoxes.get(id);
+            const label = box?.text || box?.name || id;
+            if (window.confirm(`从对照图中删除图层「${label}」？
 （擦除该区域像素；可随时恢复）`)) {
-            hideLayer(id);
+              hideLayer(id);
+            }
           }
         }
-      }
-    ) }) }),
+      ) }),
+      selectedHotspots.map((spot) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "div",
+        {
+          "aria-hidden": true,
+          style: {
+            position: "absolute",
+            left: spot.box.x * computedScale,
+            top: spot.box.y * computedScale,
+            width: Math.max(4, spot.box.width * computedScale),
+            height: Math.max(4, spot.box.height * computedScale),
+            border: `2px solid ${spot.color}`,
+            background: `${spot.color}33`,
+            boxShadow: `0 0 0 1px #fff, 0 0 0 3px ${spot.color}`,
+            boxSizing: "border-box",
+            pointerEvents: "none",
+            zIndex: 6,
+            borderRadius: 2
+          }
+        },
+        spot.key + ":" + Math.round(spot.box.x) + "," + Math.round(spot.box.y)
+      ))
+    ] }),
     data.aiInferenceNote ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: COL.aiNote, children: data.aiInferenceNote }) : null,
     chatNote ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: COL.chatNote, children: chatNote }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 10 }, children: [
@@ -1747,15 +2465,26 @@ function HifiCompareBoard({
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { style: { fontSize: 12 }, children: [
               "差异清单（",
               visibleItems.length,
-              "，点击可在设计稿上定位）"
+              selectedKeys.size ? `，已选 ${selectedKeys.size}` : "",
+              "，点击多选 / 再点取消）"
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.aiBtn, onClick: sendToChat, children: "AI 协助分析" }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: () => void copyDiffs(), children: "复制差异" }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: submitDiffs, children: "提交缺陷" }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: exportDiffs, children: "导出报告" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: () => void copyDiffs(), children: selectedKeys.size ? `复制选中(${selectedKeys.size})` : "复制差异" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: submitDiffs, children: selectedKeys.size ? `提交选中(${selectedKeys.size})` : "提交缺陷" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: exportDiffs, children: selectedKeys.size ? `导出选中(${selectedKeys.size})` : "导出报告" }),
               onRegenerate ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: onRegenerate, children: "重新生成" }) : null,
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: clearMarkers, children: "清除高亮" })
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: COL.clearBtn,
+                  onClick: clearMarkers,
+                  disabled: !selectedKeys.size,
+                  title: "清除清单选中与对照图高亮",
+                  children: "清除选中"
+                }
+              )
             ] })
           ]
         }
@@ -1771,13 +2500,13 @@ function HifiCompareBoard({
       ),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }, children: [
         visibleItems.slice(0, 80).map((item) => {
-          const isActive = item.designId && activeDesignId === item.designId;
+          const isActive = selectedKeys.has(item.key);
           return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             UnifiedCard,
             {
               item,
-              active: !!isActive,
-              onSelect: () => selectItem(item.designId),
+              active: isActive,
+              onSelect: () => toggleItem(item),
               onDelete: () => patchOverride(item.key, { deleted: true }),
               onOpenEditor: (mode) => {
                 if (typeof openConfirmDialog !== "function") {
@@ -2008,6 +2737,7 @@ function UnifiedCard({
           {
             role: "button",
             tabIndex: 0,
+            "aria-pressed": active2,
             onClick: onSelect,
             onKeyDown: (e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -2024,6 +2754,28 @@ function UnifiedCard({
             },
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "span",
+                  {
+                    "aria-hidden": true,
+                    style: {
+                      display: "inline-block",
+                      width: 14,
+                      height: 14,
+                      marginRight: 6,
+                      borderRadius: 3,
+                      border: "1px solid " + (active2 ? "#0f6e56" : "#c4bba8"),
+                      background: active2 ? "#0f6e56" : "#fff",
+                      color: "#fff",
+                      fontSize: 10,
+                      lineHeight: "12px",
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                      fontWeight: 700
+                    },
+                    children: active2 ? "✓" : ""
+                  }
+                ),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: SEVERITY_TEXT[item.severity], fontWeight: 700 }, children: [
                   "[",
                   SEVERITY_LABEL[item.severity],
@@ -2125,32 +2877,40 @@ function isOpaqueCssColor(color) {
   return true;
 }
 function sampleRingColor(ctx, x, y, w, h, imgW, imgH) {
-  const pad = 2;
-  const points = [];
-  for (let i = 0; i <= 4; i += 1) {
-    const t = i / 4;
-    points.push([x + w * t, Math.max(0, y - pad)]);
-    points.push([x + w * t, Math.min(imgH - 1, y + h + pad)]);
-    points.push([Math.max(0, x - pad), y + h * t]);
-    points.push([Math.min(imgW - 1, x + w + pad), y + h * t]);
+  const pad = 3;
+  const left = Math.max(0, Math.floor(x - pad));
+  const top = Math.max(0, Math.floor(y - pad));
+  const right = Math.min(imgW, Math.ceil(x + w + pad));
+  const bottom = Math.min(imgH, Math.ceil(y + h + pad));
+  const rw = Math.max(1, right - left);
+  const rh = Math.max(1, bottom - top);
+  let data;
+  try {
+    data = ctx.getImageData(left, top, rw, rh);
+  } catch {
+    return "#f5f5f5";
   }
+  const innerL = Math.max(0, Math.floor(x) - left);
+  const innerT = Math.max(0, Math.floor(y) - top);
+  const innerR = Math.min(rw, Math.ceil(x + w) - left);
+  const innerB = Math.min(rh, Math.ceil(y + h) - top);
   let r = 0;
   let g = 0;
   let b = 0;
   let n = 0;
-  for (const [px, py] of points) {
-    const ix = Math.round(Math.min(imgW - 1, Math.max(0, px)));
-    const iy = Math.round(Math.min(imgH - 1, Math.max(0, py)));
-    try {
-      const d = ctx.getImageData(ix, iy, 1, 1).data;
-      r += d[0] ?? 0;
-      g += d[1] ?? 0;
-      b += d[2] ?? 0;
+  const px = data.data;
+  for (let row = 0; row < rh; row += 2) {
+    for (let col = 0; col < rw; col += 2) {
+      const inside = row >= innerT && row < innerB && col >= innerL && col < innerR;
+      if (inside) continue;
+      const i = (row * rw + col) * 4;
+      r += px[i] ?? 0;
+      g += px[i + 1] ?? 0;
+      b += px[i + 2] ?? 0;
       n += 1;
-    } catch {
     }
   }
-  if (!n) return "#ffffff";
+  if (!n) return "#f5f5f5";
   return `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})`;
 }
 function regionKey(r) {
@@ -2214,22 +2974,27 @@ async function eraseRegionsFromImage(imageUrl, regions, logicalSize) {
     const ctx2 = canvas2.getContext("2d");
     if (ctx2 && added.length) {
       paintRegionsOnCanvas(ctx2, canvas2, added, logicalSize);
-      const resultUrl2 = canvas2.toDataURL("image/jpeg", 0.92);
+      const resultUrl2 = canvas2.toDataURL("image/jpeg", 0.82);
       eraseSession = { imageUrl, keys, canvas: canvas2, resultUrl: resultUrl2 };
       return resultUrl2;
     }
   }
   const img = await loadHtmlImage(source);
+  const natW = img.naturalWidth || img.width;
+  const natH = img.naturalHeight || img.height;
+  const maxEdge = Math.max(960, Math.round(Math.max(logicalSize.width, logicalSize.height) * 2));
+  const scale = Math.min(1, maxEdge / Math.max(natW, natH, 1));
   const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth || img.width;
-  canvas.height = img.naturalHeight || img.height;
+  canvas.width = Math.max(1, Math.round(natW * scale));
+  canvas.height = Math.max(1, Math.round(natH * scale));
   const ctx = canvas.getContext("2d");
   if (!ctx) return imageUrl;
-  ctx.drawImage(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   paintRegionsOnCanvas(ctx, canvas, regions, logicalSize);
   let resultUrl;
   try {
-    resultUrl = canvas.toDataURL("image/jpeg", 0.92);
+    resultUrl = canvas.toDataURL("image/jpeg", 0.82);
   } catch {
     return imageUrl;
   }
@@ -2240,47 +3005,43 @@ function RasterDesignView({
   imageUrl,
   viewport,
   eraseRegions,
-  busy,
-  hotspot,
-  hotspotColor,
   onPick,
   onBusyChange
 }) {
   const [displayUrl, setDisplayUrl] = (0, import_react2.useState)(imageUrl || "");
-  const [erasing, setErasing] = (0, import_react2.useState)(false);
+  const [cleaning, setCleaning] = (0, import_react2.useState)(false);
   const regionsSig = JSON.stringify(
     (eraseRegions ?? []).map((r) => [r.nodeId, r.x, r.y, r.width, r.height, r.maskColor])
   );
   (0, import_react2.useEffect)(() => {
-    if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-      void loadProxiedDesignImage(imageUrl).catch(() => void 0);
-    }
-  }, [imageUrl]);
-  (0, import_react2.useEffect)(() => {
     let cancelled = false;
     if (!imageUrl) {
       setDisplayUrl("");
-      onBusyChange?.(false);
+      setCleaning(false);
       return;
     }
     const regions = eraseRegions ?? [];
-    if (!regions.length) {
-      setDisplayUrl(imageUrl);
-      setErasing(false);
-      onBusyChange?.(false);
+    setDisplayUrl(imageUrl);
+    const needsProxy = /^https?:\/\//i.test(imageUrl);
+    if (!regions.length && !needsProxy) {
+      setCleaning(false);
       return;
     }
-    setErasing(true);
-    onBusyChange?.(true);
+    setCleaning(true);
     (async () => {
       try {
+        if (!regions.length) {
+          const url2 = needsProxy ? await loadProxiedDesignImage(imageUrl) : imageUrl;
+          if (!cancelled) setDisplayUrl(url2);
+          return;
+        }
         const url = await eraseRegionsFromImage(imageUrl, regions, viewport);
         if (!cancelled) setDisplayUrl(url);
       } catch {
         if (!cancelled) setDisplayUrl(imageUrl);
       } finally {
         if (!cancelled) {
-          setErasing(false);
+          setCleaning(false);
           onBusyChange?.(false);
         }
       }
@@ -2306,7 +3067,6 @@ function RasterDesignView({
       }
     );
   }
-  const showBusy = erasing || !!busy;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "div",
     {
@@ -2315,10 +3075,10 @@ function RasterDesignView({
         width: viewport.width,
         height: viewport.height,
         overflow: "hidden",
-        cursor: onPick && !showBusy ? "crosshair" : "default"
+        cursor: onPick ? "crosshair" : "default"
       },
       onClick: (e) => {
-        if (!onPick || showBusy) return;
+        if (!onPick) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width * viewport.width;
         const y = (e.clientY - rect.top) / rect.height * viewport.height;
@@ -2337,60 +3097,27 @@ function RasterDesignView({
               height: "100%",
               objectFit: "fill",
               display: "block",
-              pointerEvents: "none",
-              filter: showBusy ? "brightness(0.72)" : void 0
+              pointerEvents: "none"
             }
           }
         ),
-        showBusy ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        cleaning ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           "div",
           {
             style: {
               position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(16,24,40,0.38)",
+              left: 8,
+              bottom: 8,
+              zIndex: 2,
               pointerEvents: "none",
-              zIndex: 2
+              background: "rgba(16,24,40,0.72)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 600,
+              borderRadius: 6,
+              padding: "4px 8px"
             },
-            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-              "div",
-              {
-                style: {
-                  background: "#fff",
-                  color: "#101828",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  boxShadow: "0 8px 24px rgba(16,24,40,0.2)",
-                  textAlign: "center",
-                  lineHeight: 1.5
-                },
-                children: [
-                  "正在删除图层…",
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: 11, fontWeight: 500, color: "#667085", marginTop: 2 }, children: "首次稍慢，之后会更快" })
-                ]
-              }
-            )
-          }
-        ) : null,
-        hotspot ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: hotspot.x,
-              top: hotspot.y,
-              width: hotspot.width,
-              height: hotspot.height,
-              border: `2px solid ${hotspotColor ?? "#0f6e56"}`,
-              boxSizing: "border-box",
-              pointerEvents: "none",
-              zIndex: 1
-            }
+            children: "正在清理备注…"
           }
         ) : null
       ]
@@ -2402,6 +3129,7 @@ var init_HifiCompareBoard = __esm({
   "client-src/visual/HifiCompareBoard.tsx"() {
     "use strict";
     import_react2 = require("react");
+    init_resolve_finding_node();
     init_diff_actions();
     import_jsx_runtime2 = require("react/jsx-runtime");
     SEVERITY_RANK = { high: 3, medium: 2, low: 0 };
@@ -2426,10 +3154,89 @@ var init_HifiCompareBoard = __esm({
       color: "文字颜色",
       fontSize: "字号",
       cornerRadius: "圆角",
+      cornerRadii: "四角圆角",
       borderWidth: "边框粗细",
       borderColor: "边框颜色",
+      borderTopWidth: "上边框宽",
+      borderRightWidth: "右边框宽",
+      borderBottomWidth: "下边框宽",
+      borderLeftWidth: "左边框宽",
+      borderTopColor: "上边框色",
+      borderRightColor: "右边框色",
+      borderBottomColor: "下边框色",
+      borderLeftColor: "左边框色",
       fontWeight: "字重",
       opacity: "透明度",
+      elevation: "阴影/海拔",
+      shadow: "外阴影",
+      innerShadow: "内阴影",
+      insetShadow: "内阴影参数",
+      shadows: "阴影叠层",
+      blur: "模糊",
+      blendMode: "混合模式",
+      rotation: "旋转",
+      scaleX: "缩放X",
+      scaleY: "缩放Y",
+      skewX: "倾斜X",
+      skewY: "倾斜Y",
+      zIndex: "层叠顺序",
+      fills: "填充叠层",
+      strokeAlign: "描边对齐",
+      textAlign: "对齐",
+      textDecoration: "文字装饰",
+      textTransform: "文字大小写",
+      overflow: "溢出裁剪",
+      clipPath: "裁剪路径",
+      aspectRatio: "宽高比",
+      maxLines: "最大行数",
+      textOverflow: "文本溢出",
+      minWidth: "最小宽度",
+      maxWidth: "最大宽度",
+      minHeight: "最小高度",
+      maxHeight: "最大高度",
+      textAdvanceWidth: "文本固有宽",
+      textBlockHeight: "文本块高",
+      flexDirection: "主轴方向",
+      alignItems: "交叉轴对齐",
+      justifyContent: "主轴分布",
+      fontStyle: "字体样式",
+      textAlignVertical: "垂直对齐",
+      borderStyle: "描边样式",
+      strokeDashArray: "虚线间隔",
+      strokeCap: "线帽",
+      strokeJoin: "线连接",
+      paragraphSpacing: "段间距",
+      sizingHorizontal: "横向尺寸模式",
+      sizingVertical: "纵向尺寸模式",
+      backdropBlur: "背景模糊",
+      position: "定位",
+      rowGap: "行间距",
+      columnGap: "列间距",
+      flexWrap: "换行",
+      alignContent: "多行对齐",
+      order: "排列顺序",
+      gridTemplate: "网格轨道",
+      alignSelf: "自身对齐",
+      flexGrow: "弹性放大",
+      flexShrink: "弹性缩小",
+      transformOrigin: "变换原点",
+      visibility: "可见性",
+      display: "显示",
+      whiteSpace: "空白处理",
+      wordBreak: "断词",
+      wordSpacing: "词间距",
+      textIndent: "首行缩进",
+      perspective: "透视",
+      rotateX: "X轴旋转",
+      rotateY: "Y轴旋转",
+      textShadow: "文字阴影",
+      direction: "书写方向",
+      writingMode: "书写模式",
+      filter: "滤镜",
+      outline: "轮廓",
+      imageFit: "图片适配",
+      imagePosition: "图片锚点",
+      gradient: "渐变",
       text: "文案",
       controlCount: "控件规模"
     };
@@ -2645,6 +3452,25 @@ var VisualComparePanel_exports = {};
 __export(VisualComparePanel_exports, {
   VisualComparePanel: () => VisualComparePanel
 });
+function collectDynamicRegionsFromHifi(root) {
+  if (!root) return [];
+  const out = [];
+  const walk = (n) => {
+    if (n.dynamic || n.kind === "dynamic") {
+      out.push({
+        id: n.id,
+        name: n.name,
+        width: Math.round(n.width),
+        height: Math.round(n.height),
+        filled: Boolean(n.inferredChildren?.length),
+        itemRendered: Boolean(n.itemRendered)
+      });
+    }
+    for (const c of n.children ?? []) walk(c);
+  };
+  walk(root);
+  return out;
+}
 async function post2(path, body) {
   const r = await fetch(path, {
     method: "POST",
@@ -2678,7 +3504,7 @@ function writeStorage(key, value) {
   }
 }
 function hasRepoUiConfig(repoInput) {
-  return readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null;
+  return readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_LANHU_COOKIE)) != null;
 }
 function readRepoUiConfig(repoInput, field) {
   return readStorage(uiRepoKey(repoInput, field)) ?? "";
@@ -2740,10 +3566,47 @@ function isLikelyFigmaUrl(url) {
   }
 }
 function isLikelyLanhuUrl(url) {
-  return /lanhuapp\.com|lanhu\.woa\.com/i.test(url.trim());
+  try {
+    const host = new URL(url.trim()).hostname.toLowerCase();
+    return host.includes("lanhuapp.com") || host.includes("lanhu.woa.com");
+  } catch {
+    return /lanhuapp\.com|lanhu\.woa\.com/i.test(url);
+  }
 }
 function isLikelyDesignUrl(url) {
   return isLikelyFigmaUrl(url) || isLikelyLanhuUrl(url);
+}
+function credentialFieldForUrl(url) {
+  return isLikelyLanhuUrl(url) ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN;
+}
+function looksLikeFigmaToken(value) {
+  return /^figd_/i.test(value.trim());
+}
+function looksLikeLanhuCookie(value) {
+  const v = value.trim();
+  if (!v || looksLikeFigmaToken(v)) return false;
+  return /[;=]/.test(v) || v.length >= 64;
+}
+function resolveDesignCredential(repoInput, url) {
+  const lanhu = isLikelyLanhuUrl(url);
+  const field = lanhu ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN;
+  const dedicated = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, field) : readGlobalUiConfig(field);
+  if (lanhu) {
+    if (dedicated.trim()) return dedicated;
+    const legacy = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN) : readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN);
+    if (legacy.trim() && looksLikeLanhuCookie(legacy)) {
+      writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, legacy);
+      return legacy;
+    }
+    return "";
+  }
+  if (dedicated.trim() && !looksLikeLanhuCookie(dedicated)) return dedicated;
+  if (dedicated.trim() && looksLikeLanhuCookie(dedicated)) {
+    const existingLanhu = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE) : readGlobalUiConfig(UI_CONFIG_LANHU_COOKIE);
+    if (!existingLanhu.trim()) writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, dedicated);
+    return "";
+  }
+  return "";
 }
 function readSavedLinks() {
   try {
@@ -2788,7 +3651,7 @@ function VisualComparePanel({
 }) {
   const [figmaUrl, setFigmaUrlState] = (0, import_react3.useState)(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
   const [figmaToken, setFigmaTokenState] = (0, import_react3.useState)(
-    () => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
+    () => resolveDesignCredential(repoInput, resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
   );
   const [savedLinks, setSavedLinks] = (0, import_react3.useState)(() => readSavedLinks());
   const [busy, setBusy] = (0, import_react3.useState)(false);
@@ -2821,12 +3684,18 @@ function VisualComparePanel({
   const [rematchApply, setRematchApply] = (0, import_react3.useState)(null);
   const rematchTokenRef = (0, import_react3.useRef)(0);
   const setFigmaUrl = (value) => {
+    const next = value.trim();
+    const prevLanhu = isLikelyLanhuUrl(figmaUrl);
+    const nextLanhu = isLikelyLanhuUrl(next);
     setFigmaUrlState(value);
-    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, value.trim());
+    writeUiConfig(repoInput, UI_CONFIG_FIGMA_URL, next);
+    if (prevLanhu !== nextLanhu) {
+      setFigmaTokenState(resolveDesignCredential(repoInput, next));
+    }
   };
   const setFigmaToken = (value) => {
     setFigmaTokenState(value);
-    writeUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN, value.trim());
+    writeUiConfig(repoInput, credentialFieldForUrl(figmaUrl), value.trim());
   };
   const clearFigmaUrl = () => {
     setFigmaUrlState("");
@@ -2834,7 +3703,7 @@ function VisualComparePanel({
   };
   const clearFigmaToken = () => {
     setFigmaTokenState("");
-    clearUiConfigField(repoInput, UI_CONFIG_FIGMA_TOKEN);
+    clearUiConfigField(repoInput, credentialFieldForUrl(figmaUrl));
   };
   const saveCurrentLink = () => {
     if (!figmaUrl.trim()) return;
@@ -2853,11 +3722,16 @@ function VisualComparePanel({
   };
   (0, import_react3.useEffect)(() => {
     if (hasRepoUiConfig(repoInput)) {
-      setFigmaUrlState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL));
-      setFigmaTokenState(readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN));
+      const url = readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL);
+      setFigmaUrlState(url);
+      setFigmaTokenState(resolveDesignCredential(repoInput, url));
     } else {
-      setFigmaUrlState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_URL));
-      setFigmaTokenState((prev) => prev || readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN));
+      const url = readGlobalUiConfig(UI_CONFIG_FIGMA_URL);
+      setFigmaUrlState((prev) => prev || url);
+      setFigmaTokenState((prev) => {
+        if (prev) return prev;
+        return resolveDesignCredential(repoInput, url || prev);
+      });
     }
     setError("");
     setHifiData(null);
@@ -3076,12 +3950,18 @@ function VisualComparePanel({
         figmaToken: figmaToken.trim(),
         designId,
         adapterId: codeFile.adapterId,
-        relativePath: codeFile.relativePath
+        relativePath: codeFile.relativePath,
+        dynamicRegions: collectDynamicRegionsFromHifi(
+          hifiData?.codeHifiTree
+        )
       });
       const prompt = res.prompt;
       const jobId = res.jobId;
       const promptDesignImage = res.designImageUrl;
-      if (!designImageUrl && !promptDesignImage) {
+      const designRasterInPanel = Boolean(
+        res.designRasterInPanel || designImageUrl || promptDesignImage
+      );
+      if (!designRasterInPanel) {
         const proceed = window.confirm(
           "准备提示词时仍未拿到设计稿渲染图。继续发送可能导致效果差且浪费 token。\n\n是否仍要填入会话？"
         );
@@ -3103,7 +3983,7 @@ function VisualComparePanel({
       }
       if (jobId) setPendingJob({ jobId, designId, kind: "findings" });
       setError(
-        designImageUrl || promptDesignImage ? "✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。" : "✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。"
+        designRasterInPanel ? "✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。" : "✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。"
       );
     } catch (err) {
       setError(err.message);
@@ -3154,9 +4034,28 @@ function VisualComparePanel({
   }
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { style: S.card, children: [
     busy ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LoadingOverlay, { message: busyMessage, elapsedSeconds: elapsed }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "UI 走查：设计稿 ↔ 代码" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
+      "设计差异分析",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "span",
+        {
+          style: {
+            marginLeft: 8,
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#8a5a00",
+            background: "#fff4d6",
+            border: "1px solid #f0d48a",
+            borderRadius: 4,
+            padding: "1px 6px",
+            verticalAlign: "middle"
+          },
+          children: "试验"
+        }
+      )
+    ] }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("p", { style: S.hint, children: [
-      "支持 ",
+      "对照设计稿与代码实现，列出布局 / 样式 / 文案等差异（试验功能，结果请人工复核）。 支持 ",
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "Figma" }),
       " 与 ",
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "蓝湖" }),
@@ -3264,7 +4163,7 @@ function VisualComparePanel({
       }) })
     ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { style: S.label, children: [
-      isLikelyLanhuUrl(figmaUrl) ? "蓝湖 Cookie" : "访问凭证（Figma Token / 蓝湖 Cookie）",
+      isLikelyLanhuUrl(figmaUrl) ? "蓝湖 Cookie" : "Figma Token",
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
           "input",
@@ -3273,7 +4172,7 @@ function VisualComparePanel({
             type: "password",
             value: figmaToken,
             disabled: busy,
-            placeholder: isLikelyLanhuUrl(figmaUrl) ? "从浏览器 DevTools → Network 请求头复制 Cookie" : "figd_... 或蓝湖 Cookie",
+            placeholder: isLikelyLanhuUrl(figmaUrl) ? "从浏览器 DevTools → Network 请求头复制 Cookie" : "figd_…（与蓝湖 Cookie 分开保存）",
             onChange: (e) => setFigmaToken(e.target.value)
           }
         ),
@@ -3283,14 +4182,14 @@ function VisualComparePanel({
             type: "button",
             style: S.miniBtn,
             disabled: busy || !figmaToken.trim(),
-            title: "清除已保存的凭证",
+            title: isLikelyLanhuUrl(figmaUrl) ? "清除已保存的蓝湖 Cookie" : "清除已保存的 Figma Token",
             onClick: clearFigmaToken,
             children: "清除"
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成对照图与静态差异；「AI 协助分析」会先打开该页对比再填入会话提示词，写回结论显示在下方。 蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成设计对照图与静态差异清单；「AI 协助分析」补充/纠正差异项并写回下方清单（不做代码 UI 还原预览）。 蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。" }),
     error ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       "p",
       {
@@ -3383,7 +4282,7 @@ function VisualComparePanel({
     ) : null
   ] });
 }
-var import_react3, import_jsx_runtime4, UI_CONFIG_PREFIX, UI_CONFIG_GLOBAL_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, SAVED_LINKS_KEY, MAX_SAVED_LINKS, S;
+var import_react3, import_jsx_runtime4, UI_CONFIG_PREFIX, UI_CONFIG_GLOBAL_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, UI_CONFIG_LANHU_COOKIE, SAVED_LINKS_KEY, MAX_SAVED_LINKS, S;
 var init_VisualComparePanel = __esm({
   "client-src/visual/VisualComparePanel.tsx"() {
     "use strict";
@@ -3396,6 +4295,7 @@ var init_VisualComparePanel = __esm({
     UI_CONFIG_GLOBAL_PREFIX = "tracescope.ui.global.";
     UI_CONFIG_FIGMA_URL = "figmaUrl";
     UI_CONFIG_FIGMA_TOKEN = "figmaToken";
+    UI_CONFIG_LANHU_COOKIE = "lanhuCookie";
     SAVED_LINKS_KEY = "tracescope.ui.savedFigmaLinks";
     MAX_SAVED_LINKS = 12;
     S = {
@@ -7124,14 +8024,28 @@ function TraceScopePanelBody() {
             },
             children: "功能影响分析"
           }),
-          jsx5("button", {
+          jsxs5("button", {
             type: "button",
-            style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
+            style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }) : Object.assign({}, styles.secondary, { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }),
             disabled: busy,
             onClick: function() {
               switchMode("ui");
             },
-            children: "UI 设计对比"
+            children: [
+              "设计差异分析",
+              jsx5("span", {
+                style: {
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  padding: "2px 5px",
+                  borderRadius: 4,
+                  background: mode === "ui" ? "rgba(255,255,255,0.22)" : "#f1ede3",
+                  color: mode === "ui" ? "#fff" : "#8a7f70"
+                },
+                children: "试验"
+              })
+            ]
           })
         ]
       }),
@@ -7478,7 +8392,7 @@ function TraceScopePanelBody() {
                     }),
                     jsx5("p", {
                       style: { margin: "4px 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
-                      children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与 UI 设计对比共用同一套平台配置。"
+                      children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「视觉走查」共用同一套平台配置。"
                     }),
                     jsxs5("label", {
                       style: styles.label,

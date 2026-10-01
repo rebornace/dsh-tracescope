@@ -2619,7 +2619,7 @@
         function () {
           if (!authHydrated) return
           if (!repoPath.trim()) return
-          // UI 设计对比只做「设计稿↔代码」，不需要版本/提交列表；只有功能
+          // 设计差异分析只做「设计稿↔代码」，不需要版本/提交列表；只有功能
           // 影响分析才自动加载 commits。否则选普通（非 git）文件夹会误报
           // 「本地路径不是 git 仓库」。
           if (mode !== 'functional') return
@@ -4190,17 +4190,31 @@
                 },
                 children: '功能影响分析',
               }),
-              jsx('button', {
+              jsxs('button', {
                 type: 'button',
                 style:
                   mode === 'ui'
-                    ? Object.assign({}, styles.primary, { flex: 1 })
-                    : Object.assign({}, styles.secondary, { flex: 1 }),
+                    ? Object.assign({}, styles.primary, { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 })
+                    : Object.assign({}, styles.secondary, { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }),
                 disabled: busy,
                 onClick: function () {
                   switchMode('ui')
                 },
-                children: 'UI 设计对比',
+                children: [
+                  '设计差异分析',
+                  jsx('span', {
+                    style: {
+                      fontSize: 10,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      padding: '2px 5px',
+                      borderRadius: 4,
+                      background: mode === 'ui' ? 'rgba(255,255,255,0.22)' : '#f1ede3',
+                      color: mode === 'ui' ? '#fff' : '#8a7f70',
+                    },
+                    children: '试验',
+                  }),
+                ],
               }),
             ],
           }),
@@ -4603,7 +4617,7 @@
                       jsx('p', {
                         style: { margin: '4px 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与 UI 设计对比共用同一套平台配置。',
+                          '关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「设计差异分析」共用同一套平台配置。',
                       }),
                       jsxs('label', {
                         style: styles.label,

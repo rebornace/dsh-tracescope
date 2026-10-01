@@ -8,6 +8,7 @@ import { tokenizeName } from '../page-fingerprint.js'
 import { countMatches, extractUiTexts } from './source-text.js'
 import { jsxToHtmlish } from './web-react.js'
 import { markupToDesignDoc } from './web-markup.js'
+import { loadAssociatedStyles } from './load-associated-styles.js'
 import type { CodePage, PageFingerprint, PlatformAdapter } from './adapter-types.js'
 import type { DesignDoc } from '../types.js'
 
@@ -79,7 +80,12 @@ export const taroAdapter: PlatformAdapter = {
         .replace(/<\/?Text\b/g, (m) => m.replace(/Text/, 'span'))
         .replace(/<\/?view\b/gi, (m) => m.replace(/view/i, 'div'))
         .replace(/<\/?text\b/gi, (m) => m.replace(/text/i, 'span'))
-      return markupToDesignDoc(htmlish, style, name)
+      const css = await loadAssociatedStyles({
+        entryAbsolutePath: page.absolutePath,
+        sourceText: src,
+        inlineCss: style,
+      })
+      return markupToDesignDoc(htmlish, css, name)
     }
     // React Taro: map <View>/<Text> then reuse JSX→HTML pipeline.
     const mapped = src
@@ -87,6 +93,10 @@ export const taroAdapter: PlatformAdapter = {
       .replace(/<\/?Text\b/g, (m) => m.replace(/Text/, 'span'))
       .replace(/<\/?Image\b/g, (m) => m.replace(/Image/, 'img'))
       .replace(/<\/?Button\b/g, (m) => m.replace(/Button/, 'button'))
-    return markupToDesignDoc(jsxToHtmlish(mapped), '', name)
+    const css = await loadAssociatedStyles({
+      entryAbsolutePath: page.absolutePath,
+      sourceText: src,
+    })
+    return markupToDesignDoc(jsxToHtmlish(mapped), css, name)
   },
 }

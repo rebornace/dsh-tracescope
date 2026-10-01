@@ -4,12 +4,14 @@
  */
 import type {
   DesignDoc,
+  DesignFill,
   DesignGradient,
   DesignNode,
   DesignNodeKind,
   DesignStyle,
   HexColor,
 } from '../types.js'
+import { estimateTextAdvance, estimateTextBlock } from '../text-metrics.js'
 
 const FIGMA_API = 'https://api.figma.com/v1'
 
@@ -143,15 +145,34 @@ interface FigmaTypeStyle {
   fontFamily?: string
   fontSize?: number
   fontWeight?: number | string
+  /** Regular | Italic | Bold Italic | Oblique … */
+  italic?: boolean
+  fontStyle?: string
   lineHeightPx?: number
   letterSpacing?: number
+  paragraphSpacing?: number
+  /** First-line indent in px. */
+  paragraphIndent?: number
   textAlignHorizontal?: string
+  textAlignVertical?: string
+  /** UNDERLINE | STRIKETHROUGH | none */
+  textDecoration?: string
+  /** UPPER | LOWER | TITLE | SMALL_CAPS | ORIGINAL */
+  textCase?: string
 }
 interface FigmaBBox {
   x: number
   y: number
   width: number
   height: number
+}
+interface FigmaEffect {
+  type: string
+  visible?: boolean
+  radius?: number
+  color?: FigmaColor
+  offset?: FigmaVector
+  spread?: number
 }
 interface FigmaNode {
   id: string
@@ -163,13 +184,68 @@ interface FigmaNode {
   fills?: FigmaPaint[]
   strokes?: FigmaPaint[]
   strokeWeight?: number
+  /** Per-side stroke weights when borders differ (Figma). */
+  individualStrokeWeights?: {
+    top?: number
+    right?: number
+    bottom?: number
+    left?: number
+  }
+  effects?: FigmaEffect[]
   opacity?: number
+  /** Figma blend mode, e.g. MULTIPLY / PASS_THROUGH. */
+  blendMode?: string
+  /** Rotation in degrees (File API) when present. */
+  rotation?: number
+  /** 2×3 affine matrix [[a,c,tx],[b,d,ty]]. */
+  relativeTransform?: [[number, number, number], [number, number, number]]
+  /** CENTER | INSIDE | OUTSIDE */
+  strokeAlign?: string
+  /** NONE | ROUND | SQUARE | … */
+  strokeCap?: string
+  /** MITER | BEVEL | ROUND */
+  strokeJoin?: string
   cornerRadius?: number
   /** Per-corner radii [topLeft, topRight, bottomRight, bottomLeft] when mixed. */
   rectangleCornerRadii?: [number, number, number, number]
   characters?: string
   style?: FigmaTypeStyle
+  /** FRAME clips overflowing children. */
+  clipsContent?: boolean
+  /** Layer is used as a boolean / alpha mask for siblings below. */
+  isMask?: boolean
+  /** ALPHA | VECTOR | LUMINANCE */
+  maskType?: string
+  /** TEXT truncation: DISABLED | ENDING. */
+  textTruncation?: string
+  /** Max lines when textTruncation is ENDING. */
+  maxLines?: number
+  /** WIDTH_AND_HEIGHT | HEIGHT | NONE | TRUNCATE */
+  textAutoResize?: string
+  minWidth?: number
+  maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  /** Dash lengths for dashed strokes; empty / absent → solid. */
+  strokeDashes?: number[]
   layoutMode?: string
+  itemSpacing?: number
+  primaryAxisAlignItems?: string
+  counterAxisAlignItems?: string
+  /** AUTO | SPACE_BETWEEN — packed lines when wrapping. */
+  counterAxisAlignContent?: string
+  layoutSizingHorizontal?: string
+  layoutSizingVertical?: string
+  /** NO_WRAP | WRAP */
+  layoutWrap?: string
+  /** INHERIT | STRETCH | MIN | CENTER | MAX — child align-self in auto-layout. */
+  layoutAlign?: string
+  /** 0..1 grow factor along primary axis. */
+  layoutGrow?: number
+  /** ABSOLUTE | AUTO */
+  layoutPositioning?: string
+  /** Item z-order among siblings (higher paints later). */
+  itemReverseZIndex?: boolean
   paddingTop?: number
   paddingRight?: number
   paddingBottom?: number
@@ -190,6 +266,33 @@ export function figmaColorToHex(color: FigmaColor, paintOpacity = 1): HexColor {
       .padStart(2, '0')
   const rgb = `${toByte(color.r)}${toByte(color.g)}${toByte(color.b)}`
   return a < 1 ? `#${rgb}${toByte(a)}` : `#${rgb}`
+}
+
+/** Map Figma blendMode → CSS mix-blend-mode; omit normal/pass-through. */
+export function normalizeFigmaBlendMode(raw: string | undefined): string | undefined {
+  if (!raw) return undefined
+  const key = raw.trim().toUpperCase().replace(/[\s-]+/g, '_')
+  if (key === 'PASS_THROUGH' || key === 'NORMAL') return undefined
+  const map: Record<string, string> = {
+    MULTIPLY: 'multiply',
+    SCREEN: 'screen',
+    OVERLAY: 'overlay',
+    DARKEN: 'darken',
+    LIGHTEN: 'lighten',
+    COLOR_DODGE: 'color-dodge',
+    COLOR_BURN: 'color-burn',
+    HARD_LIGHT: 'hard-light',
+    SOFT_LIGHT: 'soft-light',
+    DIFFERENCE: 'difference',
+    EXCLUSION: 'exclusion',
+    HUE: 'hue',
+    SATURATION: 'saturation',
+    COLOR: 'color',
+    LUMINOSITY: 'luminosity',
+    PLUS_DARKER: 'plus-darker',
+    PLUS_LIGHTER: 'plus-lighter',
+  }
+  return map[key]
 }
 
 function visiblePaints(paints: FigmaPaint[] | undefined): FigmaPaint[] {
@@ -261,6 +364,167 @@ function firstImageFill(node: FigmaNode): FigmaPaint | undefined {
   return visiblePaints(node.fills).find((f) => f.type === 'IMAGE')
 }
 
+/** Convert all visible fills into a top→bottom DesignFill stack. */
+function convertFigmaFills(node: FigmaNode): DesignFill[] {
+  const paints = visiblePaints(node.fills)
+  const out: DesignFill[] = []
+  for (const paint of paints) {
+    if (paint.type === 'SOLID' && paint.color) {
+      out.push({
+        type: 'solid',
+        color: figmaColorToHex(paint.color, paint.opacity ?? 1),
+        ...(typeof paint.opacity === 'number' && paint.opacity < 1
+          ? { opacity: Math.round(paint.opacity * 100) / 100 }
+          : {}),
+      })
+    } else if (paint.type.startsWith('GRADIENT_')) {
+      const g = convertGradient(paint)
+      if (g) out.push({ type: 'gradient', gradient: g })
+    } else if (paint.type === 'IMAGE') {
+      out.push({
+        type: 'image',
+        imageFit: imageFitOf(paint),
+        ...(paint.imageRef ? { imageRef: paint.imageRef } : {}),
+      })
+    }
+  }
+  return out
+}
+
+/** Degrees clockwise from Figma `rotation` or `relativeTransform`. */
+function figmaRotationDegrees(node: FigmaNode): number | undefined {
+  if (typeof node.rotation === 'number' && Number.isFinite(node.rotation)) {
+    // File API may send degrees; Plugin API uses radians. Heuristic: |r| > 2π → degrees.
+    const r = node.rotation
+    if (Math.abs(r) > Math.PI * 2 + 0.01) return r
+    return (r * 180) / Math.PI
+  }
+  const m = node.relativeTransform
+  if (m && m.length >= 2 && m[0] && m[1]) {
+    const a = m[0][0]
+    const b = m[1][0]
+    if (typeof a === 'number' && typeof b === 'number') {
+      return (Math.atan2(b, a) * 180) / Math.PI
+    }
+  }
+  return undefined
+}
+
+/** Scale + skew from `relativeTransform` (identity / near-zero omitted). */
+function figmaAffineExtras(node: FigmaNode): {
+  scaleX?: number
+  scaleY?: number
+  skewX?: number
+  skewY?: number
+} {
+  const m = node.relativeTransform
+  if (!m || m.length < 2 || !m[0] || !m[1]) return {}
+  const a = m[0][0]
+  const c = m[0][1]
+  const b = m[1][0]
+  const d = m[1][1]
+  if (
+    typeof a !== 'number' ||
+    typeof b !== 'number' ||
+    typeof c !== 'number' ||
+    typeof d !== 'number'
+  ) {
+    return {}
+  }
+  // QR-style 2×2 decomposition: scaleX, rotation, skewX, scaleY.
+  const sx = Math.hypot(a, b)
+  if (!(sx > 1e-8)) return {}
+  const det = a * d - b * c
+  const sy = det / sx
+  const skewRad = Math.atan2(a * c + b * d, sx * sx)
+  const out: {
+    scaleX?: number
+    scaleY?: number
+    skewX?: number
+    skewY?: number
+  } = {}
+  if (Number.isFinite(sx) && Math.abs(sx - 1) > 0.02) {
+    out.scaleX = Math.round(sx * 1000) / 1000
+  }
+  if (Number.isFinite(sy) && Math.abs(Math.abs(sy) - 1) > 0.02) {
+    out.scaleY = Math.round(sy * 1000) / 1000
+  }
+  const skewDeg = (skewRad * 180) / Math.PI
+  if (Number.isFinite(skewDeg) && Math.abs(skewDeg) > 0.5) {
+    out.skewX = Math.round(skewDeg * 100) / 100
+  }
+  return out
+}
+
+function mapFigmaTextDecoration(
+  raw: string | undefined,
+): DesignStyle['textDecoration'] | undefined {
+  if (!raw) return undefined
+  const key = raw.toUpperCase()
+  if (key === 'UNDERLINE') return 'underline'
+  if (key === 'STRIKETHROUGH') return 'line-through'
+  if (key.includes('UNDERLINE') && key.includes('STRIKE')) return 'underline line-through'
+  if (key === 'NONE') return 'none'
+  return undefined
+}
+
+function mapFigmaTextCase(raw: string | undefined): DesignStyle['textTransform'] | undefined {
+  if (!raw) return undefined
+  switch (raw.toUpperCase()) {
+    case 'UPPER':
+    case 'UPPERCASE':
+      return 'uppercase'
+    case 'LOWER':
+    case 'LOWERCASE':
+      return 'lowercase'
+    case 'TITLE':
+    case 'TITLE_CASE':
+      return 'capitalize'
+    case 'ORIGINAL':
+    case 'NONE':
+      return 'none'
+    default:
+      return undefined
+  }
+}
+
+/** Map Figma primary-axis align → justifyContent. */
+function mapFigmaPrimaryAlign(
+  raw: string | undefined,
+): DesignStyle['justifyContent'] | undefined {
+  if (!raw) return undefined
+  const key = raw.toUpperCase()
+  if (key === 'MIN' || key === 'MIN_X' || key === 'MIN_Y') return 'start'
+  if (key === 'CENTER') return 'center'
+  if (key === 'MAX' || key === 'MAX_X' || key === 'MAX_Y') return 'end'
+  if (key === 'SPACE_BETWEEN') return 'space-between'
+  if (key === 'SPACE_AROUND') return 'space-around'
+  if (key === 'SPACE_EVENLY') return 'space-evenly'
+  return undefined
+}
+
+/** Map Figma counter-axis align → alignItems. */
+function mapFigmaCounterAlign(
+  raw: string | undefined,
+): DesignStyle['alignItems'] | undefined {
+  if (!raw) return undefined
+  const key = raw.toUpperCase()
+  if (key === 'MIN' || key === 'MIN_X' || key === 'MIN_Y') return 'start'
+  if (key === 'CENTER') return 'center'
+  if (key === 'MAX' || key === 'MAX_X' || key === 'MAX_Y') return 'end'
+  if (key === 'BASELINE' || key === 'STRETCH') return 'stretch'
+  return undefined
+}
+
+function mapFigmaSizing(raw: string | undefined): DesignStyle['sizingHorizontal'] | undefined {
+  if (!raw) return undefined
+  const key = raw.toUpperCase()
+  if (key === 'FIXED') return 'fixed'
+  if (key === 'HUG') return 'hug'
+  if (key === 'FILL') return 'fill'
+  return undefined
+}
+
 function mapKind(node: FigmaNode): DesignNodeKind {
   switch (node.type) {
     case 'TEXT':
@@ -304,6 +568,10 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
   const solid = firstSolidFill(node)
   const gradientPaint = firstGradientFill(node)
 
+  // Full fill stack (Figma paints[0] is topmost → store top→bottom).
+  const fillStack = convertFigmaFills(node)
+  if (fillStack.length) style.fills = fillStack
+
   if (node.type === 'TEXT') {
     // Text fills paint the glyphs: support both solid and gradient colours.
     if (solid?.color) {
@@ -330,9 +598,133 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
   const strokePaint = visiblePaints(node.strokes).find(
     (f) => f.type === 'SOLID' && f.color,
   )
-  if (strokePaint?.color && typeof node.strokeWeight === 'number' && node.strokeWeight > 0) {
+  const strokeColor =
+    strokePaint?.color != null
+      ? figmaColorToHex(strokePaint.color, strokePaint.opacity ?? 1)
+      : undefined
+  const ind = node.individualStrokeWeights
+  if (ind && (ind.top || ind.right || ind.bottom || ind.left)) {
+    if (typeof ind.top === 'number' && ind.top > 0) style.borderTopWidth = round(ind.top, scale)
+    if (typeof ind.right === 'number' && ind.right > 0) {
+      style.borderRightWidth = round(ind.right, scale)
+    }
+    if (typeof ind.bottom === 'number' && ind.bottom > 0) {
+      style.borderBottomWidth = round(ind.bottom, scale)
+    }
+    if (typeof ind.left === 'number' && ind.left > 0) style.borderLeftWidth = round(ind.left, scale)
+    if (strokeColor) {
+      style.borderColor = strokeColor
+      if (style.borderTopWidth !== undefined) style.borderTopColor = strokeColor
+      if (style.borderRightWidth !== undefined) style.borderRightColor = strokeColor
+      if (style.borderBottomWidth !== undefined) style.borderBottomColor = strokeColor
+      if (style.borderLeftWidth !== undefined) style.borderLeftColor = strokeColor
+    }
+  } else if (strokeColor && typeof node.strokeWeight === 'number' && node.strokeWeight > 0) {
     style.borderWidth = round(node.strokeWeight, scale)
-    style.borderColor = figmaColorToHex(strokePaint.color, strokePaint.opacity ?? 1)
+    style.borderColor = strokeColor
+  }
+  if (node.strokeAlign) {
+    const sa = String(node.strokeAlign).toUpperCase()
+    if (sa === 'INSIDE') style.strokeAlign = 'inside'
+    else if (sa === 'OUTSIDE') style.strokeAlign = 'outside'
+    else if (sa === 'CENTER') style.strokeAlign = 'center'
+  }
+  if (Array.isArray(node.strokeDashes) && node.strokeDashes.length > 0) {
+    const dashes = node.strokeDashes.filter((n) => typeof n === 'number' && n > 0)
+    if (dashes.length) {
+      // Short equal dashes ≈ dotted; otherwise dashed.
+      const max = Math.max(...dashes)
+      const min = Math.min(...dashes)
+      style.borderStyle = max <= 2 && max / Math.max(min, 0.01) <= 1.5 ? 'dotted' : 'dashed'
+      style.strokeDashArray = dashes.map((n) => String(round(n, scale))).join(',')
+    }
+  }
+  const cap = String(node.strokeCap ?? '').toUpperCase()
+  if (cap === 'ROUND') style.strokeCap = 'round'
+  else if (cap === 'SQUARE') style.strokeCap = 'square'
+  else if (cap === 'NONE' || cap === 'BUTT') style.strokeCap = 'butt'
+  const join = String(node.strokeJoin ?? '').toUpperCase()
+  if (join === 'ROUND') style.strokeJoin = 'round'
+  else if (join === 'BEVEL') style.strokeJoin = 'bevel'
+  else if (join === 'MITER') style.strokeJoin = 'miter'
+
+  const rotationDeg = figmaRotationDegrees(node)
+  if (rotationDeg !== undefined && Math.abs(rotationDeg) > 0.5) {
+    style.rotation = Math.round(rotationDeg * 100) / 100
+  }
+  const scales = figmaAffineExtras(node)
+  if (scales.scaleX !== undefined) style.scaleX = scales.scaleX
+  if (scales.scaleY !== undefined) style.scaleY = scales.scaleY
+  if (scales.skewX !== undefined) style.skewX = scales.skewX
+  if (scales.skewY !== undefined) style.skewY = scales.skewY
+
+  // DROP_SHADOW / INNER_SHADOW → full stack + primary outer/inset.
+  const shadowEffects = (node.effects ?? []).filter(
+    (e) =>
+      e.visible !== false &&
+      (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') &&
+      typeof e.radius === 'number',
+  )
+  if (shadowEffects.length) {
+    const stack = shadowEffects.map((e) => {
+      const inset = e.type === 'INNER_SHADOW'
+      return {
+        offsetX: round(e.offset?.x ?? 0, scale),
+        offsetY: round(e.offset?.y ?? 0, scale),
+        blur: round(e.radius ?? 0, scale),
+        ...(typeof e.spread === 'number' ? { spread: round(e.spread, scale) } : {}),
+        ...(e.color ? { color: figmaColorToHex(e.color) } : {}),
+        ...(inset ? { inset: true as const } : {}),
+      }
+    })
+    style.shadows = stack
+    const outers = stack.filter((s) => !s.inset)
+    const inners = stack.filter((s) => s.inset)
+    if (outers.length) {
+      const best = outers.reduce((a, b) => (a.blur >= b.blur ? a : b))
+      style.shadow = best
+      style.elevation = best.blur
+    }
+    if (inners.length) {
+      const best = inners.reduce((a, b) => (a.blur >= b.blur ? a : b))
+      style.insetShadow = best
+      style.innerShadow = best.blur
+    }
+  }
+  // LAYER_BLUR → blur; BACKGROUND_BLUR → backdropBlur.
+  const layerBlurs = (node.effects ?? []).filter(
+    (e) =>
+      e.visible !== false &&
+      e.type === 'LAYER_BLUR' &&
+      typeof e.radius === 'number',
+  )
+  if (layerBlurs.length) {
+    style.blur = Math.max(...layerBlurs.map((e) => round(e.radius ?? 0, scale)))
+  }
+  const backdropBlurs = (node.effects ?? []).filter(
+    (e) =>
+      e.visible !== false &&
+      e.type === 'BACKGROUND_BLUR' &&
+      typeof e.radius === 'number',
+  )
+  if (backdropBlurs.length) {
+    style.backdropBlur = Math.max(
+      ...backdropBlurs.map((e) => round(e.radius ?? 0, scale)),
+    )
+  }
+
+  if (typeof node.blendMode === 'string') {
+    const bm = normalizeFigmaBlendMode(node.blendMode)
+    if (bm) style.blendMode = bm
+  }
+
+  if (node.clipsContent === true) style.overflow = 'hidden'
+  if (node.isMask === true) {
+    const mt = String(node.maskType ?? '').toUpperCase()
+    if (mt === 'LUMINANCE') style.clipPath = 'mask:luminance'
+    else if (mt === 'VECTOR') style.clipPath = 'mask:vector'
+    else style.clipPath = 'mask:alpha'
+    if (!style.overflow) style.overflow = 'hidden'
   }
 
   if (typeof node.cornerRadius === 'number') style.cornerRadius = round(node.cornerRadius, scale)
@@ -349,10 +741,66 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
   if (typeof node.opacity === 'number') style.opacity = Math.round(node.opacity * 100) / 100
 
   if (node.layoutMode === 'VERTICAL' || node.layoutMode === 'HORIZONTAL') {
+    style.flexDirection = node.layoutMode === 'HORIZONTAL' ? 'row' : 'column'
     if (typeof node.paddingTop === 'number') style.paddingTop = round(node.paddingTop, scale)
     if (typeof node.paddingRight === 'number') style.paddingRight = round(node.paddingRight, scale)
     if (typeof node.paddingBottom === 'number') style.paddingBottom = round(node.paddingBottom, scale)
     if (typeof node.paddingLeft === 'number') style.paddingLeft = round(node.paddingLeft, scale)
+    if (typeof node.itemSpacing === 'number' && node.itemSpacing > 0) {
+      style.gap = round(node.itemSpacing, scale)
+      if (node.layoutMode === 'VERTICAL') style.rowGap = style.gap
+      else style.columnGap = style.gap
+    }
+    const primary = mapFigmaPrimaryAlign(node.primaryAxisAlignItems)
+    if (primary) style.justifyContent = primary
+    const counter = mapFigmaCounterAlign(node.counterAxisAlignItems)
+    if (counter) style.alignItems = counter
+  }
+
+  if (typeof node.minWidth === 'number' && node.minWidth > 0) {
+    style.minWidth = round(node.minWidth, scale)
+  }
+  if (typeof node.maxWidth === 'number' && node.maxWidth > 0 && Number.isFinite(node.maxWidth)) {
+    style.maxWidth = round(node.maxWidth, scale)
+  }
+  if (typeof node.minHeight === 'number' && node.minHeight > 0) {
+    style.minHeight = round(node.minHeight, scale)
+  }
+  if (typeof node.maxHeight === 'number' && node.maxHeight > 0 && Number.isFinite(node.maxHeight)) {
+    style.maxHeight = round(node.maxHeight, scale)
+  }
+
+  const sizeH = mapFigmaSizing(node.layoutSizingHorizontal)
+  if (sizeH) style.sizingHorizontal = sizeH
+  const sizeV = mapFigmaSizing(node.layoutSizingVertical)
+  if (sizeV) style.sizingVertical = sizeV
+  if (String(node.layoutPositioning ?? '').toUpperCase() === 'ABSOLUTE') {
+    style.position = 'absolute'
+  }
+  if (String(node.layoutWrap ?? '').toUpperCase() === 'WRAP') {
+    style.flexWrap = 'wrap'
+    const content = String(node.counterAxisAlignContent ?? '').toUpperCase()
+    if (content === 'SPACE_BETWEEN') style.alignContent = 'space-between'
+    else if (content === 'AUTO' || content === 'STRETCH') style.alignContent = 'stretch'
+  }
+  const layoutAlign = String(node.layoutAlign ?? '').toUpperCase()
+  if (layoutAlign === 'STRETCH') style.alignSelf = 'stretch'
+  else if (layoutAlign === 'MIN') style.alignSelf = 'start'
+  else if (layoutAlign === 'CENTER') style.alignSelf = 'center'
+  else if (layoutAlign === 'MAX') style.alignSelf = 'end'
+  if (typeof node.layoutGrow === 'number' && node.layoutGrow > 0) {
+    style.flexGrow = Math.round(node.layoutGrow * 1000) / 1000
+  }
+  // Figma rotates about the layer center; record when a transform is present.
+  if (
+    (style.rotation !== undefined || style.scaleX !== undefined || style.scaleY !== undefined) &&
+    style.transformOrigin === undefined
+  ) {
+    style.transformOrigin = '50% 50%'
+  }
+  if (node.visible === false) {
+    style.visibility = 'hidden'
+    style.display = 'none'
   }
 
   if (node.type === 'TEXT' && node.style) {
@@ -363,10 +811,19 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
       const weight = typeof s.fontWeight === 'number' ? s.fontWeight : Number.parseInt(s.fontWeight, 10)
       if (Number.isFinite(weight)) style.fontWeight = weight
     }
+    if (s.italic === true || /italic|oblique/i.test(String(s.fontStyle ?? ''))) {
+      style.fontStyle = 'italic'
+    }
     if (typeof s.lineHeightPx === 'number' && Number.isFinite(s.lineHeightPx)) {
       style.lineHeight = round(s.lineHeightPx, scale)
     }
     if (typeof s.letterSpacing === 'number') style.letterSpacing = round(s.letterSpacing, scale)
+    if (typeof s.paragraphSpacing === 'number' && s.paragraphSpacing > 0) {
+      style.paragraphSpacing = round(s.paragraphSpacing, scale)
+    }
+    if (typeof s.paragraphIndent === 'number' && Math.abs(s.paragraphIndent) > 0.5) {
+      style.textIndent = round(s.paragraphIndent, scale)
+    }
     switch (s.textAlignHorizontal) {
       case 'CENTER':
         style.textAlign = 'center'
@@ -381,6 +838,73 @@ function convertNode(node: FigmaNode, scale: number): DesignNode {
       default:
         style.textAlign = 'left'
         break
+    }
+    switch (String(s.textAlignVertical ?? '').toUpperCase()) {
+      case 'CENTER':
+        style.textAlignVertical = 'center'
+        break
+      case 'BOTTOM':
+        style.textAlignVertical = 'bottom'
+        break
+      case 'TOP':
+        style.textAlignVertical = 'top'
+        break
+      default:
+        break
+    }
+    const deco = mapFigmaTextDecoration(s.textDecoration)
+    if (deco && deco !== 'none') style.textDecoration = deco
+    const transform = mapFigmaTextCase(s.textCase)
+    if (transform && transform !== 'none') style.textTransform = transform
+  }
+
+  if (node.type === 'TEXT') {
+    const trunc = String(node.textTruncation ?? '').toUpperCase()
+    if (trunc === 'ENDING') {
+      style.textOverflow = 'ellipsis'
+      if (typeof node.maxLines === 'number' && node.maxLines > 0) {
+        style.maxLines = Math.round(node.maxLines)
+      } else {
+        style.maxLines = 1
+      }
+    } else if (typeof node.maxLines === 'number' && node.maxLines > 0) {
+      style.maxLines = Math.round(node.maxLines)
+      style.textOverflow = 'ellipsis'
+    }
+    const autoResize = String(node.textAutoResize ?? '').toUpperCase()
+    if (autoResize === 'WIDTH_AND_HEIGHT' || autoResize === 'TRUNCATE') {
+      style.whiteSpace = 'nowrap'
+    } else if (autoResize === 'HEIGHT' || autoResize === 'NONE') {
+      if (style.maxLines === 1) style.whiteSpace = 'nowrap'
+      else style.whiteSpace = 'normal'
+    }
+    const chars = node.characters ?? ''
+    const fs = typeof style.fontSize === 'number' ? style.fontSize : undefined
+    if (chars && fs) {
+      const metricOpts = {
+        letterSpacing:
+          typeof style.letterSpacing === 'number' ? style.letterSpacing : undefined,
+        fontWeight: style.fontWeight,
+      }
+      style.textAdvanceWidth = estimateTextAdvance(chars, fs, metricOpts)
+      const maxW =
+        typeof style.maxWidth === 'number'
+          ? style.maxWidth
+          : typeof box.width === 'number'
+            ? box.width
+            : undefined
+      const lh = typeof style.lineHeight === 'number' ? style.lineHeight : undefined
+      const block = estimateTextBlock(chars, fs, {
+        ...metricOpts,
+        maxWidth: maxW,
+        lineHeight: lh,
+      })
+      let lines = block.lines
+      if (typeof style.maxLines === 'number' && style.maxLines > 0) {
+        lines = Math.min(lines, style.maxLines)
+      }
+      const lineH = lh ?? Math.round(fs * 1.2 * 100) / 100
+      style.textBlockHeight = Math.round(lineH * lines * 100) / 100
     }
   }
 

@@ -32,6 +32,7 @@ import {
   buildVisualChatPrompt,
   buildCodeVisualPrompt,
   buildPageRematchPrompt,
+  promptSafeImageUrl,
   formatStaticDiffSummary,
   compareDesignWithPage,
   type VisualChatDiff,
@@ -46,7 +47,7 @@ import {
   parseLanhuUrl,
   buildLanhuImageUrl,
   fetchLanhuDoc,
-  fetchLanhuPreviewUrl,
+  fetchLanhuPreviewDataUrl,
   fetchLanhuPreviewDataUrls,
   fetchLanhuProjectInventory,
   visualScanKey,
@@ -68,6 +69,17 @@ import {
   isDesignerAnnotationText,
   isDesignerAnnotationNode,
   heuristicCompare,
+  resolveRelatedSourceFiles,
+  formatRelatedSourceFilesManifest,
+  relatedFromAndroidManifest,
+  relatedFilesAbsolute,
+  expandDesignDocWithRelated,
+  isDesignDocCandidatePath,
+  seedDynamicFromDesign,
+  isPreviewPlaceholderText,
+  collectDynamicRegionCatalog,
+  type RelatedSourceFile,
+  type RelatedSourceFilesResult,
 } from '@rebornace/tracescope-core'
 import type {
   DesignNode,
@@ -207,7 +219,9 @@ async function renderDesignRaster(
       const fallbackId = String(body.designId ?? body.nodeId ?? body.imageId ?? '').trim()
       const imageId = (nodeId || parts.imageId || fallbackId || '').trim()
       if (!imageId) return undefined
-      const url = await fetchLanhuPreviewUrl(
+      // Return a cookie-authenticated data URL. Raw Lanhu CDN links fail in the
+      // sidebar (no Cookie / CORS) and also fail in proxy-image (cookie-less).
+      const url = await fetchLanhuPreviewDataUrl(
         { ...parts, imageId },
         { cookie: conn.credential, authorization: conn.authorization },
       )
@@ -1167,8 +1181,24 @@ export interface HifiCompareResult {
   /** Design frame name (page title) for context. */
   designName: string
   designImageUrl?: string
+  /**
+   * Entry page plus co-located / imported modules used for compare + AI reading.
+   * Matching remains single-entry; this list explains the modular closure.
+   */
+  relatedFiles?: RelatedSourceFile[]
   /** High-fidelity trees — design side drives annotation boxes. */
   designHifiTree: HifiWireNode
+  /** Flat id→box map for diff hotspot (includes nodes folded into icon groups). */
+  designNodeBoxes?: Array<{
+    id: string
+    x: number
+    y: number
+    width: number
+    height: number
+    name?: string
+    kind?: string
+    text?: string
+  }>
   codeHifiTree: HifiWireNode
   /** Status message when runtime-region fill notes apply. */
   aiInferenceNote?: string
@@ -1203,6 +1233,31 @@ export interface HifiCompareResult {
   fromCache?: boolean
   /** ISO time the result was generated, so the user knows its age. */
   savedAt?: string
+}
+
+/**
+ * Flat id→box table from the full DesignDoc (after prune). Used by the board
+ * hotspot so nodes folded into composite icon images still locate on the raster.
+ */
+function collectDesignNodeBoxes(
+  design: DesignDoc,
+): NonNullable<HifiCompareResult['designNodeBoxes']> {
+  const out: NonNullable<HifiCompareResult['designNodeBoxes']> = []
+  const visit = (node: DesignNode): void => {
+    out.push({
+      id: String(node.id ?? ''),
+      x: Number(node.box.x ?? 0),
+      y: Number(node.box.y ?? 0),
+      width: Number(node.box.width ?? 0),
+      height: Number(node.box.height ?? 0),
+      name: node.name,
+      kind: node.kind,
+      text: node.text,
+    })
+    for (const c of node.children) visit(c)
+  }
+  visit(design.root)
+  return out.filter((b) => b.id)
 }
 
 /**
@@ -1272,14 +1327,40 @@ export async function compareHighFidelity(
   const adapter = getPlatformAdapter(adapterId)
   if (!adapter) throw new Error(`未知适配器：${adapterId}`)
 
-  // Fingerprint source for cache invalidation (layout closure for XML; file itself otherwise).
+  // Fingerprint source for cache invalidation (layout closure for XML; related sources otherwise).
   let sourceFingerprint = ''
+  let related: RelatedSourceFilesResult | undefined
   try {
     if (adapterId === 'android-xml') {
       const resources = await loadAndroidProjectResources(ctx.checkoutPath)
       const built = await buildAndroidRenderContext(ctx.checkoutPath, resources)
       const entryLayoutName = path.basename(relativePath, path.extname(relativePath))
       const depManifest = await analyzeLayoutDependencies(entryLayoutName, built, resources)
+      related = relatedFromAndroidManifest(ctx.checkoutPath, relativePath, depManifest)
+      // Activity / Fragment / Adapter that inflate this layout — include before
+      // fingerprint so cache keys and the reading list stay in sync.
+      try {
+        const sourceFiles = await collectAdapterSourceFiles(ctx.checkoutPath, entryLayoutName)
+        if (sourceFiles.length && related) {
+          const seen = new Set(related.files.map((f) => f.relativePath))
+          const extra: RelatedSourceFile[] = []
+          for (const sf of sourceFiles) {
+            const rel = path.relative(ctx.checkoutPath, sf.path).replace(/\\/g, '/')
+            if (!rel || rel.startsWith('..') || seen.has(rel)) continue
+            seen.add(rel)
+            extra.push({
+              relativePath: rel,
+              role: 'import',
+              reason: '引用入口 layout 的 Activity/Fragment/Adapter',
+            })
+          }
+          if (extra.length) {
+            related = { entry: related.entry, files: [...related.files, ...extra] }
+          }
+        }
+      } catch {
+        /* optional enrichment */
+      }
       sourceFingerprint = await fingerprintFiles([
         depManifest.entryLayout,
         ...depManifest.layouts,
@@ -1288,12 +1369,17 @@ export async function compareHighFidelity(
         ...depManifest.dimenFiles,
         ...depManifest.stringFiles,
         ...depManifest.styleFiles,
+        ...relatedFilesAbsolute(ctx.checkoutPath, related).filter((p) =>
+          /\.(kt|java)$/i.test(p),
+        ),
       ])
     } else {
-      sourceFingerprint = await fingerprintFiles([path.join(ctx.checkoutPath, relativePath)])
+      related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
+      sourceFingerprint = await fingerprintFiles(relatedFilesAbsolute(ctx.checkoutPath, related))
     }
   } catch {
     sourceFingerprint = ''
+    related = undefined
   }
 
   const hifiKey = visualHifiKey(
@@ -1321,6 +1407,7 @@ export async function compareHighFidelity(
   const iconEnrich = await enrichDesignIcons(design, body)
   const fillUrls = await enrichDesignImageFills(design, body)
   const designHifi = designDocToHifi(design, iconEnrich, fillUrls)
+  const designNodeBoxes = collectDesignNodeBoxes(design)
 
   let compareMode: 'exact' | 'heuristic' = 'exact'
   let result: VisualCompareResult
@@ -1341,8 +1428,6 @@ export async function compareHighFidelity(
       context: built.context,
       resolveLayout: built.resolveLayout,
     })
-    const codeDoc = hifiTreeToDesignDoc(codeHifi.root)
-    result = compareVisualDocs(design, codeDoc)
 
     const sourceFiles = await collectAdapterSourceFiles(ctx.checkoutPath, entryLayoutName)
     const bindings = analyzeAdapterBindings(entryLayoutName, sourceFiles)
@@ -1352,13 +1437,21 @@ export async function compareHighFidelity(
       context: built.context,
       resolveLayout: built.resolveLayout,
     })
+    const seededTexts = seedHifiDynamicTextsFromDesign(codeHifi.root, design)
     const projectedRegions = projectRuntimeRegions(codeHifi.root, design, fillUrls)
+    // Compare AFTER expand/seed/project so L1 sees list tiles + design copy.
+    const codeDoc = hifiTreeToDesignDoc(codeHifi.root)
+    result = compareVisualDocs(design, codeDoc)
+
     const totalRegions = flattenHifi(codeHifi.root).filter((n) => n.dynamic).length
     if (itemRegions > 0) {
       aiInferenceNote =
         projectedRegions > 0
-          ? `已按代码自身的 item 布局还原 ${itemRegions} 个列表，另有 ${projectedRegions} 个区域未找到 item 布局、暂以设计稿内容示意`
-          : `已按代码自身的 item 布局还原 ${itemRegions} 个运行时列表（共 ${totalRegions} 个动态区域）`
+          ? `已按代码自身的 item 布局还原 ${itemRegions} 个列表` +
+            (seededTexts > 0 ? `（静态填入 ${seededTexts} 处文案）` : '') +
+            `，另有 ${projectedRegions} 个区域未找到 item 布局、暂以设计稿内容示意`
+          : `已按代码自身的 item 布局还原 ${itemRegions} 个运行时列表（共 ${totalRegions} 个动态区域）` +
+            (seededTexts > 0 ? `，静态填入 ${seededTexts} 处设计文案` : '')
     } else if (projectedRegions > 0) {
       aiInferenceNote = `未从代码解析到 item 布局，已用设计稿内容示意 ${projectedRegions} 个区域（可在聊天中让 AI 协助）。`
     } else {
@@ -1377,12 +1470,54 @@ export async function compareHighFidelity(
       precise: true as const,
       fingerprint: { texts: [], nameTokens: [], controlCount: 0 },
     }
-    const codeDoc = await adapter.toDesignDoc(page)
+    let codeDoc = await adapter.toDesignDoc(page)
+
+    // Inline related modules so child-component texts/controls enter L1 compare.
+    if (!related) {
+      try {
+        related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
+      } catch {
+        related = undefined
+      }
+    }
+    let inlinedModules = 0
+    if (related && adapter.toDesignDoc) {
+      const relatedDocs: Array<{ relativePath: string; doc: DesignDoc }> = []
+      for (const f of related.files) {
+        if (f.role === 'entry') continue
+        if (!isDesignDocCandidatePath(f.relativePath)) continue
+        try {
+          const relPage = {
+            ...page,
+            relativePath: f.relativePath,
+            absolutePath: path.join(ctx.checkoutPath, f.relativePath),
+          }
+          const doc = await adapter.toDesignDoc(relPage)
+          if (doc?.root) relatedDocs.push({ relativePath: f.relativePath, doc })
+        } catch {
+          /* skip unreadable / unsupported related file */
+        }
+      }
+      if (relatedDocs.length) {
+        codeDoc = expandDesignDocWithRelated(codeDoc, relatedDocs)
+        inlinedModules = relatedDocs.length
+      }
+    }
+
+    const seededTiles = seedDynamicFromDesign(codeDoc, design)
     result = compareVisualDocs(design, codeDoc)
     codeHifiTree = designDocToHifiSimple(codeDoc)
     compareMode = 'exact'
     kindLabel = adapter.kindLabel
-    aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）。`
+    const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
+    const seedNote = seededTiles > 0 ? `；列表占位文案已静态填入 ${seededTiles} 处设计稿文案` : ''
+    if (inlinedModules > 0) {
+      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）；已内联 ${inlinedModules} 个关联模块参与对比${relatedCount > inlinedModules ? `，另有 ${relatedCount - inlinedModules} 个关联文件供 AI 阅读` : ''}${seedNote}。`
+    } else if (relatedCount > 0) {
+      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）；已识别 ${relatedCount} 个关联文件供 AI 阅读${seedNote}。`
+    } else {
+      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）${seedNote}。`
+    }
   } else {
     let page: CodePage = {
       adapterId: adapter.id,
@@ -1403,11 +1538,35 @@ export async function compareHighFidelity(
     } catch {
       /* keep defaults */
     }
-    result = await heuristicCompare(design, page)
+    if (!related) {
+      try {
+        related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
+      } catch {
+        related = undefined
+      }
+    }
+    const relatedAbs = related ? relatedFilesAbsolute(ctx.checkoutPath, related) : []
+    result = await heuristicCompare(design, page, { relatedAbsolutePaths: relatedAbs })
     codeHifiTree = emptyCodeHifi(viewportWidth, viewportHeight)
     compareMode = 'heuristic'
     kindLabel = adapter.kindLabel
-    aiInferenceNote = `${kindLabel} 已做启发式静态对比（文案/控件规模）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
+    const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
+    aiInferenceNote =
+      relatedCount > 0
+        ? `${kindLabel} 已做启发式静态对比（文案/控件规模，含 ${relatedCount} 个关联文件）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
+        : `${kindLabel} 已做启发式静态对比（文案/控件规模）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
+  }
+
+  // Ensure related list exists for the response (best-effort).
+  if (!related) {
+    try {
+      related =
+        adapterId === 'android-xml'
+          ? undefined
+          : await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
+    } catch {
+      related = undefined
+    }
   }
 
   const designName = design.root.name || relativePath
@@ -1437,7 +1596,9 @@ export async function compareHighFidelity(
     viewport: { width: viewportWidth, height: viewportHeight },
     designName,
     designImageUrl,
+    relatedFiles: related?.files,
     designHifiTree: designHifi,
+    designNodeBoxes,
     codeHifiTree,
     aiInferenceNote,
     designNoteMasks,
@@ -1782,6 +1943,51 @@ function regionProjectedItems(
 }
 
 /**
+ * After item-layout expand: overwrite tools:text / identical-template texts in
+ * each dynamic region's inferredChildren with design copy that falls inside
+ * the region (deterministic static fill — no AI).
+ */
+function seedHifiDynamicTextsFromDesign(
+  codeRoot: HifiRenderNode,
+  design: DesignDoc,
+): number {
+  const regions = flattenHifi(codeRoot).filter(
+    (n) => n.dynamic && n.itemRendered && n.inferredChildren?.length,
+  )
+  if (!regions.length) return 0
+  const paint = collectDesignPaintItems(design)
+  let changed = 0
+  for (const region of regions) {
+    const designTexts = paint
+      .filter((t) => t.kind === 'text' && t.text?.trim() && isInsideRegion(t, region))
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((t) => t.text!.replace(/\s+/g, ' ').trim())
+    if (!designTexts.length) continue
+
+    const textNodes = region.inferredChildren!.filter(
+      (n) => n.kind === 'text' || n.text !== undefined,
+    )
+    if (!textNodes.length) continue
+
+    // Treat as template clones when every text slot repeats the same value,
+    // or when the value looks like tools:text / preview filler.
+    const textValues = textNodes.map((n) => n.text)
+    const allSame =
+      textValues.length >= 2 && textValues.every((t) => t === textValues[0])
+    let di = 0
+    for (const node of textNodes) {
+      if (!allSame && !isPreviewPlaceholderText(node.text)) continue
+      const next = designTexts[di % designTexts.length]!
+      di += 1
+      if (node.text === next) continue
+      node.text = next
+      changed += 1
+    }
+  }
+  return changed
+}
+
+/**
  * Stage 1 (always, deterministic): project the real design content that falls
  * inside each runtime region into {@link HifiRenderNode.inferredChildren}.
  * Projects the FULL geometry — card background rectangles, image placeholders,
@@ -1995,8 +2201,86 @@ function designDocToHifi(
     if (typeof n.style.lineHeight === 'number') style.lineHeight = n.style.lineHeight
     if (n.style.imageFit) style.imageFit = n.style.imageFit
     if (typeof n.style.opacity === 'number') style.opacity = n.style.opacity
+    if (typeof n.style.elevation === 'number') style.elevation = n.style.elevation
+    if (typeof n.style.innerShadow === 'number') style.innerShadow = n.style.innerShadow
+    if (typeof n.style.blur === 'number') style.blur = n.style.blur
+    if (n.style.shadow) style.shadow = n.style.shadow
+    if (n.style.insetShadow) style.insetShadow = n.style.insetShadow
+    if (n.style.shadows) style.shadows = n.style.shadows
+    if (n.style.blendMode) style.blendMode = n.style.blendMode
+    if (typeof n.style.rotation === 'number') style.rotation = n.style.rotation
+    if (typeof n.style.scaleX === 'number') style.scaleX = n.style.scaleX
+    if (typeof n.style.scaleY === 'number') style.scaleY = n.style.scaleY
+    if (typeof n.style.skewX === 'number') style.skewX = n.style.skewX
+    if (typeof n.style.skewY === 'number') style.skewY = n.style.skewY
+    if (typeof n.style.zIndex === 'number') style.zIndex = n.style.zIndex
+    if (n.style.strokeAlign) style.strokeAlign = n.style.strokeAlign
+    if (n.style.fills?.length) style.fills = n.style.fills
+    if (n.style.textDecoration) style.textDecoration = n.style.textDecoration
+    if (n.style.textTransform) style.textTransform = n.style.textTransform
+    if (n.style.overflow) style.overflow = n.style.overflow
+    if (n.style.clipPath) style.clipPath = n.style.clipPath
+    if (typeof n.style.aspectRatio === 'number') style.aspectRatio = n.style.aspectRatio
+    if (typeof n.style.maxLines === 'number') style.maxLines = n.style.maxLines
+    if (n.style.textOverflow) style.textOverflow = n.style.textOverflow
+    if (typeof n.style.minWidth === 'number') style.minWidth = n.style.minWidth
+    if (typeof n.style.maxWidth === 'number') style.maxWidth = n.style.maxWidth
+    if (typeof n.style.minHeight === 'number') style.minHeight = n.style.minHeight
+    if (typeof n.style.maxHeight === 'number') style.maxHeight = n.style.maxHeight
+    if (typeof n.style.textAdvanceWidth === 'number') style.textAdvanceWidth = n.style.textAdvanceWidth
+    if (typeof n.style.textBlockHeight === 'number') style.textBlockHeight = n.style.textBlockHeight
+    if (n.style.flexDirection) style.flexDirection = n.style.flexDirection
+    if (n.style.alignItems) style.alignItems = n.style.alignItems
+    if (n.style.justifyContent) style.justifyContent = n.style.justifyContent
+    if (n.style.fontStyle) style.fontStyle = n.style.fontStyle
+    if (n.style.textAlignVertical) style.textAlignVertical = n.style.textAlignVertical
+    if (n.style.borderStyle) style.borderStyle = n.style.borderStyle
+    if (n.style.strokeDashArray) style.strokeDashArray = n.style.strokeDashArray
+    if (n.style.strokeCap) style.strokeCap = n.style.strokeCap
+    if (n.style.strokeJoin) style.strokeJoin = n.style.strokeJoin
+    if (typeof n.style.paragraphSpacing === 'number') style.paragraphSpacing = n.style.paragraphSpacing
+    if (n.style.sizingHorizontal) style.sizingHorizontal = n.style.sizingHorizontal
+    if (n.style.sizingVertical) style.sizingVertical = n.style.sizingVertical
+    if (typeof n.style.backdropBlur === 'number') style.backdropBlur = n.style.backdropBlur
+    if (n.style.position) style.position = n.style.position
+    if (typeof n.style.rowGap === 'number') style.rowGap = n.style.rowGap
+    if (typeof n.style.columnGap === 'number') style.columnGap = n.style.columnGap
+    if (n.style.flexWrap) style.flexWrap = n.style.flexWrap
+    if (n.style.alignContent) style.alignContent = n.style.alignContent
+    if (typeof n.style.order === 'number') style.order = n.style.order
+    if (n.style.gridTemplate) style.gridTemplate = n.style.gridTemplate
+    if (n.style.alignSelf) style.alignSelf = n.style.alignSelf
+    if (typeof n.style.flexGrow === 'number') style.flexGrow = n.style.flexGrow
+    if (typeof n.style.flexShrink === 'number') style.flexShrink = n.style.flexShrink
+    if (n.style.transformOrigin) style.transformOrigin = n.style.transformOrigin
+    if (n.style.visibility) style.visibility = n.style.visibility
+    if (n.style.display) style.display = n.style.display
+    if (n.style.whiteSpace) style.whiteSpace = n.style.whiteSpace
+    if (n.style.wordBreak) style.wordBreak = n.style.wordBreak
+    if (typeof n.style.wordSpacing === 'number') style.wordSpacing = n.style.wordSpacing
+    if (typeof n.style.textIndent === 'number') style.textIndent = n.style.textIndent
+    if (typeof n.style.perspective === 'number') style.perspective = n.style.perspective
+    if (typeof n.style.rotateX === 'number') style.rotateX = n.style.rotateX
+    if (typeof n.style.rotateY === 'number') style.rotateY = n.style.rotateY
+    if (n.style.textShadow) style.textShadow = n.style.textShadow
+    if (n.style.direction) style.direction = n.style.direction
+    if (n.style.writingMode) style.writingMode = n.style.writingMode
+    if (n.style.filter) style.filter = n.style.filter
+    if (n.style.outline) style.outline = n.style.outline
     if (typeof n.style.borderWidth === 'number') style.borderWidth = n.style.borderWidth
     if (typeof n.style.borderColor === 'string') style.borderColor = n.style.borderColor
+    if (typeof n.style.borderTopWidth === 'number') style.borderTopWidth = n.style.borderTopWidth
+    if (typeof n.style.borderRightWidth === 'number') style.borderRightWidth = n.style.borderRightWidth
+    if (typeof n.style.borderBottomWidth === 'number') {
+      style.borderBottomWidth = n.style.borderBottomWidth
+    }
+    if (typeof n.style.borderLeftWidth === 'number') style.borderLeftWidth = n.style.borderLeftWidth
+    if (typeof n.style.borderTopColor === 'string') style.borderTopColor = n.style.borderTopColor
+    if (typeof n.style.borderRightColor === 'string') style.borderRightColor = n.style.borderRightColor
+    if (typeof n.style.borderBottomColor === 'string') {
+      style.borderBottomColor = n.style.borderBottomColor
+    }
+    if (typeof n.style.borderLeftColor === 'string') style.borderLeftColor = n.style.borderLeftColor
     // A composite icon container is rendered to one image; it becomes an
     // 'icon' node and its whole subtree is dropped (the image already contains
     // the boolean/mask/layer-built glyph).
@@ -2288,41 +2572,24 @@ async function formatSourceFileManifest(
   checkoutPath: string,
   relativePath: string,
 ): Promise<string> {
-  const relPosix = relativePath.replace(/\\/g, '/')
-  const abs = path.join(checkoutPath, relativePath)
-  const dir = path.dirname(abs)
-  const entryName = path.basename(abs)
-  const base = entryName.replace(/\.[^.]+$/i, '')
-  const lines: string[] = [`入口源文件：${relPosix}`]
-  try {
-    const entries = await readdir(dir)
-    const siblings = entries
-      .filter((name) => name !== entryName && name.toLowerCase().startsWith(base.toLowerCase() + '.'))
-      .sort()
-    if (siblings.length > 0) {
-      lines.push('同目录关联文件：')
-      const dirRel = path.dirname(relPosix)
-      for (const name of siblings) {
-        const siblingRel = dirRel === '.' ? name : `${dirRel}/${name}`
-        lines.push(`- ${siblingRel}`)
-      }
-    }
-  } catch {
-    /* directory listing optional */
-  }
-  lines.push('')
-  lines.push('说明：请从入口文件出发，按 import / 组件引用 / 路由配置继续读取相关源文件。')
-  return lines.join('\n')
+  const related = await resolveRelatedSourceFiles(checkoutPath, relativePath)
+  return formatRelatedSourceFilesManifest(related)
 }
 
 /**
  * Build the "AI 协助分析" starter prompt from the developer's REAL code.
  * Android XML gets a full layout dependency closure; other adapters get the
- * entry page plus co-located siblings. The agent reads those files itself.
+ * entry page plus co-located siblings and shallow local imports. The agent
+ * reads those files itself.
  */
 export async function buildCodeVisualAnalysis(
   body: Record<string, unknown>,
-): Promise<{ prompt: string; designImageUrl?: string; jobId: string }> {
+): Promise<{
+  prompt: string
+  designImageUrl?: string
+  designRasterInPanel?: boolean
+  jobId: string
+}> {
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const adapterId = String(body.adapterId ?? '').trim()
   const relativePath = String(body.relativePath ?? '').trim()
@@ -2349,13 +2616,15 @@ export async function buildCodeVisualAnalysis(
     manifestMode = 'source-files'
   }
 
-  // Best-effort design raster so multimodal models can see the design.
-  let designImageUrl: string | undefined
+  // Best-effort design raster for the panel; prompts never embed data: URLs.
+  let rasterRaw: string | undefined
   try {
-    designImageUrl = (await renderDesignRaster(body))?.url
+    rasterRaw = (await renderDesignRaster(body))?.url
   } catch {
-    designImageUrl = undefined
+    rasterRaw = undefined
   }
+  const designImageUrl = promptSafeImageUrl(rasterRaw)
+  const designRasterInPanel = Boolean(rasterRaw)
 
   // Node-specific design link kept only as a reference (do not ask the model to fetch).
   const rawFigmaUrl = String(body.figmaUrl ?? body.designUrl ?? '').trim()
@@ -2386,6 +2655,26 @@ export async function buildCodeVisualAnalysis(
     staticDiffSummary = undefined
   }
 
+  // Prefer client-provided catalog (from the open hifi board). Fall back to
+  // cached hifi compare (empty fingerprint key — best-effort).
+  let dynamicRegionsCatalog: string | undefined
+  const fromBody = body.dynamicRegions
+  if (Array.isArray(fromBody) && fromBody.length) {
+    dynamicRegionsCatalog = JSON.stringify(fromBody)
+  } else {
+    try {
+      const hifiKey = visualHifiKey(repoInput, figmaFileKey || 'design', nodeIdRest, relativePath, '')
+      const cached = await loadVisualHifi<HifiCompareResult>(hifiKey)
+      const tree = cached?.payload?.codeHifiTree
+      if (tree) {
+        const catalog = collectDynamicRegionCatalog(tree)
+        if (catalog.length) dynamicRegionsCatalog = JSON.stringify(catalog)
+      }
+    } catch {
+      dynamicRegionsCatalog = undefined
+    }
+  }
+
   const gitSummary = await summarizeGitContext(ctx.checkoutPath, relativePath)
 
   // Create a visual review job so the model can write findings back and pull
@@ -2404,7 +2693,9 @@ export async function buildCodeVisualAnalysis(
     designName: design.root.name || relativePath,
     figmaUrl: nodeFigmaUrl,
     designImageUrl,
+    designRasterInPanel,
     staticDiffSummary,
+    dynamicRegionsCatalog,
     repoPath: ctx.checkoutPath,
     platformLabel,
     codeRelativePath: relativePath,
@@ -2413,7 +2704,12 @@ export async function buildCodeVisualAnalysis(
     gitSummary: gitSummary || undefined,
     jobId: visualJob.id,
   })
-  return { prompt, designImageUrl, jobId: visualJob.id }
+  return {
+    prompt,
+    designImageUrl,
+    designRasterInPanel,
+    jobId: visualJob.id,
+  }
 }
 
 /**

@@ -8,6 +8,7 @@ import { walkFiles } from '../fs-walk.js'
 import { tokenizeName } from '../page-fingerprint.js'
 import { extractStringLiterals } from './source-text.js'
 import { composeSourceToDesignDoc } from './declarative-design-doc.js'
+import { loadNativeStyleContext } from './native-style-context.js'
 import type {
   CodePage,
   PageFingerprint,
@@ -63,6 +64,7 @@ export const androidComposeAdapter: PlatformAdapter = {
 
   async toDesignDoc(page: CodePage): Promise<DesignDoc> {
     const src = await readFile(page.absolutePath, 'utf8')
-    return composeSourceToDesignDoc(src, path.basename(page.relativePath, '.kt'))
+    const ctx = await loadNativeStyleContext(page.absolutePath, src, 'compose')
+    return composeSourceToDesignDoc(ctx.source, path.basename(page.relativePath, '.kt'))
   },
 }
