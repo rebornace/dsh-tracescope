@@ -5,6 +5,11 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.1 — 2026-10-01
+
+- **安全扫描误报收敛**：SSH 私钥输入框占位符不再写死 `.ssh` 示例路径；`git cat-file` 子进程显式 `shell: false`；本机面板回环地址补充说明。
+- Harden SSH placeholder / git spawn / local panel bind notes for scanners.
+
 ## 0.2.0 — 2026-10-01
 
 - **设计差异分析升为主能力**：与「功能影响分析」并列。以 Figma / 蓝湖设计稿为准，静态对比代码实现（design-only，不依赖 App 运行时渲染）；支持差异清单多选定位、对照图高亮、指定代码文件、关联文件加深、AI 协助分析写回、复制差异 / 提交缺陷 / 导出报告。
