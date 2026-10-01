@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.2`**
+**Version: `0.2.3`**
 
 Milestones: [CHANGELOG.md](./CHANGELOG.md). [中文](./README.md) · [English](./README.en.md)
 
@@ -79,8 +79,8 @@ Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/
 
 1. Install and open [DeepSeek Harness official Desktop](https://github.com/deepseek-ai/deepseek-harness)
 2. Open **Plugins**; if an older build is installed, remove `@rebornace/dsh-tracescope` first
-3. Follow the prompts and add: `@rebornace/dsh-tracescope@0.2.2` (or `@rebornace/dsh-tracescope@latest`)
-4. Confirm the sidebar shows **0.2.2+** (includes design diff), then open the **TraceScope** tab
+3. Follow the prompts and add: `@rebornace/dsh-tracescope@0.2.3` (or `@rebornace/dsh-tracescope@latest`)
+4. Confirm the sidebar shows **0.2.3+** (includes design diff), then open the **TraceScope** tab
 
 ### Option 2: CLI (optional)
 
@@ -88,7 +88,7 @@ For scripting or local debugging; see the [official install guide](https://githu
 
 ```bash
 dsh plugin --profile desktop remove @rebornace/dsh-tracescope
-dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.2
+dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.3
 ```
 
 ### Community catalogs

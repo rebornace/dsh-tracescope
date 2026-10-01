@@ -5,6 +5,11 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.3 — 2026-10-01
+
+- 正式发布上一版修复（桌面端 `untrusted request`）；`0.2.2` 曾卡在 npm staged 未上线。
+- Republish of the Desktop trust fix after `0.2.2` stuck in npm staging.
+
 ## 0.2.2 — 2026-10-01
 
 - **修复官方桌面端 `untrusted request`**：侧栏常见 `Origin: null` / 无 Referer 时不再被误拒；仍拒绝带具体外站 Origin 的跨站请求。

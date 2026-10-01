@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.2.2`**
+**版本: `0.2.3`**
 
 功能节点见 [更新日志](./CHANGELOG.md)。[中文](./README.md) · [English](./README.en.md)
 
@@ -80,8 +80,8 @@ pnpm --filter @rebornace/tracescope-mcp build
 
 1. 安装并打开 [DeepSeek Harness 官方桌面端](https://github.com/deepseek-ai/deepseek-harness)
 2. 打开桌面端里的 **插件** 选项；若已装旧版，先移除 `@rebornace/dsh-tracescope`
-3. 按界面提示添加插件，包名建议填：`@rebornace/dsh-tracescope@0.2.2`（或 `@rebornace/dsh-tracescope@latest`）
-4. 确认侧栏 / 关于里显示的版本为 **0.2.2+**（含设计差异分析）后，打开右侧栏 **TraceScope**
+3. 按界面提示添加插件，包名建议填：`@rebornace/dsh-tracescope@0.2.3`（或 `@rebornace/dsh-tracescope@latest`）
+4. 确认侧栏 / 关于里显示的版本为 **0.2.3+**（含设计差异分析）后，打开右侧栏 **TraceScope**
 
 ### 方式二：命令行（可选）
 
@@ -89,7 +89,7 @@ pnpm --filter @rebornace/tracescope-mcp build
 
 ```bash
 dsh plugin --profile desktop remove @rebornace/dsh-tracescope
-dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.2
+dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.3
 ```
 
 ### 社区收录
