@@ -195,11 +195,14 @@ export type { VisualChatDiff, VisualChatPromptInput, CodeVisualPromptInput, Code
 
 export {
   visualScanKey,
+  visualDesignCompareKey,
   visualHifiKey,
   visualFindingsKey,
   visualRematchKey,
   loadVisualScan,
   saveVisualScan,
+  loadVisualDesignCompare,
+  saveVisualDesignCompare,
   loadVisualHifi,
   saveVisualHifi,
   loadVisualFindings,
@@ -384,6 +387,9 @@ export {
   renderAndroidItemLayout,
   nodeKindOf,
   type AndroidRenderContext,
+  type LayoutResult,
+  type LayoutRenderNode,
+  type LayoutNodeKind,
   type HifiLayoutResult,
   type HifiRenderNode,
   type RenderedAndroidItem,
@@ -419,7 +425,10 @@ export {
   moduleKeyFromPath,
   type RelatedDesignDocInput,
 } from './design/expand-related-design-doc.js'
-export { hifiTreeToDesignDoc } from './design/hifi-to-design-doc.js'
+export {
+  layoutTreeToDesignDoc,
+  hifiTreeToDesignDoc,
+} from './design/hifi-to-design-doc.js'
 export {
   applyVisualRenderPatches,
   collectDynamicRegionCatalog,

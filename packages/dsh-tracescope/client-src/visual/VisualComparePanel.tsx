@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { PageMappingOverview } from './PageMappingOverview.js'
-import { HifiCompareBoard } from './HifiCompareBoard.js'
+import { DesignCompareBoard } from './DesignCompareBoard.js'
 import { LoadingOverlay } from './LoadingOverlay.js'
 import type { PageFindings } from './panel-types.js'
 
 export type { PageFindings } from './panel-types.js'
 
-interface HifiTreeLike {
+interface DesignTreeLike {
   id: string
   name: string
   kind: string
@@ -15,11 +15,11 @@ interface HifiTreeLike {
   dynamic?: boolean
   itemRendered?: boolean
   inferredChildren?: unknown[]
-  children?: HifiTreeLike[]
+  children?: DesignTreeLike[]
 }
 
 /** Dynamic/sparse regions for the AI fill-template prompt. */
-function collectDynamicRegionsFromHifi(root: HifiTreeLike | undefined): Array<{
+function collectDynamicRegionsFromTree(root: DesignTreeLike | undefined): Array<{
   id: string
   name: string
   width: number
@@ -36,7 +36,7 @@ function collectDynamicRegionsFromHifi(root: HifiTreeLike | undefined): Array<{
     filled: boolean
     itemRendered: boolean
   }> = []
-  const walk = (n: HifiTreeLike): void => {
+  const walk = (n: DesignTreeLike): void => {
     if (n.dynamic || n.kind === 'dynamic') {
       out.push({
         id: n.id,
@@ -92,9 +92,9 @@ export interface VisualComparePanelProps {
   onOpenTrackerSettings?: () => void
 }
 
-// Persist design connection: shared global default + optional per-repo override.
-// Switching repos loads that repo's saved values when present; otherwise keeps
-// the currently filled (global) values so one Figma file can serve many frontends.
+// Persist design connection: URL may differ per code repo; Figma token / Lanhu
+// cookie are design-platform credentials and resolve with per-repo override →
+// global fallback so switching repos does not wipe a shared design login.
 const UI_CONFIG_PREFIX = 'tracescope.ui.'
 const UI_CONFIG_GLOBAL_PREFIX = 'tracescope.ui.global.'
 const UI_CONFIG_FIGMA_URL = 'figmaUrl'
@@ -102,6 +102,8 @@ const UI_CONFIG_FIGMA_URL = 'figmaUrl'
 const UI_CONFIG_FIGMA_TOKEN = 'figmaToken'
 /** Lanhu browser Cookie — kept separate so switching design sources does not clobber Figma. */
 const UI_CONFIG_LANHU_COOKIE = 'lanhuCookie'
+/** Whether adapter deep enrichment (e.g. Android XML layout engine) is enabled. */
+const UI_CONFIG_DEEP_ENRICHMENT = 'deepEnrichment'
 /** Saved design-link history (shared across repos). */
 const SAVED_LINKS_KEY = 'tracescope.ui.savedFigmaLinks'
 const MAX_SAVED_LINKS = 12
@@ -137,15 +139,6 @@ function writeStorage(key: string, value: string) {
   }
 }
 
-/** True when this repo has ever saved a UI-walkthrough design connection. */
-function hasRepoUiConfig(repoInput: string): boolean {
-  return (
-    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null ||
-    readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null ||
-    readStorage(uiRepoKey(repoInput, UI_CONFIG_LANHU_COOKIE)) != null
-  )
-}
-
 function readRepoUiConfig(repoInput: string, field: string): string {
   return readStorage(uiRepoKey(repoInput, field)) ?? ''
 }
@@ -154,10 +147,14 @@ function readGlobalUiConfig(field: string): string {
   return readStorage(uiGlobalKey(field)) ?? ''
 }
 
-/** Resolve initial field: repo override if present, else shared global. */
+/**
+ * Per-field resolve: non-empty repo override wins, else shared global.
+ * Never treat "repo has some other field" as wiping this field.
+ */
 function resolveUiConfig(repoInput: string, field: string): string {
-  if (hasRepoUiConfig(repoInput)) return readRepoUiConfig(repoInput, field)
-  return readGlobalUiConfig(field)
+  const repoVal = readRepoUiConfig(repoInput, field).trim()
+  if (repoVal) return repoVal
+  return readGlobalUiConfig(field).trim()
 }
 
 /** Save both the current repo override and the shared global default. */
@@ -170,6 +167,16 @@ function writeUiConfig(repoInput: string, field: string, value: string) {
 function clearUiConfigField(repoInput: string, field: string) {
   writeStorage(uiRepoKey(repoInput, field), '')
   writeStorage(uiGlobalKey(field), '')
+}
+
+function readDeepEnrichmentEnabled(): boolean {
+  const raw = readGlobalUiConfig(UI_CONFIG_DEEP_ENRICHMENT)
+  if (raw === '0' || raw === 'false') return false
+  return true
+}
+
+function writeDeepEnrichmentEnabled(enabled: boolean) {
+  writeStorage(uiGlobalKey(UI_CONFIG_DEEP_ENRICHMENT), enabled ? '1' : '0')
 }
 
 function labelForDesignUrl(url: string): string {
@@ -247,21 +254,18 @@ function looksLikeLanhuCookie(value: string): boolean {
 /**
  * Resolve the credential for the current design URL.
  * Figma token and Lanhu cookie are stored under different keys so neither
- * overwrites the other when the user switches links.
+ * overwrites the other when the user switches links. Each key falls back
+ * from per-repo override → global (empty repo value does not hide global).
  */
 function resolveDesignCredential(repoInput: string, url: string): string {
   const lanhu = isLikelyLanhuUrl(url)
   const field = lanhu ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN
-  const dedicated = hasRepoUiConfig(repoInput)
-    ? readRepoUiConfig(repoInput, field)
-    : readGlobalUiConfig(field)
+  const dedicated = resolveUiConfig(repoInput, field)
 
   if (lanhu) {
     if (dedicated.trim()) return dedicated
     // Legacy: cookie was saved under figmaToken — relocate once.
-    const legacy = hasRepoUiConfig(repoInput)
-      ? readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
-      : readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN)
+    const legacy = resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN)
     if (legacy.trim() && looksLikeLanhuCookie(legacy)) {
       writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, legacy)
       return legacy
@@ -273,9 +277,7 @@ function resolveDesignCredential(repoInput: string, url: string): string {
   if (dedicated.trim() && !looksLikeLanhuCookie(dedicated)) return dedicated
   if (dedicated.trim() && looksLikeLanhuCookie(dedicated)) {
     // Cookie was wrongly stored as figmaToken — move it to lanhuCookie.
-    const existingLanhu = hasRepoUiConfig(repoInput)
-      ? readRepoUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE)
-      : readGlobalUiConfig(UI_CONFIG_LANHU_COOKIE)
+    const existingLanhu = resolveUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE)
     if (!existingLanhu.trim()) writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, dedicated)
     return ''
   }
@@ -333,6 +335,7 @@ export function VisualComparePanel({
   const [figmaToken, setFigmaTokenState] = useState(() =>
     resolveDesignCredential(repoInput, resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL)),
   )
+  const [deepEnrichment, setDeepEnrichmentState] = useState(() => readDeepEnrichmentEnabled())
   const [savedLinks, setSavedLinks] = useState<SavedFigmaLink[]>(() => readSavedLinks())
   const [busy, setBusy] = useState(false)
   const [busyMessage, setBusyMessage] = useState('')
@@ -363,7 +366,7 @@ export function VisualComparePanel({
   }, [busy, busyStartedAt])
 
   const [error, setError] = useState('')
-  const [hifiData, setHifiData] = useState<unknown>(null)
+  const [compareData, setCompareData] = useState<unknown>(null)
   // Design id + code file of the high-fidelity result currently shown, so the
   // originating card is highlighted and the result area is clearly labelled.
   const [activeDesignId, setActiveDesignId] = useState('')
@@ -414,6 +417,10 @@ export function VisualComparePanel({
     setFigmaTokenState('')
     clearUiConfigField(repoInput, credentialFieldForUrl(figmaUrl))
   }
+  const setDeepEnrichment = (enabled: boolean) => {
+    setDeepEnrichmentState(enabled)
+    writeDeepEnrichmentEnabled(enabled)
+  }
   const saveCurrentLink = () => {
     if (!figmaUrl.trim()) return
     setSavedLinks(rememberSavedLink(figmaUrl))
@@ -430,23 +437,23 @@ export function VisualComparePanel({
     setSavedLinks(rememberSavedLink(url))
   }
 
-  // When the code folder changes: load that repo's saved design connection if
-  // it has one; otherwise keep the currently filled values (shared design).
+  // When the code folder changes: prefer that repo's saved design URL when
+  // present; credentials always fall back to global so the same design login
+  // survives repo switches. Keep in-memory values when storage has nothing.
   useEffect(() => {
-    if (hasRepoUiConfig(repoInput)) {
-      const url = readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL)
-      setFigmaUrlState(url)
-      setFigmaTokenState(resolveDesignCredential(repoInput, url))
-    } else {
-      const url = readGlobalUiConfig(UI_CONFIG_FIGMA_URL)
-      setFigmaUrlState((prev) => prev || url)
-      setFigmaTokenState((prev) => {
-        if (prev) return prev
-        return resolveDesignCredential(repoInput, url || prev)
+    const storedUrl = resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL)
+    setFigmaUrlState((prev) => {
+      const next = storedUrl || prev
+      setFigmaTokenState((prevToken) => {
+        const resolved = resolveDesignCredential(repoInput, next)
+        // Prefer stored credential; only keep typed-but-unsaved token when
+        // storage has nothing for this design source.
+        return resolved || prevToken
       })
-    }
+      return next
+    })
     setError('')
-    setHifiData(null)
+    setCompareData(null)
     setActiveDesignId('')
     setActiveCodeFile(null)
     setFindingsMap({})
@@ -578,7 +585,7 @@ export function VisualComparePanel({
    * Run high-fidelity compare for one design↔code pair and wire the board.
    * Does not manage busy overlay — callers own beginBusy/endBusy.
    */
-  async function runHifiCompare(
+  async function runDesignCompare(
     designId: string,
     codeFile: { adapterId: string; relativePath: string },
     force = false,
@@ -586,7 +593,7 @@ export function VisualComparePanel({
     { ok: true; designImageUrl?: string } | { ok: false; error: string }
   > {
     try {
-      const res = await post('/tracescope/v1/hifi-compare', {
+      const res = await post('/tracescope/v1/design-compare', {
         repoPath: repoInput,
         auth,
         figmaUrl: nodeUrl(designId),
@@ -596,8 +603,9 @@ export function VisualComparePanel({
         relativePath: codeFile.relativePath,
         useAI: false,
         force,
+        enrichment: deepEnrichment,
       })
-      setHifiData(res)
+      setCompareData(res)
       setActiveDesignId(designId)
       setActiveCodeFile(codeFile)
       try {
@@ -638,12 +646,12 @@ export function VisualComparePanel({
     force = false,
   ) {
     setError('')
-    setHifiData(null)
+    setCompareData(null)
     setActiveDesignId('')
     setActiveCodeFile(null)
     beginBusy(force ? '正在重新生成界面对比…' : '正在对比设计稿与代码，并生成标注…')
     try {
-      const result = await runHifiCompare(designId, codeFile, force)
+      const result = await runDesignCompare(designId, codeFile, force)
       if (!result.ok) setError(result.error)
       else if (!result.designImageUrl) {
         setError(
@@ -656,7 +664,7 @@ export function VisualComparePanel({
   }
 
   /**
-   * Per-card "AI 协助分析": ensure the hifi board is showing for this page
+   * Per-card "AI 协助分析": ensure the design-compare board is showing for this page
    * (so design raster + static diffs are visible), then fill the session
    * composer with the skill-driven analysis brief.
    */
@@ -666,7 +674,7 @@ export function VisualComparePanel({
   ) {
     setError('')
     const boardReady =
-      !!hifiData &&
+      !!compareData &&
       activeDesignId === designId &&
       activeCodeFile?.adapterId === codeFile.adapterId &&
       activeCodeFile?.relativePath === codeFile.relativePath
@@ -687,11 +695,11 @@ export function VisualComparePanel({
     try {
       let designImageUrl =
         boardReady
-          ? (hifiData as { designImageUrl?: string } | null)?.designImageUrl
+          ? (compareData as { designImageUrl?: string } | null)?.designImageUrl
           : undefined
 
       if (!boardReady) {
-        const compared = await runHifiCompare(designId, codeFile, false)
+        const compared = await runDesignCompare(designId, codeFile, false)
         if (!compared.ok) {
           setError(
             `界面对比失败，已中止 AI 协助分析，避免无效 token 消耗。\n原因：${compared.error}`,
@@ -724,8 +732,8 @@ export function VisualComparePanel({
         designId,
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
-        dynamicRegions: collectDynamicRegionsFromHifi(
-          (hifiData as { codeHifiTree?: HifiTreeLike } | null)?.codeHifiTree,
+        dynamicRegions: collectDynamicRegionsFromTree(
+          (compareData as { codeTree?: DesignTreeLike } | null)?.codeTree,
         ),
       })
       const prompt = (res as { prompt?: string }).prompt
@@ -969,6 +977,31 @@ export function VisualComparePanel({
         </div>
       </label>
 
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+          margin: '0 0 10px',
+          fontSize: 12,
+          color: '#344054',
+          lineHeight: 1.45,
+          cursor: busy ? 'default' : 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={deepEnrichment}
+          disabled={busy}
+          style={{ marginTop: 2 }}
+          onChange={(e) => setDeepEnrichment(e.target.checked)}
+        />
+        <span>
+          <b>适配器深度增强</b>
+          （在通用属性级对比之上，启用各栈已注册的增强能力，如布局引擎、动态区域还原等；关闭则全栈统一走属性级静态解析，更快、结果粒度更一致）
+        </span>
+      </label>
+
       <p style={{ ...S.hint, margin: '2px 0 8px' }}>
         「界面对比」生成设计对照图与静态差异清单；「AI 协助分析」补充/纠正差异项并写回下方清单（不做代码 UI 还原预览）。
         蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。
@@ -1007,7 +1040,7 @@ export function VisualComparePanel({
         />
       </div>
 
-      {hifiData ? (
+      {compareData ? (
         <div
           style={{
             marginTop: 14,
@@ -1022,19 +1055,19 @@ export function VisualComparePanel({
         >
           <div style={{ fontWeight: 700, fontSize: 13 }}>
             当前对比：{String(
-              (hifiData as { designHifiTree?: { name?: string } })?.designHifiTree?.name ?? '',
+              (compareData as { designTree?: { name?: string } })?.designTree?.name ?? '',
             )}
           </div>
           <div style={{ marginTop: 2, color: '#3f6b5c', wordBreak: 'break-all' }}>
             设计稿 ↔ 代码文件：{(activeCodeFile as { relativePath?: string } | null)?.relativePath ??
-              (hifiData as { page?: { relativePath?: string } })?.page?.relativePath ??
+              (compareData as { page?: { relativePath?: string } })?.page?.relativePath ??
               ''}
           </div>
         </div>
       ) : null}
-      {hifiData ? (
-        <HifiCompareBoard
-          data={hifiData as never}
+      {compareData ? (
+        <DesignCompareBoard
+          data={compareData as never}
           findings={
             activeDesignId ? (findingsMap[activeDesignId] as PageFindings) : undefined
           }
@@ -1048,17 +1081,17 @@ export function VisualComparePanel({
           onActionHint={(message) => setError(message)}
           onAiAnalyze={(file) => {
             const designId = String(
-              (hifiData as { designHifiTree?: { id?: string } } | null)?.designHifiTree?.id ?? '',
+              (compareData as { designTree?: { id?: string } } | null)?.designTree?.id ?? '',
             )
             if (designId) aiAnalyzeFromOverview(designId, file)
             else setError('无法确定当前设计节点，请重新进行界面对比。')
           }}
           onRegenerate={() => {
-            const tree = (hifiData as {
-              designHifiTree?: { id?: string }
+            const tree = (compareData as {
+              designTree?: { id?: string }
               page?: { adapterId?: string; relativePath?: string }
             } | null)
-            const designId = String(tree?.designHifiTree?.id ?? '')
+            const designId = String(tree?.designTree?.id ?? '')
             const adapterId = String(tree?.page?.adapterId ?? '')
             const relativePath = String(tree?.page?.relativePath ?? '')
             if (designId && adapterId && relativePath) {

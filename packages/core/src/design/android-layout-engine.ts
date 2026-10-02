@@ -1,5 +1,5 @@
 /**
- * Android high-fidelity static layout engine.
+ * Android static layout engine.
  *
  * Measures and lays out a layout XML using the *design frame's* size as the
  * viewport, so produced coordinates align 1:1 with the design image. Supports
@@ -10,6 +10,9 @@
  *
  * No device or model is required; output is a render tree with absolute boxes
  * and resolved styles/images the client paints with HTML/CSS.
+ *
+ * Naming: prefer {@link LayoutRenderNode} / {@link LayoutNodeKind}. The older
+ * `Hifi*` aliases remain for compatibility.
  */
 import { parseXml, type XmlElement } from './xml-lite.js'
 import type {
@@ -28,12 +31,14 @@ export interface AndroidRenderContext {
   layouts: Record<string, string>
 }
 
-export type HifiNodeKind = 'frame' | 'text' | 'image' | 'view' | 'dynamic'
+export type LayoutNodeKind = 'frame' | 'text' | 'image' | 'view' | 'dynamic'
+/** @deprecated Use {@link LayoutNodeKind} */
+export type HifiNodeKind = LayoutNodeKind
 
-export interface HifiRenderNode {
+export interface LayoutRenderNode {
   id: string
   name: string
-  kind: HifiNodeKind
+  kind: LayoutNodeKind
   /** Absolute position inside the viewport. */
   x: number
   y: number
@@ -209,15 +214,21 @@ export interface HifiRenderNode {
    * AI-inferred child content for a runtime-populated surface (list/pager/web).
    * Coordinates are absolute (same shared space); anchored to real design copy.
    */
-  inferredChildren?: HifiRenderNode[]
-  children: HifiRenderNode[]
+  inferredChildren?: LayoutRenderNode[]
+  children: LayoutRenderNode[]
 }
 
-export interface HifiLayoutResult {
+/** @deprecated Use {@link LayoutRenderNode} */
+export type HifiRenderNode = LayoutRenderNode
+
+export interface LayoutResult {
   width: number
   height: number
-  root: HifiRenderNode
+  root: LayoutRenderNode
 }
+
+/** @deprecated Use {@link LayoutResult} */
+export type HifiLayoutResult = LayoutResult
 
 type SizeSpec = number | 'match' | 'wrap'
 

@@ -1793,7 +1793,7 @@ var init_diff_actions = __esm({
   }
 });
 
-// client-src/visual/HifiCompareBoard.tsx
+// client-src/visual/DesignCompareBoard.tsx
 function relatedRoleLabel(role) {
   switch (role) {
     case "sibling":
@@ -1812,14 +1812,14 @@ function relatedRoleLabel(role) {
       return role || "关联";
   }
 }
-function formatHifiSavedAt(iso) {
+function formatCompareSavedAt(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function diffStoreKey(data) {
-  return `tracescope.diff.edits:${data.page.adapterId}:${data.page.relativePath}:${data.designHifiTree?.id || data.designName || ""}`;
+  return `tracescope.diff.edits:${data.page.adapterId}:${data.page.relativePath}:${data.designTree?.id || data.designName || ""}`;
 }
 function loadDiffOverrides(key) {
   try {
@@ -1836,7 +1836,7 @@ function loadHiddenLayers(key) {
     return [];
   }
 }
-function HifiCompareBoard({
+function DesignCompareBoard({
   data,
   findings,
   onAiAnalyze,
@@ -1907,7 +1907,7 @@ function HifiCompareBoard({
       for (const c of n.inferredChildren ?? []) walk(c);
       for (const c of n.children ?? []) walk(c);
     };
-    walk(data.designHifiTree);
+    walk(data.designTree);
     for (const m of data.designNoteMasks ?? []) {
       put(String(m.nodeId ?? ""), {
         x: m.x,
@@ -1920,7 +1920,7 @@ function HifiCompareBoard({
       });
     }
     return map;
-  }, [data.designHifiTree, data.designNodeBoxes, data.designNoteMasks]);
+  }, [data.designTree, data.designNodeBoxes, data.designNoteMasks]);
   const resolveDesignBox = (0, import_react2.useMemo)(() => {
     const compactIndex = /* @__PURE__ */ new Map();
     const normalizeIndex = /* @__PURE__ */ new Map();
@@ -2059,7 +2059,7 @@ function HifiCompareBoard({
   );
   const actionMeta = {
     repoPath: (repoInput || "").trim(),
-    designName: data.designName || data.designHifiTree?.name || "",
+    designName: data.designName || data.designTree?.name || "",
     designUrl: (designUrl || "").trim(),
     codePath: data.page.relativePath,
     platformLabel: data.page.kindLabel || data.page.adapterId
@@ -2158,7 +2158,7 @@ function HifiCompareBoard({
     for (const id of hiddenLayerIds) {
       const box = resolveDesignBox(id);
       if (!box || box.width <= 0 || box.height <= 0) continue;
-      if (id === data.designHifiTree.id) continue;
+      if (id === data.designTree.id) continue;
       const autoHit = (data.designNoteMasks ?? []).find((m) => m.nodeId === id);
       manual.push({
         text: box.text || box.name || id,
@@ -2180,7 +2180,7 @@ function HifiCompareBoard({
       byId.set(key, m);
     }
     return [...byId.values()];
-  }, [data.designNoteMasks, hiddenLayerIds, resolveDesignBox, data.designHifiTree.id]);
+  }, [data.designNoteMasks, hiddenLayerIds, resolveDesignBox, data.designTree.id]);
   const pickBoxes = (0, import_react2.useMemo)(() => {
     const map = new Map(designBoxById);
     for (const m of data.designNoteMasks ?? []) {
@@ -2276,7 +2276,7 @@ function HifiCompareBoard({
     let bestArea = Number.POSITIVE_INFINITY;
     for (const [id, box] of pickBoxes) {
       if (hiddenLayerIds.includes(id)) continue;
-      if (id === data.designHifiTree.id) continue;
+      if (id === data.designTree.id) continue;
       if (x < box.x || y < box.y || x > box.x + box.width || y > box.y + box.height) continue;
       const area = Math.max(1, box.width * box.height);
       if (area < bestArea) {
@@ -2297,7 +2297,7 @@ function HifiCompareBoard({
     });
     setChatNote("正在读取代码源码、把分析提示填入当前会话输入框…");
   }
-  const modeLabel = data.compareMode === "heuristic" ? "启发式静态" : data.compareMode === "exact" ? "属性级" : null;
+  const modeLabel = data.compareMode === "heuristic" ? "启发式静态" : data.compareMode === "exact" ? data.enrichmentApplied ? `属性级 · 深度增强（${data.enrichmentApplied}）` : "属性级" : null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 12 }, children: [
     data.fromCache && data.savedAt ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
       "div",
@@ -2318,7 +2318,7 @@ function HifiCompareBoard({
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
             "读取自缓存（",
-            formatHifiSavedAt(data.savedAt),
+            formatCompareSavedAt(data.savedAt),
             "），可直接查看；如需最新结果请重新生成。"
           ] }),
           onRegenerate ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.clearBtn, onClick: onRegenerate, children: "重新生成" }) : null
@@ -3125,8 +3125,8 @@ function RasterDesignView({
   );
 }
 var import_react2, import_jsx_runtime2, SEVERITY_RANK, SEVERITY_LABEL, SEVERITY_TEXT, PROP_LABEL, proxyImageCache, eraseSession, COL;
-var init_HifiCompareBoard = __esm({
-  "client-src/visual/HifiCompareBoard.tsx"() {
+var init_DesignCompareBoard = __esm({
+  "client-src/visual/DesignCompareBoard.tsx"() {
     "use strict";
     import_react2 = require("react");
     init_resolve_finding_node();
@@ -3452,7 +3452,7 @@ var VisualComparePanel_exports = {};
 __export(VisualComparePanel_exports, {
   VisualComparePanel: () => VisualComparePanel
 });
-function collectDynamicRegionsFromHifi(root) {
+function collectDynamicRegionsFromTree(root) {
   if (!root) return [];
   const out = [];
   const walk = (n) => {
@@ -3503,9 +3503,6 @@ function writeStorage(key, value) {
   } catch {
   }
 }
-function hasRepoUiConfig(repoInput) {
-  return readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_URL)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_FIGMA_TOKEN)) != null || readStorage(uiRepoKey(repoInput, UI_CONFIG_LANHU_COOKIE)) != null;
-}
 function readRepoUiConfig(repoInput, field) {
   return readStorage(uiRepoKey(repoInput, field)) ?? "";
 }
@@ -3513,8 +3510,9 @@ function readGlobalUiConfig(field) {
   return readStorage(uiGlobalKey(field)) ?? "";
 }
 function resolveUiConfig(repoInput, field) {
-  if (hasRepoUiConfig(repoInput)) return readRepoUiConfig(repoInput, field);
-  return readGlobalUiConfig(field);
+  const repoVal = readRepoUiConfig(repoInput, field).trim();
+  if (repoVal) return repoVal;
+  return readGlobalUiConfig(field).trim();
 }
 function writeUiConfig(repoInput, field, value) {
   const trimmed = value.trim();
@@ -3524,6 +3522,14 @@ function writeUiConfig(repoInput, field, value) {
 function clearUiConfigField(repoInput, field) {
   writeStorage(uiRepoKey(repoInput, field), "");
   writeStorage(uiGlobalKey(field), "");
+}
+function readDeepEnrichmentEnabled() {
+  const raw = readGlobalUiConfig(UI_CONFIG_DEEP_ENRICHMENT);
+  if (raw === "0" || raw === "false") return false;
+  return true;
+}
+function writeDeepEnrichmentEnabled(enabled) {
+  writeStorage(uiGlobalKey(UI_CONFIG_DEEP_ENRICHMENT), enabled ? "1" : "0");
 }
 function labelForDesignUrl(url) {
   try {
@@ -3590,10 +3596,10 @@ function looksLikeLanhuCookie(value) {
 function resolveDesignCredential(repoInput, url) {
   const lanhu = isLikelyLanhuUrl(url);
   const field = lanhu ? UI_CONFIG_LANHU_COOKIE : UI_CONFIG_FIGMA_TOKEN;
-  const dedicated = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, field) : readGlobalUiConfig(field);
+  const dedicated = resolveUiConfig(repoInput, field);
   if (lanhu) {
     if (dedicated.trim()) return dedicated;
-    const legacy = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN) : readGlobalUiConfig(UI_CONFIG_FIGMA_TOKEN);
+    const legacy = resolveUiConfig(repoInput, UI_CONFIG_FIGMA_TOKEN);
     if (legacy.trim() && looksLikeLanhuCookie(legacy)) {
       writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, legacy);
       return legacy;
@@ -3602,7 +3608,7 @@ function resolveDesignCredential(repoInput, url) {
   }
   if (dedicated.trim() && !looksLikeLanhuCookie(dedicated)) return dedicated;
   if (dedicated.trim() && looksLikeLanhuCookie(dedicated)) {
-    const existingLanhu = hasRepoUiConfig(repoInput) ? readRepoUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE) : readGlobalUiConfig(UI_CONFIG_LANHU_COOKIE);
+    const existingLanhu = resolveUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE);
     if (!existingLanhu.trim()) writeUiConfig(repoInput, UI_CONFIG_LANHU_COOKIE, dedicated);
     return "";
   }
@@ -3653,6 +3659,7 @@ function VisualComparePanel({
   const [figmaToken, setFigmaTokenState] = (0, import_react3.useState)(
     () => resolveDesignCredential(repoInput, resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
   );
+  const [deepEnrichment, setDeepEnrichmentState] = (0, import_react3.useState)(() => readDeepEnrichmentEnabled());
   const [savedLinks, setSavedLinks] = (0, import_react3.useState)(() => readSavedLinks());
   const [busy, setBusy] = (0, import_react3.useState)(false);
   const [busyMessage, setBusyMessage] = (0, import_react3.useState)("");
@@ -3676,7 +3683,7 @@ function VisualComparePanel({
     return () => clearInterval(id);
   }, [busy, busyStartedAt]);
   const [error, setError] = (0, import_react3.useState)("");
-  const [hifiData, setHifiData] = (0, import_react3.useState)(null);
+  const [compareData, setCompareData] = (0, import_react3.useState)(null);
   const [activeDesignId, setActiveDesignId] = (0, import_react3.useState)("");
   const [activeCodeFile, setActiveCodeFile] = (0, import_react3.useState)(null);
   const [findingsMap, setFindingsMap] = (0, import_react3.useState)({});
@@ -3705,6 +3712,10 @@ function VisualComparePanel({
     setFigmaTokenState("");
     clearUiConfigField(repoInput, credentialFieldForUrl(figmaUrl));
   };
+  const setDeepEnrichment = (enabled) => {
+    setDeepEnrichmentState(enabled);
+    writeDeepEnrichmentEnabled(enabled);
+  };
   const saveCurrentLink = () => {
     if (!figmaUrl.trim()) return;
     setSavedLinks(rememberSavedLink(figmaUrl));
@@ -3721,20 +3732,17 @@ function VisualComparePanel({
     setSavedLinks(rememberSavedLink(url));
   };
   (0, import_react3.useEffect)(() => {
-    if (hasRepoUiConfig(repoInput)) {
-      const url = readRepoUiConfig(repoInput, UI_CONFIG_FIGMA_URL);
-      setFigmaUrlState(url);
-      setFigmaTokenState(resolveDesignCredential(repoInput, url));
-    } else {
-      const url = readGlobalUiConfig(UI_CONFIG_FIGMA_URL);
-      setFigmaUrlState((prev) => prev || url);
-      setFigmaTokenState((prev) => {
-        if (prev) return prev;
-        return resolveDesignCredential(repoInput, url || prev);
+    const storedUrl = resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL);
+    setFigmaUrlState((prev) => {
+      const next = storedUrl || prev;
+      setFigmaTokenState((prevToken) => {
+        const resolved = resolveDesignCredential(repoInput, next);
+        return resolved || prevToken;
       });
-    }
+      return next;
+    });
     setError("");
-    setHifiData(null);
+    setCompareData(null);
     setActiveDesignId("");
     setActiveCodeFile(null);
     setFindingsMap({});
@@ -3841,9 +3849,9 @@ function VisualComparePanel({
       return figmaUrl;
     }
   }
-  async function runHifiCompare(designId, codeFile, force = false) {
+  async function runDesignCompare(designId, codeFile, force = false) {
     try {
-      const res = await post2("/tracescope/v1/hifi-compare", {
+      const res = await post2("/tracescope/v1/design-compare", {
         repoPath: repoInput,
         auth,
         figmaUrl: nodeUrl(designId),
@@ -3852,9 +3860,10 @@ function VisualComparePanel({
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
         useAI: false,
-        force
+        force,
+        enrichment: deepEnrichment
       });
-      setHifiData(res);
+      setCompareData(res);
       setActiveDesignId(designId);
       setActiveCodeFile(codeFile);
       try {
@@ -3889,12 +3898,12 @@ function VisualComparePanel({
   }
   async function compareFromOverview(designId, codeFile, force = false) {
     setError("");
-    setHifiData(null);
+    setCompareData(null);
     setActiveDesignId("");
     setActiveCodeFile(null);
     beginBusy(force ? "正在重新生成界面对比…" : "正在对比设计稿与代码，并生成标注…");
     try {
-      const result = await runHifiCompare(designId, codeFile, force);
+      const result = await runDesignCompare(designId, codeFile, force);
       if (!result.ok) setError(result.error);
       else if (!result.designImageUrl) {
         setError(
@@ -3907,7 +3916,7 @@ function VisualComparePanel({
   }
   async function aiAnalyzeFromOverview(designId, codeFile) {
     setError("");
-    const boardReady = !!hifiData && activeDesignId === designId && activeCodeFile?.adapterId === codeFile.adapterId && activeCodeFile?.relativePath === codeFile.relativePath;
+    const boardReady = !!compareData && activeDesignId === designId && activeCodeFile?.adapterId === codeFile.adapterId && activeCodeFile?.relativePath === codeFile.relativePath;
     if (!boardReady) {
       const proceed = window.confirm(
         "尚未对该页完成「界面对比」。\n\n继续将先生成界面对比（可能需要几十秒到数分钟），再准备 AI 分析提示词；整体耗时与 token 消耗都会更高。\n\n若设计稿渲染图加载失败，分析质量会明显下降。\n\n是否仍要继续？"
@@ -3919,9 +3928,9 @@ function VisualComparePanel({
     }
     beginBusy(boardReady ? "正在准备 AI 协助分析…" : "正在生成界面对比，随后准备 AI 协助分析…");
     try {
-      let designImageUrl = boardReady ? hifiData?.designImageUrl : void 0;
+      let designImageUrl = boardReady ? compareData?.designImageUrl : void 0;
       if (!boardReady) {
-        const compared = await runHifiCompare(designId, codeFile, false);
+        const compared = await runDesignCompare(designId, codeFile, false);
         if (!compared.ok) {
           setError(
             `界面对比失败，已中止 AI 协助分析，避免无效 token 消耗。
@@ -3951,8 +3960,8 @@ function VisualComparePanel({
         designId,
         adapterId: codeFile.adapterId,
         relativePath: codeFile.relativePath,
-        dynamicRegions: collectDynamicRegionsFromHifi(
-          hifiData?.codeHifiTree
+        dynamicRegions: collectDynamicRegionsFromTree(
+          compareData?.codeTree
         )
       });
       const prompt = res.prompt;
@@ -4189,6 +4198,37 @@ function VisualComparePanel({
         )
       ] })
     ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+      "label",
+      {
+        style: {
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          margin: "0 0 10px",
+          fontSize: 12,
+          color: "#344054",
+          lineHeight: 1.45,
+          cursor: busy ? "default" : "pointer"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: deepEnrichment,
+              disabled: busy,
+              style: { marginTop: 2 },
+              onChange: (e) => setDeepEnrichment(e.target.checked)
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "适配器深度增强" }),
+            "（在通用属性级对比之上，启用各栈已注册的增强能力，如布局引擎、动态区域还原等；关闭则全栈统一走属性级静态解析，更快、结果粒度更一致）"
+          ] })
+        ]
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { style: { ...S.hint, margin: "2px 0 8px" }, children: "「界面对比」生成设计对照图与静态差异清单；「AI 协助分析」补充/纠正差异项并写回下方清单（不做代码 UI 还原预览）。 蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。" }),
     error ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       "p",
@@ -4220,7 +4260,7 @@ function VisualComparePanel({
         rematchApply
       }
     ) }),
-    hifiData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+    compareData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       "div",
       {
         style: {
@@ -4237,20 +4277,20 @@ function VisualComparePanel({
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { fontWeight: 700, fontSize: 13 }, children: [
             "当前对比：",
             String(
-              hifiData?.designHifiTree?.name ?? ""
+              compareData?.designTree?.name ?? ""
             )
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { marginTop: 2, color: "#3f6b5c", wordBreak: "break-all" }, children: [
             "设计稿 ↔ 代码文件：",
-            activeCodeFile?.relativePath ?? hifiData?.page?.relativePath ?? ""
+            activeCodeFile?.relativePath ?? compareData?.page?.relativePath ?? ""
           ] })
         ]
       }
     ) : null,
-    hifiData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      HifiCompareBoard,
+    compareData ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      DesignCompareBoard,
       {
-        data: hifiData,
+        data: compareData,
         findings: activeDesignId ? findingsMap[activeDesignId] : void 0,
         onSendToChat,
         openConfirmDialog,
@@ -4262,14 +4302,14 @@ function VisualComparePanel({
         onActionHint: (message) => setError(message),
         onAiAnalyze: (file) => {
           const designId = String(
-            hifiData?.designHifiTree?.id ?? ""
+            compareData?.designTree?.id ?? ""
           );
           if (designId) aiAnalyzeFromOverview(designId, file);
           else setError("无法确定当前设计节点，请重新进行界面对比。");
         },
         onRegenerate: () => {
-          const tree = hifiData;
-          const designId = String(tree?.designHifiTree?.id ?? "");
+          const tree = compareData;
+          const designId = String(tree?.designTree?.id ?? "");
           const adapterId = String(tree?.page?.adapterId ?? "");
           const relativePath = String(tree?.page?.relativePath ?? "");
           if (designId && adapterId && relativePath) {
@@ -4282,13 +4322,13 @@ function VisualComparePanel({
     ) : null
   ] });
 }
-var import_react3, import_jsx_runtime4, UI_CONFIG_PREFIX, UI_CONFIG_GLOBAL_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, UI_CONFIG_LANHU_COOKIE, SAVED_LINKS_KEY, MAX_SAVED_LINKS, S;
+var import_react3, import_jsx_runtime4, UI_CONFIG_PREFIX, UI_CONFIG_GLOBAL_PREFIX, UI_CONFIG_FIGMA_URL, UI_CONFIG_FIGMA_TOKEN, UI_CONFIG_LANHU_COOKIE, UI_CONFIG_DEEP_ENRICHMENT, SAVED_LINKS_KEY, MAX_SAVED_LINKS, S;
 var init_VisualComparePanel = __esm({
   "client-src/visual/VisualComparePanel.tsx"() {
     "use strict";
     import_react3 = require("react");
     init_PageMappingOverview();
-    init_HifiCompareBoard();
+    init_DesignCompareBoard();
     init_LoadingOverlay();
     import_jsx_runtime4 = require("react/jsx-runtime");
     UI_CONFIG_PREFIX = "tracescope.ui.";
@@ -4296,6 +4336,7 @@ var init_VisualComparePanel = __esm({
     UI_CONFIG_FIGMA_URL = "figmaUrl";
     UI_CONFIG_FIGMA_TOKEN = "figmaToken";
     UI_CONFIG_LANHU_COOKIE = "lanhuCookie";
+    UI_CONFIG_DEEP_ENRICHMENT = "deepEnrichment";
     SAVED_LINKS_KEY = "tracescope.ui.savedFigmaLinks";
     MAX_SAVED_LINKS = 12;
     S = {

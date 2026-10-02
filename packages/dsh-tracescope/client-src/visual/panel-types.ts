@@ -1,6 +1,6 @@
 /**
  * Shared visual-panel types. Kept in their own module so leaf components
- * (FindingsSection, HifiCompareBoard) can import them without pulling in the
+ * (FindingsSection, DesignCompareBoard) can import them without pulling in the
  * VisualComparePanel module (which would create a circular import).
  */
 

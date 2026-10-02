@@ -5,6 +5,14 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.4 — 2026-10-02
+
+- **文档**：README 收敛为核心能力与安装；详细功能 / 深度增强 / 已知限制迁至 [docs/GUIDE.md](./docs/GUIDE.md)。
+- **设计静态对比命名清理**：API `/design-compare`（保留 `/hifi-compare` 别名）；结果字段 `designTree` / `codeTree`；核心类型优先 `LayoutRenderNode`。
+- **Enrichment 插件化**：Android XML 布局引擎与动态列表还原抽到 `design-enrichment/`，主对比路径不再按适配器硬分叉；侧栏可勾选「适配器深度增强」。
+- **修复**：切换代码仓库时，同一设计稿的 Figma Token / 蓝湖 Cookie 按字段回退到全局保存，不再被空的仓库覆盖清空。
+- Docs split (slim README + GUIDE); design-static rename + enrichment toggle; fix design credentials surviving repo switches.
+
 ## 0.2.3 — 2026-10-01
 
 - 正式发布上一版修复（桌面端 `untrusted request`）；`0.2.2` 曾卡在 npm staged 未上线。

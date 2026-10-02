@@ -491,7 +491,7 @@ export interface VisualFinding {
 /**
  * One node the model infers for a runtime-populated / poorly-rendered code
  * region. Coordinates (`rx`/`ry`) are relative to the patched target's
- * top-left, matching the static engine's {@link HifiRenderNode} content.
+ * top-left, matching the static engine's {@link LayoutRenderNode} content.
  */
 export interface VisualRenderNodePatch {
   kind?: 'text' | 'image' | 'view' | 'frame' | 'icon'

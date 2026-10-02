@@ -38,9 +38,15 @@ Figma or Lanhu is the source of truth. Compare is **static** (no app runtime / n
 1. **Discover** code pages via `PlatformAdapter` registry (`packages/core/src/design/registry.ts`)
 2. **Match** design ↔ page by fingerprint (L0); near-ties prefer specialized stacks (uni-app / Taro / miniprogram / …)
 3. **Compare** exact `DesignDoc` trees when the adapter can build one (L1), else heuristic text/control checks (L2)
-4. **AI assist** (L3) builds a source reading list; design raster from Figma `/images` or Lanhu cover; Android XML still gets layout dependency closure, other stacks get entry + sibling files
+4. **AI assist** (L3) builds a source reading list; design raster from Figma `/images` or Lanhu cover; related-file closure comes from the adapter path (or enrichment)
 
 Adapters cover Android (XML / Compose / View), iOS (Xib / SwiftUI / UIKit), Flutter, React Native, Harmony ArkUI, Web (HTML / React / Vue / Svelte / Angular), miniprograms (WXML / AXML / TTML / Swan), uni-app, Taro, and .NET MAUI XAML.
+
+### Enrichment (stack extras, not forks)
+
+The main compare path (`compareDesignStatic` → `/tracescope/v1/design-compare`) is adapter-agnostic. Stacks that need more than `toDesignDoc` (e.g. Android XML layout engine + RecyclerView item expand) register a **design enrichment** plugin under `packages/dsh-tracescope/src/design-enrichment/`. Enrichments may supply related-file fingerprints and/or a code-side `DesignDoc` + wire tree; when absent, the shared path uses `toDesignDoc` / heuristic.
+
+Legacy route `/tracescope/v1/hifi-compare` and `Hifi*` type aliases remain as compatibility shims.
 
 ## DSH note
 
@@ -53,6 +59,8 @@ Adapters cover Android (XML / Compose / View), iOS (Xib / SwiftUI / UIKit), Flut
 
 ## Intentional non-goals (for now)
 
-- Splitting mega-files (`visual-flow.ts`, design adapters) — high churn / risk; do in dedicated refactors.
+- Splitting remaining mega-files (design adapters) — high churn / risk; do in dedicated refactors.
 - Deleting `panel-server.ts` legacy `/api/*` — still used by standalone MCP panel open.
 - Scaffold packages `adapters/*` and `browser-extension` — out of 0.2.x delivery scope.
+
+Product-facing limits and enrichment status: [docs/GUIDE.md](./docs/GUIDE.md) / [docs/GUIDE.en.md](./docs/GUIDE.en.md).
