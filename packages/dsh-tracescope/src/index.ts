@@ -18,6 +18,7 @@ import { registerDataDirRoutes } from './routes/data-dir.js'
 import { registerYunxiaoCatalogRoutes } from './routes/yunxiao-catalog.js'
 import { registerJobsRoutes } from './routes/jobs.js'
 import { registerVisualRoutes } from './routes/visual.js'
+import { registerSelfUpdateRoutes } from './routes/self-update.js'
 
 import { registerListCommitsTool } from './tools/list-commits-tool.js'
 import { registerAnalyzeImpactTool } from './tools/analyze-impact-tool.js'
@@ -47,6 +48,7 @@ export function apply(ctx: Context) {
   registerDataDirRoutes(ctx)
   registerYunxiaoCatalogRoutes(ctx)
   registerJobsRoutes(ctx)
+  registerSelfUpdateRoutes(ctx)
 
   // Agent-facing tools (parity with @rebornace/tracescope-mcp).
   registerListCommitsTool(ctx)

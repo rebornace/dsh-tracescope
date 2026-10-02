@@ -29,6 +29,7 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 | Start page rematch | `tracescope_start_page_rematch` | tool + sidebar「重新推荐文件」 |
 | Publish rematch picks | `tracescope_publish_page_rematch` | tool |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
+| Self-update (npm check / install) | — | Host `/tracescope/v1/self-update/check` + client seats (detail Update / sidebar); no MCP |
 | Crash adapters / USB / extension | future MCP tools | future Host/Client surfaces |
 
 ## Design UI review (design-only)
@@ -56,6 +57,18 @@ Legacy route `/tracescope/v1/hifi-compare` and `Hifi*` type aliases remain as co
 - Harness can also consume `@rebornace/tracescope-mcp` via `@deepseek-ai/dsh-mcp-client` if desired.
 - Shared agent execute layer: `@rebornace/dsh-tracescope/agent-api` (MCP + Host tools + `/jobs`).
 - Impact-analysis indexing skips dependency/build dirs (`SKIP_DIR_NAMES`) and caches per commit in-process.
+
+### Self-update (no dshmarket hard dependency)
+
+| Piece | Role |
+|-------|------|
+| `GET /tracescope/v1/self-update/check` | Compare installed version to npm / npmmirror `latest` |
+| Client `self-update.js` | Apply via official `pluginManager.installBundle` first; optional dshmarket Update API only if present; else CLI / Extension Dock copy |
+| `plugins.detail.actions` | Update control next to Uninstall on the bundle detail page |
+| `plugins.bundle.config` | Always-open status card on the same page (do not also register `plugins.detail.section` — duplicates the card) |
+| Sidebar «检查更新» | Same check / apply path as the detail seats |
+
+The Host does **not** auto-draw Update for third-party bundles; TraceScope registers the seats itself. Product-facing steps: [docs/GUIDE.md §7](./docs/GUIDE.md#7-更新本插件).
 
 ## Intentional non-goals (for now)
 

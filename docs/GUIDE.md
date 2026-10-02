@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.2.4`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.2.5`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -15,9 +15,10 @@
 4. [适配器深度增强](#4-适配器深度增强)
 5. [设计稿凭证与仓库切换](#5-设计稿凭证与仓库切换)
 6. [协作平台与本机数据](#6-协作平台与本机数据)
-7. [MCP 工具一览](#7-mcp-工具一览)
-8. [已知限制](#8-已知限制)
-9. [路线图（非本版交付）](#9-路线图非本版交付)
+7. [更新本插件](#7-更新本插件)
+8. [MCP 工具一览](#8-mcp-工具一览)
+9. [已知限制](#9-已知限制)
+10. [路线图（非本版交付）](#10-路线图非本版交付)
 
 ---
 
@@ -164,7 +165,45 @@ Compose、iOS、Flutter、RN、Web、小程序等：**不因开关而走安卓�
 
 ---
 
-## 7. MCP 工具一览
+## 7. 更新本插件
+
+自更新**不绑定** dshmarket：官方桌面端即使未安装插件市场，也可检查与安装新版本。
+
+### 7.1 检查从哪里来
+
+Host 同域接口 `GET /tracescope/v1/self-update/check`：读取本包当前版本，向 **npmmirror → npmjs** 查询 `latest`，并返回是否可升级、建议安装的 spec，以及 CLI / 桌面端提示文案。
+
+### 7.2 安装怎么走（优先级）
+
+1. **官方插件管理器** `pluginManager.installBundle`（按检查结果装到 npm 最新版；桌面端 / Web 插件页自带）  
+2. **可选**：若本机已装 dshmarket，才尝试其公开 Update API（不是前置条件）  
+3. **兜底提示**：扩展坞（Extension Dock）或命令行，例如：
+
+```bash
+dsh plugin --profile desktop add @rebornace/dsh-tracescope
+```
+
+安装成功后请在**桌面端重启** Harness 使新版本生效。
+
+### 7.3 界面入口
+
+| 入口 | 行为 |
+|------|------|
+| 插件 → TraceScope 详情 → **卸载旁「更新」** | 进页自动检查；有新版本显示「更新到 x.y.z」，一点即装；已最新则显示「已最新」 |
+| 插件 → TraceScope 详情 → **更新状态卡** | 始终展开（不折叠）；可重新检查 / 更新 |
+| 侧栏 TraceScope 标题旁 **「检查更新」** | 与上同一套 Host / 安装逻辑 |
+
+说明：Host **不会**给第三方插件自动画「更新」按钮；详情页上的按钮与状态卡由 TraceScope 客户端注册（`plugins.detail.actions` + `plugins.bundle.config`）。
+
+### 7.4 与插件市场的关系
+
+- 社区市场卡片版本可能滞后于 npm `latest`；自更新对照的是 registry，不是市场列表。  
+- 未装市场时功能完整；装了市场也只是多一条可选安装路径。  
+- 桌面端若启用 `minimumReleaseAge` 等策略，极新版本可能需等待，或在 UI 中使用强制路径 / 显式 pin 版本号。
+
+---
+
+## 8. MCP 工具一览
 
 包：`@rebornace/tracescope-mcp`。执行层与 DSH 共用 `@rebornace/dsh-tracescope/agent-api`。
 
@@ -184,15 +223,15 @@ Compose、iOS、Flutter、RN、Web、小程序等：**不因开关而走安卓�
 
 ---
 
-## 8. 已知限制
+## 9. 已知限制
 
-### 8.1 功能影响分析
+### 9.1 功能影响分析
 
 - **云效代码接口**模式没有本地静态波及；要波及分析请用本地 Git  
 - 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`  
 - GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制  
 
-### 8.2 设计差异分析
+### 9.2 设计差异分析
 
 - 对比为**静态**，不替代真机 / 浏览器运行时截图比对  
 - 各栈 L1 属性覆盖面不一致；「能发现页面」≠「与 Android XML 增强同级」  
@@ -200,14 +239,15 @@ Compose、iOS、Flutter、RN、Web、小程序等：**不因开关而走安卓�
 - 蓝湖自动匹配受项目结构 / Cookie 权限影响，可能需要手动指定代码文件  
 - 设计对照图依赖 Figma / 蓝湖出图；链接过期或凭证失效时需重新对比  
 
-### 8.3 安装与分发
+### 9.3 安装与分发
 
 - 社区插件市场卡片上的版本号可能滞后于 npm `latest`；以 npm 与侧栏实际版本为准  
 - 桌面端若启用 `minimumReleaseAge` 等策略，新发布包可能需等待或显式 pin 版本号安装  
+- 自更新不依赖 dshmarket；未装市场时用插件详情「更新」或 CLI 即可（见 [§7](#7-更新本插件)）  
 
 ---
 
-## 9. 路线图（非本版交付）
+## 10. 路线图（非本版交付）
 
 - 友盟 Adapter、Android USB、浏览器扩展录制等  
 - 仓库内 `adapters/*`、`browser-extension` 脚手架：**未纳入 0.2.x 交付**  

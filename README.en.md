@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.4`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.2.5`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with two core capabilities:
 
@@ -40,17 +40,30 @@ Details (adapter deep enrichment, credential memory, limitations): [User Guide](
 Package: [`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope). Trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope); market cards can lag.
 
 1. Open **Plugins**; remove an older `@rebornace/dsh-tracescope` if present
-2. Add `@rebornace/dsh-tracescope@0.2.4` (or `@latest`)
-3. Confirm sidebar **0.2.4+**, open **TraceScope**
+2. Add `@rebornace/dsh-tracescope`
+3. Open **TraceScope**; later use the detail / sidebar **Update** controls for newer releases
 
 CLI (optional):
 
 ```bash
 dsh plugin --profile desktop remove @rebornace/dsh-tracescope
-dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.4
+dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
-Catalogs: [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins)  [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+Catalogs: [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) · [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+
+### Updating this plugin
+
+**No dshmarket dependency.** After checking [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope):
+
+| Entry | Notes |
+|-------|--------|
+| **Plugin detail → Update next to Uninstall** | Auto-checks on open; one click installs (official `pluginManager` first) |
+| **Plugin detail → update status card** | Always expanded; re-check / update |
+| **Sidebar TraceScope → Check for updates** | Same flow |
+| **CLI** | `dsh plugin --profile desktop add @rebornace/dsh-tracescope`, then restart |
+
+Restart Desktop Harness after updating. Details: [User Guide · Updating](./docs/GUIDE.en.md#7-updating-this-plugin).
 
 ## Development & MCP
 
@@ -58,7 +71,7 @@ Catalogs: [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome
 pnpm install && pnpm build && pnpm test
 ```
 
-MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#7-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
+MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#8-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 
 ## License
 
