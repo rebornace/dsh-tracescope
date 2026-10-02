@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.2.4`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
+**版本: `0.2.5`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
 
 TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心能力：
 
@@ -40,17 +40,30 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心�
 插件包：[`@rebornace/dsh-tracescope`](https://www.npmjs.com/package/@rebornace/dsh-tracescope)。**以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 为准**；社区市场卡片版本可能滞后。
 
 1. 打开桌面端 **插件**；若已装旧版，先移除 `@rebornace/dsh-tracescope`
-2. 添加：`@rebornace/dsh-tracescope@0.2.4`（或 `@latest`）
-3. 确认侧栏版本为 **0.2.4+** 后打开 **TraceScope**
+2. 添加：`@rebornace/dsh-tracescope`
+3. 打开 **TraceScope**；之后可用插件详情 / 侧栏的「更新」跟进新版本
 
 命令行（可选）：
 
 ```bash
 dsh plugin --profile desktop remove @rebornace/dsh-tracescope
-dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.4
+dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
 社区收录：[awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) · [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+
+### 更新本插件
+
+**不依赖**社区插件市场（dshmarket）。对照 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 后：
+
+| 入口 | 说明 |
+|------|------|
+| **插件详情 → 卸载旁「更新」** | 进页自动检查；有新版本一点即装（官方插件管理器优先） |
+| **插件详情 → 更新状态卡** | 始终展开，可重新检查 / 更新 |
+| **侧栏 TraceScope →「检查更新」** | 同一套逻辑 |
+| **命令行** | `dsh plugin --profile desktop add @rebornace/dsh-tracescope` 后重启 |
+
+更新后请在桌面端重启 Harness。完整说明见 [功能说明 · 更新本插件](./docs/GUIDE.md#7-更新本插件)。
 
 ## 开发与 MCP
 
@@ -58,7 +71,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope@0.2.4
 pnpm install && pnpm build && pnpm test
 ```
 
-MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#7-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
+MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#8-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
 
 ## License
 

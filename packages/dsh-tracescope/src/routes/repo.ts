@@ -16,7 +16,15 @@ import {
   parseGitAuth,
   resolveGitRepo,
 } from '@rebornace/tracescope-core'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { stat } from 'node:fs/promises'
+
+const pkgJson = JSON.parse(
+  // Bundled entry lives in dist/; package.json is one level up.
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../package.json'), 'utf8'),
+) as { name?: string; version?: string }
 
 export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
@@ -25,6 +33,8 @@ export function registerRepoRoutes(ctx: Context) {
     run: async () => ({
       ok: true,
       name: 'tracescope',
+      packageName: pkgJson.name || '@rebornace/dsh-tracescope',
+      version: pkgJson.version || null,
       chatDrivenModel: true,
     }),
   })

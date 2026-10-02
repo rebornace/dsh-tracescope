@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.2.4`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.2.5`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -90,14 +90,52 @@ Local root: `~/.tracescope/` (auth, trackers, reports, attachments, caches).
 
 ---
 
-## 7. MCP tools
+## 7. Updating this plugin
+
+Self-update does **not** require dshmarket. Official Desktop without the community market can still check and install.
+
+### Check
+
+Host route `GET /tracescope/v1/self-update/check` reads the installed version, queries **npmmirror → npmjs** for `latest`, and returns whether an upgrade exists plus CLI / Desktop hints.
+
+### Apply (priority)
+
+1. Official **`pluginManager.installBundle`** (installs the npm latest from the check; Desktop / Web Plugins page)  
+2. **Optional**: dshmarket Update API only if the market is already installed  
+3. **Fallback copy**: Extension Dock or CLI, e.g.
+
+```bash
+dsh plugin --profile desktop add @rebornace/dsh-tracescope
+```
+
+Restart Desktop Harness after a successful install.
+
+### UI seats
+
+| Entry | Behavior |
+|-------|----------|
+| Plugins → TraceScope detail → **Update next to Uninstall** | Auto-check on open; one-click install when newer |
+| Plugins → TraceScope detail → **update status card** | Always expanded; re-check / update |
+| Sidebar TraceScope → **Check for updates** | Same Host / install path |
+
+The Host does not auto-draw Update for third-party bundles; TraceScope registers `plugins.detail.actions` and `plugins.bundle.config`.
+
+### Market relationship
+
+- Market cards can lag npm `latest`; self-update trusts the registry.  
+- No market required; an installed market is only an optional apply path.  
+- Desktop `minimumReleaseAge` (or similar) may delay brand-new publishes; pin a version or use a force path when offered.
+
+---
+
+## 8. MCP tools
 
 Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:  
 `open_panel`, `list_commits`, `get_diff`, `analyze_impact`, hand-test create/publish, visual review + snapshot + findings, page rematch create/publish.
 
 ---
 
-## 8. Known limitations
+## 9. Known limitations
 
 **Impact**
 
@@ -117,10 +155,11 @@ Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:
 
 - Market card versions can lag npm `latest`  
 - Desktop `minimumReleaseAge` (or similar) may delay fresh publishes; pin a version if needed  
+- Self-update does not need dshmarket; use the detail **Update** control or CLI ([§7](#7-updating-this-plugin))  
 
 ---
 
-## 9. Out of 0.2.x scope
+## 10. Out of 0.2.x scope
 
 Umeng adapter, Android USB, browser recording; scaffold packages `adapters/*` and `browser-extension`.
 

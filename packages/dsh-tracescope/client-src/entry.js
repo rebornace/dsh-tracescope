@@ -16,6 +16,8 @@
     var useRef = React.useRef
 
     var VisualComparePanel = require('./visual/VisualComparePanel.tsx').VisualComparePanel
+    var selfUpdate = require('./self-update.js')
+    var registerPluginSettings = require('./register-plugin-settings.js').registerPluginSettings
 
     var TAB_ID = '@rebornace/dsh-tracescope'
     /**
@@ -1334,6 +1336,102 @@
         if (opening && !dataDirInfo) refreshDataDir()
       }
 
+      function resetUpdatePanel() {
+        setUpdateCanForce(false)
+        setUpdateOfferRestart(false)
+      }
+
+      function toggleUpdatePanel(next) {
+        var opening = typeof next === 'boolean' ? next : !updateOpen
+        setUpdateOpen(opening)
+        if (opening && !updateInfo && !updateBusy && !updateMessage) {
+          runCheckUpdate()
+        }
+      }
+
+      function runCheckUpdate() {
+        if (updateBusy) return
+        setUpdateOpen(true)
+        setUpdateBusy(true)
+        setUpdateMessage('正在检查 npm 最新版本…')
+        resetUpdatePanel()
+        setUpdateInfo(null)
+        selfUpdate
+          .checkSelfUpdate()
+          .then(function (info) {
+            setUpdateInfo(info)
+            setUpdateDiscovery({ channel: 'self', applyHint: info.applyHint })
+            if (info.installedVersion) setPluginVersion(info.installedVersion)
+            if (info.updateAvailable) {
+              setUpdateMessage(
+                '发现新版本 ' +
+                  (info.latestVersion || '?') +
+                  '（当前 ' +
+                  (info.installedVersion || '?') +
+                  '）' +
+                  (info.registrySource ? ' · ' + info.registrySource : ''),
+              )
+            } else if (!info.latestVersion) {
+              setUpdateMessage('未能从 npm 读取最新版本，请检查网络后重试。')
+            } else {
+              setUpdateMessage(
+                '已是最新' + (info.installedVersion ? '（' + info.installedVersion + '）' : '') + '。',
+              )
+            }
+          })
+          .catch(function (err) {
+            setUpdateMessage('检查更新失败：' + (err.message || String(err)))
+          })
+          .finally(function () {
+            setUpdateBusy(false)
+          })
+      }
+
+      function runApplyUpdate(force) {
+        if (updateBusy) return
+        setUpdateBusy(true)
+        setUpdateMessage(force ? '正在强制更新…' : '正在更新…')
+        resetUpdatePanel()
+        var ensureInfo = updateInfo
+          ? Promise.resolve(updateInfo)
+          : selfUpdate.checkSelfUpdate().then(function (info) {
+              setUpdateInfo(info)
+              return info
+            })
+        ensureInfo
+          .then(function (info) {
+            return selfUpdate.applySelfUpdate(info, hostCtx, {
+              force: force === true,
+              onProgress: function (msg) {
+                setUpdateMessage(msg)
+              },
+            })
+          })
+          .then(function (result) {
+            if (result.installedVersion) setPluginVersion(result.installedVersion)
+            if (result.ok) {
+              setUpdateInfo(function (prev) {
+                return Object.assign({}, prev || {}, {
+                  installedVersion: result.installedVersion || (prev && prev.installedVersion),
+                  latestVersion: result.installedVersion || (prev && prev.latestVersion),
+                  updateAvailable: false,
+                })
+              })
+              setUpdateMessage(result.message)
+              setUpdateOfferRestart(false)
+              return
+            }
+            setUpdateMessage(result.message || '更新失败')
+            setUpdateCanForce(!!result.canForce || selfUpdate.forceRetryable(result.failure && result.failure.code))
+          })
+          .catch(function (err) {
+            setUpdateMessage('更新失败：' + (err.message || String(err)))
+          })
+          .finally(function () {
+            setUpdateBusy(false)
+          })
+      }
+
       function applyDataDir() {
         if (dataDirBusy) return
         var target = String(dataDirDraft || '').trim()
@@ -1537,6 +1635,31 @@
       var _health = useState('检查中…')
       var health = _health[0]
       var setHealth = _health[1]
+      var _pluginVersion = useState(null)
+      var pluginVersion = _pluginVersion[0]
+      var setPluginVersion = _pluginVersion[1]
+      // Self-update panel — npm check + official pluginManager (market optional).
+      var _updateOpen = useState(false)
+      var updateOpen = _updateOpen[0]
+      var setUpdateOpen = _updateOpen[1]
+      var _updateBusy = useState(false)
+      var updateBusy = _updateBusy[0]
+      var setUpdateBusy = _updateBusy[1]
+      var _updateDiscovery = useState(null)
+      var updateDiscovery = _updateDiscovery[0]
+      var setUpdateDiscovery = _updateDiscovery[1]
+      var _updateInfo = useState(null)
+      var updateInfo = _updateInfo[0]
+      var setUpdateInfo = _updateInfo[1]
+      var _updateMessage = useState('')
+      var updateMessage = _updateMessage[0]
+      var setUpdateMessage = _updateMessage[1]
+      var _updateCanForce = useState(false)
+      var updateCanForce = _updateCanForce[0]
+      var setUpdateCanForce = _updateCanForce[1]
+      var _updateOfferRestart = useState(false)
+      var updateOfferRestart = _updateOfferRestart[0]
+      var setUpdateOfferRestart = _updateOfferRestart[1]
       var AUTH_KEY = 'tracescope.auth'
       var AUTH_UI_MODE_KEY = 'tracescope.authUiMode'
       var savedAuth = null
@@ -2024,8 +2147,9 @@
 
       useEffect(function () {
         apiGet('/tracescope/v1/health')
-          .then(function () {
+          .then(function (data) {
             setHealth('已连接')
+            if (data && data.version) setPluginVersion(data.version)
           })
           .catch(function () {
             setHealth('Host API 未就绪')
@@ -3802,7 +3926,9 @@
                   jsx('strong', { children: 'TraceScope 测试工作台' }),
                   jsx('span', {
                     style: { color: busy ? '#0f6e56' : '#6b645a', fontSize: 12 },
-                    children: busy ? busyMessage || '处理中…' : health,
+                    children: busy
+                      ? busyMessage || '处理中…'
+                      : health + (pluginVersion ? ' · v' + pluginVersion : ''),
                   }),
                 ],
               }),
@@ -3813,6 +3939,8 @@
                   alignItems: 'center',
                   gap: 8,
                   flex: '0 0 auto',
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
                 },
                 children: [
                   jsxs('label', {
@@ -3843,6 +3971,27 @@
                   }),
                   jsx('button', {
                     type: 'button',
+                    title: '对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）',
+                    disabled: busy || updateBusy,
+                    onClick: function () {
+                      toggleUpdatePanel()
+                    },
+                    style: Object.assign(
+                      {},
+                      styles.miniBtn,
+                      updateOpen || (updateInfo && updateInfo.updateAvailable)
+                        ? styles.miniBtnActive
+                        : null,
+                    ),
+                    children:
+                      updateBusy
+                        ? '更新中…'
+                        : updateInfo && updateInfo.updateAvailable
+                          ? '有更新'
+                          : '检查更新',
+                  }),
+                  jsx('button', {
+                    type: 'button',
                     title: '自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘',
                     disabled: busy,
                     onClick: function () {
@@ -3859,6 +4008,80 @@
               }),
             ],
           }),
+          updateOpen
+            ? jsxs('div', {
+                style: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  padding: 8,
+                  marginTop: 2,
+                  background: 'var(--dsh-card, #fffdf8)',
+                  border: '1px solid var(--dsh-border, #ddd4c5)',
+                  borderRadius: 10,
+                },
+                children: [
+                  jsx('div', {
+                    style: {
+                      fontSize: 12,
+                      color: '#5d564c',
+                      lineHeight: 1.45,
+                      whiteSpace: 'pre-wrap',
+                    },
+                    children:
+                      updateMessage ||
+                      '对照 npm 检查版本。优先走官方插件管理器；若环境没有，会提示扩展坞或 CLI。无需安装插件市场。',
+                  }),
+                  jsxs('div', {
+                    style: Object.assign({}, styles.row, { gap: 6 }),
+                    children: [
+                      jsx('button', {
+                        type: 'button',
+                        style: styles.secondary,
+                        disabled: updateBusy,
+                        onClick: function () {
+                          runCheckUpdate()
+                        },
+                        children: updateBusy ? '请稍候…' : '重新检查',
+                      }),
+                      updateInfo && updateInfo.updateAvailable
+                        ? jsx('button', {
+                            type: 'button',
+                            style: styles.primary,
+                            disabled: updateBusy,
+                            onClick: function () {
+                              runApplyUpdate(false)
+                            },
+                            children:
+                              '更新到 ' + (updateInfo.latestVersion || '最新版'),
+                          })
+                        : null,
+                      updateCanForce
+                        ? jsx('button', {
+                            type: 'button',
+                            style: styles.secondary,
+                            disabled: updateBusy,
+                            title: '在可选路径上强制再装',
+                            onClick: function () {
+                              runApplyUpdate(true)
+                            },
+                            children: '强制更新',
+                          })
+                        : null,
+                      jsx('button', {
+                        type: 'button',
+                        style: styles.miniBtn,
+                        disabled: updateBusy,
+                        onClick: function () {
+                          setUpdateOpen(false)
+                        },
+                        children: '收起',
+                      }),
+                    ],
+                  }),
+                ],
+              })
+            : null,
           // Compact data-directory editor (global preference), inline under header.
           dataDirOpen
             ? jsxs('div', {
@@ -6304,6 +6527,14 @@
 
     function apply(ctx) {
       hostCtx = ctx
+      // Plugins detail / configuration seats (Desktop bundle page + older settings cards).
+      // Host does not auto-draw Update; we register our own card.
+      try {
+        selfUpdate.setSelfUpdateHostCtx(ctx)
+        registerPluginSettings(ctx)
+      } catch (err) {
+        console.warn('[tracescope] plugin settings registration skipped', err)
+      }
       // Page-type tab: no patterns; discoverable via the right-sidebar Guide capsule.
       ctx.effect(function () {
         return ctx.sidebarRightTabs.register({

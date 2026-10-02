@@ -5,6 +5,14 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.5 — 2026-10-02
+
+- **插件自更新（不依赖 dshmarket）**：Host `GET /tracescope/v1/self-update/check` 对照 npm / npmmirror；安装优先官方 `pluginManager.installBundle`，未就绪时提示扩展坞或 `dsh plugin add`；仅当本机已装市场时才可选走市场 Update API。
+- **桌面端插件详情**：卸载旁提供「更新」按钮（进页自动检查）；配置区为始终展开的状态卡（不再折叠、不重复挂第二张卡）。
+- **侧栏**：标题旁「检查更新」使用同一套自更新逻辑。
+- **安装说明**：文档与命令行示例不再钉死版本号；装上本版后可用上述入口跟进后续发布。
+- Self-update without dshmarket (npm check + official pluginManager); Desktop detail Update action + always-open status card; sidebar check-update; install docs drop pinned versions.
+
 ## 0.2.4 — 2026-10-02
 
 - **文档**：README 收敛为核心能力与安装；详细功能 / 深度增强 / 已知限制迁至 [docs/GUIDE.md](./docs/GUIDE.md)。

@@ -9,23 +9,23 @@ var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __esm = (fn, res, err) => function __init() {
-  if (err) throw err[0];
+var __esm = (fn, res, err2) => function __init() {
+  if (err2) throw err2[0];
   try {
     return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
   } catch (e) {
-    throw err = [e], e;
+    throw err2 = [e], e;
   }
 };
 var __export = (target, all) => {
   for (var name2 in all)
     __defProp(target, name2, { get: all[name2], enumerable: true });
 };
-var __copyProps = (to, from, except, desc) => {
+var __copyProps = (to, from, except, desc2) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc2 = __getOwnPropDesc(from, key)) || desc2.enumerable });
   }
   return to;
 };
@@ -52,9 +52,9 @@ function enqueue(task) {
           release();
           resolve(value);
         },
-        (err) => {
+        (err2) => {
           release();
-          reject(err);
+          reject(err2);
         }
       );
     });
@@ -66,8 +66,8 @@ async function queueThumbnail(task) {
   for (let tryIndex = 0; tryIndex < MAX_TRIES; tryIndex += 1) {
     try {
       return await enqueue(task);
-    } catch (err) {
-      lastError = err;
+    } catch (err2) {
+      lastError = err2;
       if (tryIndex < MAX_TRIES - 1) {
         await sleep(400 * 2 ** tryIndex + Math.floor(Math.random() * 200));
       }
@@ -113,8 +113,8 @@ function flushBucket(bucket) {
       if (url) urlCache.set(w.cacheKey, url);
       w.resolve(url);
     }
-  }).catch((err) => {
-    for (const w of waiters) w.reject(err);
+  }).catch((err2) => {
+    for (const w of waiters) w.reject(err2);
   });
 }
 function requestPageThumbnail(opts) {
@@ -192,12 +192,12 @@ function parseNodeIdFromFigmaUrl(url) {
     return "";
   }
 }
-async function post(path, body) {
+async function post(path, body2) {
   const r = await fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body2)
   });
   const text = await r.text();
   let data = {};
@@ -266,8 +266,8 @@ function PageMappingOverview({
     setRematchingId(designId);
     try {
       await onAiRematch(designId, selections[designId]);
-    } catch (err) {
-      setLocalError(err.message || "准备推荐提示词失败");
+    } catch (err2) {
+      setLocalError(err2.message || "准备推荐提示词失败");
     } finally {
       setRematchingId("");
     }
@@ -328,8 +328,8 @@ function PageMappingOverview({
         }
       }
       persist(next);
-    } catch (err) {
-      setLocalError(err.message);
+    } catch (err2) {
+      setLocalError(err2.message);
     } finally {
       setScanning(false);
       onScanStateChange(false);
@@ -1612,7 +1612,7 @@ function scoreNode(node, hints) {
   const name2 = normalize(node.name || "");
   const text = normalize(node.text || "");
   const loc = normalize(hints.location || "");
-  const title = normalize(hints.title || "");
+  const title2 = normalize(hints.title || "");
   const expected = normalize(hints.expected || "");
   let score = 0;
   if (expected && text) {
@@ -1625,8 +1625,8 @@ function scoreNode(node, hints) {
     if (name2 === loc) score += 90;
     else if (loc.length >= 2 && (name2.includes(loc) || loc.includes(name2))) score += 50;
   }
-  if (title && name2 && name2.length >= 2 && title.includes(name2)) score += 35;
-  if (title && text && text.length >= 2 && title.includes(text)) score += 40;
+  if (title2 && name2 && name2.length >= 2 && title2.includes(name2)) score += 35;
+  if (title2 && text && text.length >= 2 && title2.includes(text)) score += 40;
   if (loc && text && text.length >= 2 && (loc.includes(text) || text.includes(loc))) score += 25;
   const w = Math.max(1, Number(node.width) || 1);
   const h = Math.max(1, Number(node.height) || 1);
@@ -2064,38 +2064,38 @@ function DesignCompareBoard({
     codePath: data.page.relativePath,
     platformLabel: data.page.kindLabel || data.page.adapterId
   };
-  const hint = (message) => {
+  const hint2 = (message) => {
     setChatNote(message);
     onActionHint?.(message);
   };
   const copyDiffs = async () => {
     const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
     if (!targets.length) {
-      hint(selectedKeys.size ? "当前选中项无可复制差异" : "当前没有可复制的差异");
+      hint2(selectedKeys.size ? "当前选中项无可复制差异" : "当前没有可复制的差异");
       return;
     }
     try {
       await copyTextToClipboard(formatVisualDiffCopyText(targets, actionMeta));
-      hint(`已复制 ${targets.length} 条差异`);
-    } catch (err) {
-      hint(`复制失败：${err.message}`);
+      hint2(`已复制 ${targets.length} 条差异`);
+    } catch (err2) {
+      hint2(`复制失败：${err2.message}`);
     }
   };
   const exportDiffs = () => {
     const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
     if (!targets.length) {
-      hint(selectedKeys.size ? "当前选中项无可导出差异" : "当前没有可导出的差异");
+      hint2(selectedKeys.size ? "当前选中项无可导出差异" : "当前没有可导出的差异");
       return;
     }
     const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const filename = `tracescope-ui-diff-${stamp}.md`;
     downloadTextFile(filename, formatVisualDiffExportMarkdown(targets, actionMeta));
-    hint(`已导出：${filename}`);
+    hint2(`已导出：${filename}`);
   };
   const submitDiffs = () => {
     const targets = selectedKeys.size ? visibleItems.filter((i) => selectedKeys.has(i.key)) : visibleItems;
     if (!targets.length) {
-      hint(selectedKeys.size ? "当前选中项无可提交差异" : "当前没有可提交的差异");
+      hint2(selectedKeys.size ? "当前选中项无可提交差异" : "当前没有可提交的差异");
       return;
     }
     if (!trackerReady) {
@@ -2109,12 +2109,12 @@ function DesignCompareBoard({
           }
         });
       } else {
-        hint("请先在「仓库配置 → 协作平台」完成配置");
+        hint2("请先在「仓库配置 → 协作平台」完成配置");
       }
       return;
     }
     if (typeof openConfirmDialog !== "function") {
-      hint("当前宿主不支持弹窗输入，无法提交缺陷");
+      hint2("当前宿主不支持弹窗输入，无法提交缺陷");
       return;
     }
     openConfirmDialog({
@@ -2144,9 +2144,9 @@ function DesignCompareBoard({
           if (data2.id) tip += `（ID ${data2.id}）`;
           tip += `，共 ${data2.count || targets.length} 条。`;
           if (data2.url) tip += ` 链接：${data2.url}`;
-          hint(tip);
-        }).catch((err) => {
-          hint(`提交失败：${err.message}`);
+          hint2(tip);
+        }).catch((err2) => {
+          hint2(`提交失败：${err2.message}`);
         });
       }
     });
@@ -2899,11 +2899,11 @@ function sampleRingColor(ctx, x, y, w, h, imgW, imgH) {
   let b = 0;
   let n = 0;
   const px = data.data;
-  for (let row = 0; row < rh; row += 2) {
+  for (let row2 = 0; row2 < rh; row2 += 2) {
     for (let col = 0; col < rw; col += 2) {
-      const inside = row >= innerT && row < innerB && col >= innerL && col < innerR;
+      const inside = row2 >= innerT && row2 < innerB && col >= innerL && col < innerR;
       if (inside) continue;
-      const i = (row * rw + col) * 4;
+      const i = (row2 * rw + col) * 4;
       r += px[i] ?? 0;
       g += px[i + 1] ?? 0;
       b += px[i + 2] ?? 0;
@@ -2927,9 +2927,9 @@ function loadProxiedDesignImage(imageUrl) {
     const data = await r.json();
     if (!r.ok || !data.dataUrl) throw new Error(data.error || "图片代理失败");
     return data.dataUrl;
-  }).catch((err) => {
+  }).catch((err2) => {
     proxyImageCache.delete(imageUrl);
-    throw err;
+    throw err2;
   });
   proxyImageCache.set(imageUrl, pending2);
   return pending2;
@@ -3471,12 +3471,12 @@ function collectDynamicRegionsFromTree(root) {
   walk(root);
   return out;
 }
-async function post2(path, body) {
+async function post2(path, body2) {
   const r = await fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body2)
   });
   const text = await r.text();
   const data = text ? JSON.parse(text) : {};
@@ -3892,8 +3892,8 @@ function VisualComparePanel({
         ok: true,
         designImageUrl: res.designImageUrl
       };
-    } catch (err) {
-      return { ok: false, error: err.message };
+    } catch (err2) {
+      return { ok: false, error: err2.message };
     }
   }
   async function compareFromOverview(designId, codeFile, force = false) {
@@ -3994,8 +3994,8 @@ function VisualComparePanel({
       setError(
         designRasterInPanel ? "✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。" : "✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。"
       );
-    } catch (err) {
-      setError(err.message);
+    } catch (err2) {
+      setError(err2.message);
     } finally {
       endBusy();
     }
@@ -4035,8 +4035,8 @@ function VisualComparePanel({
       setError(
         "✓ 已将「AI 推荐文件」提示词填入当前会话。请核对后发送；模型调用 tracescope_publish_page_rematch 后，侧栏会自动选中推荐文件。可继续对话纠正并再次写回。"
       );
-    } catch (err) {
-      setError(err.message);
+    } catch (err2) {
+      setError(err2.message);
     } finally {
       endBusy();
     }
@@ -4390,17 +4390,649 @@ var init_VisualComparePanel = __esm({
   }
 });
 
+// client-src/self-update.js
+var self_update_exports = {};
+__export(self_update_exports, {
+  PACKAGE_NAME: () => PACKAGE_NAME,
+  applySelfUpdate: () => applySelfUpdate,
+  checkSelfUpdate: () => checkSelfUpdate,
+  forceRetryable: () => forceRetryable,
+  getSelfUpdateHostCtx: () => getSelfUpdateHostCtx,
+  resolvePluginManager: () => resolvePluginManager,
+  setSelfUpdateHostCtx: () => setSelfUpdateHostCtx
+});
+function setSelfUpdateHostCtx(ctx) {
+  hostClientCtx = ctx || null;
+}
+function getSelfUpdateHostCtx() {
+  return hostClientCtx;
+}
+function parseJson(text) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (_e) {
+    throw new Error(text.slice(0, 200) || "服务器返回空响应");
+  }
+}
+function hostFetch(path, options) {
+  return fetch(path, Object.assign({ credentials: "same-origin" }, options || {})).then(function(r) {
+    return r.text().then(function(text) {
+      return { ok: r.ok, status: r.status, data: parseJson(text) };
+    });
+  });
+}
+function checkSelfUpdate() {
+  return hostFetch("/tracescope/v1/self-update/check").then(function(res) {
+    if (!res.ok) {
+      throw new Error(res.data && res.data.error || "检查更新失败（HTTP " + res.status + "）");
+    }
+    return {
+      packageName: res.data.packageName || PACKAGE_NAME,
+      installedVersion: res.data.installedVersion || null,
+      latestVersion: res.data.latestVersion || null,
+      updateAvailable: res.data.updateAvailable === true,
+      registrySource: res.data.registrySource || null,
+      applyHint: res.data.applyHint || {
+        pluginManagerSpec: PACKAGE_NAME,
+        cli: "dsh plugin update " + PACKAGE_NAME,
+        desktop: "请在桌面端扩展坞或插件页更新本包后重启。"
+      }
+    };
+  });
+}
+function unwrapRemote(result) {
+  if (result == null) return { ok: false, error: "empty remote result" };
+  if (typeof result === "object" && "ok" in result) {
+    if (result.ok === true) return { ok: true, value: result.value !== void 0 ? result.value : result };
+    return {
+      ok: false,
+      error: result.error && (result.error.message || result.error.code || String(result.error)) || "remote call failed"
+    };
+  }
+  return { ok: true, value: result };
+}
+function resolvePluginManager(ctx) {
+  if (!ctx) return null;
+  var candidates = [];
+  try {
+    if (ctx.pluginManager) candidates.push(ctx.pluginManager);
+  } catch (_e) {
+  }
+  try {
+    if (typeof ctx.get === "function") {
+      var viaGet = ctx.get("pluginManager");
+      if (viaGet) candidates.push(viaGet);
+    }
+  } catch (_e) {
+  }
+  try {
+    var remotes = ctx.remotes || (typeof ctx.get === "function" ? ctx.get("remotes") : null);
+    if (remotes && remotes.pluginManager) candidates.push(remotes.pluginManager);
+  } catch (_e) {
+  }
+  try {
+    var typert = ctx.typert || (typeof ctx.get === "function" ? ctx.get("typert") : null);
+    if (typert && typert.pluginManager) candidates.push(typert.pluginManager);
+  } catch (_e) {
+  }
+  for (var i = 0; i < candidates.length; i++) {
+    var pm = candidates[i];
+    if (pm && typeof pm.installBundle === "function") return pm;
+  }
+  return null;
+}
+function manualGuide(info) {
+  var hint2 = info && info.applyHint || {};
+  return (hint2.desktop || "请在桌面端扩展坞（Extension Dock）或「插件」页更新本包，然后重启 Harness。") + "\n命令行：" + (hint2.cli || "dsh plugin update " + PACKAGE_NAME);
+}
+function discoverMarketOptional() {
+  return fetch("/dsh-market/api/v1/capabilities", { credentials: "same-origin" }).then(function(r) {
+    if (!r.ok) return null;
+    return r.json().then(function(data) {
+      if (!data || data.schema !== "dsh-market/update-api/v1") return null;
+      var features = data.features || {};
+      if (features.update === false) return null;
+      return {
+        endpoints: {
+          updates: data.endpoints && data.endpoints.updates || "/dsh-market/api/v1/updates",
+          operations: data.endpoints && data.endpoints.operations || "/dsh-market/api/v1/operations",
+          restart: data.endpoints && data.endpoints.restart || "/dsh-market/api/v1/restart"
+        },
+        canRestart: features.restart === true && data.restart && data.restart.supported === true,
+        restartManagedBy: data.restart && data.restart.managedBy || null
+      };
+    });
+  }).catch(function() {
+    return null;
+  });
+}
+function sleep2(ms) {
+  return new Promise(function(resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+function waitMarketOperation(discovery, operationId, onProgress) {
+  var attempt = 0;
+  function tick() {
+    attempt += 1;
+    var path = discovery.endpoints.operations + "?operationId=" + encodeURIComponent(operationId);
+    return fetch(path, { credentials: "same-origin" }).then(function(r) {
+      return r.json().then(function(data) {
+        var op = data && data.operation || data;
+        if (typeof onProgress === "function") onProgress(op);
+        if (op && (op.state === "succeeded" || op.state === "failed" || op.state === "cancelled" || op.state === "rolled-back")) {
+          return op;
+        }
+        if (attempt >= 180) throw new Error("更新超时");
+        return sleep2(900).then(tick);
+      });
+    });
+  }
+  return tick();
+}
+function applyViaMarket(force, onProgress) {
+  return discoverMarketOptional().then(function(discovery) {
+    if (!discovery) return null;
+    return fetch(discovery.endpoints.updates, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packageName: PACKAGE_NAME, ...force ? { force: true } : {} })
+    }).then(function(r) {
+      return r.json().then(function(data) {
+        if (r.status !== 202 || !data || !data.operation) {
+          var fail = data && data.failure || {};
+          var err2 = new Error(fail.message || data && data.error || "市场更新启动失败");
+          err2.code = fail.code;
+          err2.retryable = fail.retryable === true;
+          throw err2;
+        }
+        return waitMarketOperation(discovery, data.operation.operationId, onProgress).then(
+          function(op) {
+            return { channel: "market", discovery, op };
+          }
+        );
+      });
+    });
+  });
+}
+function applySelfUpdate(info, ctx, opts) {
+  var options = opts || {};
+  var onProgress = options.onProgress;
+  var force = options.force === true;
+  var target = info && info.latestVersion || null;
+  var spec = info && info.applyHint && info.applyHint.pluginManagerSpec || (target ? PACKAGE_NAME + "@" + target : PACKAGE_NAME);
+  function progress(msg) {
+    if (typeof onProgress === "function") onProgress(msg);
+  }
+  var pm = resolvePluginManager(ctx);
+  if (pm) {
+    progress("正在通过官方插件管理器安装 " + spec + "…");
+    return Promise.resolve().then(function() {
+      return pm.installBundle(spec, { activate: true });
+    }).then(function(raw) {
+      var unwrapped = unwrapRemote(raw);
+      if (!unwrapped.ok) {
+        throw new Error(unwrapped.error || "pluginManager.installBundle 失败");
+      }
+      var value = unwrapped.value || {};
+      if (value.application === "cancelled") {
+        throw new Error("更新已取消");
+      }
+      if (value.ok === false) {
+        throw new Error(value.error || "安装未成功");
+      }
+      return {
+        ok: true,
+        channel: "pluginManager",
+        installedVersion: target,
+        message: "已通过官方插件管理器安装" + (target ? " " + target : "") + "。请重启 Harness（桌面端请在桌面端重启）后生效。",
+        restartRequired: true,
+        canRestartViaMarket: false
+      };
+    }).catch(function(err2) {
+      progress("官方插件管理器未能完成（" + (err2.message || String(err2)) + "），尝试其他方式…");
+      return applyViaMarket(force, function(op) {
+        if (!op) return;
+        if (op.state === "queued") progress("市场：已排队…");
+        else if (op.state === "running") {
+          var p = op.progress || {};
+          if (p.percent != null) progress("市场：更新中 " + p.percent + "%");
+          else progress("市场：更新中…");
+        }
+      }).then(function(marketResult) {
+        if (!marketResult) {
+          return {
+            ok: false,
+            channel: "manual",
+            message: manualGuide(info),
+            guide: manualGuide(info)
+          };
+        }
+        var op = marketResult.op;
+        if (op.state === "succeeded") {
+          return {
+            ok: true,
+            channel: "market",
+            installedVersion: op.installedVersion || target,
+            message: "已通过插件市场更新到 " + (op.installedVersion || target || "?") + "。请重启后生效。",
+            restartRequired: !!(op.outcome && op.outcome.restartRequired),
+            canRestartViaMarket: !!(marketResult.discovery && marketResult.discovery.canRestart),
+            discovery: marketResult.discovery,
+            failure: null
+          };
+        }
+        var failure = op.failure || {};
+        return {
+          ok: false,
+          channel: "market",
+          message: failure.message || "更新失败",
+          failure,
+          guide: manualGuide(info),
+          canForce: failure.code === "RELEASE_TOO_FRESH" || failure.code === "VERSION_UNCHANGED"
+        };
+      });
+    });
+  }
+  return applyViaMarket(force, function(op) {
+    if (!op) return;
+    if (op.state === "running") progress("市场：更新中…");
+  }).then(function(marketResult) {
+    if (!marketResult) {
+      return {
+        ok: false,
+        channel: "manual",
+        message: manualGuide(info),
+        guide: manualGuide(info)
+      };
+    }
+    var op = marketResult.op;
+    if (op.state === "succeeded") {
+      return {
+        ok: true,
+        channel: "market",
+        installedVersion: op.installedVersion || target,
+        message: "已通过插件市场更新到 " + (op.installedVersion || target || "?") + "。请重启后生效。",
+        restartRequired: !!(op.outcome && op.outcome.restartRequired),
+        canRestartViaMarket: !!(marketResult.discovery && marketResult.discovery.canRestart),
+        discovery: marketResult.discovery
+      };
+    }
+    var failure = op.failure || {};
+    return {
+      ok: false,
+      channel: "market",
+      message: failure.message || "更新失败",
+      failure,
+      guide: manualGuide(info),
+      canForce: failure.code === "RELEASE_TOO_FRESH" || failure.code === "VERSION_UNCHANGED"
+    };
+  });
+}
+function forceRetryable(code) {
+  return code === "RELEASE_TOO_FRESH" || code === "VERSION_UNCHANGED";
+}
+var PACKAGE_NAME, hostClientCtx;
+var init_self_update = __esm({
+  "client-src/self-update.js"() {
+    "use strict";
+    PACKAGE_NAME = "@rebornace/dsh-tracescope";
+    hostClientCtx = null;
+  }
+});
+
+// client-src/PluginSettingsCard.tsx
+function Btn(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    "button",
+    {
+      type: "button",
+      title: props.title,
+      disabled: props.disabled,
+      onClick: props.onClick,
+      style: Object.assign({}, props.primary ? primaryBtn : secondaryBtn, {
+        opacity: props.disabled ? 0.6 : 1,
+        cursor: props.disabled ? "default" : "pointer"
+      }),
+      children: props.children
+    }
+  );
+}
+function PluginSettingsCard(props) {
+  const [busy, setBusy] = (0, import_react4.useState)(false);
+  const [info, setInfo] = (0, import_react4.useState)(null);
+  const [message, setMessage] = (0, import_react4.useState)("");
+  const [canForce, setCanForce] = (0, import_react4.useState)(false);
+  const [version, setVersion] = (0, import_react4.useState)(props.installedVersion || null);
+  const probed = (0, import_react4.useRef)(false);
+  (0, import_react4.useEffect)(() => {
+    if (props.installedVersion) setVersion(props.installedVersion);
+  }, [props.installedVersion]);
+  const runCheck = (0, import_react4.useCallback)(async () => {
+    setBusy(true);
+    setMessage("正在检查 npm 最新版本…");
+    setCanForce(false);
+    try {
+      const next = await checkSelfUpdate();
+      setInfo(next);
+      if (next.installedVersion) setVersion(next.installedVersion);
+      if (next.updateAvailable) {
+        setMessage(
+          `发现新版本 ${next.latestVersion || "?"}（当前 ${next.installedVersion || "?"}）` + (next.registrySource ? ` · 来源 ${next.registrySource}` : "")
+        );
+      } else if (!next.latestVersion) {
+        setMessage("未能从 npm 读取最新版本，请检查网络后重试。");
+      } else {
+        setMessage(`已是最新${next.installedVersion ? `（${next.installedVersion}）` : ""}。`);
+      }
+    } catch (e) {
+      setMessage("检查更新失败：" + (e?.message || String(e)));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  (0, import_react4.useEffect)(() => {
+    if (probed.current) return;
+    probed.current = true;
+    void runCheck();
+  }, [runCheck]);
+  const runUpdate = (0, import_react4.useCallback)(
+    async (force) => {
+      if (!info?.updateAvailable && !force) {
+        await runCheck();
+        return;
+      }
+      setBusy(true);
+      setCanForce(false);
+      setMessage("正在更新…");
+      try {
+        const result = await applySelfUpdate(info || await checkSelfUpdate(), getSelfUpdateHostCtx(), {
+          force,
+          onProgress: (msg) => setMessage(msg)
+        });
+        if (result.installedVersion) setVersion(result.installedVersion);
+        if (result.ok) {
+          setInfo(
+            (prev) => Object.assign({}, prev || {}, {
+              installedVersion: result.installedVersion || prev?.installedVersion,
+              latestVersion: result.installedVersion || prev?.latestVersion,
+              updateAvailable: false
+            })
+          );
+          setMessage(result.message);
+        } else {
+          setMessage(result.message + (result.guide && result.channel === "manual" ? "" : result.guide ? "\n" + result.guide : ""));
+          setCanForce(!!result.canForce || forceRetryable(result.failure?.code));
+        }
+      } catch (e) {
+        setMessage("更新失败：" + (e?.message || String(e)));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [info, runCheck]
+  );
+  if (props.summaryOnly) {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { fontSize: 12, color: "#6b645a" }, children: [
+      "版本对比、验证清单与设计差异",
+      version ? ` · v${version}` : ""
+    ] });
+  }
+  const updateReady = info?.updateAvailable === true;
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: card, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: Object.assign({}, head, { cursor: "default" }), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { minWidth: 0 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: title, children: [
+        "插件更新",
+        version ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: ver, children: [
+          "v",
+          version
+        ] }) : null,
+        updateReady ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: Object.assign({}, ver, { color: "#0f6e56", fontWeight: 700 }), children: [
+          "· 有新版本 ",
+          info?.latestVersion
+        ] }) : null
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: desc, children: message || "对照 npm 检查本插件。优先走官方插件管理器；更新后请重启桌面端。" })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: body, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: row, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: labelBox, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: hint, children: [
+          "包名：",
+          PACKAGE_NAME
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: actions, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Btn, { disabled: busy, onClick: () => void runCheck(), children: busy ? "请稍候…" : "重新检查" }),
+          updateReady ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Btn, { primary: true, disabled: busy, onClick: () => void runUpdate(false), children: `更新到 ${info?.latestVersion || "最新版"}` }) : null,
+          canForce ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Btn, { disabled: busy, title: "在可选路径上强制再装", onClick: () => void runUpdate(true), children: "强制更新" }) : null
+        ] })
+      ] }),
+      message && /失败|未能|请在|命令行/.test(message) ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: err, children: message }) : null
+    ] })
+  ] });
+}
+function PluginUpdateAction(props) {
+  const [busy, setBusy] = (0, import_react4.useState)(false);
+  const [info, setInfo] = (0, import_react4.useState)(null);
+  const [label, setLabel] = (0, import_react4.useState)("更新");
+  const [title2, setTitle] = (0, import_react4.useState)("对照 npm 更新 TraceScope");
+  const probed = (0, import_react4.useRef)(false);
+  (0, import_react4.useEffect)(() => {
+    if (probed.current) return;
+    probed.current = true;
+    void checkSelfUpdate().then((next) => {
+      setInfo(next);
+      if (next.updateAvailable) {
+        setLabel(next.latestVersion ? `更新到 ${next.latestVersion}` : "更新");
+        setTitle(`发现新版本 ${next.latestVersion || ""}`);
+      } else {
+        setLabel(next.installedVersion ? `已最新 v${next.installedVersion}` : "已最新");
+        setTitle(next.latestVersion ? "当前已是最新版本" : "未能读取 npm 最新版本");
+      }
+    }).catch((e) => {
+      setTitle(e?.message || String(e));
+    });
+  }, []);
+  const onClick = (0, import_react4.useCallback)(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const current = info || await checkSelfUpdate();
+      setInfo(current);
+      if (!current.updateAvailable) {
+        setLabel(current.installedVersion ? `已最新 v${current.installedVersion}` : "已最新");
+        setTitle(current.latestVersion ? "当前已是最新版本" : "未能读取 npm 最新版本");
+        return;
+      }
+      setLabel("更新中…");
+      const result = await applySelfUpdate(current, getSelfUpdateHostCtx(), {
+        onProgress: (msg) => setTitle(msg)
+      });
+      if (result.ok) {
+        setInfo(Object.assign({}, current, { updateAvailable: false, installedVersion: result.installedVersion }));
+        setLabel(result.installedVersion ? `已更新 v${result.installedVersion}` : "已更新");
+        setTitle(result.message);
+      } else {
+        setLabel(result.channel === "manual" ? "请手动更新" : "更新失败");
+        setTitle(result.message);
+      }
+    } catch (e) {
+      setLabel("失败");
+      setTitle(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, info]);
+  const updateReady = info?.updateAvailable === true;
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    Btn,
+    {
+      primary: updateReady || !info,
+      disabled: busy,
+      title: title2 + (props.installedVersion ? `（当前 ${props.installedVersion}）` : ""),
+      onClick: () => void onClick(),
+      children: busy ? "更新中…" : label
+    }
+  );
+}
+var import_react4, import_jsx_runtime5, card, head, title, desc, body, row, labelBox, hint, actions, primaryBtn, secondaryBtn, err, ver;
+var init_PluginSettingsCard = __esm({
+  "client-src/PluginSettingsCard.tsx"() {
+    "use strict";
+    import_react4 = require("react");
+    init_self_update();
+    import_jsx_runtime5 = require("react/jsx-runtime");
+    card = {
+      border: "1px solid var(--dsh-border, #ddd4c5)",
+      borderRadius: 12,
+      background: "var(--dsh-card, #fffdf8)",
+      color: "var(--dsh-fg, #1c1915)",
+      overflow: "hidden"
+    };
+    head = {
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 10,
+      width: "100%",
+      padding: "12px 14px",
+      border: 0,
+      background: "transparent",
+      cursor: "pointer",
+      textAlign: "left",
+      color: "inherit"
+    };
+    title = { fontWeight: 700, fontSize: 14, lineHeight: 1.35 };
+    desc = { marginTop: 4, fontSize: 12, color: "#6b645a", lineHeight: 1.45 };
+    body = {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      padding: "0 14px 14px",
+      borderTop: "1px solid var(--dsh-border, #eee6d8)"
+    };
+    row = {
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 10,
+      paddingTop: 10
+    };
+    labelBox = { minWidth: 0, flex: 1 };
+    hint = { marginTop: 3, fontSize: 12, color: "#6b645a", lineHeight: 1.45, whiteSpace: "pre-wrap" };
+    actions = { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" };
+    primaryBtn = {
+      border: 0,
+      borderRadius: 999,
+      padding: "6px 12px",
+      cursor: "pointer",
+      background: "var(--dsh-accent, #0f6e56)",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: 12
+    };
+    secondaryBtn = {
+      border: "1px solid var(--dsh-border, #ddd4c5)",
+      borderRadius: 999,
+      padding: "6px 12px",
+      cursor: "pointer",
+      background: "var(--dsh-card, #fffdf8)",
+      color: "var(--dsh-fg, #1c1915)",
+      fontSize: 12
+    };
+    err = { color: "#b42318", fontSize: 12, lineHeight: 1.45, margin: 0, whiteSpace: "pre-wrap" };
+    ver = { fontWeight: 500, color: "#6b645a", marginLeft: 6 };
+  }
+});
+
+// client-src/register-plugin-settings.js
+var register_plugin_settings_exports = {};
+__export(register_plugin_settings_exports, {
+  PACKAGE_NAME: () => PACKAGE_NAME,
+  SETTINGS_NS: () => SETTINGS_NS,
+  registerPluginSettings: () => registerPluginSettings
+});
+function isOurBundle(subject) {
+  return subject && subject.kind === "bundle" && subject.pkg && subject.pkg.name === PACKAGE_NAME;
+}
+function registerPluginSettings(ctx) {
+  if (!ctx || !ctx.slots || typeof ctx.slots.inject !== "function") return;
+  setSelfUpdateHostCtx(ctx);
+  ctx.slots.inject("plugins.detail.actions", function() {
+    return ctx.slots.register(
+      {
+        name: "plugins.detail.actions",
+        id: "tracescope-update-action",
+        order: 20
+      },
+      function DetailAction(ownerProps) {
+        var subject = ownerProps && ownerProps.subject;
+        if (!isOurBundle(subject)) return null;
+        return (0, import_jsx_runtime6.jsx)(PluginUpdateAction, {
+          installedVersion: subject.pkg && subject.pkg.version || null
+        });
+      }
+    );
+  });
+  ctx.slots.inject("plugins.bundle.config", function() {
+    return ctx.slots.register(
+      {
+        name: "plugins.bundle.config",
+        key: PACKAGE_NAME,
+        locale: SETTINGS_NS
+      },
+      function BundleConfig(ownerProps) {
+        var view = ownerProps && ownerProps.view;
+        var version = ownerProps && ownerProps.pkg && ownerProps.pkg.version || ownerProps && ownerProps.installedVersion || null;
+        if (view === "summary") {
+          return (0, import_jsx_runtime6.jsx)(PluginSettingsCard, { summaryOnly: true, installedVersion: version });
+        }
+        return (0, import_jsx_runtime6.jsx)(PluginSettingsCard, { installedVersion: version });
+      }
+    );
+  });
+  if (typeof ctx.inject === "function") {
+    ctx.inject(["settingsScope"], function(scoped) {
+      if (!scoped || !scoped.slots) return;
+      scoped.slots.inject("settings.plugin.item", function() {
+        return scoped.slots.register(
+          {
+            name: "settings.plugin.item",
+            key: SETTINGS_NS,
+            locale: SETTINGS_NS
+          },
+          function SettingsPluginItem() {
+            return (0, import_jsx_runtime6.jsx)(PluginSettingsCard, {});
+          }
+        );
+      });
+    });
+  }
+}
+var import_jsx_runtime6, SETTINGS_NS;
+var init_register_plugin_settings = __esm({
+  "client-src/register-plugin-settings.js"() {
+    "use strict";
+    import_jsx_runtime6 = require("react/jsx-runtime");
+    init_PluginSettingsCard();
+    init_self_update();
+    SETTINGS_NS = "tracescope";
+  }
+});
+
 // client-src/entry.js
 var __tracescopeExports = {};
 var React = require("react");
 var jsxRuntime = require("react/jsx-runtime");
-var jsx5 = jsxRuntime.jsx;
-var jsxs5 = jsxRuntime.jsxs;
-var useState4 = React.useState;
-var useEffect4 = React.useEffect;
-var useCallback = React.useCallback;
-var useRef3 = React.useRef;
+var jsx7 = jsxRuntime.jsx;
+var jsxs6 = jsxRuntime.jsxs;
+var useState5 = React.useState;
+var useEffect5 = React.useEffect;
+var useCallback2 = React.useCallback;
+var useRef4 = React.useRef;
 var VisualComparePanel2 = (init_VisualComparePanel(), __toCommonJS(VisualComparePanel_exports)).VisualComparePanel;
+var selfUpdate = (init_self_update(), __toCommonJS(self_update_exports));
+var registerPluginSettings2 = (init_register_plugin_settings(), __toCommonJS(register_plugin_settings_exports)).registerPluginSettings;
 var TAB_ID = "@rebornace/dsh-tracescope";
 var AUTO_OPEN_KEY = "tracescope.autoOpen";
 function isAutoOpenEnabled() {
@@ -4635,18 +5267,18 @@ function apiGet(path, params) {
     });
   });
 }
-function isAbortError(err) {
-  if (!err) return false;
-  if (err.name === "AbortError") return true;
-  var msg = String(err.message || err || "");
+function isAbortError(err2) {
+  if (!err2) return false;
+  if (err2.name === "AbortError") return true;
+  var msg = String(err2.message || err2 || "");
   return /aborted|AbortError|The user aborted/i.test(msg);
 }
-function apiPost(path, body) {
+function apiPost(path, body2) {
   return fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body2),
     signal: activeBusyAbort ? activeBusyAbort.signal : void 0
   }).then(function(r) {
     return r.text().then(function(text) {
@@ -4678,20 +5310,20 @@ function downloadTextFile2(filename, text, mime) {
 function buildLocalExportMarkdown(report, meta) {
   var repo = meta && meta.repoPath || report.repoPath || "";
   var base = meta && meta.baseCommit || report.baseCommit || "";
-  var head = meta && meta.headCommit || report.headCommit || "";
+  var head2 = meta && meta.headCommit || report.headCommit || "";
   var lines = [
     "# TraceScope 验证报告",
     "",
     "- 仓库：`" + repo + "`",
     "- 稳定基线：`" + base + "`",
-    "- 待测提交：`" + head + "`",
+    "- 待测提交：`" + head2 + "`",
     "- 生成时间：" + (report.generatedAt || ""),
     "- AI 分析：" + (report.modelEnriched ? "是" : "否（规则分析）"),
     "- 变更文件数：" + (report.changedFiles || []).length,
     ""
   ];
-  function renderSection(title, items) {
-    lines.push("## " + title, "");
+  function renderSection(title2, items) {
+    lines.push("## " + title2, "");
     if (!items || !items.length) {
       lines.push("_无_", "");
       return;
@@ -4810,8 +5442,8 @@ function fillComposerDraft(prompt) {
     }
     shell.setDraft(prompt);
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err && err.message || String(err) };
+  } catch (err2) {
+    return { ok: false, error: err2 && err2.message || String(err2) };
   }
 }
 function clearComposerDraft() {
@@ -4951,8 +5583,8 @@ function compressImageToShot(fileOrBlob, nameHint, done, fail) {
           mime: "image/jpeg",
           dataUrl
         });
-      } catch (err) {
-        if (fail) fail(err.message || "压缩截图失败");
+      } catch (err2) {
+        if (fail) fail(err2.message || "压缩截图失败");
       }
     };
     img.src = reader.result;
@@ -4988,12 +5620,12 @@ function fileToBase64(file) {
 function StatusButtons(props) {
   var status = props.status || "pending";
   var locked = Boolean(props.disabled);
-  return jsxs5("div", {
+  return jsxs6("div", {
     style: Object.assign({}, styles.row, { gap: 6 }),
     children: ["pass", "fail", "skip", "pending"].map(function(s) {
       var label = s === "pass" ? "通过" : s === "fail" ? "失败" : s === "skip" ? "跳过" : "重置";
       var active2 = status === s;
-      return jsx5(
+      return jsx7(
         "button",
         {
           type: "button",
@@ -5036,7 +5668,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   (refs || []).forEach(function(r) {
     if (!r || !r.name) return;
     var prefix = r.kind === "remote" ? "远端 " : r.kind === "tag" ? "标签 " : "";
-    var option = jsx5(
+    var option = jsx7(
       "option",
       {
         value: r.name,
@@ -5049,7 +5681,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   });
   (commits || []).forEach(function(c) {
     commitOpts.push(
-      jsx5(
+      jsx7(
         "option",
         {
           value: c.sha,
@@ -5061,14 +5693,14 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
   });
   var groups = [];
   if (branchOpts.length) {
-    groups.push(jsx5("optgroup", { label: "分支", children: branchOpts }, "g-branch"));
+    groups.push(jsx7("optgroup", { label: "分支", children: branchOpts }, "g-branch"));
   }
   if (tagOpts.length) {
-    groups.push(jsx5("optgroup", { label: "标签", children: tagOpts }, "g-tag"));
+    groups.push(jsx7("optgroup", { label: "标签", children: tagOpts }, "g-tag"));
   }
   if (commitOpts.length) {
     groups.push(
-      jsx5(
+      jsx7(
         "optgroup",
         {
           label: commitRefLabel ? "近期提交 · " + commitRefLabel : "近期提交",
@@ -5079,7 +5711,7 @@ function buildVersionOptions(refs, commits, emptyLabel, commitRefLabel) {
     );
   }
   if (!groups.length) {
-    groups.push(jsx5("option", { value: "", children: emptyLabel }, "empty"));
+    groups.push(jsx7("option", { value: "", children: emptyLabel }, "empty"));
   }
   return groups;
 }
@@ -5155,29 +5787,29 @@ function ItemCard(props) {
   var st = item.status || "pending";
   var note = item.testerNote || "";
   var shots = item.testerScreenshots || [];
-  var fileRef = useRef3(null);
-  return jsxs5("article", {
+  var fileRef = useRef4(null);
+  return jsxs6("article", {
     style: Object.assign({}, styles.item, {
       borderLeft: "4px solid",
       borderLeftColor: st === "pass" ? "#0f6e56" : st === "fail" ? "#b42318" : st === "skip" ? "#b54708" : "#ddd4c5",
       opacity: locked ? 0.72 : 1
     }),
     children: [
-      jsxs5("div", {
+      jsxs6("div", {
         style: { display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
         children: [
-          jsxs5("div", {
+          jsxs6("div", {
             children: [
-              jsx5("div", { style: { fontWeight: 700 }, children: item.displayName }),
-              jsxs5("div", {
+              jsx7("div", { style: { fontWeight: 700 }, children: item.displayName }),
+              jsxs6("div", {
                 style: { marginTop: 4 },
                 children: [
-                  jsx5("span", {
+                  jsx7("span", {
                     style: Object.assign({}, styles.badge, statusBadgeStyle(st)),
                     children: statusLabel(st)
                   }),
-                  jsx5("span", { style: styles.badge, children: "风险 " + item.risk }),
-                  jsx5("span", {
+                  jsx7("span", { style: styles.badge, children: "风险 " + item.risk }),
+                  jsx7("span", {
                     style: styles.badge,
                     children: item.kind === "direct" ? "直接项" : "可能波及"
                   })
@@ -5185,7 +5817,7 @@ function ItemCard(props) {
               })
             ]
           }),
-          jsx5(StatusButtons, {
+          jsx7(StatusButtons, {
             status: st,
             disabled: locked,
             onChange: function(s) {
@@ -5195,20 +5827,20 @@ function ItemCard(props) {
           })
         ]
       }),
-      jsx5("ol", {
+      jsx7("ol", {
         style: { margin: "8px 0 0", paddingLeft: 18, color: "#6b645a" },
         children: (item.suggestedSteps || []).map(function(step, idx) {
-          return jsx5("li", { children: step }, idx);
+          return jsx7("li", { children: step }, idx);
         })
       }),
-      st === "fail" ? jsxs5("div", {
+      st === "fail" ? jsxs6("div", {
         style: { marginTop: 10 },
         children: [
-          jsx5("div", {
+          jsx7("div", {
             style: { fontWeight: 600, marginBottom: 4, color: "#b42318" },
             children: "失败备注（给开发）"
           }),
-          jsx5("textarea", {
+          jsx7("textarea", {
             style: Object.assign({}, styles.input, {
               minHeight: 72,
               resize: "vertical",
@@ -5263,7 +5895,7 @@ function ItemCard(props) {
               );
             }
           }),
-          jsxs5("div", {
+          jsxs6("div", {
             style: Object.assign({}, styles.row, {
               marginTop: 8,
               alignItems: "center",
@@ -5271,7 +5903,7 @@ function ItemCard(props) {
               gap: 8
             }),
             children: [
-              jsx5("input", {
+              jsx7("input", {
                 ref: fileRef,
                 type: "file",
                 accept: "image/*",
@@ -5331,7 +5963,7 @@ function ItemCard(props) {
                   });
                 }
               }),
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: styles.btn,
                 disabled: locked || shots.length >= MAX_SHOTS,
@@ -5341,13 +5973,13 @@ function ItemCard(props) {
                 },
                 children: "添加截图"
               }),
-              jsx5("span", {
+              jsx7("span", {
                 style: { fontSize: 12, color: "#6b645a" },
                 children: "已附 " + shots.length + "/" + MAX_SHOTS + " · 支持粘贴或选文件（自动压缩）"
               })
             ]
           }),
-          shots.length ? jsx5("div", {
+          shots.length ? jsx7("div", {
             style: {
               display: "flex",
               flexWrap: "wrap",
@@ -5355,7 +5987,7 @@ function ItemCard(props) {
               marginTop: 8
             },
             children: shots.map(function(shot) {
-              return jsxs5(
+              return jsxs6(
                 "div",
                 {
                   style: {
@@ -5367,7 +5999,7 @@ function ItemCard(props) {
                     background: "#fff"
                   },
                   children: [
-                    jsx5("img", {
+                    jsx7("img", {
                       src: shot.dataUrl,
                       alt: shot.name,
                       title: shot.name,
@@ -5378,7 +6010,7 @@ function ItemCard(props) {
                         objectFit: "cover"
                       }
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, {
                         position: "absolute",
@@ -5406,7 +6038,7 @@ function ItemCard(props) {
                       },
                       children: "×"
                     }),
-                    jsx5("div", {
+                    jsx7("div", {
                       style: {
                         fontSize: 10,
                         padding: "2px 4px",
@@ -5426,18 +6058,18 @@ function ItemCard(props) {
           }) : null
         ]
       }) : null,
-      jsxs5("details", {
+      jsxs6("details", {
         style: { marginTop: 8 },
         children: [
-          jsx5("summary", { children: "查看证据" }),
-          jsx5("ul", {
+          jsx7("summary", { children: "查看证据" }),
+          jsx7("ul", {
             children: (item.files || []).map(function(f) {
-              return jsx5("li", { children: jsx5("code", { children: f }) }, f);
+              return jsx7("li", { children: jsx7("code", { children: f }) }, f);
             })
           }),
-          jsx5("ul", {
+          jsx7("ul", {
             children: (item.evidence || []).map(function(e, idx) {
-              return jsx5("li", { children: e.detail }, idx);
+              return jsx7("li", { children: e.detail }, idx);
             })
           })
         ]
@@ -5465,21 +6097,21 @@ function isGitRemoteInput(value) {
 }
 function TraceScopePanelBody() {
   var initialRepo = localStorage.getItem(REPO_PATH_KEY) || "";
-  var _repo = useState4(initialRepo);
+  var _repo = useState5(initialRepo);
   var repoPath = _repo[0];
   var setRepoPath = _repo[1];
-  var _repoList = useState4(function() {
+  var _repoList = useState5(function() {
     var list = readRepoList();
     if (initialRepo && list.indexOf(initialRepo) === -1) list = writeRepoList([initialRepo].concat(list));
     return list;
   });
   var repoList = _repoList[0];
   var setRepoList = _repoList[1];
-  var _settingsOpen = useState4(!initialRepo);
+  var _settingsOpen = useState5(!initialRepo);
   var settingsOpen = _settingsOpen[0];
   var setSettingsOpen = _settingsOpen[1];
   var isRemote = isGitRemoteInput(repoPath);
-  var _autoOpen = useState4(isAutoOpenEnabled());
+  var _autoOpen = useState5(isAutoOpenEnabled());
   var autoOpen = _autoOpen[0];
   var setAutoOpen = _autoOpen[1];
   function toggleAutoOpen(next) {
@@ -5489,31 +6121,31 @@ function TraceScopePanelBody() {
     } catch (_e) {
     }
   }
-  var _dataDirOpen = useState4(false);
+  var _dataDirOpen = useState5(false);
   var dataDirOpen = _dataDirOpen[0];
   var setDataDirOpen = _dataDirOpen[1];
-  var _dataDir = useState4(null);
+  var _dataDir = useState5(null);
   var dataDirInfo = _dataDir[0];
   var setDataDirInfo = _dataDir[1];
-  var _dataDirDraft = useState4("");
+  var _dataDirDraft = useState5("");
   var dataDirDraft = _dataDirDraft[0];
   var setDataDirDraft = _dataDirDraft[1];
-  var _dataDirBusy = useState4(false);
+  var _dataDirBusy = useState5(false);
   var dataDirBusy = _dataDirBusy[0];
   var setDataDirBusy = _dataDirBusy[1];
-  var _pickerOpen = useState4(false);
+  var _pickerOpen = useState5(false);
   var pickerOpen = _pickerOpen[0];
   var setPickerOpen = _pickerOpen[1];
-  var _pickerPurpose = useState4("data");
+  var _pickerPurpose = useState5("data");
   var pickerPurpose = _pickerPurpose[0];
   var setPickerPurpose = _pickerPurpose[1];
-  var _pickerBrowse = useState4(null);
+  var _pickerBrowse = useState5(null);
   var pickerBrowse = _pickerBrowse[0];
   var setPickerBrowse = _pickerBrowse[1];
-  var _pickerLoading = useState4(false);
+  var _pickerLoading = useState5(false);
   var pickerLoading = _pickerLoading[0];
   var setPickerLoading = _pickerLoading[1];
-  var _pickerSelected = useState4("");
+  var _pickerSelected = useState5("");
   var pickerSelected = _pickerSelected[0];
   var setPickerSelected = _pickerSelected[1];
   function browsePath(target) {
@@ -5522,8 +6154,8 @@ function TraceScopePanelBody() {
     apiGet("/tracescope/v1/browse" + qs).then(function(data) {
       setPickerBrowse(data);
       setPickerSelected("");
-    }).catch(function(err) {
-      setChatHint("浏览目录失败：" + (err.message || String(err)));
+    }).catch(function(err2) {
+      setChatHint("浏览目录失败：" + (err2.message || String(err2)));
     }).finally(function() {
       setPickerLoading(false);
     });
@@ -5580,6 +6212,83 @@ function TraceScopePanelBody() {
     setDataDirOpen(opening);
     if (opening && !dataDirInfo) refreshDataDir();
   }
+  function resetUpdatePanel() {
+    setUpdateCanForce(false);
+    setUpdateOfferRestart(false);
+  }
+  function toggleUpdatePanel(next) {
+    var opening = typeof next === "boolean" ? next : !updateOpen;
+    setUpdateOpen(opening);
+    if (opening && !updateInfo && !updateBusy && !updateMessage) {
+      runCheckUpdate();
+    }
+  }
+  function runCheckUpdate() {
+    if (updateBusy) return;
+    setUpdateOpen(true);
+    setUpdateBusy(true);
+    setUpdateMessage("正在检查 npm 最新版本…");
+    resetUpdatePanel();
+    setUpdateInfo(null);
+    selfUpdate.checkSelfUpdate().then(function(info) {
+      setUpdateInfo(info);
+      setUpdateDiscovery({ channel: "self", applyHint: info.applyHint });
+      if (info.installedVersion) setPluginVersion(info.installedVersion);
+      if (info.updateAvailable) {
+        setUpdateMessage(
+          "发现新版本 " + (info.latestVersion || "?") + "（当前 " + (info.installedVersion || "?") + "）" + (info.registrySource ? " · " + info.registrySource : "")
+        );
+      } else if (!info.latestVersion) {
+        setUpdateMessage("未能从 npm 读取最新版本，请检查网络后重试。");
+      } else {
+        setUpdateMessage(
+          "已是最新" + (info.installedVersion ? "（" + info.installedVersion + "）" : "") + "。"
+        );
+      }
+    }).catch(function(err2) {
+      setUpdateMessage("检查更新失败：" + (err2.message || String(err2)));
+    }).finally(function() {
+      setUpdateBusy(false);
+    });
+  }
+  function runApplyUpdate(force) {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+    setUpdateMessage(force ? "正在强制更新…" : "正在更新…");
+    resetUpdatePanel();
+    var ensureInfo = updateInfo ? Promise.resolve(updateInfo) : selfUpdate.checkSelfUpdate().then(function(info) {
+      setUpdateInfo(info);
+      return info;
+    });
+    ensureInfo.then(function(info) {
+      return selfUpdate.applySelfUpdate(info, hostCtx, {
+        force: force === true,
+        onProgress: function(msg) {
+          setUpdateMessage(msg);
+        }
+      });
+    }).then(function(result) {
+      if (result.installedVersion) setPluginVersion(result.installedVersion);
+      if (result.ok) {
+        setUpdateInfo(function(prev) {
+          return Object.assign({}, prev || {}, {
+            installedVersion: result.installedVersion || prev && prev.installedVersion,
+            latestVersion: result.installedVersion || prev && prev.latestVersion,
+            updateAvailable: false
+          });
+        });
+        setUpdateMessage(result.message);
+        setUpdateOfferRestart(false);
+        return;
+      }
+      setUpdateMessage(result.message || "更新失败");
+      setUpdateCanForce(!!result.canForce || selfUpdate.forceRetryable(result.failure && result.failure.code));
+    }).catch(function(err2) {
+      setUpdateMessage("更新失败：" + (err2.message || String(err2)));
+    }).finally(function() {
+      setUpdateBusy(false);
+    });
+  }
   function applyDataDir() {
     if (dataDirBusy) return;
     var target = String(dataDirDraft || "").trim();
@@ -5600,17 +6309,17 @@ function TraceScopePanelBody() {
       setChatHint(
         data.migrated ? "数据已迁移至「" + data.dataRoot + "」，历史记录与附件均保留。" : "数据目录已切换为「" + data.dataRoot + "」。"
       );
-    }).catch(function(err) {
-      setChatHint("更改数据目录失败：" + (err.message || String(err)));
+    }).catch(function(err2) {
+      setChatHint("更改数据目录失败：" + (err2.message || String(err2)));
     }).finally(function() {
       setDataDirBusy(false);
     });
   }
   var ACCESS_MODE_KEY = "tracescope.accessMode";
-  var _accessMode = useState4(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
+  var _accessMode = useState5(localStorage.getItem(ACCESS_MODE_KEY) === "codeup" ? "codeup" : "git");
   var accessMode = _accessMode[0];
   var setAccessMode = _accessMode[1];
-  var _copyFlash = useState4("");
+  var _copyFlash = useState5("");
   var copyFlash = _copyFlash[0];
   var setCopyFlash = _copyFlash[1];
   var YX_AUTH_KEY = "tracescope.yunxiaoAuth";
@@ -5620,134 +6329,134 @@ function TraceScopePanelBody() {
   } catch (_e) {
     savedYx = null;
   }
-  var _yxEndpoint = useState4(
+  var _yxEndpoint = useState5(
     savedYx && savedYx.endpoint || "https://openapi-rdc.aliyuncs.com"
   );
   var yxEndpoint = _yxEndpoint[0];
   var setYxEndpoint = _yxEndpoint[1];
-  var _yxToken = useState4(savedYx && savedYx.token || "");
+  var _yxToken = useState5(savedYx && savedYx.token || "");
   var yxToken = _yxToken[0];
   var setYxToken = _yxToken[1];
-  var _yxTokenSaved = useState4(Boolean(savedYx && savedYx.token));
+  var _yxTokenSaved = useState5(Boolean(savedYx && savedYx.token));
   var yxTokenSaved = _yxTokenSaved[0];
   var setYxTokenSaved = _yxTokenSaved[1];
-  var _yxHydrated = useState4(false);
+  var _yxHydrated = useState5(false);
   var yxHydrated = _yxHydrated[0];
   var setYxHydrated = _yxHydrated[1];
-  var _yxOrg = useState4("");
+  var _yxOrg = useState5("");
   var yxOrg = _yxOrg[0];
   var setYxOrg = _yxOrg[1];
-  var _yxSpace = useState4("");
+  var _yxSpace = useState5("");
   var yxSpace = _yxSpace[0];
   var setYxSpace = _yxSpace[1];
-  var _yxType = useState4("");
+  var _yxType = useState5("");
   var yxType = _yxType[0];
   var setYxType = _yxType[1];
-  var _yxAssignee = useState4("");
+  var _yxAssignee = useState5("");
   var yxAssignee = _yxAssignee[0];
   var setYxAssignee = _yxAssignee[1];
-  var _yxOrgs = useState4([]);
+  var _yxOrgs = useState5([]);
   var yxOrgs = _yxOrgs[0];
   var setYxOrgs = _yxOrgs[1];
-  var _yxProjects = useState4([]);
+  var _yxProjects = useState5([]);
   var yxProjects = _yxProjects[0];
   var setYxProjects = _yxProjects[1];
-  var _yxTypes = useState4([]);
+  var _yxTypes = useState5([]);
   var yxTypes = _yxTypes[0];
   var setYxTypes = _yxTypes[1];
-  var _yxMembers = useState4([]);
+  var _yxMembers = useState5([]);
   var yxMembers = _yxMembers[0];
   var setYxMembers = _yxMembers[1];
-  var _yxCatalogHint = useState4("");
+  var _yxCatalogHint = useState5("");
   var yxCatalogHint = _yxCatalogHint[0];
   var setYxCatalogHint = _yxCatalogHint[1];
-  var _yxDebugLog = useState4(false);
+  var _yxDebugLog = useState5(false);
   var yxDebugLog = _yxDebugLog[0];
   var setYxDebugLog = _yxDebugLog[1];
-  var _yxRequestLog = useState4("");
+  var _yxRequestLog = useState5("");
   var yxRequestLog = _yxRequestLog[0];
   var setYxRequestLog = _yxRequestLog[1];
-  var _trackerProvider = useState4("none");
+  var _trackerProvider = useState5("none");
   var trackerProvider = _trackerProvider[0];
   var setTrackerProvider = _trackerProvider[1];
-  var _ghToken = useState4("");
+  var _ghToken = useState5("");
   var ghToken = _ghToken[0];
   var setGhToken = _ghToken[1];
-  var _ghOwner = useState4("");
+  var _ghOwner = useState5("");
   var ghOwner = _ghOwner[0];
   var setGhOwner = _ghOwner[1];
-  var _ghRepo = useState4("");
+  var _ghRepo = useState5("");
   var ghRepo = _ghRepo[0];
   var setGhRepo = _ghRepo[1];
-  var _ghLabels = useState4("bug");
+  var _ghLabels = useState5("bug");
   var ghLabels = _ghLabels[0];
   var setGhLabels = _ghLabels[1];
-  var _glHost = useState4("https://gitlab.com");
+  var _glHost = useState5("https://gitlab.com");
   var glHost = _glHost[0];
   var setGlHost = _glHost[1];
-  var _glToken = useState4("");
+  var _glToken = useState5("");
   var glToken = _glToken[0];
   var setGlToken = _glToken[1];
-  var _glProject = useState4("");
+  var _glProject = useState5("");
   var glProject = _glProject[0];
   var setGlProject = _glProject[1];
-  var _glLabels = useState4("bug");
+  var _glLabels = useState5("bug");
   var glLabels = _glLabels[0];
   var setGlLabels = _glLabels[1];
-  var _whUrl = useState4("");
+  var _whUrl = useState5("");
   var whUrl = _whUrl[0];
   var setWhUrl = _whUrl[1];
-  var _whAuth = useState4("");
+  var _whAuth = useState5("");
   var whAuth = _whAuth[0];
   var setWhAuth = _whAuth[1];
-  var _trackerReady = useState4(false);
+  var _trackerReady = useState5(false);
   var trackerReady = _trackerReady[0];
   var setTrackerReady = _trackerReady[1];
-  var _wiCats = useState4({ Req: true, Bug: true, Task: true, Risk: false, Topic: false });
+  var _wiCats = useState5({ Req: true, Bug: true, Task: true, Risk: false, Topic: false });
   var wiCats = _wiCats[0];
   var setWiCats = _wiCats[1];
-  var _wiItems = useState4([]);
+  var _wiItems = useState5([]);
   var wiItems = _wiItems[0];
   var setWiItems = _wiItems[1];
-  var _wiSelected = useState4({});
+  var _wiSelected = useState5({});
   var wiSelected = _wiSelected[0];
   var setWiSelected = _wiSelected[1];
-  var _wiHint = useState4("");
+  var _wiHint = useState5("");
   var wiHint = _wiHint[0];
   var setWiHint = _wiHint[1];
-  var _resolved = useState4(null);
+  var _resolved = useState5(null);
   var resolved = _resolved[0];
   var setResolved = _resolved[1];
-  var _commits = useState4([]);
+  var _commits = useState5([]);
   var commits = _commits[0];
   var setCommits = _commits[1];
-  var _refs = useState4([]);
+  var _refs = useState5([]);
   var refs = _refs[0];
   var setRefs = _refs[1];
-  var _base = useState4("");
+  var _base = useState5("");
   var baseCommit = _base[0];
   var setBaseCommit = _base[1];
-  var _head = useState4("");
+  var _head = useState5("");
   var headCommit = _head[0];
   var setHeadCommit = _head[1];
-  var _branchQuery = useState4("");
+  var _branchQuery = useState5("");
   var branchQuery = _branchQuery[0];
   var setBranchQuery = _branchQuery[1];
-  var _branchPickerOpen = useState4(false);
+  var _branchPickerOpen = useState5(false);
   var branchPickerOpen = _branchPickerOpen[0];
   var setBranchPickerOpen = _branchPickerOpen[1];
-  var _commitListRef = useState4("");
+  var _commitListRef = useState5("");
   var commitListRef = _commitListRef[0];
   var setCommitListRef = _commitListRef[1];
-  var _report = useState4(null);
+  var _report = useState5(null);
   var report = _report[0];
   var setReport = _report[1];
-  var _tab = useState4("direct");
+  var _tab = useState5("direct");
   var tab = _tab[0];
   var setTab = _tab[1];
   var MODE_KEY = "tracescope.mode";
   var _savedMode = localStorage.getItem(MODE_KEY);
-  var _mode = useState4(
+  var _mode = useState5(
     _savedMode === "ui" ? _savedMode : "functional"
   );
   var mode = _mode[0];
@@ -5759,24 +6468,48 @@ function TraceScopePanelBody() {
     } catch (_e) {
     }
   }
-  var _error = useState4("");
+  var _error = useState5("");
   var error = _error[0];
   var setError = _error[1];
-  var _busy = useState4(false);
+  var _busy = useState5(false);
   var busy = _busy[0];
   var setBusy = _busy[1];
-  var _busyMessage = useState4("");
+  var _busyMessage = useState5("");
   var busyMessage = _busyMessage[0];
   var setBusyMessage = _busyMessage[1];
-  var _busyElapsed = useState4(0);
+  var _busyElapsed = useState5(0);
   var busyElapsed = _busyElapsed[0];
   var setBusyElapsed = _busyElapsed[1];
-  var busyRef = useRef3(false);
-  var busyMsgRef = useRef3("");
-  var busyBaseMsgRef = useRef3("");
-  var _health = useState4("检查中…");
+  var busyRef = useRef4(false);
+  var busyMsgRef = useRef4("");
+  var busyBaseMsgRef = useRef4("");
+  var _health = useState5("检查中…");
   var health = _health[0];
   var setHealth = _health[1];
+  var _pluginVersion = useState5(null);
+  var pluginVersion = _pluginVersion[0];
+  var setPluginVersion = _pluginVersion[1];
+  var _updateOpen = useState5(false);
+  var updateOpen = _updateOpen[0];
+  var setUpdateOpen = _updateOpen[1];
+  var _updateBusy = useState5(false);
+  var updateBusy = _updateBusy[0];
+  var setUpdateBusy = _updateBusy[1];
+  var _updateDiscovery = useState5(null);
+  var updateDiscovery = _updateDiscovery[0];
+  var setUpdateDiscovery = _updateDiscovery[1];
+  var _updateInfo = useState5(null);
+  var updateInfo = _updateInfo[0];
+  var setUpdateInfo = _updateInfo[1];
+  var _updateMessage = useState5("");
+  var updateMessage = _updateMessage[0];
+  var setUpdateMessage = _updateMessage[1];
+  var _updateCanForce = useState5(false);
+  var updateCanForce = _updateCanForce[0];
+  var setUpdateCanForce = _updateCanForce[1];
+  var _updateOfferRestart = useState5(false);
+  var updateOfferRestart = _updateOfferRestart[0];
+  var setUpdateOfferRestart = _updateOfferRestart[1];
   var AUTH_KEY = "tracescope.auth";
   var AUTH_UI_MODE_KEY = "tracescope.authUiMode";
   var savedAuth = null;
@@ -5802,22 +6535,22 @@ function TraceScopePanelBody() {
   if ((initialAuthMode === "https" || initialAuthMode === "none") && (/^https:\/\/codeup\.aliyun\.com\//i.test(String(initialRepo || "").trim()) || localStorage.getItem(ACCESS_MODE_KEY) === "codeup")) {
     initialAuthMode = "token";
   }
-  var _authMode = useState4(initialAuthMode);
+  var _authMode = useState5(initialAuthMode);
   var authMode = _authMode[0];
   var setAuthMode = _authMode[1];
-  var _authUser = useState4(savedAuth && savedAuth.username || "git");
+  var _authUser = useState5(savedAuth && savedAuth.username || "git");
   var authUser = _authUser[0];
   var setAuthUser = _authUser[1];
-  var _authToken = useState4(savedAuth && savedAuth.token || "");
+  var _authToken = useState5(savedAuth && savedAuth.token || "");
   var authToken = _authToken[0];
   var setAuthToken = _authToken[1];
-  var _authKey = useState4(savedAuth && savedAuth.privateKeyPath || "");
+  var _authKey = useState5(savedAuth && savedAuth.privateKeyPath || "");
   var authKey = _authKey[0];
   var setAuthKey = _authKey[1];
-  var _rememberAuth = useState4(true);
+  var _rememberAuth = useState5(true);
   var rememberAuth = _rememberAuth[0];
   var setRememberAuth = _rememberAuth[1];
-  var _chatHint = useState4("");
+  var _chatHint = useState5("");
   var chatHint = _chatHint[0];
   var setChatHint = _chatHint[1];
   function beginBusy(message) {
@@ -5867,7 +6600,7 @@ function TraceScopePanelBody() {
     busyMsgRef.current = text;
     setBusyMessage(text);
   }
-  useEffect4(
+  useEffect5(
     function() {
       if (!busy) {
         setBusyElapsed(0);
@@ -5905,33 +6638,33 @@ function TraceScopePanelBody() {
     },
     [busy]
   );
-  var _jobId = useState4("");
+  var _jobId = useState5("");
   var jobId = _jobId[0];
   var setJobId = _jobId[1];
-  var _jobStatus = useState4("");
+  var _jobStatus = useState5("");
   var jobStatus = _jobStatus[0];
   var setJobStatus = _jobStatus[1];
-  var _history = useState4([]);
+  var _history = useState5([]);
   var history = _history[0];
   var setHistory = _history[1];
-  var _historyId = useState4("");
+  var _historyId = useState5("");
   var historyId = _historyId[0];
   var setHistoryId = _historyId[1];
-  var _confirmDlg = useState4(null);
+  var _confirmDlg = useState5(null);
   var confirmDlg = _confirmDlg[0];
   var setConfirmDlg = _confirmDlg[1];
-  var pollRef = useRef3(null);
-  var skipPairLoadRef = useRef3(false);
-  var skipAutoSyncRef = useRef3(false);
-  var noteTimersRef = useRef3({});
-  var viewingHistoryRef = useRef3(null);
-  var reportRef = useRef3(null);
+  var pollRef = useRef4(null);
+  var skipPairLoadRef = useRef4(false);
+  var skipAutoSyncRef = useRef4(false);
+  var noteTimersRef = useRef4({});
+  var viewingHistoryRef = useRef4(null);
+  var reportRef = useRef4(null);
   reportRef.current = report;
-  var taskAttachRef = useRef3(null);
-  var _taskAttachPath = useState4("");
+  var taskAttachRef = useRef4(null);
+  var _taskAttachPath = useState5("");
   var taskAttachPath = _taskAttachPath[0];
   var setTaskAttachPath = _taskAttachPath[1];
-  var _authHydrated = useState4(false);
+  var _authHydrated = useState5(false);
   var authHydrated = _authHydrated[0];
   var setAuthHydrated = _authHydrated[1];
   function buildAuthPayload() {
@@ -5957,8 +6690,8 @@ function TraceScopePanelBody() {
   function codeupRequestToken() {
     return authMode === "token" ? usableSecret(yxToken) : authMode === "https" ? usableSecret(authToken) : usableSecret(yxToken);
   }
-  var restoringProfileRef = useRef3(false);
-  var pendingTrackerSyncRef = useRef3(false);
+  var restoringProfileRef = useRef4(false);
+  var pendingTrackerSyncRef = useRef4(false);
   function defaultYxEndpoint() {
     return "https://openapi-rdc.aliyuncs.com";
   }
@@ -6062,7 +6795,7 @@ function TraceScopePanelBody() {
       whAuth
     };
   }
-  useEffect4(
+  useEffect5(
     function() {
       var repo = repoPath.trim();
       if (!repo || restoringProfileRef.current) {
@@ -6100,7 +6833,7 @@ function TraceScopePanelBody() {
       whAuth
     ]
   );
-  useEffect4(
+  useEffect5(
     function() {
       if (!pendingTrackerSyncRef.current) return;
       var repo = repoPath.trim();
@@ -6197,9 +6930,10 @@ function TraceScopePanelBody() {
       );
     }
   }
-  useEffect4(function() {
-    apiGet("/tracescope/v1/health").then(function() {
+  useEffect5(function() {
+    apiGet("/tracescope/v1/health").then(function(data) {
       setHealth("已连接");
+      if (data && data.version) setPluginVersion(data.version);
     }).catch(function() {
       setHealth("Host API 未就绪");
     });
@@ -6298,11 +7032,11 @@ function TraceScopePanelBody() {
       setYxHydrated(true);
     });
   }, []);
-  useEffect4(function() {
+  useEffect5(function() {
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "none" || authMode === "https") setRemoteAuthMode("token");
   }, [repoPath, accessMode]);
-  useEffect4(function() {
+  useEffect5(function() {
     if (!yxHydrated) return;
     if (authMode === "token" && !rememberAuth) return;
     var token = usableSecret(yxToken);
@@ -6330,14 +7064,14 @@ function TraceScopePanelBody() {
       clearTimeout(handle);
     };
   }, [yxHydrated, yxToken, yxEndpoint, yxOrg, authMode, rememberAuth, repoPath, accessMode, trackerProvider]);
-  useEffect4(function() {
+  useEffect5(function() {
     if (!authHydrated || !yxHydrated) return;
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "ssh") return;
     if (yxTokenSaved || usableSecret(yxToken)) return;
     setSettingsOpen(true);
   }, [authHydrated, yxHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authMode]);
-  useEffect4(function() {
+  useEffect5(function() {
     if (!authHydrated) return;
     persistAuth();
   }, [authHydrated, rememberAuth, authMode, authUser, authToken, authKey, yxToken, repoPath]);
@@ -6397,7 +7131,7 @@ function TraceScopePanelBody() {
       prefix + "（" + sourceLabel + " · " + (stored.savedAt || "") + "）。切换版本会自动换清单；点「刷新已存清单」可手动重载。"
     );
   }
-  var refreshStoredReport = useCallback(
+  var refreshStoredReport = useCallback2(
     function() {
       if (!repoPath.trim() || !baseCommit || !headCommit) {
         setError("请先选择仓库和两个版本");
@@ -6418,16 +7152,16 @@ function TraceScopePanelBody() {
           setHistoryId("");
           setChatHint("当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。");
         }
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [repoPath, baseCommit, headCommit]
   );
-  var refreshHistory = useCallback(
+  var refreshHistory = useCallback2(
     function() {
       apiPost("/tracescope/v1/report-history", {
         limit: 80
@@ -6439,7 +7173,7 @@ function TraceScopePanelBody() {
     },
     []
   );
-  var openHistoryEntry = useCallback(
+  var openHistoryEntry = useCallback2(
     function(id) {
       if (!id) return;
       if (!beginBusy("正在打开历史任务…")) return;
@@ -6465,16 +7199,16 @@ function TraceScopePanelBody() {
           if (nextHead) setHeadCommit(nextHead);
           applyStoredReport(data.stored, { fromHistory: true });
         }
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [repoPath]
   );
-  var switchRepo = useCallback(
+  var switchRepo = useCallback2(
     function(nextPath) {
       if (busyRef.current) {
         setChatHint(
@@ -6507,7 +7241,7 @@ function TraceScopePanelBody() {
     },
     [repoPath]
   );
-  useEffect4(function() {
+  useEffect5(function() {
     if (!repoPath.trim() || !baseCommit || !headCommit) {
       if (!viewingHistoryRef.current) {
         setReport(null);
@@ -6550,10 +7284,10 @@ function TraceScopePanelBody() {
       cancelled = true;
     };
   }, [repoPath, baseCommit, headCommit]);
-  useEffect4(function() {
+  useEffect5(function() {
     refreshHistory();
   }, [refreshHistory]);
-  useEffect4(function() {
+  useEffect5(function() {
     return function() {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -6561,7 +7295,7 @@ function TraceScopePanelBody() {
       }
     };
   }, []);
-  useEffect4(function() {
+  useEffect5(function() {
     if (!jobId || jobStatus === "published" || jobStatus === "error") {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -6601,7 +7335,7 @@ function TraceScopePanelBody() {
       }
     };
   }, [jobId, jobStatus, refreshHistory]);
-  var loadCommits = useCallback(
+  var loadCommits = useCallback2(
     function(forceFetch, opts) {
       setError("");
       if (!repoPath.trim()) {
@@ -6683,16 +7417,16 @@ function TraceScopePanelBody() {
             "已加载分支「" + opts.refName + "」近期提交 " + list.length + " 条，可在下方下拉里选具体 commit"
           );
         }
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxTokenSaved, yxEndpoint, yxOrg]
   );
-  useEffect4(
+  useEffect5(
     function() {
       if (!authHydrated) return;
       if (!repoPath.trim()) return;
@@ -6713,8 +7447,8 @@ function TraceScopePanelBody() {
     // Sync when the repo, mode, access mode, or (for the Codeup fallback) token becomes available.
     [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode]
   );
-  var initialCheckRef = useRef3(false);
-  useEffect4(function() {
+  var initialCheckRef = useRef4(false);
+  useEffect5(function() {
     if (initialCheckRef.current) return;
     initialCheckRef.current = true;
     var p = (localStorage.getItem(REPO_PATH_KEY) || "").trim();
@@ -6740,7 +7474,7 @@ function TraceScopePanelBody() {
     }).catch(function() {
     });
   }, []);
-  var selectedRelatedWorkItems = useCallback(
+  var selectedRelatedWorkItems = useCallback2(
     function() {
       return (wiItems || []).filter(function(it) {
         return it && it.id && wiSelected[it.id];
@@ -6748,7 +7482,7 @@ function TraceScopePanelBody() {
     },
     [wiItems, wiSelected]
   );
-  var analyze = useCallback(
+  var analyze = useCallback2(
     function() {
       setError("");
       setChatHint("");
@@ -6781,9 +7515,9 @@ function TraceScopePanelBody() {
             accessMode === "codeup" ? "已通过远端 API 生成直接项清单（无静态波及）。需要 AI 深度分析时点「AI 智能分析」。" : related.length ? "已生成清单（含 " + related.length + " 条关联敏捷任务种子），并保存到本机。" : "已按规则生成清单并保存到本机。需要 AI 深度分析时点「AI 智能分析」。"
           );
           refreshHistory();
-        }).catch(function(err) {
-          if (isAbortError(err)) return;
-          setError(err.message || String(err));
+        }).catch(function(err2) {
+          if (isAbortError(err2)) return;
+          setError(err2.message || String(err2));
         }).finally(function() {
           endBusy();
         });
@@ -6818,7 +7552,7 @@ function TraceScopePanelBody() {
       selectedRelatedWorkItems
     ]
   );
-  var startChatAnalysis = useCallback(
+  var startChatAnalysis = useCallback2(
     function() {
       setError("");
       setChatHint("");
@@ -6866,9 +7600,9 @@ function TraceScopePanelBody() {
             } catch (_clip) {
             }
           }
-        }).catch(function(err) {
-          if (isAbortError(err)) return;
-          setError(err.message || String(err));
+        }).catch(function(err2) {
+          if (isAbortError(err2)) return;
+          setError(err2.message || String(err2));
         }).finally(function() {
           endBusy();
         });
@@ -6902,7 +7636,7 @@ function TraceScopePanelBody() {
       selectedRelatedWorkItems
     ]
   );
-  var deleteSelectedHistory = useCallback(
+  var deleteSelectedHistory = useCallback2(
     function() {
       if (!historyId) {
         setError("请先在历史任务中选择一条记录");
@@ -6911,10 +7645,10 @@ function TraceScopePanelBody() {
       var target = (history || []).find(function(h) {
         return h.id === historyId;
       });
-      var desc = target ? shortSha(target.baseCommit) + "→" + shortSha(target.headCommit) : historyId;
+      var desc2 = target ? shortSha(target.baseCommit) + "→" + shortSha(target.headCommit) : historyId;
       setConfirmDlg({
         title: "删除历史任务？",
-        message: "将永久删除该版本对比的清单与历史记录（" + desc + "），此操作不可恢复。",
+        message: "将永久删除该版本对比的清单与历史记录（" + desc2 + "），此操作不可恢复。",
         confirmLabel: "删除",
         danger: true,
         onConfirm: function() {
@@ -6925,9 +7659,9 @@ function TraceScopePanelBody() {
             setReport(null);
             setChatHint("已删除该历史任务。");
             refreshHistory();
-          }).catch(function(err) {
-            if (isAbortError(err)) return;
-            setError(err.message || String(err));
+          }).catch(function(err2) {
+            if (isAbortError(err2)) return;
+            setError(err2.message || String(err2));
           }).finally(function() {
             endBusy();
           });
@@ -6936,7 +7670,7 @@ function TraceScopePanelBody() {
     },
     [historyId, history, refreshHistory]
   );
-  var onStatus = useCallback(function(listKind, itemIndex, itemId, status) {
+  var onStatus = useCallback2(function(listKind, itemIndex, itemId, status) {
     setReport(function(prev) {
       if (!prev) return prev;
       var base2 = uniquifyReportIds(prev);
@@ -6959,12 +7693,12 @@ function TraceScopePanelBody() {
     var current = reportRef.current;
     var repo = (repoPath.trim() || current && current.repoPath || "").trim();
     var base = baseCommit || current && current.baseCommit || "";
-    var head = headCommit || current && current.headCommit || "";
-    if (repo && base && head && itemId) {
+    var head2 = headCommit || current && current.headCommit || "";
+    if (repo && base && head2 && itemId) {
       apiPost("/tracescope/v1/report-status", {
         repoPath: repo,
         baseCommit: base,
-        headCommit: head,
+        headCommit: head2,
         itemId,
         listKind: listKind === "ripple" ? "ripple" : "direct",
         itemIndex,
@@ -6974,7 +7708,7 @@ function TraceScopePanelBody() {
       });
     }
   }, [repoPath, baseCommit, headCommit]);
-  var onNote = useCallback(
+  var onNote = useCallback2(
     function(listKind, itemIndex, itemId, note, persistNow) {
       var value = String(note || "");
       var kind = listKind === "ripple" ? "ripple" : "direct";
@@ -6997,12 +7731,12 @@ function TraceScopePanelBody() {
         var current = reportRef.current;
         var repo = (repoPath.trim() || current && current.repoPath || "").trim();
         var base = baseCommit || current && current.baseCommit || "";
-        var head = headCommit || current && current.headCommit || "";
-        if (!(repo && base && head && itemId)) return;
+        var head2 = headCommit || current && current.headCommit || "";
+        if (!(repo && base && head2 && itemId)) return;
         apiPost("/tracescope/v1/report-status", {
           repoPath: repo,
           baseCommit: base,
-          headCommit: head,
+          headCommit: head2,
           itemId,
           listKind: kind,
           itemIndex,
@@ -7024,7 +7758,7 @@ function TraceScopePanelBody() {
     },
     [repoPath, baseCommit, headCommit]
   );
-  var onScreenshots = useCallback(
+  var onScreenshots = useCallback2(
     function(listKind, itemIndex, itemId, shots, persistNow) {
       var kind = listKind === "ripple" ? "ripple" : "direct";
       var nextShots = (shots || []).slice(0, MAX_SHOTS);
@@ -7047,27 +7781,27 @@ function TraceScopePanelBody() {
       var current = reportRef.current;
       var repo = (repoPath.trim() || current && current.repoPath || "").trim();
       var base = baseCommit || current && current.baseCommit || "";
-      var head = headCommit || current && current.headCommit || "";
-      if (!(repo && base && head && itemId)) return;
+      var head2 = headCommit || current && current.headCommit || "";
+      if (!(repo && base && head2 && itemId)) return;
       apiPost("/tracescope/v1/report-status", {
         repoPath: repo,
         baseCommit: base,
-        headCommit: head,
+        headCommit: head2,
         itemId,
         listKind: kind,
         itemIndex,
         status: "fail",
         testerScreenshots: nextShots
-      }).catch(function(err) {
-        setChatHint(err.message || "保存截图失败（可能体积过大）");
+      }).catch(function(err2) {
+        setChatHint(err2.message || "保存截图失败（可能体积过大）");
       });
     },
     [repoPath, baseCommit, headCommit]
   );
-  var onShotHint = useCallback(function(msg) {
+  var onShotHint = useCallback2(function(msg) {
     if (msg) setChatHint(msg);
   }, []);
-  var uploadTaskFiles = useCallback(
+  var uploadTaskFiles = useCallback2(
     function(files) {
       if (!report) {
         setChatHint("请先生成验证清单，再上传任务附件");
@@ -7111,10 +7845,10 @@ function TraceScopePanelBody() {
             }
             setChatHint("已添加附件「" + file.name + "」");
             next();
-          }).catch(function(err) {
+          }).catch(function(err2) {
             endBusy();
-            if (isAbortError(err)) return;
-            setError(err.message || String(err));
+            if (isAbortError(err2)) return;
+            setError(err2.message || String(err2));
           });
           return;
         }
@@ -7146,17 +7880,17 @@ function TraceScopePanelBody() {
           }
           setChatHint("已添加附件「" + file.name + "」");
           next();
-        }).catch(function(err) {
+        }).catch(function(err2) {
           endBusy();
-          if (isAbortError(err)) return;
-          setError(err.message || String(err));
+          if (isAbortError(err2)) return;
+          setError(err2.message || String(err2));
         });
       }
       next();
     },
     [report, repoPath, baseCommit, headCommit]
   );
-  var uploadTaskLocalPath = useCallback(
+  var uploadTaskLocalPath = useCallback2(
     function() {
       if (!report) {
         setChatHint("请先生成验证清单，再上传任务附件");
@@ -7181,16 +7915,16 @@ function TraceScopePanelBody() {
         }
         setTaskAttachPath("");
         setChatHint("已从本机路径添加附件");
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [report, repoPath, baseCommit, headCommit, taskAttachPath]
   );
-  var removeTaskAttachment = useCallback(
+  var removeTaskAttachment = useCallback2(
     function(id) {
       if (!report || !id) return;
       if (!beginBusy("正在删除附件…")) return;
@@ -7208,16 +7942,16 @@ function TraceScopePanelBody() {
           });
         });
         setChatHint("已移除任务附件");
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [report, repoPath, baseCommit, headCommit]
   );
-  var downloadTaskAttachment = useCallback(
+  var downloadTaskAttachment = useCallback2(
     function(att) {
       if (!report || !att) return;
       if (!beginBusy("正在下载附件…")) return;
@@ -7251,16 +7985,16 @@ function TraceScopePanelBody() {
           URL.revokeObjectURL(url);
         }, 1500);
         setChatHint("已开始下载「" + att.name + "」");
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [report, repoPath, baseCommit, headCommit]
   );
-  var copyFailFeedback = useCallback(
+  var copyFailFeedback = useCallback2(
     function() {
       if (!report) return;
       var failed = [].concat(report.direct || [], report.ripple || []).filter(function(it) {
@@ -7297,22 +8031,22 @@ function TraceScopePanelBody() {
     },
     [report, repoPath, baseCommit, headCommit]
   );
-  var exportReportFile = useCallback(
+  var exportReportFile = useCallback2(
     function() {
       if (!report) {
         setChatHint("当前没有可导出的清单");
         return;
       }
       var base = baseCommit || report.baseCommit || "";
-      var head = headCommit || report.headCommit || "";
+      var head2 = headCommit || report.headCommit || "";
       var stamp = String(report.generatedAt || (/* @__PURE__ */ new Date()).toISOString()).replace(/[:.]/g, "-").slice(0, 19);
-      var filename = "tracescope-" + String(base).slice(0, 7) + "-" + String(head).slice(0, 7) + "-" + stamp + ".md";
+      var filename = "tracescope-" + String(base).slice(0, 7) + "-" + String(head2).slice(0, 7) + "-" + stamp + ".md";
       if (!beginBusy("正在导出清单…")) return;
       setError("");
       apiPost("/tracescope/v1/report-export", {
         repoPath: repoPath.trim() || report.repoPath || "",
         baseCommit: base,
-        headCommit: head
+        headCommit: head2
       }).then(function(data) {
         var text = data && data.markdown || "";
         var name2 = data && data.filename || filename;
@@ -7322,7 +8056,7 @@ function TraceScopePanelBody() {
         var text = buildLocalExportMarkdown(report, {
           repoPath: repoPath.trim() || report.repoPath || "",
           baseCommit: base,
-          headCommit: head
+          headCommit: head2
         });
         downloadTextFile2(filename, text, "text/markdown");
         setChatHint("已导出（本地面板数据）：" + filename);
@@ -7332,7 +8066,7 @@ function TraceScopePanelBody() {
     },
     [report, repoPath, baseCommit, headCommit]
   );
-  var saveTrackerSettings = useCallback(
+  var saveTrackerSettings = useCallback2(
     function() {
       if (!beginBusy("正在保存协作平台配置…")) return;
       var payload = { provider: trackerProvider };
@@ -7367,9 +8101,9 @@ function TraceScopePanelBody() {
         setChatHint(
           data && data.ready ? "协作平台配置已保存，可将失败反馈一键提交。" : trackerProvider === "none" ? "已清除协作平台配置。" : "配置已写入，但仍不完整，请检查必填项。"
         );
-      }).catch(function(err) {
-        if (isAbortError(err)) return;
-        setError(err.message || String(err));
+      }).catch(function(err2) {
+        if (isAbortError(err2)) return;
+        setError(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
@@ -7394,7 +8128,7 @@ function TraceScopePanelBody() {
       whAuth
     ]
   );
-  var appendYunxiaoDebug = useCallback(function(action, data) {
+  var appendYunxiaoDebug = useCallback2(function(action, data) {
     if (!data || !data.debug) return;
     var d = data.debug;
     var lines = [
@@ -7413,7 +8147,7 @@ function TraceScopePanelBody() {
       return next.length > 12e3 ? next.slice(next.length - 12e3) : next;
     });
   }, []);
-  var loadYunxiaoCatalog = useCallback(
+  var loadYunxiaoCatalog = useCallback2(
     function(action, extra) {
       setYxCatalogHint("正在从云效拉取…");
       return apiPost(
@@ -7443,14 +8177,14 @@ function TraceScopePanelBody() {
           setYxCatalogHint("已拉取 " + options.length + " 项");
         }
         return options;
-      }).catch(function(err) {
-        setYxCatalogHint(err.message || String(err));
-        throw err;
+      }).catch(function(err2) {
+        setYxCatalogHint(err2.message || String(err2));
+        throw err2;
       });
     },
     [yxEndpoint, yxToken, yxOrg, yxSpace, yxDebugLog, appendYunxiaoDebug]
   );
-  var refreshYunxiaoOrgs = useCallback(
+  var refreshYunxiaoOrgs = useCallback2(
     function() {
       if (!beginBusy("正在拉取云效企业列表…")) return;
       setYxCatalogHint("正在拉取云效企业…");
@@ -7466,7 +8200,7 @@ function TraceScopePanelBody() {
     },
     [loadYunxiaoCatalog, yxOrg]
   );
-  var refreshYunxiaoProjectsAndMembers = useCallback(
+  var refreshYunxiaoProjectsAndMembers = useCallback2(
     function(orgId) {
       var org = orgId || yxOrg;
       if (!org) {
@@ -7492,15 +8226,15 @@ function TraceScopePanelBody() {
         } else {
           setYxCatalogHint("已拉取项目 " + projects.length + " 个、成员 " + members.length + " 人");
         }
-      }).catch(function(err) {
-        setYxCatalogHint(err.message || String(err));
+      }).catch(function(err2) {
+        setYxCatalogHint(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [loadYunxiaoCatalog, yxOrg]
   );
-  var refreshYunxiaoTypes = useCallback(
+  var refreshYunxiaoTypes = useCallback2(
     function(orgId, spaceId) {
       var org = orgId || yxOrg;
       var space = spaceId || yxSpace;
@@ -7523,7 +8257,7 @@ function TraceScopePanelBody() {
     },
     [loadYunxiaoCatalog, yxOrg, yxSpace]
   );
-  var refreshAgileWorkitems = useCallback(
+  var refreshAgileWorkitems = useCallback2(
     function() {
       if (!yxOrg || !yxSpace) {
         setWiHint("请先在协作平台里选择企业和项目");
@@ -7550,15 +8284,15 @@ function TraceScopePanelBody() {
         setWiItems(items2);
         setWiSelected({});
         setWiHint("已拉取 " + items2.length + " 条，可多选后生成验证清单");
-      }).catch(function(err) {
-        setWiHint(err.message || String(err));
+      }).catch(function(err2) {
+        setWiHint(err2.message || String(err2));
       }).finally(function() {
         endBusy();
       });
     },
     [yxEndpoint, yxToken, yxOrg, yxSpace, wiCats]
   );
-  var submitTracker = useCallback(
+  var submitTracker = useCallback2(
     function() {
       if (!report) return;
       var failed = [].concat(report.direct || [], report.ripple || []).filter(function(it) {
@@ -7610,9 +8344,9 @@ function TraceScopePanelBody() {
               tip += "（" + data.attachmentErrors[0] + "）";
             }
             setChatHint(tip);
-          }).catch(function(err) {
-            if (isAbortError(err)) return;
-            setError(err.message || String(err));
+          }).catch(function(err2) {
+            if (isAbortError(err2)) return;
+            setError(err2.message || String(err2));
           }).finally(function() {
             endBusy();
           });
@@ -7622,13 +8356,13 @@ function TraceScopePanelBody() {
     [report, repoPath, baseCommit, headCommit, trackerReady, trackerProvider]
   );
   var items = report ? (tab === "direct" ? report.direct : report.ripple) || [] : [];
-  return jsxs5("div", {
+  return jsxs6("div", {
     style: styles.root,
     children: [
-      jsx5("style", {
+      jsx7("style", {
         children: "@keyframes tracescope-spin{to{transform:rotate(360deg)}}"
       }),
-      busy ? jsx5("div", {
+      busy ? jsx7("div", {
         style: styles.busyOverlay,
         role: "status",
         "aria-live": "polite",
@@ -7641,17 +8375,17 @@ function TraceScopePanelBody() {
           e.preventDefault();
           e.stopPropagation();
         },
-        children: jsxs5("div", {
+        children: jsxs6("div", {
           style: styles.busyBanner,
           children: [
-            jsxs5("svg", {
+            jsxs6("svg", {
               style: styles.busySpinnerSvg,
               viewBox: "0 0 28 28",
               width: 28,
               height: 28,
               "aria-hidden": "true",
               children: [
-                jsx5("circle", {
+                jsx7("circle", {
                   cx: 14,
                   cy: 14,
                   r: 11,
@@ -7659,7 +8393,7 @@ function TraceScopePanelBody() {
                   stroke: "#e4ddd0",
                   strokeWidth: 3
                 }),
-                jsx5("circle", {
+                jsx7("circle", {
                   cx: 14,
                   cy: 14,
                   r: 11,
@@ -7675,19 +8409,19 @@ function TraceScopePanelBody() {
                 })
               ]
             }),
-            jsx5("div", {
+            jsx7("div", {
               style: { fontWeight: 700, marginBottom: 6 },
               children: "加载中，请稍候"
             }),
-            jsx5("div", {
+            jsx7("div", {
               style: { color: "#6b645a", fontSize: 12, lineHeight: 1.45 },
               children: busyMessage || "正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。"
             }),
-            jsx5("div", {
+            jsx7("div", {
               style: { marginTop: 8, fontSize: 11, color: "#8a7f70" },
               children: "已用时 " + busyElapsed + " 秒"
             }),
-            jsx5("button", {
+            jsx7("button", {
               type: "button",
               style: styles.busyCancel,
               onClick: function(e) {
@@ -7700,33 +8434,35 @@ function TraceScopePanelBody() {
           ]
         })
       }) : null,
-      jsxs5("div", {
+      jsxs6("div", {
         style: Object.assign({}, styles.row, {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: 8
         }),
         children: [
-          jsxs5("div", {
+          jsxs6("div", {
             style: { display: "flex", flexDirection: "column", minWidth: 0, gap: 2 },
             children: [
-              jsx5("strong", { children: "TraceScope 测试工作台" }),
-              jsx5("span", {
+              jsx7("strong", { children: "TraceScope 测试工作台" }),
+              jsx7("span", {
                 style: { color: busy ? "#0f6e56" : "#6b645a", fontSize: 12 },
-                children: busy ? busyMessage || "处理中…" : health
+                children: busy ? busyMessage || "处理中…" : health + (pluginVersion ? " · v" + pluginVersion : "")
               })
             ]
           }),
           // Global preferences — compact, independent of the repo/feature cards.
-          jsxs5("div", {
+          jsxs6("div", {
             style: {
               display: "inline-flex",
               alignItems: "center",
               gap: 8,
-              flex: "0 0 auto"
+              flex: "0 0 auto",
+              flexWrap: "wrap",
+              justifyContent: "flex-end"
             },
             children: [
-              jsxs5("label", {
+              jsxs6("label", {
                 title: "进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。",
                 style: {
                   display: "inline-flex",
@@ -7739,7 +8475,7 @@ function TraceScopePanelBody() {
                   userSelect: "none"
                 },
                 children: [
-                  jsx5("input", {
+                  jsx7("input", {
                     type: "checkbox",
                     checked: autoOpen,
                     disabled: busy,
@@ -7751,7 +8487,21 @@ function TraceScopePanelBody() {
                   "自动展开"
                 ]
               }),
-              jsx5("button", {
+              jsx7("button", {
+                type: "button",
+                title: "对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）",
+                disabled: busy || updateBusy,
+                onClick: function() {
+                  toggleUpdatePanel();
+                },
+                style: Object.assign(
+                  {},
+                  styles.miniBtn,
+                  updateOpen || updateInfo && updateInfo.updateAvailable ? styles.miniBtnActive : null
+                ),
+                children: updateBusy ? "更新中…" : updateInfo && updateInfo.updateAvailable ? "有更新" : "检查更新"
+              }),
+              jsx7("button", {
                 type: "button",
                 title: "自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘",
                 disabled: busy,
@@ -7765,8 +8515,7 @@ function TraceScopePanelBody() {
           })
         ]
       }),
-      // Compact data-directory editor (global preference), inline under header.
-      dataDirOpen ? jsxs5("div", {
+      updateOpen ? jsxs6("div", {
         style: {
           display: "flex",
           flexDirection: "column",
@@ -7778,14 +8527,80 @@ function TraceScopePanelBody() {
           borderRadius: 10
         },
         children: [
-          jsx5("div", {
+          jsx7("div", {
+            style: {
+              fontSize: 12,
+              color: "#5d564c",
+              lineHeight: 1.45,
+              whiteSpace: "pre-wrap"
+            },
+            children: updateMessage || "对照 npm 检查版本。优先走官方插件管理器；若环境没有，会提示扩展坞或 CLI。无需安装插件市场。"
+          }),
+          jsxs6("div", {
+            style: Object.assign({}, styles.row, { gap: 6 }),
+            children: [
+              jsx7("button", {
+                type: "button",
+                style: styles.secondary,
+                disabled: updateBusy,
+                onClick: function() {
+                  runCheckUpdate();
+                },
+                children: updateBusy ? "请稍候…" : "重新检查"
+              }),
+              updateInfo && updateInfo.updateAvailable ? jsx7("button", {
+                type: "button",
+                style: styles.primary,
+                disabled: updateBusy,
+                onClick: function() {
+                  runApplyUpdate(false);
+                },
+                children: "更新到 " + (updateInfo.latestVersion || "最新版")
+              }) : null,
+              updateCanForce ? jsx7("button", {
+                type: "button",
+                style: styles.secondary,
+                disabled: updateBusy,
+                title: "在可选路径上强制再装",
+                onClick: function() {
+                  runApplyUpdate(true);
+                },
+                children: "强制更新"
+              }) : null,
+              jsx7("button", {
+                type: "button",
+                style: styles.miniBtn,
+                disabled: updateBusy,
+                onClick: function() {
+                  setUpdateOpen(false);
+                },
+                children: "收起"
+              })
+            ]
+          })
+        ]
+      }) : null,
+      // Compact data-directory editor (global preference), inline under header.
+      dataDirOpen ? jsxs6("div", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          padding: 8,
+          marginTop: 2,
+          background: "var(--dsh-card, #fffdf8)",
+          border: "1px solid var(--dsh-border, #ddd4c5)",
+          borderRadius: 10
+        },
+        children: [
+          jsx7("div", {
             style: { fontSize: 12, color: "#5d564c" },
             children: "数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）"
           }),
-          jsxs5("div", {
+          jsxs6("div", {
             style: Object.assign({}, styles.row, { gap: 6 }),
             children: [
-              jsx5("div", {
+              jsx7("div", {
                 title: dataDirDraft,
                 style: {
                   flex: 1,
@@ -7804,7 +8619,7 @@ function TraceScopePanelBody() {
                 },
                 children: dataDirDraft || (dataDirInfo ? dataDirInfo.defaultRoot : "点击右侧浏览选择目录")
               }),
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: Object.assign({}, styles.secondary, { flex: "0 0 auto" }),
                 disabled: dataDirBusy,
@@ -7813,13 +8628,13 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          dataDirInfo && dataDirInfo.envLocked ? jsx5("p", {
+          dataDirInfo && dataDirInfo.envLocked ? jsx7("p", {
             style: { margin: 0, color: "#9a6a1f", fontSize: 12 },
             children: "当前目录由环境变量 TRACESCOPE_HOME 指定（" + dataDirInfo.envRoot + "），请修改环境变量后重启，无法在此更改。"
-          }) : jsxs5("div", {
+          }) : jsxs6("div", {
             style: Object.assign({}, styles.row, { justifyContent: "flex-end" }),
             children: [
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: styles.secondary,
                 disabled: dataDirBusy,
@@ -7828,7 +8643,7 @@ function TraceScopePanelBody() {
                 },
                 children: "取消"
               }),
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: styles.primary,
                 disabled: dataDirBusy,
@@ -7840,12 +8655,12 @@ function TraceScopePanelBody() {
         ]
       }) : null,
       // Visual folder picker modal.
-      pickerOpen ? jsxs5("div", {
+      pickerOpen ? jsxs6("div", {
         style: styles.modalBackdrop,
         onClick: function(e) {
           if (e.target === e.currentTarget) closePicker();
         },
-        children: jsxs5("div", {
+        children: jsxs6("div", {
           style: {
             width: "min(440px, 100%)",
             maxHeight: "80vh",
@@ -7858,7 +8673,7 @@ function TraceScopePanelBody() {
             overflow: "hidden"
           },
           children: [
-            jsxs5("div", {
+            jsxs6("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -7867,11 +8682,11 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx5("strong", {
+                jsx7("strong", {
                   style: { fontSize: 13 },
                   children: pickerPurpose === "repo" ? "选择代码文件夹" : "选择数据存放目录"
                 }),
-                jsx5("button", {
+                jsx7("button", {
                   type: "button",
                   style: Object.assign({}, styles.miniBtn, { padding: "2px 8px" }),
                   onClick: closePicker,
@@ -7880,7 +8695,7 @@ function TraceScopePanelBody() {
               ]
             }),
             // Quick places.
-            pickerBrowse && Array.isArray(pickerBrowse.quick) ? jsx5("div", {
+            pickerBrowse && Array.isArray(pickerBrowse.quick) ? jsx7("div", {
               style: {
                 display: "flex",
                 gap: 6,
@@ -7889,7 +8704,7 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: pickerBrowse.quick.map(function(q) {
-                return jsx5(
+                return jsx7(
                   "button",
                   {
                     type: "button",
@@ -7904,7 +8719,7 @@ function TraceScopePanelBody() {
               })
             }) : null,
             // Current path + up navigation.
-            jsxs5("div", {
+            jsxs6("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -7913,7 +8728,7 @@ function TraceScopePanelBody() {
                 borderBottom: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx5("button", {
+                jsx7("button", {
                   type: "button",
                   style: Object.assign({}, styles.secondary, { padding: "4px 10px" }),
                   // Enabled anywhere except the synthetic volume list itself.
@@ -7928,7 +8743,7 @@ function TraceScopePanelBody() {
                   },
                   children: "↑ 上级"
                 }),
-                jsx5("div", {
+                jsx7("div", {
                   title: pickerBrowse ? pickerBrowse.path : "",
                   style: {
                     flex: 1,
@@ -7944,17 +8759,17 @@ function TraceScopePanelBody() {
               ]
             }),
             // Folder list.
-            jsx5("div", {
+            jsx7("div", {
               style: { flex: 1, overflowY: "auto", padding: 6, minHeight: 180 },
-              children: pickerLoading ? jsx5("div", {
+              children: pickerLoading ? jsx7("div", {
                 style: { padding: 16, textAlign: "center", color: "#8a8378", fontSize: 12 },
                 children: "正在读取…"
-              }) : pickerBrowse && !pickerBrowse.dirs.length ? jsx5("div", {
+              }) : pickerBrowse && !pickerBrowse.dirs.length ? jsx7("div", {
                 style: { padding: 16, textAlign: "center", color: "#8a8378", fontSize: 12 },
                 children: "该目录下没有子文件夹，可直接选择当前目录。"
               }) : (pickerBrowse ? pickerBrowse.dirs : []).map(function(d) {
                 var active2 = pickerSelected === d.path;
-                return jsx5(
+                return jsx7(
                   "button",
                   {
                     type: "button",
@@ -7980,11 +8795,11 @@ function TraceScopePanelBody() {
                       fontSize: 12
                     },
                     children: [
-                      jsx5("span", {
+                      jsx7("span", {
                         style: { flex: "0 0 auto", color: "#b98f3f" },
                         children: "📁"
                       }),
-                      jsx5("span", { style: { flex: 1, minWidth: 0 }, children: d.name })
+                      jsx7("span", { style: { flex: 1, minWidth: 0 }, children: d.name })
                     ]
                   },
                   "d-" + d.path
@@ -7992,7 +8807,7 @@ function TraceScopePanelBody() {
               })
             }),
             // Footer.
-            jsxs5("div", {
+            jsxs6("div", {
               style: {
                 display: "flex",
                 alignItems: "center",
@@ -8001,7 +8816,7 @@ function TraceScopePanelBody() {
                 borderTop: "1px solid var(--dsh-border, #ddd4c5)"
               },
               children: [
-                jsx5("div", {
+                jsx7("div", {
                   style: {
                     flex: 1,
                     minWidth: 0,
@@ -8017,7 +8832,7 @@ function TraceScopePanelBody() {
                     return p ? "将使用：" + p : "请进入并选择一个文件夹";
                   })()
                 }),
-                jsx5("button", {
+                jsx7("button", {
                   type: "button",
                   style: styles.secondary,
                   disabled: pickerLoading || !pickerBrowse || pickerBrowse.isRoot,
@@ -8028,13 +8843,13 @@ function TraceScopePanelBody() {
                   },
                   children: "选当前目录"
                 }),
-                jsx5("button", {
+                jsx7("button", {
                   type: "button",
                   style: styles.secondary,
                   onClick: closePicker,
                   children: "取消"
                 }),
-                jsx5("button", {
+                jsx7("button", {
                   type: "button",
                   style: styles.primary,
                   onClick: confirmPicker,
@@ -8046,7 +8861,7 @@ function TraceScopePanelBody() {
         })
       }) : null,
       // Top-level mode switch — always reachable, before/after repo setup.
-      jsxs5("div", {
+      jsxs6("div", {
         style: {
           display: "flex",
           gap: 6,
@@ -8056,7 +8871,7 @@ function TraceScopePanelBody() {
           padding: 4
         },
         children: [
-          jsx5("button", {
+          jsx7("button", {
             type: "button",
             style: mode === "functional" ? Object.assign({}, styles.primary, { flex: 1 }) : Object.assign({}, styles.secondary, { flex: 1 }),
             disabled: busy,
@@ -8065,7 +8880,7 @@ function TraceScopePanelBody() {
             },
             children: "功能影响分析"
           }),
-          jsxs5("button", {
+          jsxs6("button", {
             type: "button",
             style: mode === "ui" ? Object.assign({}, styles.primary, { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }) : Object.assign({}, styles.secondary, { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }),
             disabled: busy,
@@ -8074,7 +8889,7 @@ function TraceScopePanelBody() {
             },
             children: [
               "设计差异分析",
-              jsx5("span", {
+              jsx7("span", {
                 style: {
                   fontSize: 10,
                   fontWeight: 700,
@@ -8090,23 +8905,23 @@ function TraceScopePanelBody() {
           })
         ]
       }),
-      jsxs5("section", {
+      jsxs6("section", {
         style: Object.assign(
           {},
           styles.card
         ),
         children: [
-          jsxs5("div", {
+          jsxs6("div", {
             style: Object.assign({}, styles.row, { justifyContent: "space-between" }),
             children: [
-              jsxs5("div", {
+              jsxs6("div", {
                 style: Object.assign({}, styles.row, { flex: 1, minWidth: 0 }),
                 children: [
-                  jsx5("span", {
+                  jsx7("span", {
                     style: { fontWeight: 700, whiteSpace: "nowrap" },
                     children: "仓库"
                   }),
-                  jsx5("select", {
+                  jsx7("select", {
                     style: Object.assign({}, styles.input, {
                       flex: 1,
                       minWidth: 120,
@@ -8120,7 +8935,7 @@ function TraceScopePanelBody() {
                       if (v) switchRepo(v);
                     },
                     children: [
-                      jsx5(
+                      jsx7(
                         "option",
                         {
                           value: "",
@@ -8130,7 +8945,7 @@ function TraceScopePanelBody() {
                       )
                     ].concat(
                       (repoList || []).map(function(r) {
-                        return jsx5(
+                        return jsx7(
                           "option",
                           { value: r, children: shortRepoLabel(r) + " — " + r },
                           r
@@ -8140,7 +8955,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }),
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: styles.btn,
                 disabled: busy,
@@ -8152,25 +8967,25 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          !settingsOpen && repoPath.trim() ? jsx5("p", {
+          !settingsOpen && repoPath.trim() ? jsx7("p", {
             style: { margin: "6px 0 0", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
             children: shortRepoLabel(repoPath) + (resolved ? " · " + (resolved.source === "codeup" ? "远端 API" : resolved.source === "remote" ? "远端缓存" : "本地") + (resolved.authMode && resolved.authMode !== "none" ? " · 认证 " + (authMode === "token" ? "个人访问令牌" : resolved.authMode) : authMode === "token" ? " · 认证 个人访问令牌" : "") + (authMode === "token" && (yxTokenSaved || usableSecret(yxToken)) ? " · 令牌已保存" : authMode === "token" ? " · 请填写个人访问令牌" : "") : "")
           }) : null,
-          settingsOpen ? jsxs5("div", {
+          settingsOpen ? jsxs6("div", {
             style: {
               marginTop: 10,
               paddingTop: 10,
               borderTop: "1px solid var(--dsh-border, #ddd4c5)"
             },
             children: [
-              jsxs5("label", {
+              jsxs6("label", {
                 style: styles.label,
                 children: [
                   mode === "ui" ? "代码文件夹路径 / 远端代码库地址" : "本地文件夹路径 / 远端仓库地址",
-                  jsxs5("div", {
+                  jsxs6("div", {
                     style: Object.assign({}, styles.row, { alignItems: "stretch" }),
                     children: [
-                      jsx5("input", {
+                      jsx7("input", {
                         style: Object.assign({}, styles.input, { flex: 1, marginBottom: 0 }),
                         value: repoPath,
                         disabled: busy,
@@ -8182,7 +8997,7 @@ function TraceScopePanelBody() {
                           if (repoPath.trim()) rememberRepo(repoPath.trim());
                         }
                       }),
-                      jsx5("button", {
+                      jsx7("button", {
                         type: "button",
                         style: styles.btn,
                         disabled: busy,
@@ -8191,17 +9006,17 @@ function TraceScopePanelBody() {
                       })
                     ]
                   }),
-                  jsx5("span", {
+                  jsx7("span", {
                     style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                     children: mode === "ui" ? "UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。" : "支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。"
                   })
                 ]
               }),
-              mode === "functional" && isRemote ? jsxs5("label", {
+              mode === "functional" && isRemote ? jsxs6("label", {
                 style: styles.label,
                 children: [
                   "读取方式",
-                  jsx5("select", {
+                  jsx7("select", {
                     style: styles.input,
                     value: accessMode,
                     disabled: busy,
@@ -8214,23 +9029,23 @@ function TraceScopePanelBody() {
                       }
                     },
                     children: [
-                      jsx5("option", { value: "git", children: "本地 Git（推荐）" }, "mode-git"),
-                      jsx5("option", {
+                      jsx7("option", { value: "git", children: "本地 Git（推荐）" }, "mode-git"),
+                      jsx7("option", {
                         value: "codeup",
                         children: "远端 API 兜底（无本机 Git）"
                       }, "mode-codeup")
                     ]
                   }),
-                  jsx5("span", {
+                  jsx7("span", {
                     style: { display: "block", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                     children: accessMode === "codeup" ? "不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。" : "同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。"
                   })
                 ]
               }) : null,
-              jsxs5("div", {
+              jsxs6("div", {
                 style: Object.assign({}, styles.row, { marginBottom: 8 }),
                 children: [
-                  mode === "functional" ? jsx5("button", {
+                  mode === "functional" ? jsx7("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy || !repoPath.trim(),
@@ -8240,7 +9055,7 @@ function TraceScopePanelBody() {
                       setSettingsOpen(false);
                     },
                     children: "保存并加载版本"
-                  }) : jsx5("button", {
+                  }) : jsx7("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy || !repoPath.trim(),
@@ -8256,7 +9071,7 @@ function TraceScopePanelBody() {
                     },
                     children: isRemote ? "使用此代码库" : "使用此文件夹"
                   }),
-                  repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx5("button", {
+                  repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1 ? jsx7("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy,
@@ -8286,47 +9101,47 @@ function TraceScopePanelBody() {
                 ]
               }),
               // Local folders need no credentials; show a compact, neutral note.
-              !isRemote ? jsx5("p", {
+              !isRemote ? jsx7("p", {
                 style: { margin: "0 0 4px", color: "#0f6e56", fontSize: 12, lineHeight: 1.45 },
                 children: "本地文件夹：直接读取，无需填写认证。"
               }) : null,
-              isRemote && jsxs5("div", {
+              isRemote && jsxs6("div", {
                 style: {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
                   gap: 8
                 },
                 children: [
-                  jsxs5("label", {
+                  jsxs6("label", {
                     style: styles.label,
                     children: [
                       "远端认证",
-                      jsx5("select", {
+                      jsx7("select", {
                         style: styles.input,
                         value: authMode,
                         onChange: function(e) {
                           setRemoteAuthMode(e.target.value);
                         },
                         children: [
-                          jsx5("option", { value: "none", children: "无需认证" }),
-                          jsx5("option", {
+                          jsx7("option", { value: "none", children: "无需认证" }),
+                          jsx7("option", {
                             value: "token",
                             children: "个人访问令牌"
                           }),
-                          jsx5("option", {
+                          jsx7("option", {
                             value: "https",
                             children: "HTTPS 用户名 + 密码/Token"
                           }),
-                          jsx5("option", { value: "ssh", children: "SSH 私钥" })
+                          jsx7("option", { value: "ssh", children: "SSH 私钥" })
                         ]
                       })
                     ]
                   }),
-                  authMode === "https" ? jsxs5("label", {
+                  authMode === "https" ? jsxs6("label", {
                     style: styles.label,
                     children: [
                       "用户名",
-                      jsx5("input", {
+                      jsx7("input", {
                         style: styles.input,
                         value: authUser,
                         onChange: function(e) {
@@ -8334,14 +9149,14 @@ function TraceScopePanelBody() {
                         }
                       })
                     ]
-                  }) : jsx5("div", { children: null })
+                  }) : jsx7("div", { children: null })
                 ]
               }),
-              isRemote && authMode === "token" ? jsxs5("label", {
+              isRemote && authMode === "token" ? jsxs6("label", {
                 style: styles.label,
                 children: [
                   "个人访问令牌",
-                  jsx5("input", {
+                  jsx7("input", {
                     style: styles.input,
                     type: "password",
                     value: yxToken,
@@ -8351,7 +9166,7 @@ function TraceScopePanelBody() {
                       setYxToken(e.target.value);
                     }
                   }),
-                  jsx5("span", {
+                  jsx7("span", {
                     style: {
                       display: "block",
                       color: "#6b645a",
@@ -8362,11 +9177,11 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode === "https" ? jsxs5("label", {
+              isRemote && authMode === "https" ? jsxs6("label", {
                 style: styles.label,
                 children: [
                   "密码 / Token",
-                  jsx5("input", {
+                  jsx7("input", {
                     style: styles.input,
                     type: "password",
                     value: authToken,
@@ -8375,7 +9190,7 @@ function TraceScopePanelBody() {
                       setAuthToken(e.target.value);
                     }
                   }),
-                  jsx5("span", {
+                  jsx7("span", {
                     style: {
                       display: "block",
                       color: "#6b645a",
@@ -8386,11 +9201,11 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode === "ssh" ? jsxs5("label", {
+              isRemote && authMode === "ssh" ? jsxs6("label", {
                 style: styles.label,
                 children: [
                   "私钥绝对路径",
-                  jsx5("input", {
+                  jsx7("input", {
                     style: styles.input,
                     value: authKey,
                     placeholder: "本机 SSH 私钥文件的绝对路径",
@@ -8400,7 +9215,7 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              isRemote && authMode !== "none" ? jsxs5("label", {
+              isRemote && authMode !== "none" ? jsxs6("label", {
                 style: {
                   display: "flex",
                   alignItems: "center",
@@ -8409,7 +9224,7 @@ function TraceScopePanelBody() {
                   marginTop: 4
                 },
                 children: [
-                  jsx5("input", {
+                  jsx7("input", {
                     type: "checkbox",
                     checked: rememberAuth,
                     onChange: function(e) {
@@ -8420,9 +9235,9 @@ function TraceScopePanelBody() {
                 ]
               }) : null,
               (function() {
-                return jsxs5(jsxRuntime.Fragment, {
+                return jsxs6(jsxRuntime.Fragment, {
                   children: [
-                    jsx5("div", {
+                    jsx7("div", {
                       style: {
                         marginTop: 12,
                         paddingTop: 10,
@@ -8431,33 +9246,33 @@ function TraceScopePanelBody() {
                       },
                       children: "协作平台"
                     }),
-                    jsx5("p", {
+                    jsx7("p", {
                       style: { margin: "4px 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                       children: "关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「设计差异分析」共用同一套平台配置。"
                     }),
-                    jsxs5("label", {
+                    jsxs6("label", {
                       style: styles.label,
                       children: [
                         "平台",
-                        jsx5("select", {
+                        jsx7("select", {
                           style: styles.input,
                           value: trackerProvider,
                           onChange: function(e) {
                             setTrackerProvider(e.target.value);
                           },
                           children: [
-                            jsx5("option", { value: "none", children: "不启用" }),
-                            jsx5("option", { value: "yunxiao", children: "阿里云效" }),
-                            jsx5("option", { value: "github", children: "GitHub Issues" }),
-                            jsx5("option", { value: "gitlab", children: "GitLab Issues" }),
-                            jsx5("option", { value: "webhook", children: "通用 Webhook" })
+                            jsx7("option", { value: "none", children: "不启用" }),
+                            jsx7("option", { value: "yunxiao", children: "阿里云效" }),
+                            jsx7("option", { value: "github", children: "GitHub Issues" }),
+                            jsx7("option", { value: "gitlab", children: "GitLab Issues" }),
+                            jsx7("option", { value: "webhook", children: "通用 Webhook" })
                           ]
                         })
                       ]
                     }),
-                    trackerProvider === "yunxiao" ? jsxs5("div", {
+                    trackerProvider === "yunxiao" ? jsxs6("div", {
                       children: [
-                        jsx5("p", {
+                        jsx7("p", {
                           style: {
                             margin: "0 0 8px",
                             color: "#6b645a",
@@ -8466,11 +9281,11 @@ function TraceScopePanelBody() {
                           },
                           children: "访问令牌与上方「个人访问令牌」共用。填好后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人。"
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "API Endpoint（一般不用改）",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: yxEndpoint,
                               onChange: function(e) {
@@ -8479,17 +9294,17 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("div", {
+                        jsxs6("div", {
                           style: Object.assign({}, styles.row, { alignItems: "flex-end" }),
                           children: [
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: Object.assign({}, styles.label, {
                                 flex: 1,
                                 marginBottom: 0
                               }),
                               children: [
                                 "访问令牌",
-                                jsx5("input", {
+                                jsx7("input", {
                                   style: styles.input,
                                   type: "password",
                                   value: yxToken,
@@ -8500,7 +9315,7 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsx5("button", {
+                            jsx7("button", {
                               type: "button",
                               style: styles.primary,
                               disabled: busy || !usableSecret(yxToken) && !yxTokenSaved,
@@ -8509,11 +9324,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "企业 organizationId",
-                            jsx5("select", {
+                            jsx7("select", {
                               style: styles.input,
                               value: yxOrg,
                               disabled: busy,
@@ -8533,7 +9348,7 @@ function TraceScopePanelBody() {
                                 if (id) refreshYunxiaoProjectsAndMembers(id);
                               },
                               children: [
-                                jsx5(
+                                jsx7(
                                   "option",
                                   {
                                     value: "",
@@ -8543,7 +9358,7 @@ function TraceScopePanelBody() {
                                 )
                               ].concat(
                                 (yxOrgs || []).map(function(o) {
-                                  return jsx5(
+                                  return jsx7(
                                     "option",
                                     { value: o.id, children: o.name + "（" + o.id + "）" },
                                     o.id
@@ -8553,11 +9368,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "项目 spaceId",
-                            jsx5("select", {
+                            jsx7("select", {
                               style: styles.input,
                               value: yxSpace,
                               disabled: busy || !yxOrg,
@@ -8573,7 +9388,7 @@ function TraceScopePanelBody() {
                                 if (id) refreshYunxiaoTypes(yxOrg, id);
                               },
                               children: [
-                                jsx5(
+                                jsx7(
                                   "option",
                                   {
                                     value: "",
@@ -8583,7 +9398,7 @@ function TraceScopePanelBody() {
                                 )
                               ].concat(
                                 (yxProjects || []).map(function(o) {
-                                  return jsx5(
+                                  return jsx7(
                                     "option",
                                     { value: o.id, children: o.name + "（" + o.id + "）" },
                                     o.id
@@ -8593,14 +9408,14 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("div", {
+                        jsxs6("div", {
                           style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
                           children: [
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: styles.label,
                               children: [
                                 "缺陷类型 workitemTypeId",
-                                jsx5("select", {
+                                jsx7("select", {
                                   style: styles.input,
                                   value: yxType,
                                   disabled: busy || !yxSpace,
@@ -8608,7 +9423,7 @@ function TraceScopePanelBody() {
                                     setYxType(e.target.value);
                                   },
                                   children: [
-                                    jsx5(
+                                    jsx7(
                                       "option",
                                       {
                                         value: "",
@@ -8618,7 +9433,7 @@ function TraceScopePanelBody() {
                                     )
                                   ].concat(
                                     (yxTypes || []).map(function(o) {
-                                      return jsx5(
+                                      return jsx7(
                                         "option",
                                         {
                                           value: o.id,
@@ -8631,11 +9446,11 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: styles.label,
                               children: [
                                 "负责人 assignedTo",
-                                jsx5("select", {
+                                jsx7("select", {
                                   style: styles.input,
                                   value: yxAssignee,
                                   disabled: busy || !yxOrg,
@@ -8643,7 +9458,7 @@ function TraceScopePanelBody() {
                                     setYxAssignee(e.target.value);
                                   },
                                   children: [
-                                    jsx5(
+                                    jsx7(
                                       "option",
                                       {
                                         value: "",
@@ -8653,7 +9468,7 @@ function TraceScopePanelBody() {
                                     )
                                   ].concat(
                                     (yxMembers || []).map(function(o) {
-                                      return jsx5(
+                                      return jsx7(
                                         "option",
                                         {
                                           value: o.id,
@@ -8668,7 +9483,7 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        yxCatalogHint ? jsx5("p", {
+                        yxCatalogHint ? jsx7("p", {
                           style: {
                             margin: "4px 0 0",
                             color: "#6b645a",
@@ -8676,14 +9491,14 @@ function TraceScopePanelBody() {
                           },
                           children: yxCatalogHint
                         }) : null,
-                        jsxs5("div", {
+                        jsxs6("div", {
                           style: {
                             marginTop: 8,
                             paddingTop: 8,
                             borderTop: "1px dashed #ddd6cb"
                           },
                           children: [
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: {
                                 display: "flex",
                                 alignItems: "center",
@@ -8693,7 +9508,7 @@ function TraceScopePanelBody() {
                                 cursor: "pointer"
                               },
                               children: [
-                                jsx5("input", {
+                                jsx7("input", {
                                   type: "checkbox",
                                   checked: yxDebugLog,
                                   onChange: function(e) {
@@ -8704,17 +9519,17 @@ function TraceScopePanelBody() {
                                 "请求日志（排查用，不含 token）"
                               ]
                             }),
-                            yxDebugLog ? jsxs5("div", {
+                            yxDebugLog ? jsxs6("div", {
                               style: { marginTop: 6 },
                               children: [
-                                jsxs5("div", {
+                                jsxs6("div", {
                                   style: {
                                     display: "flex",
                                     gap: 6,
                                     marginBottom: 4
                                   },
                                   children: [
-                                    jsx5("button", {
+                                    jsx7("button", {
                                       type: "button",
                                       style: styles.secondary,
                                       disabled: !yxRequestLog,
@@ -8731,7 +9546,7 @@ function TraceScopePanelBody() {
                                       },
                                       children: "复制日志"
                                     }),
-                                    jsx5("button", {
+                                    jsx7("button", {
                                       type: "button",
                                       style: styles.secondary,
                                       disabled: !yxRequestLog,
@@ -8742,7 +9557,7 @@ function TraceScopePanelBody() {
                                     })
                                   ]
                                 }),
-                                jsx5("textarea", {
+                                jsx7("textarea", {
                                   readOnly: true,
                                   value: yxRequestLog || "开启后执行「拉取企业 / 选企业」即可在此看到云效请求与响应摘要。",
                                   style: Object.assign({}, styles.input, {
@@ -8760,13 +9575,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "github" ? jsxs5("div", {
+                    trackerProvider === "github" ? jsxs6("div", {
                       children: [
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "GitHub Token",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               type: "password",
                               value: ghToken,
@@ -8777,14 +9592,14 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("div", {
+                        jsxs6("div", {
                           style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
                           children: [
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: styles.label,
                               children: [
                                 "owner",
-                                jsx5("input", {
+                                jsx7("input", {
                                   style: styles.input,
                                   value: ghOwner,
                                   onChange: function(e) {
@@ -8793,11 +9608,11 @@ function TraceScopePanelBody() {
                                 })
                               ]
                             }),
-                            jsxs5("label", {
+                            jsxs6("label", {
                               style: styles.label,
                               children: [
                                 "repo",
-                                jsx5("input", {
+                                jsx7("input", {
                                   style: styles.input,
                                   value: ghRepo,
                                   onChange: function(e) {
@@ -8808,11 +9623,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "labels（逗号分隔）",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: ghLabels,
                               onChange: function(e) {
@@ -8823,13 +9638,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "gitlab" ? jsxs5("div", {
+                    trackerProvider === "gitlab" ? jsxs6("div", {
                       children: [
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "GitLab Host",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: glHost,
                               onChange: function(e) {
@@ -8838,11 +9653,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "Private Token",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               type: "password",
                               value: glToken,
@@ -8852,11 +9667,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "projectId（数字或 group/project）",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: glProject,
                               onChange: function(e) {
@@ -8865,11 +9680,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "labels（逗号分隔）",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: glLabels,
                               onChange: function(e) {
@@ -8880,13 +9695,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider === "webhook" ? jsxs5("div", {
+                    trackerProvider === "webhook" ? jsxs6("div", {
                       children: [
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "Webhook URL",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               value: whUrl,
                               placeholder: "https://… 可对接 Jira / 飞书 / 自建服务",
@@ -8896,11 +9711,11 @@ function TraceScopePanelBody() {
                             })
                           ]
                         }),
-                        jsxs5("label", {
+                        jsxs6("label", {
                           style: styles.label,
                           children: [
                             "Authorization 头（可选）",
-                            jsx5("input", {
+                            jsx7("input", {
                               style: styles.input,
                               type: "password",
                               value: whAuth,
@@ -8913,13 +9728,13 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }) : null,
-                    trackerProvider !== "none" ? jsx5("button", {
+                    trackerProvider !== "none" ? jsx7("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, { marginTop: 4 }),
                       disabled: busy,
                       onClick: saveTrackerSettings,
                       children: trackerReady ? "保存平台配置（已就绪）" : "保存平台配置"
-                    }) : jsx5("button", {
+                    }) : jsx7("button", {
                       type: "button",
                       style: Object.assign({}, styles.btn, { marginTop: 4 }),
                       disabled: busy,
@@ -8932,9 +9747,9 @@ function TraceScopePanelBody() {
             ]
           }) : null,
           mode === "functional" && (function() {
-            return jsxs5(jsxRuntime.Fragment, {
+            return jsxs6(jsxRuntime.Fragment, {
               children: [
-                trackerProvider === "yunxiao" && yxOrg && yxSpace ? jsxs5("div", {
+                trackerProvider === "yunxiao" && yxOrg && yxSpace ? jsxs6("div", {
                   style: {
                     marginTop: 10,
                     padding: "10px 12px",
@@ -8943,15 +9758,15 @@ function TraceScopePanelBody() {
                     border: "1px solid var(--dsh-border, #ddd4c5)"
                   },
                   children: [
-                    jsx5("div", {
+                    jsx7("div", {
                       style: { fontWeight: 600, marginBottom: 6 },
                       children: "关联敏捷任务（可选，多选）"
                     }),
-                    jsx5("p", {
+                    jsx7("p", {
                       style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                       children: "勾选工作项类型后拉取任务，再多选任务。生成验证清单 / AI 智能分析时会把它们写入清单与提示。"
                     }),
-                    jsxs5("div", {
+                    jsxs6("div", {
                       style: Object.assign({}, styles.row, {
                         flexWrap: "wrap",
                         gap: 10,
@@ -8965,7 +9780,7 @@ function TraceScopePanelBody() {
                           Risk: "风险",
                           Topic: "专题"
                         };
-                        return jsxs5(
+                        return jsxs6(
                           "label",
                           {
                             style: {
@@ -8977,7 +9792,7 @@ function TraceScopePanelBody() {
                               cursor: "pointer"
                             },
                             children: [
-                              jsx5("input", {
+                              jsx7("input", {
                                 type: "checkbox",
                                 checked: Boolean(wiCats[cat]),
                                 onChange: function(e) {
@@ -8996,17 +9811,17 @@ function TraceScopePanelBody() {
                         );
                       })
                     }),
-                    jsxs5("div", {
+                    jsxs6("div", {
                       style: Object.assign({}, styles.row, { marginBottom: 6 }),
                       children: [
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.primary,
                           disabled: busy,
                           onClick: refreshAgileWorkitems,
                           children: "拉取任务"
                         }),
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !wiItems.length,
@@ -9019,7 +9834,7 @@ function TraceScopePanelBody() {
                           },
                           children: "全选"
                         }),
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !Object.keys(wiSelected).length,
@@ -9028,7 +9843,7 @@ function TraceScopePanelBody() {
                           },
                           children: "清空选择"
                         }),
-                        jsx5("span", {
+                        jsx7("span", {
                           style: { color: "#6b645a", fontSize: 12 },
                           children: "已选 " + Object.keys(wiSelected).filter(function(k) {
                             return wiSelected[k];
@@ -9036,11 +9851,11 @@ function TraceScopePanelBody() {
                         })
                       ]
                     }),
-                    wiHint ? jsx5("p", {
+                    wiHint ? jsx7("p", {
                       style: { margin: "0 0 6px", color: "#6b645a", fontSize: 12 },
                       children: wiHint
                     }) : null,
-                    wiItems.length ? jsx5("div", {
+                    wiItems.length ? jsx7("div", {
                       style: {
                         maxHeight: 180,
                         overflow: "auto",
@@ -9050,7 +9865,7 @@ function TraceScopePanelBody() {
                         padding: "4px 0"
                       },
                       children: wiItems.map(function(it) {
-                        return jsxs5(
+                        return jsxs6(
                           "label",
                           {
                             style: {
@@ -9064,7 +9879,7 @@ function TraceScopePanelBody() {
                               borderBottom: "1px solid #f0ebe3"
                             },
                             children: [
-                              jsx5("input", {
+                              jsx7("input", {
                                 type: "checkbox",
                                 style: { marginTop: 2 },
                                 checked: Boolean(wiSelected[it.id]),
@@ -9078,10 +9893,10 @@ function TraceScopePanelBody() {
                                   });
                                 }
                               }),
-                              jsxs5("span", {
+                              jsxs6("span", {
                                 style: { flex: 1, minWidth: 0 },
                                 children: [
-                                  jsx5("span", {
+                                  jsx7("span", {
                                     style: {
                                       display: "inline-block",
                                       fontSize: 11,
@@ -9090,8 +9905,8 @@ function TraceScopePanelBody() {
                                     },
                                     children: it.category || "WorkItem"
                                   }),
-                                  jsx5("span", { children: it.subject }),
-                                  it.status ? jsx5("span", {
+                                  jsx7("span", { children: it.subject }),
+                                  it.status ? jsx7("span", {
                                     style: {
                                       display: "block",
                                       fontSize: 11,
@@ -9109,10 +9924,10 @@ function TraceScopePanelBody() {
                     }) : null
                   ]
                 }) : null,
-                jsxs5("div", {
+                jsxs6("div", {
                   style: Object.assign({}, styles.row, { marginTop: 10 }),
                   children: [
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !repoPath.trim(),
@@ -9121,14 +9936,14 @@ function TraceScopePanelBody() {
                       },
                       children: "同步版本"
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.primary,
                       disabled: busy || !baseCommit || !headCommit,
                       onClick: analyze,
                       children: "生成验证清单"
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: jobId && jobStatus === "pending" ? styles.danger : styles.btn,
                       disabled: busy || !(jobId && jobStatus === "pending") && (!baseCommit || !headCommit),
@@ -9141,7 +9956,7 @@ function TraceScopePanelBody() {
                       },
                       children: jobId && jobStatus === "pending" ? "取消等待并清空草稿" : "AI 智能分析"
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !baseCommit || !headCommit,
@@ -9150,7 +9965,7 @@ function TraceScopePanelBody() {
                     })
                   ]
                 }),
-                jobId ? jsxs5("div", {
+                jobId ? jsxs6("div", {
                   style: Object.assign({}, styles.row, {
                     marginTop: 8,
                     padding: "8px 10px",
@@ -9159,11 +9974,11 @@ function TraceScopePanelBody() {
                     border: "1px solid var(--dsh-border, #ddd4c5)"
                   }),
                   children: [
-                    jsx5("span", {
+                    jsx7("span", {
                       style: { fontWeight: 600, whiteSpace: "nowrap" },
                       children: "对话任务 ID"
                     }),
-                    jsx5("code", {
+                    jsx7("code", {
                       style: {
                         flex: 1,
                         minWidth: 0,
@@ -9174,7 +9989,7 @@ function TraceScopePanelBody() {
                       title: jobId,
                       children: jobId
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.btn,
                       onClick: function() {
@@ -9182,20 +9997,20 @@ function TraceScopePanelBody() {
                       },
                       children: "复制"
                     }),
-                    jsx5("span", {
+                    jsx7("span", {
                       style: { color: "#6b645a", fontSize: 12 },
                       children: jobStatus === "pending" ? "等待 publish" : jobStatus === "published" ? "已发布" : jobStatus || ""
                     })
                   ]
                 }) : null,
-                jsxs5("div", {
+                jsxs6("div", {
                   style: Object.assign({}, styles.row, { marginTop: 8, alignItems: "flex-end" }),
                   children: [
-                    jsxs5("label", {
+                    jsxs6("label", {
                       style: Object.assign({}, styles.label, { flex: 1, marginBottom: 0, minWidth: 180 }),
                       children: [
                         "历史任务（多仓库）",
-                        jsx5("select", {
+                        jsx7("select", {
                           style: styles.input,
                           value: historyId,
                           disabled: busy || !history.length,
@@ -9205,7 +10020,7 @@ function TraceScopePanelBody() {
                             if (id) openHistoryEntry(id);
                           },
                           children: [
-                            jsx5(
+                            jsx7(
                               "option",
                               {
                                 value: "",
@@ -9216,13 +10031,13 @@ function TraceScopePanelBody() {
                           ].concat(
                             (history || []).map(function(h) {
                               var label = shortRepoLabel(h.repoInput) + " · " + (h.savedAt || "").replace("T", " ").slice(0, 16) + " · " + (h.source === "model" ? "AI" : "规则") + " · " + shortSha(h.baseCommit) + "→" + shortSha(h.headCommit);
-                              return jsx5("option", { value: h.id, children: label }, h.id);
+                              return jsx7("option", { value: h.id, children: label }, h.id);
                             })
                           )
                         })
                       ]
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !historyId,
@@ -9231,7 +10046,7 @@ function TraceScopePanelBody() {
                       },
                       children: "复制历史 ID"
                     }),
-                    jsx5("button", {
+                    jsx7("button", {
                       type: "button",
                       style: styles.btn,
                       disabled: busy || !historyId,
@@ -9240,25 +10055,25 @@ function TraceScopePanelBody() {
                     })
                   ]
                 }),
-                copyFlash ? jsx5("p", {
+                copyFlash ? jsx7("p", {
                   style: { color: "#0f6e56", margin: "6px 0 0", fontSize: 12 },
                   children: copyFlash
                 }) : null,
-                chatHint ? jsx5("p", {
+                chatHint ? jsx7("p", {
                   style: { color: "#6b645a", margin: "8px 0 0", fontSize: 12, lineHeight: 1.45 },
                   children: chatHint
                 }) : null,
-                jsxs5("div", {
+                jsxs6("div", {
                   style: { marginTop: 8 },
                   children: [
-                    jsxs5("div", {
+                    jsxs6("div", {
                       style: Object.assign({}, styles.row, {
                         marginBottom: 0,
                         alignItems: "center",
                         gap: 8
                       }),
                       children: [
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy || !(refs && refs.length),
@@ -9269,7 +10084,7 @@ function TraceScopePanelBody() {
                           },
                           children: branchPickerOpen ? "收起分支" : "切换分支"
                         }),
-                        !branchPickerOpen ? jsx5("span", {
+                        !branchPickerOpen ? jsx7("span", {
                           style: { color: "#6b645a", fontSize: 12, lineHeight: 1.4 },
                           children: (function() {
                             var tip = newestBranchTip(refs);
@@ -9281,10 +10096,10 @@ function TraceScopePanelBody() {
                         }) : null
                       ]
                     }),
-                    branchPickerOpen ? jsxs5("div", {
+                    branchPickerOpen ? jsxs6("div", {
                       style: { marginTop: 6 },
                       children: [
-                        jsx5("input", {
+                        jsx7("input", {
                           style: styles.input,
                           value: branchQuery,
                           disabled: busy || !(refs && refs.length),
@@ -9293,7 +10108,7 @@ function TraceScopePanelBody() {
                             setBranchQuery(e.target.value);
                           }
                         }),
-                        jsx5("div", {
+                        jsx7("div", {
                           style: {
                             maxHeight: 168,
                             overflow: "auto",
@@ -9307,7 +10122,7 @@ function TraceScopePanelBody() {
                             var newest = matched[0] || null;
                             var newestScore = newest ? branchActivityScore(newest) : 0;
                             if (!shown.length) {
-                              return jsx5("div", {
+                              return jsx7("div", {
                                 style: { padding: "8px 10px", color: "#6b645a", fontSize: 12 },
                                 children: refs && refs.length ? "没有匹配的分支" : "同步后在这里选分支"
                               });
@@ -9340,7 +10155,7 @@ function TraceScopePanelBody() {
                                 setBranchPickerOpen(false);
                                 loadCommits(true, { preserveSelection: true, refName: r.name });
                               }
-                              return jsxs5(
+                              return jsxs6(
                                 "div",
                                 {
                                   style: {
@@ -9352,7 +10167,7 @@ function TraceScopePanelBody() {
                                     background: isNewest ? "#eef6ff" : onHead || onBase ? "#f3faf6" : "transparent"
                                   },
                                   children: [
-                                    jsxs5("div", {
+                                    jsxs6("div", {
                                       style: {
                                         flex: 1,
                                         minWidth: 0,
@@ -9361,15 +10176,15 @@ function TraceScopePanelBody() {
                                       },
                                       title: r.name + (r.subject ? "\n" + r.subject : "") + (r.date ? "\n" + r.date : ""),
                                       children: [
-                                        jsxs5("div", {
+                                        jsxs6("div", {
                                           style: { wordBreak: "break-all" },
                                           children: [
                                             (r.kind === "remote" ? "远端 " : "") + r.name,
-                                            r.short ? jsx5("span", {
+                                            r.short ? jsx7("span", {
                                               style: { color: "#8a7f70" },
                                               children: " · " + r.short
                                             }) : null,
-                                            isNewest ? jsx5("span", {
+                                            isNewest ? jsx7("span", {
                                               style: Object.assign({}, styles.badge, {
                                                 marginLeft: 6,
                                                 background: "#dbeafe",
@@ -9379,7 +10194,7 @@ function TraceScopePanelBody() {
                                             }) : null
                                           ]
                                         }),
-                                        r.date || r.subject ? jsx5("div", {
+                                        r.date || r.subject ? jsx7("div", {
                                           style: {
                                             color: "#6b645a",
                                             fontSize: 11,
@@ -9392,7 +10207,7 @@ function TraceScopePanelBody() {
                                         }) : null
                                       ]
                                     }),
-                                    jsx5("button", {
+                                    jsx7("button", {
                                       type: "button",
                                       style: Object.assign({}, styles.btn, {
                                         padding: "4px 8px",
@@ -9404,7 +10219,7 @@ function TraceScopePanelBody() {
                                       },
                                       children: onBase ? "稳定 ✓" : "稳定"
                                     }),
-                                    jsx5("button", {
+                                    jsx7("button", {
                                       type: "button",
                                       style: Object.assign({}, styles.btn, {
                                         padding: "4px 8px",
@@ -9423,10 +10238,10 @@ function TraceScopePanelBody() {
                             });
                           })()
                         }),
-                        branchQuery && matchingBranches(refs, branchQuery).length > 40 ? jsx5("div", {
+                        branchQuery && matchingBranches(refs, branchQuery).length > 40 ? jsx7("div", {
                           style: { color: "#6b645a", fontSize: 11, marginTop: 4 },
                           children: "匹配超过 40 个，请再输入几个字缩小范围"
-                        }) : !branchQuery && matchingBranches(refs, "").length > 40 ? jsx5("div", {
+                        }) : !branchQuery && matchingBranches(refs, "").length > 40 ? jsx7("div", {
                           style: { color: "#6b645a", fontSize: 11, marginTop: 4 },
                           children: "分支较多，输入名称筛选。列表先显示前 40 个"
                         }) : null
@@ -9434,14 +10249,14 @@ function TraceScopePanelBody() {
                     }) : null
                   ]
                 }),
-                jsxs5("div", {
+                jsxs6("div", {
                   style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 },
                   children: [
-                    jsxs5("label", {
+                    jsxs6("label", {
                       style: styles.label,
                       children: [
                         "稳定版本",
-                        jsx5(
+                        jsx7(
                           "select",
                           {
                             style: styles.input,
@@ -9461,11 +10276,11 @@ function TraceScopePanelBody() {
                         )
                       ]
                     }),
-                    jsxs5("label", {
+                    jsxs6("label", {
                       style: styles.label,
                       children: [
                         "待测版本",
-                        jsx5(
+                        jsx7(
                           "select",
                           {
                             style: styles.input,
@@ -9490,28 +10305,28 @@ function TraceScopePanelBody() {
               ]
             });
           })(),
-          error ? jsx5("p", { style: styles.error, children: error }) : null
+          error ? jsx7("p", { style: styles.error, children: error }) : null
         ]
       }),
-      mode === "functional" && report ? jsxs5("section", {
+      mode === "functional" && report ? jsxs6("section", {
         style: styles.card,
         children: [
-          jsx5("div", {
+          jsx7("div", {
             style: { marginBottom: 8, color: "#6b645a" },
             children: "变更文件 " + (report.changedFiles || []).length + " · 直接 " + (report.direct || []).length + " · 波及 " + (report.ripple || []).length + " · " + (report.modelEnriched ? "AI 分析" : "规则分析")
           }),
-          jsx5("p", {
+          jsx7("p", {
             style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 },
             children: "验证时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。"
           }),
-          jsxs5("div", {
+          jsxs6("div", {
             style: Object.assign({}, styles.row, {
               marginBottom: 8,
               justifyContent: "space-between",
               alignItems: "center"
             }),
             children: [
-              jsx5("div", {
+              jsx7("div", {
                 style: { fontSize: 12, color: "#3d3a34", flex: "1 1 auto", minWidth: 0 },
                 children: (function() {
                   var all = [].concat(report.direct || [], report.ripple || []);
@@ -9529,7 +10344,7 @@ function TraceScopePanelBody() {
                   return "进度：通过 " + pass + " · 失败 " + fail + " · 跳过 " + skip + " · 待测 " + pending2;
                 })()
               }),
-              jsxs5("div", {
+              jsxs6("div", {
                 style: {
                   display: "flex",
                   gap: 8,
@@ -9538,20 +10353,20 @@ function TraceScopePanelBody() {
                   flex: "0 0 auto"
                 },
                 children: [
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.btn,
                     onClick: copyFailFeedback,
                     children: "复制失败反馈"
                   }),
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy,
                     onClick: submitTracker,
                     children: "提交缺陷"
                   }),
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy,
@@ -9562,7 +10377,7 @@ function TraceScopePanelBody() {
               })
             ]
           }),
-          jsxs5("div", {
+          jsxs6("div", {
             style: {
               marginBottom: 10,
               padding: "10px 12px",
@@ -9571,11 +10386,11 @@ function TraceScopePanelBody() {
               border: "1px solid var(--dsh-border, #ddd4c5)"
             },
             children: [
-              jsx5("div", {
+              jsx7("div", {
                 style: { fontWeight: 600, marginBottom: 4 },
                 children: "任务附件（整份验证任务）"
               }),
-              jsx5("p", {
+              jsx7("p", {
                 style: {
                   margin: "0 0 8px",
                   color: "#6b645a",
@@ -9584,7 +10399,7 @@ function TraceScopePanelBody() {
                 },
                 children: "可上传视频录像、文档等。附件属于当前版本对比任务，不绑定单条 checklist。小文件可直接选择；大视频建议填本机绝对路径。"
               }),
-              jsxs5("div", {
+              jsxs6("div", {
                 style: Object.assign({}, styles.row, {
                   flexWrap: "wrap",
                   gap: 8,
@@ -9592,7 +10407,7 @@ function TraceScopePanelBody() {
                   marginBottom: 8
                 }),
                 children: [
-                  jsx5("input", {
+                  jsx7("input", {
                     ref: taskAttachRef,
                     type: "file",
                     multiple: true,
@@ -9605,7 +10420,7 @@ function TraceScopePanelBody() {
                       uploadTaskFiles(files);
                     }
                   }),
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.primary,
                     disabled: busy,
@@ -9614,7 +10429,7 @@ function TraceScopePanelBody() {
                     },
                     children: "选择文件"
                   }),
-                  jsx5("input", {
+                  jsx7("input", {
                     style: Object.assign({}, styles.input, {
                       flex: "1 1 180px",
                       minWidth: 140,
@@ -9626,23 +10441,23 @@ function TraceScopePanelBody() {
                       setTaskAttachPath(e.target.value);
                     }
                   }),
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.btn,
                     disabled: busy || !taskAttachPath.trim(),
                     onClick: uploadTaskLocalPath,
                     children: "从路径添加"
                   }),
-                  jsx5("span", {
+                  jsx7("span", {
                     style: { fontSize: 12, color: "#6b645a" },
                     children: "已附 " + (report.attachments && report.attachments.length || 0) + "/8"
                   })
                 ]
               }),
-              report.attachments && report.attachments.length ? jsx5("div", {
+              report.attachments && report.attachments.length ? jsx7("div", {
                 style: { display: "flex", flexDirection: "column", gap: 6 },
                 children: report.attachments.map(function(att) {
-                  return jsxs5(
+                  return jsxs6(
                     "div",
                     {
                       style: Object.assign({}, styles.row, {
@@ -9654,10 +10469,10 @@ function TraceScopePanelBody() {
                         border: "1px solid #ebe4d8"
                       }),
                       children: [
-                        jsxs5("div", {
+                        jsxs6("div", {
                           style: { flex: 1, minWidth: 0 },
                           children: [
-                            jsx5("div", {
+                            jsx7("div", {
                               style: {
                                 fontWeight: 600,
                                 overflow: "hidden",
@@ -9667,13 +10482,13 @@ function TraceScopePanelBody() {
                               title: att.name,
                               children: att.name
                             }),
-                            jsx5("div", {
+                            jsx7("div", {
                               style: { fontSize: 11, color: "#8a7f70" },
                               children: (att.mime || "file") + " · " + formatBytes(att.size || 0)
                             })
                           ]
                         }),
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy,
@@ -9682,7 +10497,7 @@ function TraceScopePanelBody() {
                           },
                           children: "下载"
                         }),
-                        jsx5("button", {
+                        jsx7("button", {
                           type: "button",
                           style: styles.btn,
                           disabled: busy,
@@ -9696,16 +10511,16 @@ function TraceScopePanelBody() {
                     att.id
                   );
                 })
-              }) : jsx5("p", {
+              }) : jsx7("p", {
                 style: { margin: 0, fontSize: 12, color: "#9a9185" },
                 children: "暂无任务附件"
               })
             ]
           }),
-          jsxs5("div", {
+          jsxs6("div", {
             style: styles.row,
             children: [
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: Object.assign({}, styles.btn, tab === "direct" ? { fontWeight: 700 } : null),
                 disabled: busy,
@@ -9715,7 +10530,7 @@ function TraceScopePanelBody() {
                 },
                 children: "直接项"
               }),
-              jsx5("button", {
+              jsx7("button", {
                 type: "button",
                 style: Object.assign({}, styles.btn, tab === "ripple" ? { fontWeight: 700 } : null),
                 disabled: busy,
@@ -9728,7 +10543,7 @@ function TraceScopePanelBody() {
             ]
           }),
           items.length ? items.map(function(item, index) {
-            return jsx5(
+            return jsx7(
               ItemCard,
               {
                 item,
@@ -9742,10 +10557,10 @@ function TraceScopePanelBody() {
               },
               (tab === "ripple" ? "ripple" : "direct") + "-" + index + "-" + (item.id || "")
             );
-          }) : jsx5("p", { style: { color: "#6b645a" }, children: "这一类没有条目" })
+          }) : jsx7("p", { style: { color: "#6b645a" }, children: "这一类没有条目" })
         ]
       }) : null,
-      mode === "ui" ? jsx5(VisualComparePanel2, {
+      mode === "ui" ? jsx7(VisualComparePanel2, {
         repoInput: repoPath.trim(),
         auth: buildAuthPayload(),
         onSendToChat: fillComposerDraft,
@@ -9768,7 +10583,7 @@ function TraceScopePanelBody() {
           });
         }
       }) : null,
-      confirmDlg ? jsxs5("div", {
+      confirmDlg ? jsxs6("div", {
         style: styles.modalBackdrop,
         role: "dialog",
         "aria-modal": "true",
@@ -9776,30 +10591,30 @@ function TraceScopePanelBody() {
           setConfirmDlg(null);
         },
         children: [
-          jsxs5("div", {
+          jsxs6("div", {
             style: Object.assign({}, styles.modalCard, { width: "min(480px, 100%)" }),
             onClick: function(e) {
               e.stopPropagation();
             },
             children: [
-              jsx5("div", {
+              jsx7("div", {
                 style: { fontWeight: 700, fontSize: 15, marginBottom: 8 },
                 children: confirmDlg.title || "请确认"
               }),
-              confirmDlg.message ? jsx5("p", {
+              confirmDlg.message ? jsx7("p", {
                 style: { margin: "0 0 12px", lineHeight: 1.5, color: "#4a453e" },
                 children: confirmDlg.message
               }) : null,
-              confirmDlg.fields && confirmDlg.fields.length ? jsx5("div", {
+              confirmDlg.fields && confirmDlg.fields.length ? jsx7("div", {
                 style: { display: "grid", gap: 10, marginBottom: 14 },
                 children: confirmDlg.fields.map(function(field, idx) {
-                  return jsxs5(
+                  return jsxs6(
                     "label",
                     {
                       style: styles.label,
                       children: [
                         field.label,
-                        jsx5("input", {
+                        jsx7("input", {
                           style: styles.input,
                           value: field.value || "",
                           autoFocus: idx === 0,
@@ -9821,11 +10636,11 @@ function TraceScopePanelBody() {
                     field.key
                   );
                 })
-              }) : confirmDlg.inputLabel ? jsxs5("label", {
+              }) : confirmDlg.inputLabel ? jsxs6("label", {
                 style: Object.assign({}, styles.label, { marginBottom: 14 }),
                 children: [
                   confirmDlg.inputLabel,
-                  confirmDlg.multiline ? jsx5("textarea", {
+                  confirmDlg.multiline ? jsx7("textarea", {
                     style: Object.assign({}, styles.input, {
                       minHeight: 88,
                       resize: "vertical"
@@ -9839,7 +10654,7 @@ function TraceScopePanelBody() {
                         return Object.assign({}, prev, { inputValue: next });
                       });
                     }
-                  }) : jsx5("input", {
+                  }) : jsx7("input", {
                     style: styles.input,
                     value: confirmDlg.inputValue || "",
                     autoFocus: true,
@@ -9862,10 +10677,10 @@ function TraceScopePanelBody() {
                   })
                 ]
               }) : null,
-              jsxs5("div", {
+              jsxs6("div", {
                 style: Object.assign({}, styles.row, { justifyContent: "flex-end" }),
                 children: [
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: styles.btn,
                     onClick: function() {
@@ -9873,7 +10688,7 @@ function TraceScopePanelBody() {
                     },
                     children: "取消"
                   }),
-                  jsx5("button", {
+                  jsx7("button", {
                     type: "button",
                     style: confirmDlg.danger ? styles.danger : styles.primary,
                     onClick: function() {
@@ -9949,6 +10764,12 @@ function openTraceScopeTabWhenReady(onStopped) {
 }
 function apply(ctx) {
   hostCtx = ctx;
+  try {
+    selfUpdate.setSelfUpdateHostCtx(ctx);
+    registerPluginSettings2(ctx);
+  } catch (err2) {
+    console.warn("[tracescope] plugin settings registration skipped", err2);
+  }
   ctx.effect(function() {
     return ctx.sidebarRightTabs.register({
       id: TAB_ID,
@@ -10026,7 +10847,7 @@ function apply(ctx) {
           key: TAB_ID
         },
         function TraceScopeTitle() {
-          return jsx5("span", { children: "TraceScope" });
+          return jsx7("span", { children: "TraceScope" });
         }
       );
     });
