@@ -24,12 +24,8 @@ import {
   mapInventoryPages,
   loadAndroidProjectResources,
   buildAndroidRenderContext,
-  renderAndroidLayout,
-  renderAndroidItemLayout,
-  hifiTreeToDesignDoc,
   type DesignPageMapping,
   type FigmaCanvasSummary,
-  type HifiRenderNode,
   buildVisualChatPrompt,
   buildCodeVisualPrompt,
   buildPageRematchPrompt,
@@ -52,32 +48,26 @@ import {
   fetchLanhuPreviewDataUrls,
   fetchLanhuProjectInventory,
   visualScanKey,
-  visualHifiKey,
+  visualDesignCompareKey,
   visualRematchKey,
   loadVisualScan,
   saveVisualScan,
-  loadVisualHifi,
-  saveVisualHifi,
+  loadVisualDesignCompare,
+  saveVisualDesignCompare,
   loadVisualFindings,
   loadVisualRematch,
   visualFindingsKey,
   fingerprintFiles,
   gitExec,
   pruneDesignerAnnotations,
-  analyzeAdapterBindings,
-  walkFiles,
-  parseXml,
-  isDesignerAnnotationText,
   isDesignerAnnotationNode,
   heuristicCompare,
   resolveRelatedSourceFiles,
   formatRelatedSourceFilesManifest,
-  relatedFromAndroidManifest,
   relatedFilesAbsolute,
   expandDesignDocWithRelated,
   isDesignDocCandidatePath,
   seedDynamicFromDesign,
-  isPreviewPlaceholderText,
   collectDynamicRegionCatalog,
   type RelatedSourceFile,
   type RelatedSourceFilesResult,
@@ -85,12 +75,15 @@ import {
 import type {
   DesignNode,
   VisualCompareResult,
-  AdapterBindings,
-  AndroidRenderContext,
-  RenderedAndroidItem,
   CodePage,
-  XmlElement,
 } from '@rebornace/tracescope-core'
+import {
+  getDesignEnrichment,
+  designDocToWire,
+  designDocToWireSimple,
+  emptyCodeWire,
+  type DesignWireNode,
+} from '../design-enrichment/index.js'
 import type { Context } from '../dsh-shims.js'
 import { completeWithHostLlm, extractJsonBlock } from './llm-helper.js'
 import { readFile, readdir, stat } from 'node:fs/promises'
@@ -1132,47 +1125,7 @@ async function matchAllLanhuPages(
 // High-fidelity comparison
 // ---------------------------------------------------------------------------
 
-interface HifiWireNode {
-  id: string
-  name: string
-  kind: string
-  text?: string
-  imageUrl?: string
-  x: number
-  y: number
-  width: number
-  height: number
-  dynamic?: boolean
-  aiInferred?: boolean
-  /** Human-readable AI summary for a runtime surface (best effort). */
-  aiNote?: string
-  /** AI-inferred content nodes for a runtime surface (absolute coords). */
-  inferredChildren?: HifiWireNode[]
-  style: HifiRenderNode['style']
-  children: HifiWireNode[]
-}
-
-function serializeHifi(node: HifiRenderNode): HifiWireNode {
-  return {
-    id: node.id,
-    name: node.name,
-    kind: node.kind,
-    text: node.text,
-    imageUrl: node.imageUrl,
-    x: node.x,
-    y: node.y,
-    width: node.width,
-    height: node.height,
-    dynamic: node.dynamic,
-    aiInferred: node.aiInferred,
-    aiNote: (node as unknown as { aiNote?: string }).aiNote,
-    inferredChildren: node.inferredChildren?.map(serializeHifi),
-    style: node.style,
-    children: node.children.map(serializeHifi),
-  }
-}
-
-export interface HifiCompareResult {
+export interface DesignStaticCompareResult {
   page: { adapterId: string; kindLabel: string; relativePath: string }
   /** Common viewport (design frame size) used for annotation coordinates. */
   viewport: { width: number; height: number }
@@ -1184,8 +1137,8 @@ export interface HifiCompareResult {
    * Matching remains single-entry; this list explains the modular closure.
    */
   relatedFiles?: RelatedSourceFile[]
-  /** High-fidelity trees — design side drives annotation boxes. */
-  designHifiTree: HifiWireNode
+  /** Design-side wire tree — drives annotation boxes on the raster. */
+  designTree: DesignWireNode
   /** Flat id→box map for diff hotspot (includes nodes folded into icon groups). */
   designNodeBoxes?: Array<{
     id: string
@@ -1197,9 +1150,12 @@ export interface HifiCompareResult {
     kind?: string
     text?: string
   }>
-  codeHifiTree: HifiWireNode
+  /** Code-side wire tree (layout engine or toDesignDoc); used for AI catalogs. */
+  codeTree: DesignWireNode
   /** Status message when runtime-region fill notes apply. */
   aiInferenceNote?: string
+  /** Which enrichment ran (e.g. android-xml), if any. */
+  enrichmentApplied?: string
   /**
    * Ready-to-send starter prompt for this page's "AI 协助分析". The sidebar
    * drops it into the session composer so the user can edit / continue.
@@ -1239,8 +1195,8 @@ export interface HifiCompareResult {
  */
 function collectDesignNodeBoxes(
   design: DesignDoc,
-): NonNullable<HifiCompareResult['designNodeBoxes']> {
-  const out: NonNullable<HifiCompareResult['designNodeBoxes']> = []
+): NonNullable<DesignStaticCompareResult['designNodeBoxes']> {
+  const out: NonNullable<DesignStaticCompareResult['designNodeBoxes']> = []
   const visit = (node: DesignNode): void => {
     out.push({
       id: String(node.id ?? ''),
@@ -1252,20 +1208,20 @@ function collectDesignNodeBoxes(
       kind: node.kind,
       text: node.text,
     })
-    for (const c of node.children) visit(c)
+    for (const child of node.children) visit(child)
   }
   visit(design.root)
-  return out.filter((b) => b.id)
+  return out
 }
 
 /**
- * Collect placeholder notes that live INSIDE the design frame, with each
- * note's box and the nearest enclosing background colour. Run BEFORE pruning
- * (the nodes are removed afterwards) so the official-raster view can mask the
+ * Collect designer-note boxes living inside the frame so the client can mask
  * notes out of the PNG using the correct underlying colour.
  */
-function collectNoteMasks(design: DesignDoc): NonNullable<HifiCompareResult['designNoteMasks']> {
-  const masks: NonNullable<HifiCompareResult['designNoteMasks']> = []
+function collectNoteMasks(
+  design: DesignDoc,
+): NonNullable<DesignStaticCompareResult['designNoteMasks']> {
+  const masks: NonNullable<DesignStaticCompareResult['designNoteMasks']> = []
   const visit = (node: DesignNode, inheritedBg: string | null): void => {
     const ownBg =
       typeof node.style.backgroundColor === 'string' && node.style.backgroundColor.trim()
@@ -1293,14 +1249,15 @@ function collectNoteMasks(design: DesignDoc): NonNullable<HifiCompareResult['des
 }
 
 /**
- * Design-only high-fidelity compare: Figma raster + layered static diffs.
- * Android XML uses the layout engine; other precise adapters use toDesignDoc;
- * locator-only adapters fall back to L2 heuristic. No native render.
+ * Design-static compare: Figma raster + layered property diffs.
+ * Optional per-adapter enrichment (e.g. Android XML layout engine) plugs in
+ * via design-enrichment; other precise adapters use toDesignDoc; locator-only
+ * adapters fall back to L2 heuristic. No native render.
  */
-export async function compareHighFidelity(
+export async function compareDesignStatic(
   body: Record<string, unknown>,
   hostCtx: Context,
-): Promise<HifiCompareResult> {
+): Promise<DesignStaticCompareResult> {
   void hostCtx
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const adapterId = String(body.adapterId ?? '').trim()
@@ -1324,73 +1281,50 @@ export async function compareHighFidelity(
   const ctx = await resolveVisualRepo(repoInput, body)
   const adapter = getPlatformAdapter(adapterId)
   if (!adapter) throw new Error(`未知适配器：${adapterId}`)
+  const enrichmentEnabled =
+    body.enrichment !== false && body.deepEnrichment !== false
+  const enrichment = enrichmentEnabled ? getDesignEnrichment(adapterId) : undefined
 
-  // Fingerprint source for cache invalidation (layout closure for XML; related sources otherwise).
+  // Fingerprint source for cache invalidation.
   let sourceFingerprint = ''
   let related: RelatedSourceFilesResult | undefined
   try {
-    if (adapterId === 'android-xml') {
-      const resources = await loadAndroidProjectResources(ctx.checkoutPath)
-      const built = await buildAndroidRenderContext(ctx.checkoutPath, resources)
-      const entryLayoutName = path.basename(relativePath, path.extname(relativePath))
-      const depManifest = await analyzeLayoutDependencies(entryLayoutName, built, resources)
-      related = relatedFromAndroidManifest(ctx.checkoutPath, relativePath, depManifest)
-      // Activity / Fragment / Adapter that inflate this layout — include before
-      // fingerprint so cache keys and the reading list stay in sync.
-      try {
-        const sourceFiles = await collectAdapterSourceFiles(ctx.checkoutPath, entryLayoutName)
-        if (sourceFiles.length && related) {
-          const seen = new Set(related.files.map((f) => f.relativePath))
-          const extra: RelatedSourceFile[] = []
-          for (const sf of sourceFiles) {
-            const rel = path.relative(ctx.checkoutPath, sf.path).replace(/\\/g, '/')
-            if (!rel || rel.startsWith('..') || seen.has(rel)) continue
-            seen.add(rel)
-            extra.push({
-              relativePath: rel,
-              role: 'import',
-              reason: '引用入口 layout 的 Activity/Fragment/Adapter',
-            })
-          }
-          if (extra.length) {
-            related = { entry: related.entry, files: [...related.files, ...extra] }
-          }
-        }
-      } catch {
-        /* optional enrichment */
-      }
-      sourceFingerprint = await fingerprintFiles([
-        depManifest.entryLayout,
-        ...depManifest.layouts,
-        ...depManifest.drawables,
-        ...depManifest.colorFiles,
-        ...depManifest.dimenFiles,
-        ...depManifest.stringFiles,
-        ...depManifest.styleFiles,
-        ...relatedFilesAbsolute(ctx.checkoutPath, related).filter((p) =>
-          /\.(kt|java)$/i.test(p),
-        ),
-      ])
+    const enrichedRelated = enrichment?.resolveRelated
+      ? await enrichment.resolveRelated({
+          checkoutPath: ctx.checkoutPath,
+          relativePath,
+        })
+      : null
+    if (enrichedRelated) {
+      related = enrichedRelated.related
+      sourceFingerprint = await fingerprintFiles(enrichedRelated.fingerprintFiles)
     } else {
       related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
-      sourceFingerprint = await fingerprintFiles(relatedFilesAbsolute(ctx.checkoutPath, related))
+      sourceFingerprint = await fingerprintFiles(
+        relatedFilesAbsolute(ctx.checkoutPath, related),
+      )
     }
   } catch {
     sourceFingerprint = ''
     related = undefined
   }
 
-  const hifiKey = visualHifiKey(
+  const cacheKey = visualDesignCompareKey(
     repoInput,
     fileKey,
     nodeIdForCache,
     relativePath,
-    sourceFingerprint,
+    // Include enrichment on/off so toggling does not reuse the wrong cache.
+    `${sourceFingerprint}|enrich:${enrichmentEnabled && enrichment ? enrichment.adapterId : 'off'}`,
   )
   if (!force) {
-    const cached = await loadVisualHifi<HifiCompareResult>(hifiKey)
+    const cached = await loadVisualDesignCompare<DesignStaticCompareResult>(cacheKey)
     if (cached?.payload) {
-      return { ...cached.payload, fromCache: true, savedAt: cached.savedAt }
+      return normalizeComparePayload({
+        ...cached.payload,
+        fromCache: true,
+        savedAt: cached.savedAt,
+      })
     }
   }
 
@@ -1401,63 +1335,34 @@ export async function compareHighFidelity(
   const db = design.root.box
   const viewportWidth = typeof db.width === 'number' ? db.width : 390
   const viewportHeight = typeof db.height === 'number' ? db.height : 844
+  const designNodeBoxes = collectDesignNodeBoxes(design)
 
   const iconEnrich = await enrichDesignIcons(design, body)
   const fillUrls = await enrichDesignImageFills(design, body)
-  const designHifi = designDocToHifi(design, iconEnrich, fillUrls)
-  const designNodeBoxes = collectDesignNodeBoxes(design)
+  const designTree = designDocToWire(design, iconEnrich, fillUrls)
 
   let compareMode: 'exact' | 'heuristic' = 'exact'
   let result: VisualCompareResult
-  let codeHifiTree: HifiWireNode
+  let codeTree: DesignWireNode
   let aiInferenceNote: string | undefined
   let kindLabel = adapter.kindLabel
 
-  if (adapterId === 'android-xml') {
-    const resources = await loadAndroidProjectResources(ctx.checkoutPath)
-    const built = await buildAndroidRenderContext(ctx.checkoutPath, resources)
-    const entryLayoutName = path.basename(relativePath, path.extname(relativePath))
-    const layoutFile = path.join(ctx.checkoutPath, relativePath)
-    const layoutXml = await readFileSafe(layoutFile)
-    const codeHifi = await renderAndroidLayout({
-      layoutXml,
-      width: viewportWidth,
-      height: viewportHeight,
-      context: built.context,
-      resolveLayout: built.resolveLayout,
-    })
+  const enrichedCode = enrichment?.buildCodeCompare
+    ? await enrichment.buildCodeCompare({
+        checkoutPath: ctx.checkoutPath,
+        relativePath,
+        design,
+        viewport: { width: viewportWidth, height: viewportHeight },
+        fillUrls,
+      })
+    : null
 
-    const sourceFiles = await collectAdapterSourceFiles(ctx.checkoutPath, entryLayoutName)
-    const bindings = analyzeAdapterBindings(entryLayoutName, sourceFiles)
-    const itemRegions = await expandAllDynamicRegions(codeHifi.root, entryLayoutName, {
-      bindings,
-      resolveLayoutEntry: built.resolveLayoutEntry,
-      context: built.context,
-      resolveLayout: built.resolveLayout,
-    })
-    const seededTexts = seedHifiDynamicTextsFromDesign(codeHifi.root, design)
-    const projectedRegions = projectRuntimeRegions(codeHifi.root, design, fillUrls)
-    // Compare AFTER expand/seed/project so L1 sees list tiles + design copy.
-    const codeDoc = hifiTreeToDesignDoc(codeHifi.root)
-    result = compareVisualDocs(design, codeDoc)
-
-    const totalRegions = flattenHifi(codeHifi.root).filter((n) => n.dynamic).length
-    if (itemRegions > 0) {
-      aiInferenceNote =
-        projectedRegions > 0
-          ? `已按代码自身的 item 布局还原 ${itemRegions} 个列表` +
-            (seededTexts > 0 ? `（静态填入 ${seededTexts} 处文案）` : '') +
-            `，另有 ${projectedRegions} 个区域未找到 item 布局、暂以设计稿内容示意`
-          : `已按代码自身的 item 布局还原 ${itemRegions} 个运行时列表（共 ${totalRegions} 个动态区域）` +
-            (seededTexts > 0 ? `，静态填入 ${seededTexts} 处设计文案` : '')
-    } else if (projectedRegions > 0) {
-      aiInferenceNote = `未从代码解析到 item 布局，已用设计稿内容示意 ${projectedRegions} 个区域（可在聊天中让 AI 协助）。`
-    } else {
-      aiInferenceNote = '未识别到可填充的运行时区域。'
-    }
-    codeHifiTree = serializeHifi(codeHifi.root)
+  if (enrichedCode) {
+    result = compareVisualDocs(design, enrichedCode.codeDoc)
+    codeTree = enrichedCode.codeTree
     compareMode = 'exact'
-    kindLabel = 'Android XML'
+    kindLabel = enrichedCode.kindLabel ?? adapter.kindLabel
+    aiInferenceNote = enrichedCode.note
   } else if (adapter.precise && adapter.toDesignDoc) {
     const page = {
       adapterId: adapter.id,
@@ -1470,7 +1375,6 @@ export async function compareHighFidelity(
     }
     let codeDoc = await adapter.toDesignDoc(page)
 
-    // Inline related modules so child-component texts/controls enter L1 compare.
     if (!related) {
       try {
         related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
@@ -1504,11 +1408,12 @@ export async function compareHighFidelity(
 
     const seededTiles = seedDynamicFromDesign(codeDoc, design)
     result = compareVisualDocs(design, codeDoc)
-    codeHifiTree = designDocToHifiSimple(codeDoc)
+    codeTree = designDocToWireSimple(codeDoc)
     compareMode = 'exact'
     kindLabel = adapter.kindLabel
     const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
-    const seedNote = seededTiles > 0 ? `；列表占位文案已静态填入 ${seededTiles} 处设计稿文案` : ''
+    const seedNote =
+      seededTiles > 0 ? `；列表占位文案已静态填入 ${seededTiles} 处设计稿文案` : ''
     if (inlinedModules > 0) {
       aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）；已内联 ${inlinedModules} 个关联模块参与对比${relatedCount > inlinedModules ? `，另有 ${relatedCount - inlinedModules} 个关联文件供 AI 阅读` : ''}${seedNote}。`
     } else if (relatedCount > 0) {
@@ -1526,7 +1431,6 @@ export async function compareHighFidelity(
       precise: false,
       fingerprint: { texts: [], nameTokens: [], controlCount: 0 },
     }
-    // Prefer fingerprint from discovery when available (single-adapter / cache).
     try {
       const hit = await resolveCodePage(ctx.checkoutPath, adapterId, relativePath)
       if (hit) page = hit
@@ -1542,7 +1446,7 @@ export async function compareHighFidelity(
     }
     const relatedAbs = related ? relatedFilesAbsolute(ctx.checkoutPath, related) : []
     result = await heuristicCompare(design, page, { relatedAbsolutePaths: relatedAbs })
-    codeHifiTree = emptyCodeHifi(viewportWidth, viewportHeight)
+    codeTree = emptyCodeWire(viewportWidth, viewportHeight)
     compareMode = 'heuristic'
     kindLabel = adapter.kindLabel
     const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
@@ -1552,13 +1456,9 @@ export async function compareHighFidelity(
         : `${kindLabel} 已做启发式静态对比（文案/控件规模）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
   }
 
-  // Ensure related list exists for the response (best-effort).
   if (!related) {
     try {
-      related =
-        adapterId === 'android-xml'
-          ? undefined
-          : await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
+      related = await resolveRelatedSourceFiles(ctx.checkoutPath, relativePath)
     } catch {
       related = undefined
     }
@@ -1586,16 +1486,17 @@ export async function compareHighFidelity(
     designImageUrl = undefined
   }
 
-  const hifiResult: HifiCompareResult = {
+  const compareResult: DesignStaticCompareResult = {
     page: { adapterId, kindLabel, relativePath },
     viewport: { width: viewportWidth, height: viewportHeight },
     designName,
     designImageUrl,
     relatedFiles: related?.files,
-    designHifiTree: designHifi,
+    designTree,
     designNodeBoxes,
-    codeHifiTree,
+    codeTree,
     aiInferenceNote,
+    enrichmentApplied: enrichedCode ? enrichment?.adapterId : undefined,
     designNoteMasks,
     chatPrompt,
     compareMode,
@@ -1606,702 +1507,32 @@ export async function compareHighFidelity(
     },
     fromCache: false,
   }
-  hifiResult.savedAt = new Date().toISOString()
+  compareResult.savedAt = new Date().toISOString()
 
   try {
-    await saveVisualHifi(hifiKey, hifiResult)
+    await saveVisualDesignCompare(cacheKey, compareResult)
   } catch {
     /* cache write failure must not discard the result */
   }
-  return hifiResult
+  return compareResult
 }
 
-/** Minimal code-side tree when there is no layout engine output. */
-function emptyCodeHifi(width: number, height: number): HifiWireNode {
-  return {
-    id: 'code-root',
-    name: 'code',
-    kind: 'frame',
-    x: 0,
-    y: 0,
-    width,
-    height,
-    style: {},
-    children: [],
-  }
-}
+/** @deprecated Use {@link compareDesignStatic} */
+export const compareHighFidelity = compareDesignStatic
+/** @deprecated Use {@link DesignStaticCompareResult} */
+export type HifiCompareResult = DesignStaticCompareResult
 
-/** Convert a DesignDoc to hifi wire without icon enrichment (code / xib side). */
-function designDocToHifiSimple(doc: DesignDoc): HifiWireNode {
-  return designDocToHifi(
-    doc,
-    { groupUrls: new Map(), iconUrls: new Map(), suppressed: new Set() },
-    undefined,
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Runtime-region high-fidelity fill (geometric projection + AI layout)
-// ---------------------------------------------------------------------------
-
-interface FlatBox {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-function flattenHifi(root: HifiRenderNode): HifiRenderNode[] {
-  const out: HifiRenderNode[] = []
-  const walk = (node: HifiRenderNode): void => {
-    out.push(node)
-    for (const child of node.children) walk(child)
-  }
-  walk(root)
-  return out
-}
-
-/**
- * Collect Java/Kotlin source files that may define the screen's adapters.
- * Bounded and name/keyword filtered: we only read files that mention the
- * entry layout or that look like an Adapter, so a large project stays fast.
- */
-async function collectAdapterSourceFiles(
-  checkoutPath: string,
-  entryLayout: string,
-): Promise<Array<{ path: string; content: string }>> {
-  const files: Array<{ path: string; content: string }> = []
-  const seenPaths = new Set<string>()
-  await walkFiles(
-    checkoutPath,
-    async (file) => {
-      if (file.depth > 14) return
-      if (!/\.(java|kt)$/i.test(file.name)) return
-      // Loose name pre-filter: the screen class is an Activity/Fragment and may
-      // NOT share the layout file's name (e.g. FirstRecommendTagActivity vs
-      // act_first_recommend_tag). Adapters are included too. The exact filter
-      // below reads content and keeps only files referencing the entry layout.
-      const looksRelevant =
-        /(adapter|activity|fragment)/i.test(file.name) ||
-        entryLayout.toLowerCase().includes(
-          file.name.toLowerCase().replace(/\.(java|kt)$/, ''),
-        )
-      if (!looksRelevant) return
-      try {
-        const content = await readFile(file.absolutePath, 'utf8')
-        // Must actually reference the entry layout OR inflate some layout.
-        if (!content.includes(entryLayout) && !/R\.layout\.\w+/.test(content)) return
-        const key = file.absolutePath.toLowerCase()
-        if (seenPaths.has(key)) return
-        seenPaths.add(key)
-        files.push({ path: file.absolutePath, content })
-      } catch {
-        /* unreadable: skip */
-      }
-    },
-    { maxFiles: 20_000 },
-  )
-  return files
-}
-
-/** Recursively deep-offset a render subtree into shared absolute coordinates. */
-function offsetNode(node: HifiRenderNode, dx: number, dy: number): HifiRenderNode {
-  const clone: HifiRenderNode = {
-    ...node,
-    x: Math.round((node.x + dx) * 100) / 100,
-    y: Math.round((node.y + dy) * 100) / 100,
-    style: node.style,
-    children: node.children.map((c) => offsetNode(c, dx, dy)),
-  }
-  if (node.inferredChildren?.length) {
-    clone.inferredChildren = node.inferredChildren.map((c) => offsetNode(c, dx, dy))
-  }
-  return clone
-}
-
-interface ExpandDeps {
-  bindings: AdapterBindings
-  resolveLayoutEntry: (name: string) => Promise<{ file: string; content: string } | undefined>
-  context: AndroidRenderContext
-  resolveLayout: (name: string) => Promise<string | undefined>
-}
-
-/** Orientation of a dynamic region read from its containing layout XML. */
-function regionOrientation(
-  layoutContent: string,
-  regionId: string,
-): 'vertical' | 'horizontal' {
-  try {
-    const root = parseXml(layoutContent)
-    let found: XmlElement | undefined
-    const visit = (el: XmlElement): void => {
-      if (found) return
-      const id = (el.attrs['android:id'] ?? '').replace(/^@\+?id\//, '')
-      if (id === regionId) {
-        found = el
-        return
-      }
-      for (const c of el.children) visit(c)
-    }
-    visit(root)
-    const o = found?.attrs['android:orientation'] ?? ''
-    return /horizontal/.test(o) ? 'horizontal' : 'vertical'
-  } catch {
-    return 'vertical'
-  }
-}
-
-/**
- * Expand every top-level dynamic region of the code screen using the code's
- * own item layouts. Tiles are attached to each region as `inferredChildren`
- * (shared absolute coordinates) and the region is marked `itemRendered`.
- * Returns the number of regions that got real rows.
- */
-async function expandAllDynamicRegions(
-  codeRoot: HifiRenderNode,
-  entryLayout: string,
-  deps: Omit<ExpandDeps, 'bindings'> & { bindings: AdapterBindings },
-): Promise<number> {
-  const regions = flattenHifi(codeRoot).filter((n) => n.dynamic)
-  if (!regions.length) return 0
-  let filled = 0
-  for (const region of regions) {
-    const tiles = await expandRegionTiles(entryLayout, region, deps, {
-      depth: 0,
-      budget: 4000,
-    })
-    if (!tiles.length) continue
-    region.inferredChildren = tiles
-    region.itemRendered = true
-    filled += 1
-  }
-  return filled
-}
-
-/**
- * Expand a dynamic region by rendering the CODE's own item layout (recovered
- * from adapter bindings) and tiling the real rows. The region orientation is
- * read from the containing layout. Nested dynamic regions in an item are
- * expanded recursively. Returns painted nodes in document order (card
- * backgrounds beneath their text), in shared absolute coordinates.
- */
-async function expandRegionTiles(
-  containingLayout: string,
-  region: HifiRenderNode,
-  deps: ExpandDeps,
-  guard: { depth: number; budget: number },
-): Promise<HifiRenderNode[]> {
-  if (guard.depth > 6) return []
-  const itemLayoutName = deps.bindings.layouts[containingLayout]?.[region.id]
-  if (!itemLayoutName) return []
-  const itemEntry = await deps.resolveLayoutEntry(itemLayoutName)
-  const containingEntry = await deps.resolveLayoutEntry(containingLayout)
-  if (!itemEntry || !containingEntry) return []
-
-  const dir = regionOrientation(containingEntry.content, region.id)
-
-  const tiles: HifiRenderNode[] = []
-  let cursor = 0
-  const maxTiles = 40
-  let tileIndex = 0
-  while (tileIndex < maxTiles && guard.budget > 0) {
-    const item = await renderAndroidItemLayout({
-      layoutXml: itemEntry.content,
-      // Vertical list: rows constrained to region width. Horizontal list: omit
-      // width so each item keeps its intrinsic width.
-      width: dir === 'vertical' ? region.width : undefined,
-      context: deps.context,
-      resolveLayout: deps.resolveLayout,
-    })
-    const step = dir === 'horizontal' ? item.width : item.height
-    if (!Number.isFinite(step) || step <= 0) break
-
-    const originX = dir === 'horizontal' ? region.x + cursor : region.x
-    const originY = dir === 'horizontal' ? region.y : region.y + cursor
-
-    // Flatten the item tree in document order; nested dynamic regions (which
-    // live inside THIS item layout) are expanded recursively.
-    const flat: HifiRenderNode[] = []
-    const collect = async (node: HifiRenderNode): Promise<void> => {
-      if (node.dynamic) {
-        const nested = await expandRegionTiles(
-          itemLayoutName,
-          { ...node, x: node.x + originX, y: node.y + originY },
-          deps,
-          { depth: guard.depth + 1, budget: guard.budget },
-        )
-        for (const n of nested) {
-          flat.push(n)
-          guard.budget -= 1
-        }
-        return
-      }
-      flat.push(offsetNode(node, originX, originY))
-      guard.budget -= 1
-      for (const c of node.children) await collect(c)
-    }
-    await collect(item.root)
-    for (const n of flat) tiles.push(n)
-
-    tileIndex += 1
-    cursor += step
-    // Stop once the region is filled along its scrolling axis.
-    if (dir === 'horizontal' && cursor >= region.width) break
-    if (dir === 'vertical' && cursor >= region.height) break
-  }
-  return tiles
-}
-
-/** A real paint-bearing leaf node in the shared coordinate space. */
-type DesignPaintKind = 'text' | 'shape' | 'image' | 'icon'
-interface DesignPaintItem extends FlatBox {
-  kind: DesignPaintKind
-  text?: string
-  imageRef?: string
-  style: DesignNode['style']
-}
-
-/**
- * Collect leaf nodes that actually paint — text, rectangle/shape, image, icon.
- * Container kinds (frame/group/view) are skipped: projecting their bounding
- * boxes would paint a rectangle for every layout wrapper. Annotations are
- * already pruned before this runs.
- */
-function collectDesignPaintItems(design: DesignDoc): DesignPaintItem[] {
-  const out: DesignPaintItem[] = []
-  const PAINT_KINDS: DesignPaintKind[] = ['text', 'shape', 'image', 'icon']
-  const visit = (n: DesignNode): void => {
-    if (PAINT_KINDS.includes(n.kind as DesignPaintKind)) {
-      out.push({
-        kind: n.kind as DesignPaintKind,
-        text: n.text,
-        imageRef: typeof n.style.imageRef === 'string' ? n.style.imageRef : undefined,
-        x: Number(n.box.x ?? 0),
-        y: Number(n.box.y ?? 0),
-        width: Number(n.box.width ?? 0),
-        height: Number(n.box.height ?? 0),
-        style: n.style,
-      })
-    }
-    for (const child of n.children) visit(child)
-  }
-  visit(design.root)
-  return out
-}
-
-function isInsideRegion(t: FlatBox, region: FlatBox, pad = 6): boolean {
-  return (
-    t.x >= region.x - pad &&
-    t.y >= region.y - pad &&
-    t.x + t.width <= region.x + region.width + pad &&
-    t.y + t.height <= region.y + region.height + pad
-  )
-}
-
-interface ProjectedPaint {
-  kind: DesignPaintKind
-  text?: string
-  imageUrl?: string
-  rx: number
-  ry: number
-  rw: number
-  rh: number
-  style: DesignNode['style']
-}
-
-function regionProjectedItems(
-  region: HifiRenderNode,
-  items: DesignPaintItem[],
-  fillUrls: Map<string, string>,
-): ProjectedPaint[] {
-  return items
-    .filter((t) => isInsideRegion(t, region))
-    .map((t) => {
-      const projected: ProjectedPaint = {
-        kind: t.kind,
-        text: t.text?.replace(/\s+/g, ' ').trim(),
-        rx: Math.round(t.x - region.x),
-        ry: Math.round(t.y - region.y),
-        rw: Math.round(t.width),
-        rh: Math.round(t.height),
-        style: t.style,
-      }
-      if (t.kind === 'image' && t.imageRef) {
-        projected.imageUrl = fillUrls.get(t.imageRef)
-      }
-      return projected
-    })
-    .filter((t) => {
-      if (t.kind === 'text') return !!t.text
-      return t.rw > 0 && t.rh > 0
-    })
-}
-
-/**
- * After item-layout expand: overwrite tools:text / identical-template texts in
- * each dynamic region's inferredChildren with design copy that falls inside
- * the region (deterministic static fill — no AI).
- */
-function seedHifiDynamicTextsFromDesign(
-  codeRoot: HifiRenderNode,
-  design: DesignDoc,
-): number {
-  const regions = flattenHifi(codeRoot).filter(
-    (n) => n.dynamic && n.itemRendered && n.inferredChildren?.length,
-  )
-  if (!regions.length) return 0
-  const paint = collectDesignPaintItems(design)
-  let changed = 0
-  for (const region of regions) {
-    const designTexts = paint
-      .filter((t) => t.kind === 'text' && t.text?.trim() && isInsideRegion(t, region))
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map((t) => t.text!.replace(/\s+/g, ' ').trim())
-    if (!designTexts.length) continue
-
-    const textNodes = region.inferredChildren!.filter(
-      (n) => n.kind === 'text' || n.text !== undefined,
-    )
-    if (!textNodes.length) continue
-
-    // Treat as template clones when every text slot repeats the same value,
-    // or when the value looks like tools:text / preview filler.
-    const textValues = textNodes.map((n) => n.text)
-    const allSame =
-      textValues.length >= 2 && textValues.every((t) => t === textValues[0])
-    let di = 0
-    for (const node of textNodes) {
-      if (!allSame && !isPreviewPlaceholderText(node.text)) continue
-      const next = designTexts[di % designTexts.length]!
-      di += 1
-      if (node.text === next) continue
-      node.text = next
-      changed += 1
-    }
-  }
-  return changed
-}
-
-/**
- * Stage 1 (always, deterministic): project the real design content that falls
- * inside each runtime region into {@link HifiRenderNode.inferredChildren}.
- * Projects the FULL geometry — card background rectangles, image placeholders,
- * icons and text with their real styles and positions — not just bare text, so
- * the code-side list visually reconstructs the cards. Returns filled regions.
- */
-function projectRuntimeRegions(
-  codeRoot: HifiRenderNode,
-  design: DesignDoc,
-  fillUrls: Map<string, string>,
-): number {
-  // FALLBACK ONLY: skip regions already populated (e.g. real item rows from
-  // adapter bindings) so they are not overwritten by projected design content.
-  const regions = flattenHifi(codeRoot).filter(
-    (n) => n.dynamic && !(n.inferredChildren?.length),
-  )
-  if (!regions.length) return 0
-  const items = collectDesignPaintItems(design)
-
-  let filled = 0
-  let seq = 0
-  for (const region of regions) {
-    const projected = regionProjectedItems(region, items, fillUrls)
-    if (!projected.length) continue
-    region.inferredChildren = projected.map((it) => {
-      seq += 1
-      const node: HifiRenderNode = {
-        id: `proj_${seq}`,
-        name: 'projected',
-        kind: it.kind === 'shape' ? 'view' : it.kind === 'icon' ? 'image' : it.kind,
-        x: region.x + it.rx,
-        y: region.y + it.ry,
-        width: Math.max(1, it.rw),
-        height: Math.max(1, it.rh),
-        style: {
-          backgroundColor:
-            typeof it.style.backgroundColor === 'string'
-              ? it.style.backgroundColor
-              : undefined,
-          gradient: it.style.gradient,
-          color: typeof it.style.color === 'string' ? it.style.color : undefined,
-          fontSize:
-            typeof it.style.fontSize === 'number' ? it.style.fontSize : undefined,
-          fontWeight: it.style.fontWeight,
-          borderRadius:
-            typeof it.style.cornerRadius === 'number'
-              ? it.style.cornerRadius
-              : undefined,
-          borderRadii: Array.isArray(it.style.cornerRadii)
-            ? it.style.cornerRadii
-            : undefined,
-          borderWidth:
-            typeof it.style.borderWidth === 'number'
-              ? it.style.borderWidth
-              : undefined,
-          borderColor:
-            typeof it.style.borderColor === 'string'
-              ? it.style.borderColor
-              : undefined,
-          textAlign: it.style.textAlign,
-          imageFit: it.style.imageFit,
-        },
-        text: it.kind === 'text' ? it.text : undefined,
-        imageUrl: it.kind === 'image' ? it.imageUrl : undefined,
-        children: [],
-      }
-      return node
-    })
-    filled += 1
-  }
-  return filled
-}
-
-/**
- * Stage 2 (optional, AI only): de-duplicate / clean the stage-1 projected copy
- * and replace each region's inferred children with the refined set. Real-copy
- * guard rejects any text not present in the projection. Returns refined region
- * count. Throws when the model output cannot be parsed.
- */
-async function refineRuntimeRegionsWithAI(
-  hostCtx: Context,
-  codeRoot: HifiRenderNode,
-  design: DesignDoc,
-): Promise<number> {
-  const regions = flattenHifi(codeRoot).filter(
-    (n) => n.dynamic && n.inferredChildren?.length,
-  )
-  if (!regions.length) return 0
-
-  const regionInputs = regions.map((region, index) => ({
-    index,
-    id: region.id,
-    name: region.name,
-    width: Math.round(region.width),
-    height: Math.round(region.height),
-    items: region.inferredChildren!.map((c) => ({
-      text: String(c.text ?? ''),
-      rx: Math.round(c.x - region.x),
-      ry: Math.round(c.y - region.y),
-      rw: Math.round(c.width),
-      rh: Math.round(c.height),
-    })),
-  }))
-
-  const system =
-    '你是资深 Android UI 工程师，正在根据设计稿静态还原一个由运行时数据填充的界面区域（RecyclerView/ViewPager/WebView）。' +
-    '已用几何方式把设计稿中落入该区域的真实文字连同其相对坐标提取出来。你的任务：去重、合并明显重复或被截断的同一条文案、修正排版，' +
-    '然后输出该区域应显示的文字节点。严格要求：只能使用或精简给定文案，禁止编造用户名、数字、标题；坐标必须在给定基础上合理排布，不得超出区域。'
-  const user =
-    `区域（width/height 与落入其中的真实文字 items：text/rx/ry/rw/rh，坐标相对区域左上角）：\n${JSON.stringify(
-      regionInputs.map((r) => ({ ...r, items: r.items.slice(0, 40) })),
-      null,
-      1,
-    )}\n\n` +
-    '只输出 JSON：{"regions":[{"index":0,"nodes":[{"text":"...","rx":0,"ry":0,"rw":100,"rh":18}]}]}。'
-
-  const raw = await completeWithHostLlm(hostCtx, [
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ])
-
-  let refinedCount = 0
-  try {
-    const parsed = JSON.parse(extractJsonBlock(raw)) as {
-      regions?: Array<{
-        index?: number
-        nodes?: Array<{
-          text?: string
-          rx?: number
-          ry?: number
-          rw?: number
-          rh?: number
-        }>
-      }>
-    }
-    let inferSeq = 0
-    for (const regionResult of parsed.regions ?? []) {
-      const idx = Number(regionResult.index)
-      const region = regions[idx]
-      const input = regionInputs[idx]
-      if (!region || !input) continue
-      const allowed = new Set(input.items.map((i) => i.text))
-      const refined: HifiRenderNode[] = []
-      for (const n of regionResult.nodes ?? []) {
-        const text = String(n.text ?? '').trim()
-        if (!text) continue
-        // Defence: keep only text present in (or overlapping) the real copy.
-        const anchored =
-          allowed.has(text) ||
-          [...allowed].some((a) => a.includes(text) || text.includes(a))
-        if (!anchored) continue
-        inferSeq += 1
-        refined.push({
-          id: `ai_${inferSeq}`,
-          name: 'ai-inferred',
-          kind: 'text',
-          x: region.x + Number(n.rx ?? 0),
-          y: region.y + Number(n.ry ?? 0),
-          width: Math.max(8, Number(n.rw ?? text.length * 8)),
-          height: Math.max(12, Number(n.rh ?? 16)),
-          aiInferred: true,
-          style: { fontSize: 12 },
-          text,
-          children: [],
-        })
-      }
-      if (refined.length) {
-        region.aiInferred = true
-        region.inferredChildren = refined
-        refinedCount += 1
-      }
-    }
-  } catch {
-    throw new Error('无法解析 AI 返回的区域内容')
-  }
-  return refinedCount
-}
-
-async function readFileSafe(file: string): Promise<string> {
-  try {
-    return await readFile(file, 'utf8')
-  } catch {
-    throw new Error(`无法读取布局文件：${file}`)
-  }
-}
-
-/** Convert a normalized design doc into the hifi wire shape. */
-function designDocToHifi(
-  design: DesignDoc,
-  iconEnrich: {
-    groupUrls: Map<string, string>
-    iconUrls: Map<string, string>
-    suppressed: Set<string>
+/** Accept legacy cached payloads that still use designHifiTree / codeHifiTree. */
+function normalizeComparePayload(
+  payload: DesignStaticCompareResult & {
+    designHifiTree?: DesignWireNode
+    codeHifiTree?: DesignWireNode
   },
-  imageUrls?: Map<string, string>,
-): HifiWireNode {
-  const { groupUrls, iconUrls, suppressed } = iconEnrich
-  function convert(n: DesignNode): HifiWireNode {
-    const style: HifiWireNode['style'] = {}
-    if (typeof n.style.backgroundColor === 'string') {
-      style.backgroundColor = n.style.backgroundColor
-    }
-    if (n.style.gradient) style.gradient = n.style.gradient
-    if (typeof n.style.color === 'string') style.color = n.style.color
-    if (typeof n.style.fontSize === 'number') style.fontSize = n.style.fontSize
-    if (typeof n.style.fontWeight === 'number') style.fontWeight = n.style.fontWeight
-    if (n.style.fontFamily) style.fontFamily = n.style.fontFamily
-    if (n.style.textAlign) style.textAlign = n.style.textAlign
-    if (typeof n.style.cornerRadius === 'number') style.borderRadius = n.style.cornerRadius
-    if (Array.isArray(n.style.cornerRadii)) style.borderRadii = n.style.cornerRadii
-    if (typeof n.style.lineHeight === 'number') style.lineHeight = n.style.lineHeight
-    if (n.style.imageFit) style.imageFit = n.style.imageFit
-    if (typeof n.style.opacity === 'number') style.opacity = n.style.opacity
-    if (typeof n.style.elevation === 'number') style.elevation = n.style.elevation
-    if (typeof n.style.innerShadow === 'number') style.innerShadow = n.style.innerShadow
-    if (typeof n.style.blur === 'number') style.blur = n.style.blur
-    if (n.style.shadow) style.shadow = n.style.shadow
-    if (n.style.insetShadow) style.insetShadow = n.style.insetShadow
-    if (n.style.shadows) style.shadows = n.style.shadows
-    if (n.style.blendMode) style.blendMode = n.style.blendMode
-    if (typeof n.style.rotation === 'number') style.rotation = n.style.rotation
-    if (typeof n.style.scaleX === 'number') style.scaleX = n.style.scaleX
-    if (typeof n.style.scaleY === 'number') style.scaleY = n.style.scaleY
-    if (typeof n.style.skewX === 'number') style.skewX = n.style.skewX
-    if (typeof n.style.skewY === 'number') style.skewY = n.style.skewY
-    if (typeof n.style.zIndex === 'number') style.zIndex = n.style.zIndex
-    if (n.style.strokeAlign) style.strokeAlign = n.style.strokeAlign
-    if (n.style.fills?.length) style.fills = n.style.fills
-    if (n.style.textDecoration) style.textDecoration = n.style.textDecoration
-    if (n.style.textTransform) style.textTransform = n.style.textTransform
-    if (n.style.overflow) style.overflow = n.style.overflow
-    if (n.style.clipPath) style.clipPath = n.style.clipPath
-    if (typeof n.style.aspectRatio === 'number') style.aspectRatio = n.style.aspectRatio
-    if (typeof n.style.maxLines === 'number') style.maxLines = n.style.maxLines
-    if (n.style.textOverflow) style.textOverflow = n.style.textOverflow
-    if (typeof n.style.minWidth === 'number') style.minWidth = n.style.minWidth
-    if (typeof n.style.maxWidth === 'number') style.maxWidth = n.style.maxWidth
-    if (typeof n.style.minHeight === 'number') style.minHeight = n.style.minHeight
-    if (typeof n.style.maxHeight === 'number') style.maxHeight = n.style.maxHeight
-    if (typeof n.style.textAdvanceWidth === 'number') style.textAdvanceWidth = n.style.textAdvanceWidth
-    if (typeof n.style.textBlockHeight === 'number') style.textBlockHeight = n.style.textBlockHeight
-    if (n.style.flexDirection) style.flexDirection = n.style.flexDirection
-    if (n.style.alignItems) style.alignItems = n.style.alignItems
-    if (n.style.justifyContent) style.justifyContent = n.style.justifyContent
-    if (n.style.fontStyle) style.fontStyle = n.style.fontStyle
-    if (n.style.textAlignVertical) style.textAlignVertical = n.style.textAlignVertical
-    if (n.style.borderStyle) style.borderStyle = n.style.borderStyle
-    if (n.style.strokeDashArray) style.strokeDashArray = n.style.strokeDashArray
-    if (n.style.strokeCap) style.strokeCap = n.style.strokeCap
-    if (n.style.strokeJoin) style.strokeJoin = n.style.strokeJoin
-    if (typeof n.style.paragraphSpacing === 'number') style.paragraphSpacing = n.style.paragraphSpacing
-    if (n.style.sizingHorizontal) style.sizingHorizontal = n.style.sizingHorizontal
-    if (n.style.sizingVertical) style.sizingVertical = n.style.sizingVertical
-    if (typeof n.style.backdropBlur === 'number') style.backdropBlur = n.style.backdropBlur
-    if (n.style.position) style.position = n.style.position
-    if (typeof n.style.rowGap === 'number') style.rowGap = n.style.rowGap
-    if (typeof n.style.columnGap === 'number') style.columnGap = n.style.columnGap
-    if (n.style.flexWrap) style.flexWrap = n.style.flexWrap
-    if (n.style.alignContent) style.alignContent = n.style.alignContent
-    if (typeof n.style.order === 'number') style.order = n.style.order
-    if (n.style.gridTemplate) style.gridTemplate = n.style.gridTemplate
-    if (n.style.alignSelf) style.alignSelf = n.style.alignSelf
-    if (typeof n.style.flexGrow === 'number') style.flexGrow = n.style.flexGrow
-    if (typeof n.style.flexShrink === 'number') style.flexShrink = n.style.flexShrink
-    if (n.style.transformOrigin) style.transformOrigin = n.style.transformOrigin
-    if (n.style.visibility) style.visibility = n.style.visibility
-    if (n.style.display) style.display = n.style.display
-    if (n.style.whiteSpace) style.whiteSpace = n.style.whiteSpace
-    if (n.style.wordBreak) style.wordBreak = n.style.wordBreak
-    if (typeof n.style.wordSpacing === 'number') style.wordSpacing = n.style.wordSpacing
-    if (typeof n.style.textIndent === 'number') style.textIndent = n.style.textIndent
-    if (typeof n.style.perspective === 'number') style.perspective = n.style.perspective
-    if (typeof n.style.rotateX === 'number') style.rotateX = n.style.rotateX
-    if (typeof n.style.rotateY === 'number') style.rotateY = n.style.rotateY
-    if (n.style.textShadow) style.textShadow = n.style.textShadow
-    if (n.style.direction) style.direction = n.style.direction
-    if (n.style.writingMode) style.writingMode = n.style.writingMode
-    if (n.style.filter) style.filter = n.style.filter
-    if (n.style.outline) style.outline = n.style.outline
-    if (typeof n.style.borderWidth === 'number') style.borderWidth = n.style.borderWidth
-    if (typeof n.style.borderColor === 'string') style.borderColor = n.style.borderColor
-    if (typeof n.style.borderTopWidth === 'number') style.borderTopWidth = n.style.borderTopWidth
-    if (typeof n.style.borderRightWidth === 'number') style.borderRightWidth = n.style.borderRightWidth
-    if (typeof n.style.borderBottomWidth === 'number') {
-      style.borderBottomWidth = n.style.borderBottomWidth
-    }
-    if (typeof n.style.borderLeftWidth === 'number') style.borderLeftWidth = n.style.borderLeftWidth
-    if (typeof n.style.borderTopColor === 'string') style.borderTopColor = n.style.borderTopColor
-    if (typeof n.style.borderRightColor === 'string') style.borderRightColor = n.style.borderRightColor
-    if (typeof n.style.borderBottomColor === 'string') {
-      style.borderBottomColor = n.style.borderBottomColor
-    }
-    if (typeof n.style.borderLeftColor === 'string') style.borderLeftColor = n.style.borderLeftColor
-    // A composite icon container is rendered to one image; it becomes an
-    // 'icon' node and its whole subtree is dropped (the image already contains
-    // the boolean/mask/layer-built glyph).
-    const groupImageUrl = groupUrls.get(n.id)
-    // Standalone vector rendered to an image (group takes precedence).
-    const iconImageUrl = groupImageUrl ?? iconUrls.get(n.id)
-    // IMAGE-paint content (avatars/photos) resolved from its fill asset ref.
-    const fillImageUrl =
-      !iconImageUrl && n.style.imageRef ? imageUrls?.get(n.style.imageRef) : undefined
-    const isAbsorbed = suppressed.has(n.id)
-    return {
-      id: n.id,
-      name: n.name,
-      kind: groupImageUrl ? 'icon' : n.kind,
-      text: n.text,
-      imageUrl: iconImageUrl ?? fillImageUrl,
-      x: typeof n.box.x === 'number' ? n.box.x : 0,
-      y: typeof n.box.y === 'number' ? n.box.y : 0,
-      width: typeof n.box.width === 'number' ? n.box.width : 0,
-      height: typeof n.box.height === 'number' ? n.box.height : 0,
-      style,
-      // Nodes absorbed into a composite icon image are not painted again.
-      children: isAbsorbed ? [] : n.children.map(convert),
-    }
-  }
-  return convert(design.root)
+): DesignStaticCompareResult {
+  const designTree = payload.designTree ?? payload.designHifiTree
+  const codeTree = payload.codeTree ?? payload.codeHifiTree
+  if (!designTree || !codeTree) return payload
+  return { ...payload, designTree, codeTree }
 }
 
 /**
@@ -2647,17 +1878,25 @@ export async function buildCodeVisualAnalysis(
     staticDiffSummary = undefined
   }
 
-  // Prefer client-provided catalog (from the open hifi board). Fall back to
-  // cached hifi compare (empty fingerprint key — best-effort).
+  // Prefer client-provided catalog (from the open design-compare board). Fall back to
+  // cached design-static compare (empty fingerprint key — best-effort).
   let dynamicRegionsCatalog: string | undefined
   const fromBody = body.dynamicRegions
   if (Array.isArray(fromBody) && fromBody.length) {
     dynamicRegionsCatalog = JSON.stringify(fromBody)
   } else {
     try {
-      const hifiKey = visualHifiKey(repoInput, figmaFileKey || 'design', nodeIdRest, relativePath, '')
-      const cached = await loadVisualHifi<HifiCompareResult>(hifiKey)
-      const tree = cached?.payload?.codeHifiTree
+      const cacheKey = visualDesignCompareKey(
+        repoInput,
+        figmaFileKey || 'design',
+        nodeIdRest,
+        relativePath,
+        '',
+      )
+      const cached = await loadVisualDesignCompare<DesignStaticCompareResult>(cacheKey)
+      const tree =
+        cached?.payload?.codeTree ??
+        (cached?.payload as { codeHifiTree?: DesignWireNode } | undefined)?.codeHifiTree
       if (tree) {
         const catalog = collectDynamicRegionCatalog(tree)
         if (catalog.length) dynamicRegionsCatalog = JSON.stringify(catalog)

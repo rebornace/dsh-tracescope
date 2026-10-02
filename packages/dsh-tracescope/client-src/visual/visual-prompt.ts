@@ -3,10 +3,10 @@
  *
  * The board already holds the page's deterministic diffs, so we format the
  * starter prompt here rather than depending on a field returned by the
- * hifi-compare route. This keeps the feature working even when the rendered
+ * design-compare route. This keeps the feature working even when the rendered
  * board came from an earlier compare that lacked that field.
  */
-import type { DiffBox } from './HifiScreen.js'
+import type { DiffBox } from './DesignLayerScreen.js'
 
 export interface VisualPromptMeta {
   designName: string

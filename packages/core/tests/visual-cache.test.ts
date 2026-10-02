@@ -65,7 +65,7 @@ describe('visual cache persistence', () => {
     expect(raw.key).toBe(key)
   })
 
-  it('round-trips a hifi payload independently of scan', async () => {
+  it('round-trips a design-compare payload independently of scan', async () => {
     const root = await tempRoot()
     const key = visualHifiKey('repo', 'file', '1-2', 'res/layout/a.xml')
     const payload = { viewport: { width: 390, height: 844 } }
@@ -73,6 +73,11 @@ describe('visual cache persistence', () => {
     const loaded = await loadVisualHifi<typeof payload>(key, root)
     expect(loaded?.payload).toEqual(payload)
     expect(await loadVisualScan(key, root)).toBeNull()
+    // New dir name under schema v8+
+    const { readFile } = await import('node:fs/promises')
+    const file = path.join(root, 'visual-cache', 'design-compare', `${key}.json`)
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { key: string }
+    expect(raw.key).toBe(key)
   })
 
   it('round-trips AI rematch picks independently of scan', async () => {

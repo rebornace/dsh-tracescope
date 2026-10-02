@@ -1,7 +1,7 @@
 /**
  * On-disk cache for UI visual-testing results.
  *
- * Re-running the whole-file scan or a high-fidelity comparison for the same
+ * Re-running the whole-file scan or a design-static comparison for the same
  * design + code is expensive (many Figma requests, tree building). Both kinds
  * of results are persisted under the TraceScope data root and keyed by their
  * inputs, so a repeat visit loads instantly. The user can always force a
@@ -22,7 +22,7 @@ import { dataRootSync } from './paths.js'
  * way that makes previously cached payloads stale (e.g. fixing corner-radius
  * or icon extraction). Old entries are then never matched and get replaced.
  */
-export const VISUAL_CACHE_SCHEMA_VERSION = 7
+export const VISUAL_CACHE_SCHEMA_VERSION = 8
 
 function visualDir(cacheRoot?: string): string {
   return path.join(dataRootSync(cacheRoot), 'visual-cache')
@@ -32,8 +32,8 @@ function scanDir(cacheRoot?: string): string {
   return path.join(visualDir(cacheRoot), 'scan')
 }
 
-function hifiDir(cacheRoot?: string): string {
-  return path.join(visualDir(cacheRoot), 'hifi')
+function designCompareDir(cacheRoot?: string): string {
+  return path.join(visualDir(cacheRoot), 'design-compare')
 }
 
 function findingsDir(cacheRoot?: string): string {
@@ -90,11 +90,11 @@ export function visualScanKey(repoInput: string, fileKey: string, focusNodeId = 
 }
 
 /**
- * Stable key for one page's high-fidelity comparison. `sourceFingerprint` is
+ * Stable key for one page's design-static comparison. `sourceFingerprint` is
  * an optional hash of the entry layout + its dependency closure; passing it
  * makes the cache miss as soon as any relevant source file changes.
  */
-export function visualHifiKey(
+export function visualDesignCompareKey(
   repoInput: string,
   fileKey: string,
   nodeId: string,
@@ -110,6 +110,9 @@ export function visualHifiKey(
     sourceFingerprint,
   ])
 }
+
+/** @deprecated Use {@link visualDesignCompareKey} */
+export const visualHifiKey = visualDesignCompareKey
 
 /**
  * Stable key for one page's AI review findings. Versioned with the schema but
@@ -178,22 +181,27 @@ export async function saveVisualScan<T>(
   await writeJson(scanDir(cacheRoot), key, payload)
 }
 
-/** Load a cached high-fidelity comparison, or null when absent. */
-export async function loadVisualHifi<T>(
+/** Load a cached design-static comparison, or null when absent. */
+export async function loadVisualDesignCompare<T>(
   key: string,
   cacheRoot?: string,
 ): Promise<CachedEntry<T> | null> {
-  return await readJson<T>(path.join(hifiDir(cacheRoot), `${key}.json`))
+  return await readJson<T>(path.join(designCompareDir(cacheRoot), `${key}.json`))
 }
 
-/** Persist a high-fidelity comparison. */
-export async function saveVisualHifi<T>(
+/** Persist a design-static comparison. */
+export async function saveVisualDesignCompare<T>(
   key: string,
   payload: T,
   cacheRoot?: string,
 ): Promise<void> {
-  await writeJson(hifiDir(cacheRoot), key, payload)
+  await writeJson(designCompareDir(cacheRoot), key, payload)
 }
+
+/** @deprecated Use {@link loadVisualDesignCompare} */
+export const loadVisualHifi = loadVisualDesignCompare
+/** @deprecated Use {@link saveVisualDesignCompare} */
+export const saveVisualHifi = saveVisualDesignCompare
 
 /** Load persisted AI review findings for one page, or null when absent. */
 export async function loadVisualFindings<T>(

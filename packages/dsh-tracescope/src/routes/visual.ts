@@ -7,7 +7,7 @@ import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
 import {
   compareDesignAgainstPage,
-  compareHighFidelity,
+  compareDesignStatic,
   getDesignPageThumbnail,
   getDesignPageThumbnails,
   matchAllDesignPages,
@@ -53,10 +53,19 @@ export function registerVisualRoutes(ctx: Context) {
   })
 
   registerRoute(ctx, {
+    path: '/tracescope/v1/design-compare',
+    method: 'POST',
+    run: async (body) => {
+      return await compareDesignStatic(body, ctx)
+    },
+  })
+
+  // Legacy alias — prefer /design-compare.
+  registerRoute(ctx, {
     path: '/tracescope/v1/hifi-compare',
     method: 'POST',
     run: async (body) => {
-      return await compareHighFidelity(body, ctx)
+      return await compareDesignStatic(body, ctx)
     },
   })
 

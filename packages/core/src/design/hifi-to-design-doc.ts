@@ -1,13 +1,13 @@
 /**
- * Adapt a high-fidelity {@link HifiRenderNode} tree back into the common
+ * Adapt a layout {@link LayoutRenderNode} tree back into the common
  * {@link DesignDoc} model so the existing deterministic compare engine can run
  * over it. Geometry, styles, text and images are preserved; dynamic surfaces
  * become a clearly-labelled frame.
  */
 import type { DesignDoc, DesignGradient, DesignNode, DesignNodeKind } from './types.js'
-import type { HifiRenderNode } from './android-layout-engine.js'
+import type { LayoutRenderNode } from './android-layout-engine.js'
 
-function convertKind(node: HifiRenderNode): DesignNodeKind {
+function convertKind(node: LayoutRenderNode): DesignNodeKind {
   switch (node.kind) {
     case 'frame':
       return 'frame'
@@ -31,7 +31,7 @@ function gradientApproxColor(gradient: DesignGradient): string | undefined {
   return gradient.stops[0]?.color
 }
 
-function convertNode(node: HifiRenderNode): DesignNode {
+function convertNode(node: LayoutRenderNode): DesignNode {
   const style: DesignNode['style'] = {
     backgroundColor: node.style.backgroundColor,
     color: node.style.color,
@@ -134,10 +134,14 @@ function convertNode(node: HifiRenderNode): DesignNode {
   return out
 }
 
-/** Convert a rendered high-fidelity tree into a comparable DesignDoc. */
-export function hifiTreeToDesignDoc(
-  root: HifiRenderNode,
+/** Convert a rendered layout tree into a comparable DesignDoc. */
+export function layoutTreeToDesignDoc(
+  root: LayoutRenderNode,
   source: DesignDoc['source'] = 'android-xml',
 ): DesignDoc {
   return { root: convertNode(root), scale: 1, source }
 }
+
+/** @deprecated Use {@link layoutTreeToDesignDoc} */
+export const hifiTreeToDesignDoc = layoutTreeToDesignDoc
+
