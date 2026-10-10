@@ -797,14 +797,67 @@ var init_zh = __esm({
       "common.copy": "复制",
       "common.loading": "加载中…",
       "crash.analyze": "分析",
-      "crash.cookieHint": "友盟 U-APM 需登录控制台 Cookie，后续版本在此配置。",
+      "crash.appKey": "应用 AppKey",
+      "crash.clearCookie": "清除 Cookie",
+      "crash.col.affectedUsers": "影响用户",
+      "crash.col.count": "次数",
+      "crash.col.status": "状态",
+      "crash.col.version": "版本",
+      "crash.cookie": "控制台 Cookie",
+      "crash.cookieCleared": "已清除已保存的 Cookie",
+      "crash.cookieExpired": "Cookie 已失效，请更新凭证或使用下方粘贴堆栈降级",
+      "crash.cookieHint": "仅读取您已在友盟 U-APM 控制台登录后可查看的数据；请遵守友盟服务条款，Cookie 仅存本机且仅发往友盟域名。",
+      "crash.cookiePlaceholder": "从浏览器 DevTools 复制 Cookie",
+      "crash.credentialsSaved": "凭证已保存",
+      "crash.detailMissing": "未获取到崩溃详情",
+      "crash.detailStack": "详情堆栈",
+      "crash.errorKind.anr": "ANR",
+      "crash.errorKind.crash": "崩溃",
+      "crash.errorKind.error": "错误",
+      "crash.errorKind.other": "其他",
+      "crash.filter.appVersion": "应用版本",
+      "crash.filter.appVersionHint": "版本号，多个用逗号分隔",
+      "crash.filter.errorKind": "错误类型",
+      "crash.filter.keyword": "关键词",
+      "crash.filter.keywordHint": "异常名或堆栈片段",
+      "crash.filter.osDevice": "系统 / 机型",
+      "crash.filter.osDeviceHint": "系统版本或机型关键词",
+      "crash.filter.sort": "排序字段",
+      "crash.filter.sortDir": "排序方向",
+      "crash.filter.status": "处理状态",
+      "crash.filter.timeRange": "时间范围",
+      "crash.filters": "过滤",
+      "crash.listEmpty": "暂无列表数据（请先保存凭证并自检，或 Cookie 失效时使用粘贴降级）",
+      "crash.listLoading": "正在加载崩溃列表…",
+      "crash.listTitle": "崩溃列表",
       "crash.mode": "崩溃分析",
       "crash.needAnalyzeFirst": "请先点击「分析」或「分析并写入会话」",
       "crash.noRepoMatch": "未在仓库中匹配到堆栈引用的源文件",
+      "crash.pasteFallback": "粘贴堆栈（Cookie 失效降级）",
       "crash.pasteLabel": "粘贴崩溃堆栈",
       "crash.pasteRequired": "请先粘贴崩溃堆栈",
+      "crash.probe": "自检",
+      "crash.probeFail": "连通性自检失败",
+      "crash.probeOk": "连通性自检通过",
       "crash.promptPreview": "会话提示词预览",
+      "crash.provider": "数据源",
+      "crash.providerUmeng": "友盟 U-APM",
+      "crash.refreshList": "刷新列表",
+      "crash.rememberCredentials": "记住凭证（按仓库或全局）",
+      "crash.saveCredentials": "保存凭证",
+      "crash.sort.asc": "升序",
+      "crash.sort.count": "按次数",
+      "crash.sort.desc": "降序",
+      "crash.sort.lastSeen": "按最近发生",
+      "crash.sort.title": "按标题",
+      "crash.status.closed": "已处理",
+      "crash.status.open": "未处理",
+      "crash.status.other": "其他",
       "crash.submitDefect": "提交缺陷",
+      "crash.timeRange.24h": "近 24 小时",
+      "crash.timeRange.30d": "近 30 天",
+      "crash.timeRange.7d": "近 7 天",
+      "crash.timeRange.all": "全部",
       "crash.umengConfig": "友盟配置",
       "crash.writeSession": "分析并写入会话",
       "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。",
@@ -2055,14 +2108,67 @@ var init_en = __esm({
       "common.copy": "Copy",
       "common.loading": "Loading…",
       "crash.analyze": "Analyze",
-      "crash.cookieHint": "Umeng U-APM needs a console login cookie; configuration UI coming later.",
+      "crash.appKey": "AppKey",
+      "crash.clearCookie": "Clear cookie",
+      "crash.col.affectedUsers": "Affected users",
+      "crash.col.count": "Count",
+      "crash.col.status": "Status",
+      "crash.col.version": "Version",
+      "crash.cookie": "Console cookie",
+      "crash.cookieCleared": "Saved cookie cleared",
+      "crash.cookieExpired": "Cookie expired — update credentials or paste a stack below",
+      "crash.cookieHint": "Reads only data visible in your logged-in Umeng U-APM console; comply with Umeng terms. Cookie stays on this machine and is sent only to Umeng hosts.",
+      "crash.cookiePlaceholder": "Paste cookie from browser DevTools",
+      "crash.credentialsSaved": "Credentials saved",
+      "crash.detailMissing": "Crash detail not available",
+      "crash.detailStack": "Detail stack",
+      "crash.errorKind.anr": "ANR",
+      "crash.errorKind.crash": "Crash",
+      "crash.errorKind.error": "Error",
+      "crash.errorKind.other": "Other",
+      "crash.filter.appVersion": "App version",
+      "crash.filter.appVersionHint": "Version; separate multiple with commas",
+      "crash.filter.errorKind": "Error kind",
+      "crash.filter.keyword": "Keyword",
+      "crash.filter.keywordHint": "Exception name or stack snippet",
+      "crash.filter.osDevice": "OS / device",
+      "crash.filter.osDeviceHint": "OS version or device keyword",
+      "crash.filter.sort": "Sort by",
+      "crash.filter.sortDir": "Direction",
+      "crash.filter.status": "Status",
+      "crash.filter.timeRange": "Time range",
+      "crash.filters": "Filters",
+      "crash.listEmpty": "No crashes listed (save credentials and run probe, or paste a stack if cookie failed)",
+      "crash.listLoading": "Loading crash list…",
+      "crash.listTitle": "Crash list",
       "crash.mode": "Crash analysis",
       "crash.needAnalyzeFirst": "Run Analyze or Analyze & write to session first",
       "crash.noRepoMatch": "No stack-referenced source files matched in the repo",
+      "crash.pasteFallback": "Paste stack (fallback)",
       "crash.pasteLabel": "Paste crash stack trace",
       "crash.pasteRequired": "Paste a crash stack trace first",
+      "crash.probe": "Probe",
+      "crash.probeFail": "Connectivity probe failed",
+      "crash.probeOk": "Connectivity probe OK",
       "crash.promptPreview": "Session prompt preview",
+      "crash.provider": "Provider",
+      "crash.providerUmeng": "Umeng U-APM",
+      "crash.refreshList": "Refresh list",
+      "crash.rememberCredentials": "Remember credentials (per repo or global)",
+      "crash.saveCredentials": "Save credentials",
+      "crash.sort.asc": "Ascending",
+      "crash.sort.count": "By count",
+      "crash.sort.desc": "Descending",
+      "crash.sort.lastSeen": "By last seen",
+      "crash.sort.title": "By title",
+      "crash.status.closed": "Closed",
+      "crash.status.open": "Open",
+      "crash.status.other": "Other",
       "crash.submitDefect": "Submit defect",
+      "crash.timeRange.24h": "Last 24 hours",
+      "crash.timeRange.30d": "Last 30 days",
+      "crash.timeRange.7d": "Last 7 days",
+      "crash.timeRange.all": "All",
       "crash.umengConfig": "Umeng (U-APM)",
       "crash.writeSession": "Analyze & write to session",
       "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "Crash analysis matches stack paths under this code folder; a plain directory is enough (no git required).",
@@ -7254,6 +7360,80 @@ function defaultTitle(stack, custom) {
   const first = stack.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
   return (first || "Crash").slice(0, 200);
 }
+function parseListItems(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x) => x && typeof x === "object").map((x) => {
+    const o = x;
+    return {
+      id: typeof o.id === "string" ? o.id : "",
+      title: typeof o.title === "string" ? o.title : "",
+      provider: o.provider === "umeng" ? "umeng" : "local",
+      appVersion: typeof o.appVersion === "string" ? o.appVersion : void 0,
+      errorKind: typeof o.errorKind === "string" ? o.errorKind : void 0,
+      status: typeof o.status === "string" ? o.status : void 0,
+      lastSeenAt: typeof o.lastSeenAt === "string" ? o.lastSeenAt : void 0,
+      count: typeof o.count === "number" ? o.count : void 0,
+      affectedUsers: typeof o.affectedUsers === "number" ? o.affectedUsers : void 0
+    };
+  }).filter((x) => x.id && x.title);
+}
+function parseCapabilities(raw) {
+  if (!raw || typeof raw !== "object") return [];
+  const filters = raw.filters;
+  if (!Array.isArray(filters)) return [];
+  const allowed = /* @__PURE__ */ new Set([
+    "timeRange",
+    "appVersion",
+    "errorKind",
+    "osDevice",
+    "sort",
+    "status",
+    "keyword"
+  ]);
+  return filters.filter((f) => typeof f === "string" && allowed.has(f));
+}
+function timeRangeCutoff(range) {
+  if (!range) return null;
+  const now = Date.now();
+  if (range === "24h") return now - 24 * 3600 * 1e3;
+  if (range === "7d") return now - 7 * 24 * 3600 * 1e3;
+  if (range === "30d") return now - 30 * 24 * 3600 * 1e3;
+  return null;
+}
+function applyClientFilters(items, filters) {
+  let rows = items;
+  const cutoff = timeRangeCutoff(filters.timeRange);
+  if (cutoff != null) {
+    rows = rows.filter((row3) => {
+      const ts = Date.parse(row3.lastSeenAt ?? "");
+      return Number.isFinite(ts) ? ts >= cutoff : true;
+    });
+  }
+  const osNeedle = filters.osDevice.trim().toLowerCase();
+  if (osNeedle) {
+    rows = rows.filter((row3) => {
+      const hay = [row3.title, row3.appVersion, row3.id].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(osNeedle);
+    });
+  }
+  return rows;
+}
+function buildListQueryBody(filters) {
+  const body2 = {};
+  const kw = filters.keyword.trim();
+  if (kw) body2.keyword = kw;
+  if (filters.errorKinds.length) body2.errorKinds = filters.errorKinds;
+  if (filters.statuses.length) body2.statuses = filters.statuses;
+  const versions = filters.appVersion.split(/[,;|\s]+/).map((v) => v.trim()).filter(Boolean);
+  if (versions.length) body2.appVersions = versions;
+  body2.sort = { field: filters.sortField, direction: filters.sortDir };
+  return body2;
+}
+function isAuthFailure(errorCode, message) {
+  if (errorCode === "UMENG_AUTH") return true;
+  const m = message.toLowerCase();
+  return m.includes("401") || m.includes("auth") || m.includes("cookie") || m.includes("登录");
+}
 function CrashBoard({
   repoPath,
   trackerReady,
@@ -7269,14 +7449,225 @@ function CrashBoard({
   const [error, setError] = (0, import_react5.useState)("");
   const [hint2, setHint] = (0, import_react5.useState)("");
   const [report, setReport] = (0, import_react5.useState)(null);
-  const [umengOpen, setUmengOpen] = (0, import_react5.useState)(false);
+  const [umengOpen, setUmengOpen] = (0, import_react5.useState)(true);
+  const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
+  const [provider] = (0, import_react5.useState)("umeng");
+  const [appKey, setAppKey] = (0, import_react5.useState)("");
+  const [cookie, setCookie] = (0, import_react5.useState)("");
+  const [hasStoredCookie, setHasStoredCookie] = (0, import_react5.useState)(false);
+  const [remember, setRemember] = (0, import_react5.useState)(true);
+  const [configBusy, setConfigBusy] = (0, import_react5.useState)(false);
+  const [filters, setFilters] = (0, import_react5.useState)(() => defaultFilters());
+  const [capabilityFilters, setCapabilityFilters] = (0, import_react5.useState)([]);
+  const [listItems, setListItems] = (0, import_react5.useState)([]);
+  const [listBusy, setListBusy] = (0, import_react5.useState)(false);
+  const [selectedId, setSelectedId] = (0, import_react5.useState)("");
+  const [selectedIncident, setSelectedIncident] = (0, import_react5.useState)(null);
+  const [detailBusy, setDetailBusy] = (0, import_react5.useState)(false);
+  const keywordTimer = (0, import_react5.useRef)(null);
+  const listGen = (0, import_react5.useRef)(0);
+  const repo = repoPath.trim();
+  const configBody = (0, import_react5.useCallback)(() => {
+    const body2 = {
+      repoPath: repo || void 0,
+      provider: "umeng",
+      appKey: appKey.trim(),
+      remember
+    };
+    const cookieTrim = cookie.trim();
+    if (cookieTrim && cookieTrim !== MASKED_COOKIE) body2.cookie = cookieTrim;
+    else if (hasStoredCookie) body2.cookie = MASKED_COOKIE;
+    return body2;
+  }, [appKey, cookie, hasStoredCookie, remember, repo]);
+  const loadConfig = (0, import_react5.useCallback)(async () => {
+    try {
+      const data = await apiPost2("/tracescope/v1/crash-config", { repoPath: repo || void 0 });
+      const cfg = data.config;
+      if (!cfg) return;
+      if (typeof cfg.appKey === "string") setAppKey(cfg.appKey);
+      setHasStoredCookie(cfg.hasCookie === true);
+      if (cfg.hasCookie === true) setCookie(MASKED_COOKIE);
+    } catch {
+    }
+  }, [apiPost2, repo]);
+  (0, import_react5.useEffect)(() => {
+    void loadConfig();
+  }, [loadConfig]);
+  const handleAuthFailure = (0, import_react5.useCallback)(
+    (message) => {
+      setError(message || t2("crash.cookieExpired"));
+      setPasteOpen(true);
+      setUmengOpen(true);
+    },
+    [t2]
+  );
+  const saveCredentials = (0, import_react5.useCallback)(async () => {
+    setConfigBusy(true);
+    setError("");
+    try {
+      const data = await apiPost2("/tracescope/v1/crash-config-save", configBody());
+      const cfg = data.config;
+      if (cfg?.hasCookie === true) {
+        setHasStoredCookie(true);
+        setCookie(MASKED_COOKIE);
+      }
+      setHint(t2("crash.credentialsSaved"));
+    } catch (err2) {
+      setError(err2.message || String(err2));
+    } finally {
+      setConfigBusy(false);
+    }
+  }, [apiPost2, configBody, t2]);
+  const clearCookieClick = (0, import_react5.useCallback)(async () => {
+    setConfigBusy(true);
+    setError("");
+    try {
+      await apiPost2("/tracescope/v1/crash-config-save", {
+        repoPath: repo || void 0,
+        provider: "umeng",
+        appKey: appKey.trim(),
+        cookie: "",
+        clearCookie: true,
+        remember
+      });
+      setCookie("");
+      setHasStoredCookie(false);
+      setListItems([]);
+      setSelectedId("");
+      setSelectedIncident(null);
+      setHint(t2("crash.cookieCleared"));
+    } catch (err2) {
+      setError(err2.message || String(err2));
+    } finally {
+      setConfigBusy(false);
+    }
+  }, [apiPost2, appKey, remember, repo, t2]);
+  const fetchList = (0, import_react5.useCallback)(async () => {
+    if (!repo) return;
+    const ready = Boolean(appKey.trim()) && (hasStoredCookie || cookie.trim() && cookie.trim() !== MASKED_COOKIE);
+    if (!ready) return;
+    const gen = ++listGen.current;
+    setListBusy(true);
+    setError("");
+    try {
+      const data = await apiPost2("/tracescope/v1/crash-list", {
+        ...configBody(),
+        ...buildListQueryBody(filters)
+      });
+      if (gen !== listGen.current) return;
+      const caps = parseCapabilities(data.capabilities);
+      if (caps.length) setCapabilityFilters(caps);
+      const errMsg = typeof data.error === "string" ? data.error : "";
+      const errCode = data.errorCode;
+      if (errMsg && isAuthFailure(errCode, errMsg)) {
+        handleAuthFailure(t2("crash.cookieExpired"));
+        setListItems([]);
+        return;
+      }
+      if (errMsg) setError(errMsg);
+      const items = applyClientFilters(parseListItems(data.items), filters);
+      setListItems(items);
+    } catch (err2) {
+      const msg = err2.message || String(err2);
+      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+      else setError(msg);
+    } finally {
+      if (gen === listGen.current) setListBusy(false);
+    }
+  }, [apiPost2, appKey, configBody, cookie, filters, handleAuthFailure, hasStoredCookie, repo, t2]);
+  const runProbe = (0, import_react5.useCallback)(async () => {
+    setConfigBusy(true);
+    setError("");
+    setHint("");
+    try {
+      if (remember) {
+        await apiPost2("/tracescope/v1/crash-config-save", configBody());
+      }
+      const data = await apiPost2("/tracescope/v1/crash-probe", configBody());
+      if (data.ok === true) {
+        setHint(t2("crash.probeOk"));
+        const cfg = data.config;
+        if (cfg?.hasCookie === true) {
+          setHasStoredCookie(true);
+          setCookie(MASKED_COOKIE);
+        }
+        void fetchList();
+      } else {
+        const msg = typeof data.error === "string" ? data.error : t2("crash.probeFail");
+        if (!data.ok && isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        else setError(msg);
+      }
+    } catch (err2) {
+      const msg = err2.message || String(err2);
+      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+      else setError(msg);
+    } finally {
+      setConfigBusy(false);
+    }
+  }, [apiPost2, configBody, fetchList, handleAuthFailure, remember, t2]);
+  (0, import_react5.useEffect)(() => {
+    if (!repo || !appKey.trim() || !hasStoredCookie) return;
+    if (keywordTimer.current) clearTimeout(keywordTimer.current);
+    keywordTimer.current = setTimeout(() => {
+      void fetchList();
+    }, filters.keyword ? 350 : 0);
+    return () => {
+      if (keywordTimer.current) clearTimeout(keywordTimer.current);
+    };
+  }, [repo, appKey, hasStoredCookie, filters, fetchList]);
+  const onKeywordChange = (0, import_react5.useCallback)((value) => {
+    setFilters((f) => ({ ...f, keyword: value }));
+  }, []);
+  const loadDetail = (0, import_react5.useCallback)(
+    async (id) => {
+      if (!id || !repo) return;
+      setDetailBusy(true);
+      setError("");
+      setSelectedId(id);
+      setReport(null);
+      try {
+        const data = await apiPost2("/tracescope/v1/crash-detail", {
+          ...configBody(),
+          id
+        });
+        const inc = data.incident;
+        if (!inc || typeof inc.stackText !== "string") {
+          throw new Error(t2("crash.detailMissing"));
+        }
+        const full = {
+          id: typeof inc.id === "string" ? inc.id : id,
+          title: typeof inc.title === "string" ? inc.title : id,
+          provider: "umeng",
+          stackText: inc.stackText,
+          exceptionName: typeof inc.exceptionName === "string" ? inc.exceptionName : void 0,
+          appVersion: typeof inc.appVersion === "string" ? inc.appVersion : void 0,
+          errorKind: typeof inc.errorKind === "string" ? inc.errorKind : void 0,
+          status: typeof inc.status === "string" ? inc.status : void 0,
+          count: typeof inc.count === "number" ? inc.count : void 0,
+          affectedUsers: typeof inc.affectedUsers === "number" ? inc.affectedUsers : void 0,
+          lastSeenAt: typeof inc.lastSeenAt === "string" ? inc.lastSeenAt : void 0
+        };
+        setSelectedIncident(full);
+        setStackText(full.stackText);
+        setTitle(full.title);
+      } catch (err2) {
+        const msg = err2.message || String(err2);
+        if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        else setError(msg);
+        setSelectedIncident(null);
+      } finally {
+        setDetailBusy(false);
+      }
+    },
+    [apiPost2, configBody, handleAuthFailure, repo, t2]
+  );
   const runAnalyze = (0, import_react5.useCallback)(async () => {
-    const stack = stackText.trim();
+    const fromUmeng = selectedIncident?.stackText?.trim();
+    const stack = (fromUmeng || stackText).trim();
     if (!stack) {
       setError(t2("crash.pasteRequired"));
       return null;
     }
-    const repo = repoPath.trim();
     if (!repo) {
       setError(t2("选择仓库 / 先在配置中添加"));
       return null;
@@ -7285,7 +7676,18 @@ function CrashBoard({
     setError("");
     setHint("");
     try {
-      const incident = {
+      const incident = selectedIncident ? {
+        id: selectedIncident.id,
+        title: defaultTitle(stack, title2 || selectedIncident.title),
+        provider: "umeng",
+        stackText: stack,
+        exceptionName: selectedIncident.exceptionName,
+        appVersion: selectedIncident.appVersion,
+        count: selectedIncident.count,
+        affectedUsers: selectedIncident.affectedUsers,
+        status: selectedIncident.status,
+        errorKind: selectedIncident.errorKind
+      } : {
         id: localIncidentId(),
         title: defaultTitle(stack, title2),
         provider: "local",
@@ -7304,7 +7706,7 @@ function CrashBoard({
     } finally {
       setBusy(false);
     }
-  }, [apiPost2, repoPath, stackText, t2, title2]);
+  }, [apiPost2, repo, selectedIncident, stackText, t2, title2]);
   async function onAnalyzeClick() {
     await runAnalyze();
   }
@@ -7339,42 +7741,341 @@ function CrashBoard({
     onSubmitDefect(report, subject);
   }
   const noMatch = report && (!report.matchedFiles || !report.matchedFiles.length);
+  const activeFilters = capabilityFilters.length ? capabilityFilters : [
+    "timeRange",
+    "appVersion",
+    "errorKind",
+    "osDevice",
+    "sort",
+    "status",
+    "keyword"
+  ];
+  const versionOptions = (0, import_react5.useMemo)(() => {
+    const set = /* @__PURE__ */ new Set();
+    for (const row3 of listItems) {
+      if (row3.appVersion) set.add(row3.appVersion);
+    }
+    return [...set].sort();
+  }, [listItems]);
+  function toggleInList(key, value) {
+    setFilters((f) => {
+      const cur = f[key];
+      const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
+      return { ...f, [key]: next };
+    });
+  }
+  function statusLabel3(s) {
+    if (s === "open") return t2("crash.status.open");
+    if (s === "closed") return t2("crash.status.closed");
+    if (s === "other") return t2("crash.status.other");
+    return s || "—";
+  }
+  function errorKindLabel(k) {
+    if (k === "crash") return t2("crash.errorKind.crash");
+    if (k === "anr") return t2("crash.errorKind.anr");
+    if (k === "error") return t2("crash.errorKind.error");
+    if (k === "other") return t2("crash.errorKind.other");
+    return k || "—";
+  }
+  const configDisabled = busy || configBusy || listBusy || detailBusy;
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { style: card, children: [
     /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 700, marginBottom: 8 }, children: t2("crash.mode") }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-      t2("crash.pasteLabel"),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "textarea",
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "button",
         {
-          style: { ...input, minHeight: 140, resize: "vertical", fontFamily: "ui-monospace, monospace" },
-          value: stackText,
-          disabled: busy,
-          placeholder: t2("crash.pasteLabel"),
-          onChange: (e) => setStackText(e.target.value)
+          type: "button",
+          style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
+          onClick: () => setUmengOpen((v) => !v),
+          children: [
+            umengOpen ? "▾ " : "▸ ",
+            t2("crash.umengConfig")
+          ]
+        }
+      ),
+      umengOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 8 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.cookieHint") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          t2("crash.provider"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("select", { style: input, value: provider, disabled: configDisabled, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          t2("crash.appKey"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "input",
+            {
+              style: input,
+              value: appKey,
+              disabled: configDisabled,
+              placeholder: t2("crash.appKey"),
+              onChange: (e) => setAppKey(e.target.value)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          t2("crash.cookie"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "textarea",
+            {
+              style: { ...input, minHeight: 72, resize: "vertical", fontFamily: "ui-monospace, monospace" },
+              value: cookie,
+              disabled: configDisabled,
+              placeholder: hasStoredCookie ? MASKED_COOKIE : t2("crash.cookiePlaceholder"),
+              onChange: (e) => setCookie(e.target.value)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...row, marginBottom: 8, fontWeight: 600, cursor: "pointer" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: remember,
+              disabled: configDisabled,
+              onChange: (e) => setRemember(e.target.checked)
+            }
+          ),
+          t2("crash.rememberCredentials")
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 4 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void saveCredentials(), children: t2("crash.saveCredentials") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: configDisabled, onClick: () => void runProbe(), children: configBusy ? t2("common.loading") : t2("crash.probe") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: t2("crash.clearCookie") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled || listBusy, onClick: () => void fetchList(), children: listBusy ? t2("common.loading") : t2("crash.refreshList") })
+        ] })
+      ] }) : null
+    ] }),
+    activeFilters.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      "div",
+      {
+        style: {
+          marginBottom: 10,
+          padding: 10,
+          borderRadius: 8,
+          border: "1px solid var(--dsh-border, #ddd4c5)",
+          background: "#faf8f3"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 8, fontSize: 12 }, children: t2("crash.filters") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 8 }, children: [
+            activeFilters.includes("timeRange") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+              t2("crash.filter.timeRange"),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                "select",
+                {
+                  style: input,
+                  value: filters.timeRange,
+                  disabled: configDisabled,
+                  onChange: (e) => {
+                    setFilters((f) => ({ ...f, timeRange: e.target.value }));
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", children: t2("crash.timeRange.all") }),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "24h", children: t2("crash.timeRange.24h") }),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "7d", children: t2("crash.timeRange.7d") }),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "30d", children: t2("crash.timeRange.30d") })
+                  ]
+                }
+              )
+            ] }) : null,
+            activeFilters.includes("appVersion") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+              t2("crash.filter.appVersion"),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "input",
+                {
+                  style: input,
+                  list: "crash-app-versions",
+                  value: filters.appVersion,
+                  disabled: configDisabled,
+                  placeholder: t2("crash.filter.appVersionHint"),
+                  onChange: (e) => setFilters((f) => ({ ...f, appVersion: e.target.value }))
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("datalist", { id: "crash-app-versions", children: versionOptions.map((v) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: v }, v)) })
+            ] }) : null,
+            activeFilters.includes("errorKind") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("fieldset", { style: { border: 0, margin: 0, padding: 0 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("legend", { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 }, children: t2("crash.filter.errorKind") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: row, children: ["crash", "anr", "error", "other"].map((k) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { display: "flex", gap: 4, alignItems: "center", fontWeight: 400 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "input",
+                  {
+                    type: "checkbox",
+                    checked: filters.errorKinds.includes(k),
+                    disabled: configDisabled,
+                    onChange: () => toggleInList("errorKinds", k)
+                  }
+                ),
+                errorKindLabel(k)
+              ] }, k)) })
+            ] }) : null,
+            activeFilters.includes("osDevice") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+              t2("crash.filter.osDevice"),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "input",
+                {
+                  style: input,
+                  value: filters.osDevice,
+                  disabled: configDisabled,
+                  placeholder: t2("crash.filter.osDeviceHint"),
+                  onChange: (e) => setFilters((f) => ({ ...f, osDevice: e.target.value }))
+                }
+              )
+            ] }) : null,
+            activeFilters.includes("sort") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: row, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
+                t2("crash.filter.sort"),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                  "select",
+                  {
+                    style: input,
+                    value: filters.sortField,
+                    disabled: configDisabled,
+                    onChange: (e) => {
+                      setFilters((f) => ({
+                        ...f,
+                        sortField: e.target.value
+                      }));
+                    },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "count", children: t2("crash.sort.count") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "lastSeenAt", children: t2("crash.sort.lastSeen") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "title", children: t2("crash.sort.title") })
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
+                t2("crash.filter.sortDir"),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                  "select",
+                  {
+                    style: input,
+                    value: filters.sortDir,
+                    disabled: configDisabled,
+                    onChange: (e) => {
+                      setFilters((f) => ({
+                        ...f,
+                        sortDir: e.target.value
+                      }));
+                    },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "desc", children: t2("crash.sort.desc") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "asc", children: t2("crash.sort.asc") })
+                    ]
+                  }
+                )
+              ] })
+            ] }) : null,
+            activeFilters.includes("status") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("fieldset", { style: { border: 0, margin: 0, padding: 0 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("legend", { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 }, children: t2("crash.filter.status") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: row, children: ["open", "closed", "other"].map((k) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { display: "flex", gap: 4, alignItems: "center", fontWeight: 400 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "input",
+                  {
+                    type: "checkbox",
+                    checked: filters.statuses.includes(k),
+                    disabled: configDisabled,
+                    onChange: () => toggleInList("statuses", k)
+                  }
+                ),
+                statusLabel3(k)
+              ] }, k)) })
+            ] }) : null,
+            activeFilters.includes("keyword") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+              t2("crash.filter.keyword"),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "input",
+                {
+                  style: input,
+                  value: filters.keyword,
+                  disabled: configDisabled,
+                  placeholder: t2("crash.filter.keywordHint"),
+                  onChange: (e) => onKeywordChange(e.target.value)
+                }
+              )
+            ] }) : null
+          ] })
+        ]
+      }
+    ) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6, fontSize: 12 }, children: t2("crash.listTitle") }),
+      listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: t2("crash.listLoading") }) : null,
+      !listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: t2("crash.listEmpty") }) : null,
+      listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("ul", { style: { margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }, children: listItems.map((item) => {
+        const active2 = item.id === selectedId;
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+          "button",
+          {
+            type: "button",
+            disabled: detailBusy,
+            onClick: () => void loadDetail(item.id),
+            style: {
+              width: "100%",
+              textAlign: "left",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: active2 ? "2px solid var(--dsh-accent, #0f6e56)" : "1px solid var(--dsh-border, #ddd4c5)",
+              background: active2 ? "#eef7f3" : "#fff",
+              cursor: "pointer",
+              fontSize: 12,
+              lineHeight: 1.45
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600 }, children: item.title }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { color: "#6b645a", marginTop: 2 }, children: [
+                t2("crash.col.version"),
+                ": ",
+                item.appVersion || "—",
+                " · ",
+                t2("crash.col.count"),
+                ":",
+                " ",
+                item.count ?? "—",
+                " · ",
+                t2("crash.col.affectedUsers"),
+                ": ",
+                item.affectedUsers ?? "—",
+                " ·",
+                " ",
+                t2("crash.col.status"),
+                ": ",
+                statusLabel3(item.status)
+              ] })
+            ]
+          }
+        ) }, item.id);
+      }) }) : null
+    ] }),
+    selectedIncident ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.detailStack") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        "pre",
+        {
+          style: {
+            margin: 0,
+            padding: 10,
+            background: "#fff",
+            border: "1px solid var(--dsh-border, #ddd4c5)",
+            borderRadius: 8,
+            fontSize: 11,
+            lineHeight: 1.4,
+            maxHeight: 160,
+            overflow: "auto",
+            whiteSpace: "pre-wrap"
+          },
+          children: detailBusy ? t2("common.loading") : selectedIncident.stackText
         }
       )
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-      t2("缺陷标题"),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "input",
-        {
-          style: input,
-          value: title2,
-          disabled: busy,
-          placeholder: t2("（未填写）"),
-          onChange: (e) => setTitle(e.target.value)
-        }
-      )
-    ] }),
+    ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 10 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: busy, onClick: () => void onAnalyzeClick(), children: busy ? t2("common.loading") : t2("crash.analyze") }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy, onClick: () => void onWriteSessionClick(), children: t2("crash.writeSession") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: busy || detailBusy, onClick: () => void onAnalyzeClick(), children: busy ? t2("common.loading") : t2("crash.analyze") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onWriteSessionClick(), children: t2("crash.writeSession") }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: onSubmitClick, children: t2("crash.submitDefect") })
     ] }),
     error ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#b42318", fontSize: 12, lineHeight: 1.45 }, children: error }) : null,
     hint2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: hint2 }) : null,
-    report ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 4 }, children: [
+    report ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 4, marginBottom: 10 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
         "div",
         {
@@ -7422,30 +8123,72 @@ function CrashBoard({
         )
       ] })
     ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 12, borderTop: "1px solid var(--dsh-border, #ddd4c5)", paddingTop: 10 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { borderTop: "1px solid var(--dsh-border, #ddd4c5)", paddingTop: 10 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
         "button",
         {
           type: "button",
           style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
-          onClick: () => setUmengOpen((v) => !v),
+          onClick: () => setPasteOpen((v) => !v),
           children: [
-            umengOpen ? "▾ " : "▸ ",
-            t2("crash.umengConfig")
+            pasteOpen ? "▾ " : "▸ ",
+            t2("crash.pasteFallback")
           ]
         }
       ),
-      umengOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "8px 0 0", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.cookieHint") }) : null
+      pasteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginTop: 8 }, children: [
+          t2("crash.pasteLabel"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "textarea",
+            {
+              style: { ...input, minHeight: 120, resize: "vertical", fontFamily: "ui-monospace, monospace" },
+              value: stackText,
+              disabled: busy,
+              placeholder: t2("crash.pasteLabel"),
+              onChange: (e) => {
+                setStackText(e.target.value);
+                setSelectedIncident(null);
+                setSelectedId("");
+              }
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          t2("缺陷标题"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "input",
+            {
+              style: input,
+              value: title2,
+              disabled: busy,
+              placeholder: t2("（未填写）"),
+              onChange: (e) => setTitle(e.target.value)
+            }
+          )
+        ] })
+      ] }) : null
     ] })
   ] });
 }
-var import_react5, import_jsx_runtime5, card, label, input, row, btn, primary;
+var import_react5, import_jsx_runtime5, MASKED_COOKIE, defaultFilters, card, label, input, row, btn, primary;
 var init_CrashBoard = __esm({
   "client-src/visual/CrashBoard.tsx"() {
     "use strict";
     import_react5 = require("react");
     init_use_locale_t();
     import_jsx_runtime5 = require("react/jsx-runtime");
+    MASKED_COOKIE = "••••••••";
+    defaultFilters = () => ({
+      timeRange: "",
+      appVersion: "",
+      errorKinds: [],
+      osDevice: "",
+      sortField: "count",
+      sortDir: "desc",
+      statuses: [],
+      keyword: ""
+    });
     card = {
       border: "1px solid var(--dsh-border, #ddd4c5)",
       borderRadius: 12,
@@ -8193,9 +8936,9 @@ var jsxRuntime = require("react/jsx-runtime");
 var jsx8 = jsxRuntime.jsx;
 var jsxs7 = jsxRuntime.jsxs;
 var useState7 = React.useState;
-var useEffect6 = React.useEffect;
+var useEffect7 = React.useEffect;
 var useCallback3 = React.useCallback;
-var useRef4 = React.useRef;
+var useRef5 = React.useRef;
 var VisualComparePanel2 = (init_VisualComparePanel(), __toCommonJS(VisualComparePanel_exports)).VisualComparePanel;
 var CrashBoard2 = (init_CrashBoard(), __toCommonJS(CrashBoard_exports)).CrashBoard;
 var selfUpdate = (init_self_update(), __toCommonJS(self_update_exports));
@@ -8966,7 +9709,7 @@ function ItemCard(props) {
   var st = item.status || "pending";
   var note = item.testerNote || "";
   var shots = item.testerScreenshots || [];
-  var fileRef = useRef4(null);
+  var fileRef = useRef5(null);
   return jsxs7("article", {
     style: Object.assign({}, styles.item, {
       borderLeft: "4px solid",
@@ -9279,7 +10022,7 @@ function TraceScopePanelBody() {
     return i18n.getLocaleRevision();
   });
   var setLocRev = _locRev[1];
-  useEffect6(function() {
+  useEffect7(function() {
     return i18n.subscribeLocale(function() {
       setLocRev(i18n.getLocaleRevision());
     });
@@ -9668,9 +10411,9 @@ function TraceScopePanelBody() {
   var _busyElapsed = useState7(0);
   var busyElapsed = _busyElapsed[0];
   var setBusyElapsed = _busyElapsed[1];
-  var busyRef = useRef4(false);
-  var busyMsgRef = useRef4("");
-  var busyBaseMsgRef = useRef4("");
+  var busyRef = useRef5(false);
+  var busyMsgRef = useRef5("");
+  var busyBaseMsgRef = useRef5("");
   var _health = useState7(t("检查中…"));
   var health = _health[0];
   var setHealth = _health[1];
@@ -9788,7 +10531,7 @@ function TraceScopePanelBody() {
     busyMsgRef.current = text;
     setBusyMessage(text);
   }
-  useEffect6(
+  useEffect7(
     function() {
       if (!busy) {
         setBusyElapsed(0);
@@ -9841,14 +10584,14 @@ function TraceScopePanelBody() {
   var _confirmDlg = useState7(null);
   var confirmDlg = _confirmDlg[0];
   var setConfirmDlg = _confirmDlg[1];
-  var pollRef = useRef4(null);
-  var skipPairLoadRef = useRef4(false);
-  var skipAutoSyncRef = useRef4(false);
-  var noteTimersRef = useRef4({});
-  var viewingHistoryRef = useRef4(null);
-  var reportRef = useRef4(null);
+  var pollRef = useRef5(null);
+  var skipPairLoadRef = useRef5(false);
+  var skipAutoSyncRef = useRef5(false);
+  var noteTimersRef = useRef5({});
+  var viewingHistoryRef = useRef5(null);
+  var reportRef = useRef5(null);
   reportRef.current = report;
-  var taskAttachRef = useRef4(null);
+  var taskAttachRef = useRef5(null);
   var _taskAttachPath = useState7("");
   var taskAttachPath = _taskAttachPath[0];
   var setTaskAttachPath = _taskAttachPath[1];
@@ -9878,8 +10621,8 @@ function TraceScopePanelBody() {
   function codeupRequestToken() {
     return authMode === "token" ? usableSecret(yxToken) : authMode === "https" ? usableSecret(authToken) : usableSecret(yxToken);
   }
-  var restoringProfileRef = useRef4(false);
-  var pendingTrackerSyncRef = useRef4(false);
+  var restoringProfileRef = useRef5(false);
+  var pendingTrackerSyncRef = useRef5(false);
   function defaultYxEndpoint() {
     return "https://openapi-rdc.aliyuncs.com";
   }
@@ -9983,7 +10726,7 @@ function TraceScopePanelBody() {
       whAuth
     };
   }
-  useEffect6(
+  useEffect7(
     function() {
       var repo = repoPath.trim();
       if (!repo || restoringProfileRef.current) {
@@ -10021,7 +10764,7 @@ function TraceScopePanelBody() {
       whAuth
     ]
   );
-  useEffect6(
+  useEffect7(
     function() {
       if (!pendingTrackerSyncRef.current) return;
       var repo = repoPath.trim();
@@ -10118,7 +10861,7 @@ function TraceScopePanelBody() {
       );
     }
   }
-  useEffect6(function() {
+  useEffect7(function() {
     apiGet("/tracescope/v1/health").then(function(data) {
       setHealth(t("已连接"));
       if (data && data.version) setPluginVersion(data.version);
@@ -10220,11 +10963,11 @@ function TraceScopePanelBody() {
       setYxHydrated(true);
     });
   }, []);
-  useEffect6(function() {
+  useEffect7(function() {
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "none" || authMode === "https") setRemoteAuthMode("token");
   }, [repoPath, accessMode]);
-  useEffect6(function() {
+  useEffect7(function() {
     if (!yxHydrated) return;
     if (authMode === "token" && !rememberAuth) return;
     var token = usableSecret(yxToken);
@@ -10252,14 +10995,14 @@ function TraceScopePanelBody() {
       clearTimeout(handle);
     };
   }, [yxHydrated, yxToken, yxEndpoint, yxOrg, authMode, rememberAuth, repoPath, accessMode, trackerProvider]);
-  useEffect6(function() {
+  useEffect7(function() {
     if (!authHydrated || !yxHydrated) return;
     if (!(isCodeupHttps(repoPath) || accessMode === "codeup")) return;
     if (authMode === "ssh") return;
     if (yxTokenSaved || usableSecret(yxToken)) return;
     setSettingsOpen(true);
   }, [authHydrated, yxHydrated, repoPath, accessMode, yxToken, yxTokenSaved, authMode]);
-  useEffect6(function() {
+  useEffect7(function() {
     if (!authHydrated) return;
     persistAuth();
   }, [authHydrated, rememberAuth, authMode, authUser, authToken, authKey, yxToken, repoPath]);
@@ -10429,7 +11172,7 @@ function TraceScopePanelBody() {
     },
     [repoPath]
   );
-  useEffect6(function() {
+  useEffect7(function() {
     if (!repoPath.trim() || !baseCommit || !headCommit) {
       if (!viewingHistoryRef.current) {
         setReport(null);
@@ -10472,10 +11215,10 @@ function TraceScopePanelBody() {
       cancelled = true;
     };
   }, [repoPath, baseCommit, headCommit]);
-  useEffect6(function() {
+  useEffect7(function() {
     refreshHistory();
   }, [refreshHistory]);
-  useEffect6(function() {
+  useEffect7(function() {
     return function() {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -10483,7 +11226,7 @@ function TraceScopePanelBody() {
       }
     };
   }, []);
-  useEffect6(function() {
+  useEffect7(function() {
     if (!jobId || jobStatus === "published" || jobStatus === "error") {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -10614,7 +11357,7 @@ function TraceScopePanelBody() {
     },
     [repoPath, authMode, authUser, authToken, authKey, rememberAuth, accessMode, yxToken, yxTokenSaved, yxEndpoint, yxOrg]
   );
-  useEffect6(
+  useEffect7(
     function() {
       if (!authHydrated) return;
       if (!repoPath.trim()) return;
@@ -10635,8 +11378,8 @@ function TraceScopePanelBody() {
     // Sync when the repo, mode, access mode, or (for the Codeup fallback) token becomes available.
     [authHydrated, repoPath, mode, accessMode, yxToken, yxTokenSaved, authToken, authMode]
   );
-  var initialCheckRef = useRef4(false);
-  useEffect6(function() {
+  var initialCheckRef = useRef5(false);
+  useEffect7(function() {
     if (initialCheckRef.current) return;
     initialCheckRef.current = true;
     var p = (localStorage.getItem(REPO_PATH_KEY) || "").trim();
