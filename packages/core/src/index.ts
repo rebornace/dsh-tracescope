@@ -188,6 +188,20 @@ export {
   type FeedbackKind,
   type VisualDiffFeedbackMeta,
 } from './tracker/index.js'
+// Modular crash analysis subsystem (provider per data source + registry).
+export {
+  crashProviders,
+  getCrashProvider,
+  registerCrashProvider,
+  localCrashProvider,
+  LOCAL_CRASH_INCIDENT_ID,
+  type CrashProvider,
+  type CrashProviderCapabilities,
+  type CrashIncident,
+  type CrashIncidentSummary,
+  type CrashProviderConfig,
+  type CrashProviderId,
+} from './crash/index.js'
 export {
   analyzeReportWithModel,
   enrichReportWithModel,
