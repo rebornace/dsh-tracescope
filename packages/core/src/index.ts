@@ -211,9 +211,18 @@ export {
   type CrashProviderConfig,
   type CrashProviderId,
   type CrashReportParts,
+  type CrashFeedbackMeta,
   type ParsedStack,
   type RepoStackHit,
   type StackFrame,
+  clearCrashCookie,
+  cookiePresentLabel,
+  isMaskedCrashSecret,
+  loadCrashConfig,
+  publicCrashConfig,
+  resolveCrashConfigFromBody,
+  saveCrashConfig,
+  type StoredCrashCredentialsFile,
 } from './crash/index.js'
 export {
   analyzeReportWithModel,

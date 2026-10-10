@@ -133,6 +133,18 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
     zh: '图片过大，无法代理',
     en: 'Image is too large to proxy',
   },
+  ERR_CRASH_PROVIDER: {
+    zh: '不支持的崩溃数据源：{provider}',
+    en: 'Unsupported crash data provider: {provider}',
+  },
+  ERR_CRASH_UMENG_NOT_READY: {
+    zh: '友盟 Console 取数尚未就绪（cookie present: {cookie}）',
+    en: 'Umeng console provider is not ready (cookie present: {cookie})',
+  },
+  ERR_CRASH_MISSING_INCIDENT: {
+    zh: '缺少有效的 incident（需 id 与 stackText）',
+    en: 'Missing a valid incident (id and stackText required)',
+  },
   ERR_TRACKER_UNSUPPORTED: {
     zh: '不支持的协作平台',
     en: 'Unsupported collaboration platform',

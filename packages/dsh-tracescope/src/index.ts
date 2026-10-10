@@ -18,6 +18,7 @@ import { registerDataDirRoutes } from './routes/data-dir.js'
 import { registerYunxiaoCatalogRoutes } from './routes/yunxiao-catalog.js'
 import { registerJobsRoutes } from './routes/jobs.js'
 import { registerVisualRoutes } from './routes/visual.js'
+import { registerCrashRoutes } from './routes/crash.js'
 import { registerSelfUpdateRoutes } from './routes/self-update.js'
 
 import { registerListCommitsTool } from './tools/list-commits-tool.js'
@@ -44,6 +45,7 @@ export function apply(ctx: Context) {
   registerAnalyzeRoutes(ctx)
   registerReportRoutes(ctx)
   registerTrackerRoutes(ctx)
+  registerCrashRoutes(ctx)
   registerAuthRoutes(ctx)
   registerDataDirRoutes(ctx)
   registerYunxiaoCatalogRoutes(ctx)
