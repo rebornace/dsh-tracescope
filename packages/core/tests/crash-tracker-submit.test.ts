@@ -88,4 +88,65 @@ describe('crash tracker feedback', () => {
     expect(ctx.feedbackKind).toBe('crash')
     expect(ctx.items).toEqual([])
   })
+
+  it('submitFailFeedback uses crash subject from prebuilt when no crashMeta', async () => {
+    const body = buildCrashDefectBody({
+      incident,
+      matchedFiles: [],
+      summary: 'summary',
+      lang: 'zh',
+    })
+    const adapter = getTrackerAdapter('webhook')!
+    const submitSpy = vi.spyOn(adapter, 'submit').mockResolvedValue({
+      ok: true,
+      provider: 'webhook',
+    })
+    const config: TrackerConfig = { provider: 'webhook', webhook: { url: 'https://example.com/hook' } }
+    await submitFailFeedback(config, {
+      repoPath: '/repo',
+      baseCommit: '',
+      headCommit: '',
+      items: [],
+      feedbackKind: 'crash',
+      prebuiltDescription: body,
+      lang: 'zh',
+    })
+    const ctx = submitSpy.mock.calls[0]![1]
+    expect(ctx.subject).toContain('[\u5d29\u6e83]')
+    expect(ctx.subject).not.toContain('\u9a8c\u8bc1\u5931\u8d25')
+    expect(ctx.description).toBe(body)
+  })
+
+  it('submitFailFeedback builds body from crashMeta only', async () => {
+    const expectedBody = buildCrashDefectBody({
+      incident,
+      matchedFiles: [],
+      summary: 'No repo file matched',
+      repoPath: '/repo',
+      lang: 'en',
+    })
+    const adapter = getTrackerAdapter('webhook')!
+    const submitSpy = vi.spyOn(adapter, 'submit').mockResolvedValue({
+      ok: true,
+      provider: 'webhook',
+    })
+    const config: TrackerConfig = { provider: 'webhook', webhook: { url: 'https://example.com/hook' } }
+    await submitFailFeedback(config, {
+      repoPath: '/repo',
+      baseCommit: '',
+      headCommit: '',
+      items: [],
+      feedbackKind: 'crash',
+      lang: 'en',
+      crashMeta: {
+        incident,
+        matchedFiles: [],
+        summary: 'No repo file matched',
+      },
+    })
+    const ctx = submitSpy.mock.calls[0]![1]
+    expect(ctx.subject).toContain('[Crash]')
+    expect(ctx.subject).toContain('NPE')
+    expect(ctx.description).toBe(expectedBody)
+  })
 })
