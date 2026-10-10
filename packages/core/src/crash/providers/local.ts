@@ -31,7 +31,7 @@ export const localCrashProvider: CrashProvider = {
     return config.provider === 'local' && Boolean(config.stackText?.trim())
   },
 
-  async list(config: CrashProviderConfig) {
+  async list(config: CrashProviderConfig, _query?) {
     if (config.provider !== 'local' || !config.stackText?.trim()) return []
     const incident = buildIncident(config)
     return [{ id: incident.id, title: incident.title, provider: incident.provider }]
