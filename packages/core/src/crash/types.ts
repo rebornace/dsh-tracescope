@@ -25,6 +25,8 @@ export interface CrashListQuery {
   errorKinds?: Array<'crash' | 'anr' | 'error' | 'other'>
   statuses?: Array<'open' | 'closed' | 'other'>
   appVersions?: string[]
+  /** Matches incident osVersion / deviceModel (local filter). */
+  osDevice?: string
   sort?: { field: CrashListSortField; direction: 'asc' | 'desc' }
 }
 
@@ -37,6 +39,9 @@ export interface CrashIncidentSummary {
   status?: 'open' | 'closed' | 'other'
   lastSeenAt?: string
   count?: number
+  affectedUsers?: number
+  osVersion?: string
+  deviceModel?: string
 }
 
 export interface CrashIncident extends CrashIncidentSummary {

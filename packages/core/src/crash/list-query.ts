@@ -64,6 +64,8 @@ export function parseCrashListQuery(body: Record<string, unknown>): CrashListQue
   if (appVersions) query.appVersions = appVersions
   const sort = parseSort(body.sort)
   if (sort) query.sort = sort
+  const osDevice = typeof body.osDevice === 'string' ? body.osDevice.trim() : ''
+  if (osDevice) query.osDevice = osDevice
   return query
 }
 
@@ -82,6 +84,8 @@ export function normalizeCrashListQuery(query?: CrashListQuery): CrashListQuery 
     normalized.appVersions = [...query.appVersions].map((v) => v.trim()).filter(Boolean).sort()
   }
   if (query.sort) normalized.sort = query.sort
+  const osDevice = query.osDevice?.trim()
+  if (osDevice) normalized.osDevice = osDevice
   return normalized
 }
 
@@ -124,6 +128,14 @@ export function applyCrashListQuery(
     rows = rows.filter((row) => row.appVersion && allowed.has(row.appVersion))
   }
 
+  if (q.osDevice) {
+    const needle = q.osDevice.toLowerCase()
+    rows = rows.filter((row) => {
+      const hay = [row.osVersion, row.deviceModel].filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(needle)
+    })
+  }
+
   if (q.sort) {
     const dir = q.sort.direction === 'asc' ? 1 : -1
     rows = [...rows].sort((a, b) => {
@@ -152,5 +164,8 @@ export function incidentToListSummary(incident: CrashIncident): CrashIncidentSum
     status: incident.status,
     lastSeenAt: incident.lastSeenAt,
     count: incident.count,
+    affectedUsers: incident.affectedUsers,
+    osVersion: incident.osVersion,
+    deviceModel: incident.deviceModel,
   }
 }
