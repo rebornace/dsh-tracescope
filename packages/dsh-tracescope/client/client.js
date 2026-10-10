@@ -7351,6 +7351,51 @@ var CrashBoard_exports = {};
 __export(CrashBoard_exports, {
   CrashBoard: () => CrashBoard
 });
+function parseUmengIncident(inc, fallbackId) {
+  const platform = inc.platform;
+  return {
+    id: typeof inc.id === "string" ? inc.id : fallbackId,
+    title: typeof inc.title === "string" ? inc.title : fallbackId,
+    provider: "umeng",
+    stackText: typeof inc.stackText === "string" ? inc.stackText : "",
+    exceptionName: typeof inc.exceptionName === "string" ? inc.exceptionName : void 0,
+    appVersion: typeof inc.appVersion === "string" ? inc.appVersion : void 0,
+    buildNumber: typeof inc.buildNumber === "string" ? inc.buildNumber : void 0,
+    platform: platform === "android" || platform === "ios" || platform === "other" ? platform : void 0,
+    errorKind: inc.errorKind === "crash" || inc.errorKind === "anr" || inc.errorKind === "error" || inc.errorKind === "other" ? inc.errorKind : void 0,
+    status: inc.status === "open" || inc.status === "closed" || inc.status === "other" ? inc.status : void 0,
+    count: typeof inc.count === "number" ? inc.count : void 0,
+    affectedUsers: typeof inc.affectedUsers === "number" ? inc.affectedUsers : void 0,
+    osVersion: typeof inc.osVersion === "string" ? inc.osVersion : void 0,
+    deviceModel: typeof inc.deviceModel === "string" ? inc.deviceModel : void 0,
+    occurredAt: typeof inc.occurredAt === "string" ? inc.occurredAt : void 0,
+    firstSeenAt: typeof inc.firstSeenAt === "string" ? inc.firstSeenAt : void 0,
+    lastSeenAt: typeof inc.lastSeenAt === "string" ? inc.lastSeenAt : void 0,
+    rawRef: typeof inc.rawRef === "string" ? inc.rawRef : void 0
+  };
+}
+function umengIncidentForAnalyze(selected, stack, titleText) {
+  return {
+    id: selected.id,
+    title: defaultTitle(stack, titleText || selected.title),
+    provider: "umeng",
+    stackText: stack,
+    exceptionName: selected.exceptionName,
+    appVersion: selected.appVersion,
+    buildNumber: selected.buildNumber,
+    platform: selected.platform,
+    count: selected.count,
+    affectedUsers: selected.affectedUsers,
+    status: selected.status,
+    errorKind: selected.errorKind,
+    osVersion: selected.osVersion,
+    deviceModel: selected.deviceModel,
+    occurredAt: selected.occurredAt,
+    firstSeenAt: selected.firstSeenAt,
+    lastSeenAt: selected.lastSeenAt,
+    rawRef: selected.rawRef
+  };
+}
 function localIncidentId() {
   return "local-" + Date.now().toString(36);
 }
@@ -7441,6 +7486,7 @@ function CrashBoard({
   onSendToChat,
   onSubmitDefect,
   apiPost: apiPost2,
+  apiGet: apiGet2,
   onOpenTrackerSettings
 }) {
   const t2 = useLocaleT();
@@ -7482,15 +7528,19 @@ function CrashBoard({
   }, [appKey, cookie, hasStoredCookie, remember, repo]);
   const loadConfig = (0, import_react5.useCallback)(async () => {
     try {
-      const data = await apiPost2("/tracescope/v1/crash-config", { repoPath: repo || void 0 });
+      const params = {};
+      if (repo) params.repoPath = repo;
+      const data = await apiGet2("/tracescope/v1/crash-config", params);
       const cfg = data.config;
       if (!cfg) return;
       if (typeof cfg.appKey === "string") setAppKey(cfg.appKey);
       setHasStoredCookie(cfg.hasCookie === true);
       if (cfg.hasCookie === true) setCookie(MASKED_COOKIE);
-    } catch {
+      else setCookie("");
+    } catch (err2) {
+      setError(err2.message || String(err2));
     }
-  }, [apiPost2, repo]);
+  }, [apiGet2, repo]);
   (0, import_react5.useEffect)(() => {
     void loadConfig();
   }, [loadConfig]);
@@ -7523,7 +7573,7 @@ function CrashBoard({
     setConfigBusy(true);
     setError("");
     try {
-      await apiPost2("/tracescope/v1/crash-config-save", {
+      const data = await apiPost2("/tracescope/v1/crash-config-save", {
         repoPath: repo || void 0,
         provider: "umeng",
         appKey: appKey.trim(),
@@ -7531,8 +7581,14 @@ function CrashBoard({
         clearCookie: true,
         remember
       });
+      const cfg = data.config;
+      const cleared = cfg?.hasCookie !== true;
       setCookie("");
-      setHasStoredCookie(false);
+      setHasStoredCookie(!cleared);
+      if (!cleared) {
+        setError(t2("crash.probeFail"));
+        return;
+      }
       setListItems([]);
       setSelectedId("");
       setSelectedIncident(null);
@@ -7636,19 +7692,10 @@ function CrashBoard({
         if (!inc || typeof inc.stackText !== "string") {
           throw new Error(t2("crash.detailMissing"));
         }
-        const full = {
-          id: typeof inc.id === "string" ? inc.id : id,
-          title: typeof inc.title === "string" ? inc.title : id,
-          provider: "umeng",
-          stackText: inc.stackText,
-          exceptionName: typeof inc.exceptionName === "string" ? inc.exceptionName : void 0,
-          appVersion: typeof inc.appVersion === "string" ? inc.appVersion : void 0,
-          errorKind: typeof inc.errorKind === "string" ? inc.errorKind : void 0,
-          status: typeof inc.status === "string" ? inc.status : void 0,
-          count: typeof inc.count === "number" ? inc.count : void 0,
-          affectedUsers: typeof inc.affectedUsers === "number" ? inc.affectedUsers : void 0,
-          lastSeenAt: typeof inc.lastSeenAt === "string" ? inc.lastSeenAt : void 0
-        };
+        const full = parseUmengIncident(inc, id);
+        if (!full.stackText.trim()) {
+          throw new Error(t2("crash.detailMissing"));
+        }
         setSelectedIncident(full);
         setStackText(full.stackText);
         setTitle(full.title);
@@ -7678,18 +7725,7 @@ function CrashBoard({
     setError("");
     setHint("");
     try {
-      const incident = selectedIncident ? {
-        id: selectedIncident.id,
-        title: defaultTitle(stack, title2 || selectedIncident.title),
-        provider: "umeng",
-        stackText: stack,
-        exceptionName: selectedIncident.exceptionName,
-        appVersion: selectedIncident.appVersion,
-        count: selectedIncident.count,
-        affectedUsers: selectedIncident.affectedUsers,
-        status: selectedIncident.status,
-        errorKind: selectedIncident.errorKind
-      } : {
+      const incident = selectedIncident ? umengIncidentForAnalyze(selectedIncident, stack, title2) : {
         id: localIncidentId(),
         title: defaultTitle(stack, title2),
         provider: "local",
@@ -14588,6 +14624,7 @@ function TraceScopePanelBody() {
         onSendToChat: fillComposerDraft,
         onSubmitDefect: submitCrashDefect,
         apiPost,
+        apiGet,
         onOpenTrackerSettings: function() {
           setSettingsOpen(true);
         }

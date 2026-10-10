@@ -14,6 +14,11 @@ export interface CrashProviderConfig {
   appDisplayName?: string
   /** Session cookie — server-side only; never log or expose to client in full. */
   cookie?: string
+  /**
+   * Repo-scoped storage only: when false, `loadCrashConfig(repo)` must not inherit
+   * `global.cookie` after the user cleared cookie for that repo.
+   */
+  inheritGlobalCookie?: boolean
   consoleBaseUrl?: string
   transport?: 'console' | 'openapi'
 }

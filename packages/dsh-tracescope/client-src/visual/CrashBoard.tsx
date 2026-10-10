@@ -17,6 +17,7 @@ export interface CrashAnalysisReport {
 }
 
 type ApiPost = (path: string, body: unknown) => Promise<Record<string, unknown>>
+type ApiGet = (path: string, params?: Record<string, string | undefined>) => Promise<Record<string, unknown>>
 
 export interface SendToChatResult {
   ok: boolean
@@ -42,6 +43,72 @@ type CrashListItem = {
 type UmengIncident = CrashListItem & {
   stackText: string
   exceptionName?: string
+  buildNumber?: string
+  platform?: 'android' | 'ios' | 'other'
+  occurredAt?: string
+  firstSeenAt?: string
+  rawRef?: string
+}
+
+function parseUmengIncident(inc: Record<string, unknown>, fallbackId: string): UmengIncident {
+  const platform = inc.platform
+  return {
+    id: typeof inc.id === 'string' ? inc.id : fallbackId,
+    title: typeof inc.title === 'string' ? inc.title : fallbackId,
+    provider: 'umeng',
+    stackText: typeof inc.stackText === 'string' ? inc.stackText : '',
+    exceptionName: typeof inc.exceptionName === 'string' ? inc.exceptionName : undefined,
+    appVersion: typeof inc.appVersion === 'string' ? inc.appVersion : undefined,
+    buildNumber: typeof inc.buildNumber === 'string' ? inc.buildNumber : undefined,
+    platform:
+      platform === 'android' || platform === 'ios' || platform === 'other' ? platform : undefined,
+    errorKind:
+      inc.errorKind === 'crash' ||
+      inc.errorKind === 'anr' ||
+      inc.errorKind === 'error' ||
+      inc.errorKind === 'other'
+        ? inc.errorKind
+        : undefined,
+    status:
+      inc.status === 'open' || inc.status === 'closed' || inc.status === 'other'
+        ? inc.status
+        : undefined,
+    count: typeof inc.count === 'number' ? inc.count : undefined,
+    affectedUsers: typeof inc.affectedUsers === 'number' ? inc.affectedUsers : undefined,
+    osVersion: typeof inc.osVersion === 'string' ? inc.osVersion : undefined,
+    deviceModel: typeof inc.deviceModel === 'string' ? inc.deviceModel : undefined,
+    occurredAt: typeof inc.occurredAt === 'string' ? inc.occurredAt : undefined,
+    firstSeenAt: typeof inc.firstSeenAt === 'string' ? inc.firstSeenAt : undefined,
+    lastSeenAt: typeof inc.lastSeenAt === 'string' ? inc.lastSeenAt : undefined,
+    rawRef: typeof inc.rawRef === 'string' ? inc.rawRef : undefined,
+  }
+}
+
+function umengIncidentForAnalyze(
+  selected: UmengIncident,
+  stack: string,
+  titleText: string,
+): Record<string, unknown> {
+  return {
+    id: selected.id,
+    title: defaultTitle(stack, titleText || selected.title),
+    provider: 'umeng' as const,
+    stackText: stack,
+    exceptionName: selected.exceptionName,
+    appVersion: selected.appVersion,
+    buildNumber: selected.buildNumber,
+    platform: selected.platform,
+    count: selected.count,
+    affectedUsers: selected.affectedUsers,
+    status: selected.status,
+    errorKind: selected.errorKind,
+    osVersion: selected.osVersion,
+    deviceModel: selected.deviceModel,
+    occurredAt: selected.occurredAt,
+    firstSeenAt: selected.firstSeenAt,
+    lastSeenAt: selected.lastSeenAt,
+    rawRef: selected.rawRef,
+  }
 }
 
 type FilterKey =
@@ -221,6 +288,7 @@ export function CrashBoard({
   onSendToChat,
   onSubmitDefect,
   apiPost,
+  apiGet,
   onOpenTrackerSettings,
 }: {
   repoPath: string
@@ -229,6 +297,7 @@ export function CrashBoard({
   onSendToChat?: (prompt: string) => SendToChatResult
   onSubmitDefect?: (report: CrashAnalysisReport, subject: string) => void
   apiPost: ApiPost
+  apiGet: ApiGet
   onOpenTrackerSettings?: () => void
 }) {
   const t = useLocaleT()
@@ -276,16 +345,19 @@ export function CrashBoard({
 
   const loadConfig = useCallback(async () => {
     try {
-      const data = await apiPost('/tracescope/v1/crash-config', { repoPath: repo || undefined })
+      const params: Record<string, string | undefined> = {}
+      if (repo) params.repoPath = repo
+      const data = await apiGet('/tracescope/v1/crash-config', params)
       const cfg = data.config as Record<string, unknown> | undefined
       if (!cfg) return
       if (typeof cfg.appKey === 'string') setAppKey(cfg.appKey)
       setHasStoredCookie(cfg.hasCookie === true)
       if (cfg.hasCookie === true) setCookie(MASKED_COOKIE)
-    } catch {
-      /* ignore */
+      else setCookie('')
+    } catch (err) {
+      setError((err as Error).message || String(err))
     }
-  }, [apiPost, repo])
+  }, [apiGet, repo])
 
   useEffect(() => {
     void loadConfig()
@@ -322,7 +394,7 @@ export function CrashBoard({
     setConfigBusy(true)
     setError('')
     try {
-      await apiPost('/tracescope/v1/crash-config-save', {
+      const data = await apiPost('/tracescope/v1/crash-config-save', {
         repoPath: repo || undefined,
         provider: 'umeng',
         appKey: appKey.trim(),
@@ -330,8 +402,14 @@ export function CrashBoard({
         clearCookie: true,
         remember,
       })
+      const cfg = data.config as Record<string, unknown> | undefined
+      const cleared = cfg?.hasCookie !== true
       setCookie('')
-      setHasStoredCookie(false)
+      setHasStoredCookie(!cleared)
+      if (!cleared) {
+        setError(t('crash.probeFail'))
+        return
+      }
       setListItems([])
       setSelectedId('')
       setSelectedIncident(null)
@@ -445,18 +523,9 @@ export function CrashBoard({
         if (!inc || typeof inc.stackText !== 'string') {
           throw new Error(t('crash.detailMissing'))
         }
-        const full: UmengIncident = {
-          id: typeof inc.id === 'string' ? inc.id : id,
-          title: typeof inc.title === 'string' ? inc.title : id,
-          provider: 'umeng',
-          stackText: inc.stackText,
-          exceptionName: typeof inc.exceptionName === 'string' ? inc.exceptionName : undefined,
-          appVersion: typeof inc.appVersion === 'string' ? inc.appVersion : undefined,
-          errorKind: typeof inc.errorKind === 'string' ? inc.errorKind : undefined,
-          status: typeof inc.status === 'string' ? inc.status : undefined,
-          count: typeof inc.count === 'number' ? inc.count : undefined,
-          affectedUsers: typeof inc.affectedUsers === 'number' ? inc.affectedUsers : undefined,
-          lastSeenAt: typeof inc.lastSeenAt === 'string' ? inc.lastSeenAt : undefined,
+        const full = parseUmengIncident(inc, id)
+        if (!full.stackText.trim()) {
+          throw new Error(t('crash.detailMissing'))
         }
         setSelectedIncident(full)
         setStackText(full.stackText)
@@ -489,18 +558,7 @@ export function CrashBoard({
     setHint('')
     try {
       const incident = selectedIncident
-        ? {
-            id: selectedIncident.id,
-            title: defaultTitle(stack, title || selectedIncident.title),
-            provider: 'umeng' as const,
-            stackText: stack,
-            exceptionName: selectedIncident.exceptionName,
-            appVersion: selectedIncident.appVersion,
-            count: selectedIncident.count,
-            affectedUsers: selectedIncident.affectedUsers,
-            status: selectedIncident.status as 'open' | 'closed' | 'other' | undefined,
-            errorKind: selectedIncident.errorKind as 'crash' | 'anr' | 'error' | 'other' | undefined,
-          }
+        ? umengIncidentForAnalyze(selectedIncident, stack, title)
         : {
             id: localIncidentId(),
             title: defaultTitle(stack, title),

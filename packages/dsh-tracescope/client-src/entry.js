@@ -6415,6 +6415,7 @@
                 onSendToChat: fillComposerDraft,
                 onSubmitDefect: submitCrashDefect,
                 apiPost: apiPost,
+                apiGet: apiGet,
                 onOpenTrackerSettings: function () {
                   setSettingsOpen(true)
                 },

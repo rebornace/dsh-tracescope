@@ -41,6 +41,32 @@ describe('crash credential store', () => {
     expect(raw.global?.cookie).toBeUndefined()
   })
 
+  it('repo clearCookie does not fall back to global cookie', async () => {
+    await setupRoot()
+    const repo = join(dataRoot, 'my-repo')
+    await saveCrashConfig(
+      { provider: 'umeng', appKey: 'global-ak', cookie: 'global-secret' },
+      { remember: true },
+    )
+    await saveCrashConfig(
+      { provider: 'umeng', appKey: 'repo-ak', cookie: 'repo-secret' },
+      { remember: true, repoPath: repo },
+    )
+    let loaded = await loadCrashConfig(repo)
+    expect(loaded.cookie).toBe('repo-secret')
+
+    await saveCrashConfig(
+      { provider: 'umeng', appKey: 'repo-ak', cookie: undefined },
+      { remember: true, repoPath: repo, clearCookie: true },
+    )
+    loaded = await loadCrashConfig(repo)
+    expect(loaded.cookie).toBeUndefined()
+    expect(publicCrashConfig(loaded).hasCookie).toBe(false)
+
+    const globalOnly = await loadCrashConfig()
+    expect(globalOnly.cookie).toBe('global-secret')
+  })
+
   it('masked cookie in save does not wipe stored secret without clearCookie', async () => {
     await setupRoot()
     await saveCrashConfig(
