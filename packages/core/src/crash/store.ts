@@ -40,6 +40,7 @@ function normalizeEntry(raw: unknown): CrashProviderConfig | undefined {
   if (typeof o.cookie === 'string') entry.cookie = o.cookie
   if (typeof o.consoleBaseUrl === 'string') entry.consoleBaseUrl = o.consoleBaseUrl
   if (o.transport === 'console' || o.transport === 'openapi') entry.transport = o.transport
+  if (o.inheritGlobalCookie === false) entry.inheritGlobalCookie = false
   return entry
 }
 
@@ -105,7 +106,11 @@ export async function loadCrashConfig(
   const file = await readCredentialsFile(cacheRoot)
   const key = repoKey(repoPath)
   const fromRepo = key ? file.byRepo?.[key] : undefined
-  return mergeEntries(file.global, fromRepo)
+  const merged = mergeEntries(file.global, fromRepo)
+  if (key && fromRepo && fromRepo.inheritGlobalCookie === false) {
+    merged.cookie = fromRepo.cookie
+  }
+  return merged
 }
 
 export function cookiePresentLabel(config: CrashProviderConfig | null | undefined): string {
@@ -170,6 +175,13 @@ export async function saveCrashConfig(
       ? keepCookie(cfg.cookie, existing?.cookie)
       : undefined
 
+  let inheritGlobalCookie = existing?.inheritGlobalCookie
+  if (clearCookie && scope === 'repo') {
+    inheritGlobalCookie = false
+  } else if (resolvedCookie && scope === 'repo') {
+    inheritGlobalCookie = true
+  }
+
   const next: CrashProviderConfig = {
     provider: asProviderId(cfg.provider),
     stackText: typeof cfg.stackText === 'string' ? cfg.stackText : existing?.stackText,
@@ -181,6 +193,9 @@ export async function saveCrashConfig(
     consoleBaseUrl:
       typeof cfg.consoleBaseUrl === 'string' ? cfg.consoleBaseUrl.trim() : existing?.consoleBaseUrl,
     transport: cfg.transport ?? existing?.transport,
+  }
+  if (scope === 'repo' && inheritGlobalCookie === false) {
+    next.inheritGlobalCookie = false
   }
 
   if (!remember) {
@@ -212,7 +227,7 @@ export async function clearCrashCookie(
   const key = repoKey(repoPath)
   if (key && file.byRepo?.[key]) {
     const { cookie: _c, ...rest } = file.byRepo[key]!
-    file.byRepo[key] = { ...rest, cookie: undefined }
+    file.byRepo[key] = { ...rest, cookie: undefined, inheritGlobalCookie: false }
   } else if (file.global) {
     const { cookie: _c, ...rest } = file.global
     file.global = { ...rest, cookie: undefined }

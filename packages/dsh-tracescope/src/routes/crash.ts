@@ -132,15 +132,23 @@ async function runProbe(
   return { ok: adapter.isReady(config) }
 }
 
+async function runCrashConfigLoad(body: unknown): Promise<{ config: ReturnType<typeof publicCrashConfig> }> {
+  const b = asRecord(body)
+  const config = await loadCrashConfig(typeof b.repoPath === 'string' ? b.repoPath : undefined)
+  return { config: publicCrashConfig(config) }
+}
+
 export function registerCrashRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/crash-config',
     method: 'GET',
-    run: async (body, _ctx) => {
-      const b = asRecord(body)
-      const config = await loadCrashConfig(typeof b.repoPath === 'string' ? b.repoPath : undefined)
-      return { config: publicCrashConfig(config) }
-    },
+    run: runCrashConfigLoad,
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-config',
+    method: 'POST',
+    run: runCrashConfigLoad,
   })
 
   registerRoute(ctx, {
