@@ -24,8 +24,20 @@
  * ## Console URLs (需按抓包替换 path/query)
  * Defaults target `mobile.umeng.com` U-APM style JSON endpoints.
  */
+import { createHash } from 'node:crypto'
+import {
+  applyCrashListQuery,
+  incidentToListSummary,
+  normalizeCrashListQuery,
+  stableCrashListQueryKey,
+} from '../list-query.js'
 import type { CrashProvider } from '../provider-types.js'
-import type { CrashIncident, CrashIncidentSummary, CrashProviderConfig } from '../types.js'
+import type {
+  CrashIncident,
+  CrashIncidentSummary,
+  CrashListQuery,
+  CrashProviderConfig,
+} from '../types.js'
 
 /** Default origin when `consoleBaseUrl` is unset — 需按抓包替换 */
 export const UMENG_CONSOLE_DEFAULT_ORIGIN = 'https://mobile.umeng.com'
@@ -81,12 +93,31 @@ type UmengListRow = {
 
 type UmengListEnvelope = {
   code?: number
+  msg?: string
   data?: { list?: UmengListRow[] }
 }
 
 type UmengDetailEnvelope = {
   code?: number
+  msg?: string
   data?: UmengListRow
+}
+
+/** Console JSON success code in synthetic fixtures — adjust if capture differs. */
+export const UMENG_API_SUCCESS_CODE = 200
+
+export function assertUmengEnvelopeCode(raw: unknown): void {
+  const envelope = raw as { code?: number; msg?: string }
+  if (envelope.code !== UMENG_API_SUCCESS_CODE) {
+    const detail =
+      typeof envelope.msg === 'string' && envelope.msg.trim()
+        ? envelope.msg.trim()
+        : `code=${envelope.code ?? 'missing'}`
+    throw new UmengCrashError(
+      'UMENG_BAD_RESPONSE',
+      `Umeng API returned non-success envelope (${detail})`,
+    )
+  }
 }
 
 const LIST_CACHE_TTL_MS = 30_000
@@ -165,22 +196,15 @@ function rowTitle(row: UmengListRow): string {
   return id ? `Umeng error ${id}` : 'Umeng crash'
 }
 
-function mapRowToSummary(row: UmengListRow): CrashIncidentSummary & { stackText: string } {
+function mapRowToIncident(row: UmengListRow): CrashIncident {
   const id = row.errorId?.trim() ?? ''
+  const stackText = row.stackTrace?.trim() ?? ''
+  const title = rowTitle(row)
+  const exceptionName = stackText.split(/\r?\n/, 1)[0]?.trim() || title
   return {
     id,
-    title: rowTitle(row),
+    title,
     provider: 'umeng',
-    stackText: row.stackTrace?.trim() ?? '',
-  }
-}
-
-function mapRowToIncident(row: UmengListRow): CrashIncident {
-  const summary = mapRowToSummary(row)
-  const stackText = row.stackTrace?.trim() ?? ''
-  const exceptionName = stackText.split(/\r?\n/, 1)[0]?.trim() || summary.title
-  return {
-    ...summary,
     stackText,
     exceptionName,
     appVersion: row.appVersion,
@@ -199,16 +223,19 @@ function mapRowToIncident(row: UmengListRow): CrashIncident {
   }
 }
 
-export function mapUmengListResponse(raw: unknown): CrashIncidentSummary[] {
+export function mapUmengListIncidents(raw: unknown): CrashIncident[] {
+  assertUmengEnvelopeCode(raw)
   const envelope = raw as UmengListEnvelope
   const rows = envelope.data?.list ?? []
-  return rows
-    .map((row) => mapRowToSummary(row))
-    .filter((item) => Boolean(item.id))
-    .map(({ stackText: _s, ...summary }) => summary)
+  return rows.map((row) => mapRowToIncident(row)).filter((item) => Boolean(item.id))
+}
+
+export function mapUmengListResponse(raw: unknown): CrashIncidentSummary[] {
+  return mapUmengListIncidents(raw).map((row) => incidentToListSummary(row))
 }
 
 export function mapUmengDetailResponse(raw: unknown): CrashIncident {
+  assertUmengEnvelopeCode(raw)
   const envelope = raw as UmengDetailEnvelope
   const row = envelope.data
   if (!row) {
@@ -224,12 +251,23 @@ export function mapUmengDetailResponse(raw: unknown): CrashIncident {
   return incident
 }
 
-function buildListUrl(config: CrashProviderConfig, pageSize: number): URL {
+function buildListUrl(
+  config: CrashProviderConfig,
+  pageSize: number,
+  query?: CrashListQuery,
+): URL {
   const origin = consoleOrigin(config)
   const url = new URL(`${origin}${UMENG_CONSOLE_LIST_PATH}`)
   url.searchParams.set('appKey', config.appKey?.trim() ?? '')
   url.searchParams.set('page', '1')
   url.searchParams.set('pageSize', String(pageSize))
+
+  const q = normalizeCrashListQuery(query)
+  // Remote query params (names unverified — replace after HAR). Always re-apply filters locally in list().
+  if (q.keyword) url.searchParams.set('keyword', q.keyword)
+  if (q.appVersions?.length === 1) url.searchParams.set('appVersion', q.appVersions[0]!)
+  // errorKinds, statuses, multi appVersion, sort: not sent remotely (API shape unknown); local-only in applyCrashListQuery().
+
   return url
 }
 
@@ -273,8 +311,12 @@ async function umengFetch(config: CrashProviderConfig, url: URL): Promise<Respon
   return response
 }
 
-async function fetchListJson(config: CrashProviderConfig, pageSize: number): Promise<unknown> {
-  const url = buildListUrl(config, pageSize)
+async function fetchListJson(
+  config: CrashProviderConfig,
+  pageSize: number,
+  query?: CrashListQuery,
+): Promise<unknown> {
+  const url = buildListUrl(config, pageSize, query)
   const response = await umengFetch(config, url)
   return response.json() as Promise<unknown>
 }
@@ -285,12 +327,17 @@ async function fetchDetailJson(config: CrashProviderConfig, errorId: string): Pr
   return response.json() as Promise<unknown>
 }
 
-function listCacheKey(config: CrashProviderConfig): string {
-  return `${config.appKey?.trim() ?? ''}|${consoleOrigin(config)}|list`
+function listCacheKey(config: CrashProviderConfig, query?: CrashListQuery): string {
+  const queryKey = stableCrashListQueryKey(query)
+  const hash = createHash('sha256').update(queryKey).digest('hex').slice(0, 16)
+  return `${config.appKey?.trim() ?? ''}|${consoleOrigin(config)}|${hash}`
 }
 
-function getCachedList(config: CrashProviderConfig): CrashIncidentSummary[] | null {
-  const key = listCacheKey(config)
+function getCachedList(
+  config: CrashProviderConfig,
+  query?: CrashListQuery,
+): CrashIncidentSummary[] | null {
+  const key = listCacheKey(config, query)
   const hit = listCache.get(key)
   if (!hit) return null
   if (Date.now() > hit.expiresAt) {
@@ -300,8 +347,12 @@ function getCachedList(config: CrashProviderConfig): CrashIncidentSummary[] | nu
   return hit.items
 }
 
-function setCachedList(config: CrashProviderConfig, items: CrashIncidentSummary[]): void {
-  listCache.set(listCacheKey(config), {
+function setCachedList(
+  config: CrashProviderConfig,
+  query: CrashListQuery | undefined,
+  items: CrashIncidentSummary[],
+): void {
+  listCache.set(listCacheKey(config, query), {
     expiresAt: Date.now() + LIST_CACHE_TTL_MS,
     items,
   })
@@ -353,17 +404,19 @@ export const umengCrashProvider: CrashProvider & {
     }
   },
 
-  async list(config) {
+  async list(config, query) {
     if (config.provider !== 'umeng') return []
     assertConsoleTransport(config)
     if (!umengCrashProvider.isReady(config)) return []
 
-    const cached = getCachedList(config)
+    const cached = getCachedList(config, query)
     if (cached) return cached
 
-    const raw = await fetchListJson(config, 50)
-    const items = mapUmengListResponse(raw)
-    setCachedList(config, items)
+    const raw = await fetchListJson(config, 50, query)
+    const incidents = mapUmengListIncidents(raw)
+    const filtered = applyCrashListQuery(incidents, query)
+    const items = filtered.map((row) => incidentToListSummary(row))
+    setCachedList(config, query, items)
     return items
   },
 

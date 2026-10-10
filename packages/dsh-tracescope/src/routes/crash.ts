@@ -10,6 +10,7 @@ import {
   isMaskedCrashSecret,
   loadCrashConfig,
   publicCrashConfig,
+  parseCrashListQuery,
   resolveCrashConfigFromBody,
   saveCrashConfig,
   type CrashFeedbackMeta,
@@ -18,7 +19,13 @@ import {
 } from '@rebornace/tracescope-core'
 import type { Lang } from '../i18n/lang.js'
 import { I18nError } from '../i18n/messages.js'
-import { isUmengNotReady, umengNotReadyMessage, umengNotReadyParams } from './crash-umeng.js'
+import {
+  isUmengNotReady,
+  rethrowUmengCrashError,
+  umengCrashListFailure,
+  umengNotReadyMessage,
+  umengNotReadyParams,
+} from './crash-umeng.js'
 
 function asRecord(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body)
@@ -204,8 +211,17 @@ export function registerCrashRoutes(ctx: Context) {
       if (!adapter) {
         throw new I18nError('ERR_CRASH_PROVIDER', lang, { provider: config.provider })
       }
-      const items = await adapter.list(config)
-      return { items, capabilities: adapter.capabilities() }
+      const query = parseCrashListQuery(asRecord(body))
+      try {
+        const items = await adapter.list(config, query)
+        return { items, capabilities: adapter.capabilities() }
+      } catch (err) {
+        const mapped = umengCrashListFailure(err, lang)
+        if (mapped) {
+          return { items: [], capabilities: adapter.capabilities(), ...mapped }
+        }
+        throw err
+      }
     },
   })
 
@@ -224,8 +240,12 @@ export function registerCrashRoutes(ctx: Context) {
       if (!adapter) {
         throw new I18nError('ERR_CRASH_PROVIDER', lang, { provider: config.provider })
       }
-      const incident = await adapter.get(config, id)
-      return { incident }
+      try {
+        const incident = await adapter.get(config, id)
+        return { incident }
+      } catch (err) {
+        rethrowUmengCrashError(err, lang)
+      }
     },
   })
 

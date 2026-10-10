@@ -3,10 +3,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getCrashProvider } from '../src/crash/index.js'
+import { applyCrashListQuery } from '../src/crash/list-query.js'
 import {
   UmengCrashError,
   clearUmengListCacheForTests,
   mapUmengDetailResponse,
+  mapUmengListIncidents,
   mapUmengListResponse,
   umengCrashProvider,
 } from '../src/crash/providers/umeng-console.js'
@@ -30,8 +32,12 @@ describe('mapUmengListResponse / mapUmengDetailResponse', () => {
     const items = mapUmengListResponse(listFx)
     expect(items.length).toBeGreaterThan(0)
     expect(items[0]?.id).toBeTruthy()
-    expect(items[0]?.stackText === '' || (items[0]?.stackText?.length ?? 0) >= 0).toBe(true)
+    expect(items[0]?.errorKind).toBe('crash')
     expect(items[0]?.provider).toBe('umeng')
+  })
+
+  it('throws on non-success envelope code', () => {
+    expect(() => mapUmengListResponse({ code: 401, data: { list: [] } })).toThrow(UmengCrashError)
   })
 
   it('maps detail fixture to full stack', () => {
@@ -105,6 +111,26 @@ describe('umengCrashProvider', () => {
     await expect(
       umengCrashProvider.list({ ...baseCfg, transport: 'openapi' }),
     ).rejects.toMatchObject({ code: 'UMENG_OPENAPI_UNSUPPORTED' })
+  })
+
+  it('applies keyword and errorKinds filters locally', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(listFx), { status: 200 })),
+    )
+    const byKind = await umengCrashProvider.list(baseCfg, { errorKinds: ['anr'] })
+    expect(byKind).toHaveLength(1)
+    expect(byKind[0]?.id).toBe('umeng-fixture-anr-002')
+
+    const byKeyword = await umengCrashProvider.list(baseCfg, { keyword: 'NullPointer' })
+    expect(byKeyword).toHaveLength(1)
+    expect(byKeyword[0]?.id).toBe('umeng-fixture-crash-001')
+  })
+
+  it('sorts by count descending by default via lastSeen when no sort', () => {
+    const incidents = mapUmengListIncidents(listFx)
+    const sorted = applyCrashListQuery(incidents, { sort: { field: 'count', direction: 'desc' } })
+    expect(sorted[0]?.count).toBe(42)
   })
 
   it('probe succeeds on lightweight list fetch', async () => {

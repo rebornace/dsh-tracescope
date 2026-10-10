@@ -4,6 +4,7 @@
 import type {
   CrashIncident,
   CrashIncidentSummary,
+  CrashListQuery,
   CrashProviderConfig,
   CrashProviderId,
 } from './types.js'
@@ -16,7 +17,7 @@ export interface CrashProviderCapabilities {
 export interface CrashProvider {
   id: CrashProviderId
   isReady(config: CrashProviderConfig): boolean
-  list(config: CrashProviderConfig): Promise<CrashIncidentSummary[]>
+  list(config: CrashProviderConfig, query?: CrashListQuery): Promise<CrashIncidentSummary[]>
   get(config: CrashProviderConfig, id: string): Promise<CrashIncident>
   capabilities(): CrashProviderCapabilities
 }

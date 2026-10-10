@@ -5,10 +5,19 @@ export type {
   CrashAnalysisReport,
   CrashIncident,
   CrashIncidentSummary,
+  CrashListQuery,
+  CrashListSortField,
   CrashMatchedFile,
   CrashProviderConfig,
   CrashProviderId,
 } from './types.js'
+export {
+  applyCrashListQuery,
+  incidentToListSummary,
+  normalizeCrashListQuery,
+  parseCrashListQuery,
+  stableCrashListQueryKey,
+} from './list-query.js'
 export { analyzeCrash, type AnalyzeCrashOptions } from './analyze.js'
 export {
   buildCrashDefectBody,
@@ -28,10 +37,13 @@ export {
 export { localCrashProvider, LOCAL_CRASH_INCIDENT_ID } from './providers/local.js'
 export {
   UmengCrashError,
+  assertUmengEnvelopeCode,
   clearUmengListCacheForTests,
   mapUmengDetailResponse,
+  mapUmengListIncidents,
   mapUmengListResponse,
   umengCrashProvider,
+  UMENG_API_SUCCESS_CODE,
   UMENG_CONSOLE_DEFAULT_ORIGIN,
   UMENG_HOST_ALLOWLIST,
   type UmengCrashErrorCode,

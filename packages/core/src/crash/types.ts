@@ -18,10 +18,25 @@ export interface CrashProviderConfig {
   transport?: 'console' | 'openapi'
 }
 
+export type CrashListSortField = 'lastSeenAt' | 'count' | 'title'
+
+export interface CrashListQuery {
+  keyword?: string
+  errorKinds?: Array<'crash' | 'anr' | 'error' | 'other'>
+  statuses?: Array<'open' | 'closed' | 'other'>
+  appVersions?: string[]
+  sort?: { field: CrashListSortField; direction: 'asc' | 'desc' }
+}
+
 export interface CrashIncidentSummary {
   id: string
   title: string
   provider: CrashProviderId
+  appVersion?: string
+  errorKind?: 'crash' | 'anr' | 'error' | 'other'
+  status?: 'open' | 'closed' | 'other'
+  lastSeenAt?: string
+  count?: number
 }
 
 export interface CrashIncident extends CrashIncidentSummary {

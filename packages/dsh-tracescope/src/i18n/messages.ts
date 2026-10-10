@@ -141,6 +141,26 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
     zh: '友盟 Console 取数尚未就绪（appKey：{appKey}，cookie present: {cookie}）',
     en: 'Umeng console provider is not ready (appKey: {appKey}, cookie present: {cookie})',
   },
+  ERR_CRASH_UMENG_AUTH: {
+    zh: '友盟登录已失效或 Cookie 无效：{detail}',
+    en: 'Umeng session expired or cookie invalid: {detail}',
+  },
+  ERR_CRASH_UMENG_OPENAPI: {
+    zh: '友盟 OpenAPI 传输尚未实现：{detail}',
+    en: 'Umeng OpenAPI transport is not implemented: {detail}',
+  },
+  ERR_CRASH_UMENG_HOST: {
+    zh: '友盟请求主机不在允许列表：{detail}',
+    en: 'Umeng request host is not allowlisted: {detail}',
+  },
+  ERR_CRASH_UMENG_HTTP: {
+    zh: '友盟 Console 请求失败：{detail}',
+    en: 'Umeng console request failed: {detail}',
+  },
+  ERR_CRASH_UMENG_BAD_RESPONSE: {
+    zh: '友盟返回数据无法解析：{detail}',
+    en: 'Umeng response could not be parsed: {detail}',
+  },
   ERR_CRASH_MISSING_INCIDENT: {
     zh: '缺少有效的 incident（需 id 与 stackText）',
     en: 'Missing a valid incident (id and stackText required)',
