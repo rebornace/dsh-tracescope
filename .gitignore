@@ -13,3 +13,7 @@ coverage/
 
 # Local brainstorming / design specs / implementation plans (do not commit)
 docs/superpowers/
+
+# Git worktrees + SDD per-plan artifacts (do not commit)
+.worktrees/
+.superpowers/
