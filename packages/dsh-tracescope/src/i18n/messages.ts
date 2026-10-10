@@ -150,8 +150,8 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
     en: 'No items are marked as failed',
   },
   ERR_SUBMIT_DEFECT_FAILED: {
-    zh: '提交缺陷失败',
-    en: 'Failed to submit defect',
+    zh: '提交缺陷失败{detail}',
+    en: 'Failed to submit defect{detail}',
   },
   ERR_YUNXIAO_TOKEN_REQUIRED: {
     zh: '请先填写云效访问令牌并保存，或在本次请求中传入 token',

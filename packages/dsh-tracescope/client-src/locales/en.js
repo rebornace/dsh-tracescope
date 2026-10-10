@@ -768,6 +768,7 @@ export default {
   'diff.board.cleaningNotes': 'Cleaning notes…',
   'diff.board.clearSelection': 'Clear selection',
   'diff.board.clearSelectionTitle': 'Clear list selection and board highlights',
+  'diff.board.selectItem': 'Select this item',
   'diff.board.confirmDeleteDiff': 'Delete this diff? Treated as false positive locally; restore from below.',
   'diff.board.confirmErase': 'Remove layer “{label}” from board?\n(Pixels erased; you can restore anytime.)',
   'diff.board.copyAll': 'Copy diffs',
@@ -1029,7 +1030,9 @@ export default {
   'findings.suggestion': 'Suggestion: {value}',
   'findings.title': 'AI review findings ({count})',
   'findings.updatedAt': 'Updated at {time}',
-  'ghp_… 需要 issues:write': 'ghp_… requires issues:write',
+  'ghp_… 需要 issues:write': 'ghp_… needs repo write access (issues + attachments)',
+  '截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。':
+    'Screenshots upload to GitHub attachments and are inlined in the issue body. The token needs write access on the repo (same as gh --attach).',
   'Host API 未就绪': 'Host API not ready',
   'HTTPS 用户名 + 密码/Token': 'HTTPS username + password/token',
   'labels（逗号分隔）': 'labels (comma-separated)',

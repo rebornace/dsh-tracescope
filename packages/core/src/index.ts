@@ -178,8 +178,15 @@ export { buildFailFeedbackSubject as buildYunxiaoFailSubject } from './issue-tra
 export {
   trackerAdapters,
   getTrackerAdapter,
+  normalizeFeedbackLang,
+  buildTrackerFeedbackDescription,
+  buildVisualDiffFeedbackDescription,
+  buildVisualDiffFeedbackSubject,
   type TrackerAdapter,
   type SubmitContext,
+  type FeedbackLang,
+  type FeedbackKind,
+  type VisualDiffFeedbackMeta,
 } from './tracker/index.js'
 export {
   analyzeReportWithModel,

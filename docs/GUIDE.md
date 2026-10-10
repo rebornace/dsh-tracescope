@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.2.6`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.2.7`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -29,7 +29,7 @@
 | **功能影响分析** | 稳定版 ↔ 待测版（本地 Git 或云效代码接口） | 直接变更 + 静态波及清单；可标注、截图、导出、提单 |
 | **设计差异分析** | Figma / 蓝湖设计稿 + 代码仓页面 | 静态差异清单 + 设计对照图高亮；可 AI 协助写回、导出、提单 |
 
-两条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。
+两条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」的「提交缺陷」使用专用 UI 差异正文（不再套用功能影响的「验证失败」模板）。
 
 推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。同一套执行层也可通过 `@rebornace/tracescope-mcp` 在任意 MCP 客户端调用。
 
@@ -233,7 +233,8 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 - **云效代码接口**模式没有本地静态波及；要波及分析请用本地 Git  
 - 云效截图要在详情里嵌图，需经工作项附件接口换取永久 `embedUrl`  
-- GitHub / GitLab / Webhook：**不会**像云效一样上传视频二进制  
+- GitHub Issues：截图与可附加的图片/视频会经 user-attachments 上传并写入 Issue 正文；Token 需仓库写权限（与 gh --attach 相同）。GitHub Enterprise Server 无此附件能力。
+- GitLab / Webhook：仍不会像云效 / GitHub 一样上传二进制  
 
 ### 9.2 设计差异分析
 

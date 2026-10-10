@@ -155,6 +155,24 @@ export function registerTrackerRoutes(ctx: Context) {
       const repoPath = String(body.repoPath ?? report.repoPath ?? '')
       const baseCommit = String(body.baseCommit ?? report.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? report.headCommit ?? '')
+      const visualMetaRaw =
+        body.visualMeta && typeof body.visualMeta === 'object'
+          ? (body.visualMeta as Record<string, unknown>)
+          : null
+      const visualMeta = visualMetaRaw
+        ? {
+            designName:
+              typeof visualMetaRaw.designName === 'string' ? visualMetaRaw.designName : undefined,
+            designUrl:
+              typeof visualMetaRaw.designUrl === 'string' ? visualMetaRaw.designUrl : undefined,
+            codePath:
+              typeof visualMetaRaw.codePath === 'string' ? visualMetaRaw.codePath : undefined,
+            platformLabel:
+              typeof visualMetaRaw.platformLabel === 'string'
+                ? visualMetaRaw.platformLabel
+                : undefined,
+          }
+        : undefined
       const result = await submitFailFeedback(config, {
         repoPath,
         baseCommit,
@@ -162,9 +180,15 @@ export function registerTrackerRoutes(ctx: Context) {
         items: failed,
         subject: typeof body.subject === 'string' ? body.subject : undefined,
         attachments: report.attachments,
+        lang,
+        feedbackKind:
+          body.feedbackKind === 'visual-diff' ? 'visual-diff' : 'impact',
+        visualMeta,
       })
       if (!result.ok) {
-        throw new I18nError('ERR_SUBMIT_DEFECT_FAILED', lang)
+        throw new I18nError('ERR_SUBMIT_DEFECT_FAILED', lang, {
+          detail: result.error ? `: ${result.error}` : '',
+        })
       }
       return {
         ok: true,

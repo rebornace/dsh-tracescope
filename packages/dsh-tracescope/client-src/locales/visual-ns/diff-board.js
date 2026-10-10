@@ -62,6 +62,7 @@ export default {
   'diff.board.exportAll': '导出报告',
   'diff.board.clearSelection': '清除选中',
   'diff.board.clearSelectionTitle': '清除清单选中与对照图高亮',
+  'diff.board.selectItem': '选中此项',
   'diff.board.hostDialogUnsupported':
     '当前宿主不支持弹窗输入。请更新插件后重试，或在 DeepSeek Harness 桌面端使用。',
   'diff.board.noteDialog.title': '添加备注',

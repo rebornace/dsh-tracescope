@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { buildGitAuthEnv, redactSecrets, type GitAuth } from './auth.js'
@@ -18,7 +19,15 @@ export async function gitExec(
 ): Promise<{ stdout: string; stderr: string }> {
   const { env, configArgs } = buildGitAuthEnv(options.auth)
   // Always allow our managed cache dirs (avoids Windows "dubious ownership" false negatives).
-  const argv = ['-c', 'safe.directory=*', ...configArgs, ...args]
+  // core.longpaths: CocoaPods / nested vendor trees exceed Win32 MAX_PATH (~260).
+  const argv = [
+    '-c',
+    'safe.directory=*',
+    '-c',
+    'core.longpaths=true',
+    ...configArgs,
+    ...args,
+  ]
   try {
     const result = await execFileAsync('git', argv, {
       cwd: options.cwd,
@@ -39,8 +48,43 @@ export async function gitExec(
         ? '（若是私有仓，请在面板「仓库配置」填写 Codeup/Git HTTPS Token 或 SSH 私钥后重试）'
         : /dubious ownership/i.test(detail)
           ? '（Git 安全目录拦截：插件已尝试自动放行；若仍失败请重启 DSH 后再试）'
-          : ''
+          : /Filename too long|filename too long|path too long|file name too long/i.test(detail)
+            ? '（Windows 路径过长：插件已启用 core.longpaths；若仍失败请把 TraceScope 数据目录改到更短路径，或开启系统「长路径」支持后重试）'
+            : ''
     throw new Error((detail || `git ${args.join(' ')} failed`) + authHint)
+  }
+}
+
+async function enableRepoLongpaths(repoPath: string): Promise<void> {
+  try {
+    await gitExec(['config', 'core.longpaths', 'true'], { cwd: repoPath })
+  } catch {
+    /* best-effort — -c core.longpaths=true is already injected per-invocation */
+  }
+}
+
+/** Drop a broken / partial worktree left by a failed checkout on Windows. */
+async function removeWorktreeBestEffort(
+  bareRepoPath: string,
+  worktreePath: string,
+): Promise<void> {
+  try {
+    await gitExec(['worktree', 'remove', '--force', worktreePath], {
+      cwd: bareRepoPath,
+    })
+    return
+  } catch {
+    /* fall through to manual cleanup */
+  }
+  try {
+    await fs.rm(worktreePath, { recursive: true, force: true, maxRetries: 3 })
+  } catch {
+    /* ignore */
+  }
+  try {
+    await gitExec(['worktree', 'prune'], { cwd: bareRepoPath })
+  } catch {
+    /* ignore */
   }
 }
 
@@ -223,6 +267,10 @@ export async function gitRevParse(repoPath: string, ref: string): Promise<string
  * Creates (or reuses) a detached `git worktree` next to the bare cache
  * directory and returns its work-tree path. Normal work trees are returned
  * unchanged.
+ *
+ * On Windows, enables `core.longpaths` and rebuilds a worktree that was left
+ * half-checked-out after a previous "Filename too long" failure (common with
+ * CocoaPods / nested vendor trees).
  */
 export async function ensureReadableCheckout(
   repoPath: string,
@@ -233,6 +281,8 @@ export async function ensureReadableCheckout(
   if (bareOut !== 'true') {
     return { checkoutPath: repoPath, bare: false }
   }
+
+  await enableRepoLongpaths(repoPath)
 
   // Prefer the remote default branch; fall back to HEAD when unresolvable.
   let ref = 'HEAD'
@@ -246,20 +296,40 @@ export async function ensureReadableCheckout(
   }
 
   const checkoutPath = path.join(path.dirname(repoPath), path.basename(repoPath) + '-worktree')
-  try {
+
+  const refreshExisting = async (): Promise<{ checkoutPath: string; bare: true }> => {
     await gitExec(['rev-parse', '--is-inside-work-tree'], { cwd: checkoutPath })
+    await enableRepoLongpaths(checkoutPath)
     await gitExec(['checkout', '--detach', ref], { cwd: checkoutPath, auth })
     await gitExec(['reset', '--hard', ref], { cwd: checkoutPath, auth })
     return { checkoutPath, bare: true }
-  } catch {
-    /* not a worktree yet — create below */
   }
 
-  await gitExec(['worktree', 'add', '--detach', '--force', checkoutPath, ref], {
-    cwd: repoPath,
-    auth,
-  })
-  return { checkoutPath, bare: true }
+  try {
+    return await refreshExisting()
+  } catch {
+    /* missing, stale, or half-checked-out — rebuild below */
+    await removeWorktreeBestEffort(repoPath, checkoutPath)
+  }
+
+  try {
+    await gitExec(['worktree', 'add', '--detach', '--force', checkoutPath, ref], {
+      cwd: repoPath,
+      auth,
+    })
+    await enableRepoLongpaths(checkoutPath)
+    return { checkoutPath, bare: true }
+  } catch (error: unknown) {
+    await removeWorktreeBestEffort(repoPath, checkoutPath)
+    const detail = error instanceof Error ? error.message : String(error)
+    if (/Filename too long|filename too long|path too long|file name too long/i.test(detail)) {
+      throw new Error(
+        `工作树检出失败（路径过长）：${detail}` +
+          '。请在「数据目录」改用更短路径（例如 D:\\ts），或开启 Windows 长路径支持后重试。',
+      )
+    }
+    throw error instanceof Error ? error : new Error(detail)
+  }
 }
 
 export interface GitCommitInfo {

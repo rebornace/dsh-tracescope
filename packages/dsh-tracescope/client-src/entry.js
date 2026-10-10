@@ -143,7 +143,8 @@
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10000,
+        // Above LoadingOverlay / folder pickers inside visual panel (those use ~10k–20k).
+        zIndex: 200000,
         padding: 16,
       },
       busyOverlay: {
@@ -5262,6 +5263,12 @@
                                   }),
                                 ],
                               }),
+                              jsx('div', {
+                                style: { color: '#6b645a', fontSize: 11, marginTop: 4 },
+                                children: t(
+                                  '截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。',
+                                ),
+                              }),
                             ],
                           })
                         : null,
@@ -6308,13 +6315,16 @@
                   setSettingsOpen(true)
                 },
                 openConfirmDialog: function (opts) {
+                  // Replace the whole dialog state (do not merge with a previous
+                  // fields/inputLabel shape), otherwise a second open can render
+                  // a broken form that looks closed but still blocks the UI.
                   setConfirmDlg({
                     title: opts.title,
                     message: opts.message || '',
-                    inputLabel: opts.inputLabel,
+                    inputLabel: opts.fields && opts.fields.length ? undefined : opts.inputLabel,
                     inputValue: opts.inputValue || '',
                     multiline: !!opts.multiline,
-                    fields: opts.fields || null,
+                    fields: opts.fields && opts.fields.length ? opts.fields : null,
                     confirmLabel: opts.confirmLabel || t('保存'),
                     danger: false,
                     onConfirm: opts.onConfirm,
@@ -6327,12 +6337,17 @@
                 style: styles.modalBackdrop,
                 role: 'dialog',
                 'aria-modal': 'true',
-                onClick: function () {
-                  setConfirmDlg(null)
+                onMouseDown: function (e) {
+                  // Only close when pressing the dimmed backdrop itself. Using
+                  // click can race with input focus inside the card.
+                  if (e.target === e.currentTarget) setConfirmDlg(null)
                 },
                 children: [
                   jsxs('div', {
                     style: Object.assign({}, styles.modalCard, { width: 'min(480px, 100%)' }),
+                    onMouseDown: function (e) {
+                      e.stopPropagation()
+                    },
                     onClick: function (e) {
                       e.stopPropagation()
                     },
@@ -6420,7 +6435,15 @@
                                           var action = confirmDlg.onConfirm
                                           var value = confirmDlg.inputValue
                                           setConfirmDlg(null)
-                                          if (typeof action === 'function') action(value)
+                                          setTimeout(function () {
+                                            if (typeof action === 'function') {
+                                              try {
+                                                action(value)
+                                              } catch (err) {
+                                                console.warn('[tracescope] confirm action failed', err)
+                                              }
+                                            }
+                                          }, 0)
                                         }
                                       },
                                     }),
@@ -6443,19 +6466,31 @@
                             style: confirmDlg.danger ? styles.danger : styles.primary,
                             onClick: function () {
                               var action = confirmDlg.onConfirm
+                              var fields = confirmDlg.fields
+                              var inputLabel = confirmDlg.inputLabel
+                              var inputValue = confirmDlg.inputValue
                               setConfirmDlg(null)
-                              if (typeof action !== 'function') return
-                              if (confirmDlg.fields && confirmDlg.fields.length) {
-                                var map = {}
-                                confirmDlg.fields.forEach(function (f) {
-                                  map[f.key] = f.value || ''
-                                })
-                                action(map)
-                              } else if (confirmDlg.inputLabel) {
-                                action(confirmDlg.inputValue)
-                              } else {
-                                action()
-                              }
+                              // Defer callback until the modal unmounts so Electron /
+                              // Desktop does not keep a focus trap that blocks the
+                              // next note/edit input in the diff list.
+                              setTimeout(function () {
+                                if (typeof action !== 'function') return
+                                try {
+                                  if (fields && fields.length) {
+                                    var map = {}
+                                    fields.forEach(function (f) {
+                                      map[f.key] = f.value || ''
+                                    })
+                                    action(map)
+                                  } else if (inputLabel) {
+                                    action(inputValue)
+                                  } else {
+                                    action()
+                                  }
+                                } catch (err) {
+                                  console.warn('[tracescope] confirm action failed', err)
+                                }
+                              }, 0)
                             },
                             children: confirmDlg.confirmLabel || t('确定'),
                           }),

@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.2.6`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
+**版本: `0.2.7`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
 
 TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心能力：
 

@@ -768,6 +768,7 @@ export default {
   'diff.board.cleaningNotes': '正在清理备注…',
   'diff.board.clearSelection': '清除选中',
   'diff.board.clearSelectionTitle': '清除清单选中与对照图高亮',
+  'diff.board.selectItem': '选中此项',
   'diff.board.confirmDeleteDiff': '确认删除这条差异？删除后视为误报，仅本机记住，可在下方恢复。',
   'diff.board.confirmErase': '从对照图中删除图层「{label}」？\n（擦除该区域像素；可随时恢复）',
   'diff.board.copyAll': '复制差异',
@@ -1029,7 +1030,9 @@ export default {
   'findings.suggestion': '修改建议：{value}',
   'findings.title': 'AI 走查结论（{count}）',
   'findings.updatedAt': '更新于 {time}',
-  'ghp_… 需要 issues:write': 'ghp_… 需要 issues:write',
+  'ghp_… 需要 issues:write': 'ghp_… 需要仓库写权限（issues + 附件）',
+  '截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。':
+    '截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。',
   'Host API 未就绪': 'Host API 未就绪',
   'HTTPS 用户名 + 密码/Token': 'HTTPS 用户名 + 密码/Token',
   'labels（逗号分隔）': 'labels（逗号分隔）',

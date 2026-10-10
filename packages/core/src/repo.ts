@@ -158,6 +158,12 @@ async function cloneRemoteCache(
   await wipeCache(repoPath)
   try {
     await gitExec(['clone', '--bare', '--single-branch', remoteUrl, repoPath], common)
+    // Persist longpaths so later worktree checkouts on Windows survive MAX_PATH.
+    try {
+      await gitExec(['config', 'core.longpaths', 'true'], { cwd: repoPath })
+    } catch {
+      /* best-effort; gitExec also injects -c core.longpaths=true */
+    }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)
     await wipeCache(repoPath)
