@@ -16,6 +16,7 @@
     var useRef = React.useRef
 
     var VisualComparePanel = require('./visual/VisualComparePanel.tsx').VisualComparePanel
+    var CrashBoard = require('./visual/CrashBoard.tsx').CrashBoard
     var selfUpdate = require('./self-update.js')
     var registerPluginSettings = require('./register-plugin-settings.js').registerPluginSettings
     var i18n = require('./locales/i18n.js')
@@ -1619,7 +1620,7 @@
       var MODE_KEY = 'tracescope.mode'
       var _savedMode = localStorage.getItem(MODE_KEY)
       var _mode = useState(
-        _savedMode === 'ui' ? _savedMode : 'functional',
+        _savedMode === 'ui' || _savedMode === 'crash' ? _savedMode : 'functional',
       )
       var mode = _mode[0]
       var setMode = _mode[1]
@@ -3753,6 +3754,65 @@
         [yxEndpoint, yxToken, yxOrg, yxSpace, wiCats],
       )
 
+      var submitCrashDefect = useCallback(
+        function (crashReport, defaultSubject) {
+          if (!crashReport) return
+          if (!trackerReady) {
+            setConfirmDlg({
+              title: t('先配置协作平台？'),
+              message:
+                t('尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。'),
+              confirmLabel: t('打开配置'),
+              danger: false,
+              onConfirm: function () {
+                setSettingsOpen(true)
+              },
+            })
+            return
+          }
+          setConfirmDlg({
+            title: t('提交缺陷'),
+            message: t('将把崩溃分析结果提交到已配置的协作平台（') + trackerProvider + t('）。可修改下方标题后再提交。'),
+            inputLabel: t('缺陷标题'),
+            inputValue: String(defaultSubject || '').trim(),
+            confirmLabel: t('提交'),
+            danger: false,
+            onConfirm: function (subject) {
+              if (!beginBusy(t('正在提交失败反馈到协作平台…'))) return
+              setError('')
+              apiPost('/tracescope/v1/tracker-submit', {
+                repoPath: repoPath.trim(),
+                subject: String(subject || '').trim(),
+                feedbackKind: 'crash',
+                prebuiltDescription: crashReport.defectBody,
+                crashMeta: {
+                  incident: crashReport.incident,
+                  matchedFiles: crashReport.matchedFiles || [],
+                  summary: crashReport.summary || '',
+                  fixHints: crashReport.fixHints || [],
+                },
+              })
+                .then(function (data) {
+                  var tip =
+                    t('已提交到 ') +
+                    (data.provider || trackerProvider) +
+                    (data.id ? '（ID ' + data.id + '）' : '')
+                  if (data.url) tip += t(' 链接：') + data.url
+                  setChatHint(tip)
+                })
+                .catch(function (err) {
+                  if (isAbortError(err)) return
+                  setError(err.message || String(err))
+                })
+                .finally(function () {
+                  endBusy()
+                })
+            },
+          })
+        },
+        [repoPath, trackerProvider, trackerReady],
+      )
+
       var submitTracker = useCallback(
         function () {
           if (!report) return
@@ -4443,6 +4503,18 @@
                   }),
                 ],
               }),
+              jsx('button', {
+                type: 'button',
+                style:
+                  mode === 'crash'
+                    ? Object.assign({}, styles.primary, { flex: 1 })
+                    : Object.assign({}, styles.secondary, { flex: 1 }),
+                disabled: busy,
+                onClick: function () {
+                  switchMode('crash')
+                },
+                children: t('crash.mode'),
+              }),
             ],
           }),
           jsxs('section', {
@@ -4546,7 +4618,9 @@
                       jsxs('label', {
                         style: styles.label,
                         children: [
-                          mode === 'ui' ? t('代码文件夹路径 / 远端代码库地址') : t('本地文件夹路径 / 远端仓库地址'),
+                          mode === 'ui' || mode === 'crash'
+                            ? t('代码文件夹路径 / 远端代码库地址')
+                            : t('本地文件夹路径 / 远端仓库地址'),
                           jsxs('div', {
                             style: Object.assign({}, styles.row, { alignItems: 'stretch' }),
                             children: [
@@ -4555,7 +4629,7 @@
                                 value: repoPath,
                                 disabled: busy,
                                 placeholder:
-                                  mode === 'ui'
+                                  mode === 'ui' || mode === 'crash'
                                     ? t('普通代码文件夹即可（无需 git），或 https://…')
                                     : t('本地项目文件夹，或 https://github.com/org/repo.git'),
                                 onChange: function (e) {
@@ -4577,8 +4651,10 @@
                           jsx('span', {
                             style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                             children:
-                              mode === 'ui'
-                                ? t('UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。')
+                              mode === 'ui' || mode === 'crash'
+                                ? mode === 'crash'
+                                  ? t('崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。')
+                                  : t('UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。')
                                 : t('支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。'),
                           }),
                         ],
@@ -6329,6 +6405,18 @@
                     danger: false,
                     onConfirm: opts.onConfirm,
                   })
+                },
+              })
+            : null,
+          mode === 'crash'
+            ? jsx(CrashBoard, {
+                repoPath: repoPath.trim(),
+                trackerReady: trackerReady,
+                onSendToChat: fillComposerDraft,
+                onSubmitDefect: submitCrashDefect,
+                apiPost: apiPost,
+                onOpenTrackerSettings: function () {
+                  setSettingsOpen(true)
                 },
               })
             : null,
