@@ -17,12 +17,13 @@ import {
   type TrackerConfig,
   type TrackerProvider,
 } from '@rebornace/tracescope-core'
+import { I18nError } from '../i18n/messages.js'
 
 export function registerTrackerRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/tracker-config',
     method: 'GET',
-    run: async () => {
+    run: async (_body, _ctx) => {
       const config = await loadTrackerConfig()
       return { config: publicTrackerConfig(config) }
     },
@@ -31,7 +32,7 @@ export function registerTrackerRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/tracker-config-save',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const provider = String(body.provider ?? 'none') as TrackerProvider
       if (provider === 'none') {
         await saveTrackerConfig({ provider: 'none' })
@@ -120,7 +121,7 @@ export function registerTrackerRoutes(ctx: Context) {
           next.webhook.headers = { Authorization: w.authHeader.trim() }
         }
       } else {
-        throw new Error('不支持的协作平台')
+        throw new I18nError('ERR_TRACKER_UNSUPPORTED', lang)
       }
 
       await saveTrackerConfig(next)
@@ -142,15 +143,15 @@ export function registerTrackerRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/tracker-submit',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const config = await loadTrackerConfig()
       if (!isTrackerConfigReady(config)) {
-        throw new Error('请先在「仓库配置 → 协作平台」中选择平台并保存完整配置')
+        throw new I18nError('ERR_TRACKER_NOT_CONFIGURED', lang)
       }
       const report = body.report as ImpactReport | undefined
-      if (!report) throw new Error('缺少 report')
+      if (!report) throw new I18nError('ERR_MISSING_REPORT', lang)
       const failed = collectFailedItems(report)
-      if (!failed.length) throw new Error('当前没有标记为失败的条目')
+      if (!failed.length) throw new I18nError('ERR_NO_FAILED_ITEMS', lang)
       const repoPath = String(body.repoPath ?? report.repoPath ?? '')
       const baseCommit = String(body.baseCommit ?? report.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? report.headCommit ?? '')
@@ -162,7 +163,9 @@ export function registerTrackerRoutes(ctx: Context) {
         subject: typeof body.subject === 'string' ? body.subject : undefined,
         attachments: report.attachments,
       })
-      if (!result.ok) throw new Error(result.error || '提交缺陷失败')
+      if (!result.ok) {
+        throw new I18nError('ERR_SUBMIT_DEFECT_FAILED', lang)
+      }
       return {
         ok: true,
         provider: result.provider,

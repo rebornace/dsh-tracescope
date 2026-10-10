@@ -5,6 +5,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { startVisualReview } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerStartVisualReviewTool(ctx: Context) {
   ctx.tools?.register(
@@ -48,7 +50,7 @@ export function registerStartVisualReviewTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已创建 UI 走查任务')
+          return toolText(v.summary || ui('TOOL_VISUAL_CREATED', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

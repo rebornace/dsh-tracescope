@@ -239,6 +239,24 @@ describe('chat publish helpers', () => {
     expect(prompt).toContain('wi-1')
   })
 
+  it('builds English starter prompt when lang=en', async () => {
+    const { buildChatAnalysisPrompt } = await import('../src/chat-prompt.js')
+    const prompt = buildChatAnalysisPrompt({
+      jobId: 'job-en',
+      repoPath: '/tmp/app',
+      baseCommit: 'aaa',
+      headCommit: 'bbb',
+      lang: 'en',
+      relatedWorkItems: [
+        { id: 'wi-1', subject: 'Login redesign', category: 'Req', description: 'SSO' },
+      ],
+    })
+    expect(prompt).toContain('Job ID:')
+    expect(prompt).toContain('Related work items')
+    expect(prompt).toContain('Write-back tool: tracescope_publish_handtest')
+    expect(prompt).not.toContain('任务 ID')
+  })
+
   it('builds a page-level visual chat prompt with its diffs', async () => {
     const { buildVisualChatPrompt } = await import('../src/chat-prompt.js')
     const prompt = buildVisualChatPrompt({
@@ -262,6 +280,28 @@ describe('chat publish helpers', () => {
     expect(prompt).toContain('300')
     expect(prompt).toContain('280')
     expect(prompt).toContain('[高]')
+  })
+
+  it('builds English visual chat prompt when lang=en', async () => {
+    const { buildVisualChatPrompt } = await import('../src/chat-prompt.js')
+    const prompt = buildVisualChatPrompt({
+      designName: 'Login',
+      codeRelativePath: 'res/layout/login.xml',
+      lang: 'en',
+      diffs: [
+        {
+          nodeName: 'Phone field',
+          property: 'width',
+          severity: 'high',
+          expected: 300,
+          actual: 280,
+        },
+      ],
+    })
+    expect(prompt).toContain('Please help review')
+    expect(prompt).toContain('[high]')
+    expect(prompt).toContain('expected 300 / actual 280')
+    expect(prompt).not.toContain('[高]')
   })
 
   it('builds a generic-stack code visual prompt without Android XML wording', async () => {

@@ -85,6 +85,8 @@ import {
   type DesignWireNode,
 } from '../design-enrichment/index.js'
 import type { Context } from '../dsh-shims.js'
+import type { Lang } from '../i18n/lang.js'
+import { ui, langFromArgs, pickLang } from '../i18n/ui.js'
 import { completeWithHostLlm, extractJsonBlock } from './llm-helper.js'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -355,6 +357,7 @@ export interface CompareOutcome {
 export async function compareDesignAgainstPage(
   body: Record<string, unknown>,
 ): Promise<CompareOutcome> {
+  const lang = langFromArgs(body)
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const adapterId = String(body.adapterId ?? '')
   const relativePath = String(body.relativePath ?? '')
@@ -400,14 +403,14 @@ export async function compareDesignAgainstPage(
       designImageUrl,
       frameBox,
       designTree: serializeNode(design.root),
-      reason: `${page.kindLabel} 已完成启发式静态对比；属性级几何对比可后续加深。`,
+      reason: ui('HEURISTIC_DONE', lang, { kind: page.kindLabel }),
     }
   }
 
   // Build the code-side normalized tree and run the deterministic diff once.
   const adapter = getPlatformAdapter(adapterId)
   if (!adapter?.toDesignDoc) {
-    return { page: pageMeta, precise: false, reason: '该页面缺少可用的对比适配器。' }
+    return { page: pageMeta, precise: false, reason: ui('NO_ADAPTER', lang) }
   }
   const codeDoc = await adapter.toDesignDoc(page)
   const result = compareVisualDocs(design, codeDoc)
@@ -663,7 +666,10 @@ async function enrichMatchAllWithRematch(
             kindLabel: p.kindLabel || knownFile?.kindLabel || adapterId,
             precise: knownFile?.precise ?? false,
             score,
-            reasons: p.reason ? [`AI：${p.reason}`] : (['AI 推荐'] as string[]),
+            // Persist Chinese canonical reasons; sidebar remaps via locale dicts when needed.
+            reasons: p.reason
+              ? [ui('AI_PREFIX', 'zh', { reason: p.reason })]
+              : ([ui('AI_RECOMMEND', 'zh')] as string[]),
           }
         })
         .filter((c): c is NonNullable<typeof c> => !!c)
@@ -807,8 +813,8 @@ export async function matchAllDesignPages(
         canvasId: 'focused',
         canvasName:
           pageInput.length > 1
-            ? design.root.name || nodeName || '当前链接节点'
-            : '当前链接节点',
+            ? design.root.name || nodeName || ui('CURRENT_LINK_NODE', langFromArgs(body))
+            : ui('CURRENT_LINK_NODE', langFromArgs(body)),
         aspect,
         mapping: {
           designId: m.designId,
@@ -829,7 +835,7 @@ export async function matchAllDesignPages(
       canvases: [
         {
           id: 'focused',
-          name: design.root.name || nodeName || '当前链接节点',
+          name: design.root.name || nodeName || ui('CURRENT_LINK_NODE', langFromArgs(body)),
           componentLibrary: false,
         },
       ],
@@ -982,8 +988,8 @@ async function matchAllLanhuPages(
         canvasId: 'focused',
         canvasName:
           pageInput.length > 1
-            ? design.root.name || nodeName || '当前蓝湖设计稿'
-            : '当前蓝湖设计稿',
+            ? design.root.name || nodeName || ui('CURRENT_LANHU_DESIGN', langFromArgs(body))
+            : ui('CURRENT_LANHU_DESIGN', langFromArgs(body)),
         aspect,
         mapping: {
           designId: m.designId,
@@ -1004,7 +1010,7 @@ async function matchAllLanhuPages(
       canvases: [
         {
           id: 'focused',
-          name: design.root.name || nodeName || '当前蓝湖设计稿',
+          name: design.root.name || nodeName || ui('CURRENT_LANHU_DESIGN', langFromArgs(body)),
           componentLibrary: false,
         },
       ],
@@ -1087,7 +1093,7 @@ async function matchAllLanhuPages(
     const aspect = box && box.height > 0 ? box.width / box.height : 390 / 844
     return {
       canvasId: parts.projectId,
-      canvasName: '蓝湖项目',
+      canvasName: ui('LANHU_PROJECT', langFromArgs(body)),
       aspect,
       mapping: {
         designId: m.designId,
@@ -1106,7 +1112,9 @@ async function matchAllLanhuPages(
       relativePath: p.relativePath,
       precise: p.precise,
     })),
-    canvases: [{ id: parts.projectId, name: '蓝湖项目', componentLibrary: false }],
+    canvases: [
+      { id: parts.projectId, name: ui('LANHU_PROJECT', langFromArgs(body)), componentLibrary: false },
+    ],
     pages,
     totals,
     fromCache: false,
@@ -1220,6 +1228,7 @@ function collectDesignNodeBoxes(
  */
 function collectNoteMasks(
   design: DesignDoc,
+  lang: Lang = 'zh',
 ): NonNullable<DesignStaticCompareResult['designNoteMasks']> {
   const masks: NonNullable<DesignStaticCompareResult['designNoteMasks']> = []
   const visit = (node: DesignNode, inheritedBg: string | null): void => {
@@ -1230,7 +1239,7 @@ function collectNoteMasks(
     const bg = ownBg ?? inheritedBg
     if (isDesignerAnnotationNode(node)) {
       masks.push({
-        text: node.text || node.name || '备注',
+        text: node.text || node.name || ui('NOTE_LABEL', lang),
         nodeId: node.id,
         x: Number(node.box.x ?? 0),
         y: Number(node.box.y ?? 0),
@@ -1259,6 +1268,7 @@ export async function compareDesignStatic(
   hostCtx: Context,
 ): Promise<DesignStaticCompareResult> {
   void hostCtx
+  const lang = langFromArgs(body)
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const adapterId = String(body.adapterId ?? '').trim()
   const relativePath = String(body.relativePath ?? '').trim()
@@ -1329,7 +1339,7 @@ export async function compareDesignStatic(
   }
 
   const design = await loadDesign(body)
-  const designNoteMasks = collectNoteMasks(design)
+  const designNoteMasks = collectNoteMasks(design, lang)
   pruneDesignerAnnotations(design)
 
   const db = design.root.box
@@ -1413,13 +1423,25 @@ export async function compareDesignStatic(
     kindLabel = adapter.kindLabel
     const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
     const seedNote =
-      seededTiles > 0 ? `；列表占位文案已静态填入 ${seededTiles} 处设计稿文案` : ''
+      seededTiles > 0 ? ui('NOTE_SEEDED', lang, { n: seededTiles }) : ''
     if (inlinedModules > 0) {
-      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）；已内联 ${inlinedModules} 个关联模块参与对比${relatedCount > inlinedModules ? `，另有 ${relatedCount - inlinedModules} 个关联文件供 AI 阅读` : ''}${seedNote}。`
+      aiInferenceNote = ui('NOTE_INLINE_MODULES', lang, {
+        kind: kindLabel,
+        inlined: inlinedModules,
+        extra:
+          relatedCount > inlinedModules
+            ? ui('NOTE_INLINE_EXTRA', lang, { n: relatedCount - inlinedModules })
+            : '',
+        seed: seedNote,
+      })
     } else if (relatedCount > 0) {
-      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）；已识别 ${relatedCount} 个关联文件供 AI 阅读${seedNote}。`
+      aiInferenceNote = ui('NOTE_RELATED_FILES', lang, {
+        kind: kindLabel,
+        n: relatedCount,
+        seed: seedNote,
+      })
     } else {
-      aiInferenceNote = `${kindLabel} 属性级静态对比（无运行时渲染）${seedNote}。`
+      aiInferenceNote = ui('NOTE_STATIC_ONLY', lang, { kind: kindLabel, seed: seedNote })
     }
   } else {
     let page: CodePage = {
@@ -1452,8 +1474,8 @@ export async function compareDesignStatic(
     const relatedCount = Math.max(0, (related?.files.length ?? 1) - 1)
     aiInferenceNote =
       relatedCount > 0
-        ? `${kindLabel} 已做启发式静态对比（文案/控件规模，含 ${relatedCount} 个关联文件）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
-        : `${kindLabel} 已做启发式静态对比（文案/控件规模）；属性级几何对比尚未覆盖的部分可用「AI 协助分析」。`
+        ? ui('NOTE_HEURISTIC_WITH_RELATED', lang, { kind: kindLabel, n: relatedCount })
+        : ui('NOTE_HEURISTIC', lang, { kind: kindLabel })
   }
 
   if (!related) {
@@ -1470,6 +1492,7 @@ export async function compareDesignStatic(
     codeRelativePath: relativePath,
     platformLabel: kindLabel,
     viewport: { width: viewportWidth, height: viewportHeight },
+    lang,
     diffs: (result.diffs as unknown as VisualChatDiff[]).map((d) => ({
       nodeName: String(d.nodeName ?? ''),
       property: String(d.property ?? ''),
@@ -1762,17 +1785,26 @@ async function enrichDesignImageFills(
 async function summarizeGitContext(
   checkoutPath: string,
   relativePath: string,
+  lang: Lang = 'zh',
 ): Promise<string> {
   try {
     const lines: string[] = []
     const branch = await gitExec(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: checkoutPath })
-    lines.push(`当前分支：${branch.stdout.trim()}`)
+    lines.push(ui('BRANCH_CURRENT', lang, { branch: branch.stdout.trim() }))
     const head = await gitExec(['rev-parse', 'HEAD'], { cwd: checkoutPath })
     lines.push(`HEAD：${head.stdout.trim()}`)
     try {
       const changed = await gitExec(['status', '--porcelain'], { cwd: checkoutPath })
       const list = changed.stdout.trim()
-      lines.push(list ? `工作区改动（前若干）：\n${list.split('\n').slice(0, 20).join('\n')}` : '工作区干净，无未提交改动。')
+      lines.push(
+        list
+          ? pickLang(
+              lang,
+              `工作区改动（前若干）：\n${list.split('\n').slice(0, 20).join('\n')}`,
+              `Working tree changes (first rows):\n${list.split('\n').slice(0, 20).join('\n')}`,
+            )
+          : ui('WORKTREE_CLEAN', lang),
+      )
     } catch {
       /* status optional */
     }
@@ -1781,7 +1813,7 @@ async function summarizeGitContext(
         ['log', '-1', '--pretty=%h %ad %s', '--date=short', '--', relativePath],
         { cwd: checkoutPath },
       )
-      if (last.stdout.trim()) lines.push(`该入口文件最近一次提交：${last.stdout.trim()}`)
+      if (last.stdout.trim()) lines.push(ui('LAST_COMMIT', lang, { info: last.stdout.trim() }))
     } catch {
       /* log optional */
     }
@@ -1816,6 +1848,7 @@ export async function buildCodeVisualAnalysis(
   designRasterInPanel?: boolean
   jobId: string
 }> {
+  const lang = langFromArgs(body)
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const adapterId = String(body.adapterId ?? '').trim()
   const relativePath = String(body.relativePath ?? '').trim()
@@ -1871,7 +1904,7 @@ export async function buildCodeVisualAnalysis(
     if (page) {
       const cmp = await compareDesignWithPage(design, page)
       if (cmp.result?.diffs) {
-        staticDiffSummary = formatStaticDiffSummary(cmp.result.diffs, { max: 40 })
+        staticDiffSummary = formatStaticDiffSummary(cmp.result.diffs, { max: 40, lang })
       }
     }
   } catch {
@@ -1906,7 +1939,7 @@ export async function buildCodeVisualAnalysis(
     }
   }
 
-  const gitSummary = await summarizeGitContext(ctx.checkoutPath, relativePath)
+  const gitSummary = await summarizeGitContext(ctx.checkoutPath, relativePath, langFromArgs(body))
 
   // Create a visual review job so the model can write findings back and pull
   // design structure on demand via tracescope_get_design_snapshot(jobId).
@@ -1934,6 +1967,7 @@ export async function buildCodeVisualAnalysis(
     manifestMode,
     gitSummary: gitSummary || undefined,
     jobId: visualJob.id,
+    lang,
   })
   return {
     prompt,
@@ -1983,6 +2017,7 @@ export interface AiRematchCandidate {
 export async function buildPageRematchAnalysis(
   body: Record<string, unknown>,
 ): Promise<{ prompt: string; candidateCount: number; jobId: string }> {
+  const lang = langFromArgs(body)
   const repoInput = String(body.repoPath ?? body.repo ?? '').trim()
   const designId = String(body.designId ?? '').trim()
   if (!repoInput || !designId) throw new Error('缺少 repoPath / designId')
@@ -2036,6 +2071,7 @@ export async function buildPageRematchAnalysis(
     sampleTexts,
     currentSelection,
     jobId: rematchJob.id,
+    lang,
     candidates: pool.map((m) => ({
       adapterId: m.page.adapterId,
       kindLabel: m.page.kindLabel,

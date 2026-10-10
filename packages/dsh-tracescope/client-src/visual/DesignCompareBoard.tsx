@@ -3,6 +3,9 @@ import type { CSSProperties } from 'react'
 import type { DiffBox } from './DesignLayerScreen.js'
 import type { PageFindings } from './panel-types.js'
 import { resolveFindingNodeId } from './resolve-finding-node.js'
+import { getT, localeHeaders, withLocale } from '../locales/i18n.js'
+import { useLocaleT } from '../locales/use-locale-t.js'
+import { diffPropLabel, diffSeverityLabel } from './diff-i18n.js'
 import {
   copyTextToClipboard,
   defaultVisualDefectSubject,
@@ -67,27 +70,26 @@ interface DesignTreeNode {
   children: DesignTreeNode[]
 }
 
-function relatedRoleLabel(role: string): string {
+function relatedRoleLabel(role: string, tr: ReturnType<typeof getT>): string {
   switch (role) {
     case 'sibling':
-      return '同目录'
+      return tr('diff.board.related.sibling')
     case 'import':
-      return '引用'
+      return tr('diff.board.related.import')
     case 'include':
       return 'include'
     case 'style':
-      return '样式'
+      return tr('diff.board.related.style')
     case 'resource':
-      return '资源'
+      return tr('diff.board.related.resource')
     case 'entry':
-      return '入口'
+      return tr('diff.board.related.entry')
     default:
-      return role || '关联'
+      return role || tr('diff.board.related.default')
   }
 }
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 0 } as const
-const SEVERITY_LABEL = { high: '高', medium: '中', low: '低' } as const
 const SEVERITY_TEXT: Record<'high' | 'medium' | 'low', string> = {
   high: '#d92d20',
   medium: '#dc8a05',
@@ -99,108 +101,6 @@ function formatCompareSavedAt(iso: string): string {
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-const PROP_LABEL: Record<string, string> = {
-  width: '宽度',
-  height: '高度',
-  marginTop: '上间距',
-  marginBottom: '下间距',
-  marginLeft: '左间距',
-  marginRight: '右间距',
-  paddingTop: '上内边距',
-  paddingBottom: '下内边距',
-  paddingLeft: '左内边距',
-  paddingRight: '右内边距',
-  backgroundColor: '背景色',
-  color: '文字颜色',
-  fontSize: '字号',
-  cornerRadius: '圆角',
-  cornerRadii: '四角圆角',
-  borderWidth: '边框粗细',
-  borderColor: '边框颜色',
-  borderTopWidth: '上边框宽',
-  borderRightWidth: '右边框宽',
-  borderBottomWidth: '下边框宽',
-  borderLeftWidth: '左边框宽',
-  borderTopColor: '上边框色',
-  borderRightColor: '右边框色',
-  borderBottomColor: '下边框色',
-  borderLeftColor: '左边框色',
-  fontWeight: '字重',
-  opacity: '透明度',
-  elevation: '阴影/海拔',
-  shadow: '外阴影',
-  innerShadow: '内阴影',
-  insetShadow: '内阴影参数',
-  shadows: '阴影叠层',
-  blur: '模糊',
-  blendMode: '混合模式',
-  rotation: '旋转',
-  scaleX: '缩放X',
-  scaleY: '缩放Y',
-  skewX: '倾斜X',
-  skewY: '倾斜Y',
-  zIndex: '层叠顺序',
-  fills: '填充叠层',
-  strokeAlign: '描边对齐',
-  textAlign: '对齐',
-  textDecoration: '文字装饰',
-  textTransform: '文字大小写',
-  overflow: '溢出裁剪',
-  clipPath: '裁剪路径',
-  aspectRatio: '宽高比',
-  maxLines: '最大行数',
-  textOverflow: '文本溢出',
-  minWidth: '最小宽度',
-  maxWidth: '最大宽度',
-  minHeight: '最小高度',
-  maxHeight: '最大高度',
-  textAdvanceWidth: '文本固有宽',
-  textBlockHeight: '文本块高',
-  flexDirection: '主轴方向',
-  alignItems: '交叉轴对齐',
-  justifyContent: '主轴分布',
-  fontStyle: '字体样式',
-  textAlignVertical: '垂直对齐',
-  borderStyle: '描边样式',
-  strokeDashArray: '虚线间隔',
-  strokeCap: '线帽',
-  strokeJoin: '线连接',
-  paragraphSpacing: '段间距',
-  sizingHorizontal: '横向尺寸模式',
-  sizingVertical: '纵向尺寸模式',
-  backdropBlur: '背景模糊',
-  position: '定位',
-  rowGap: '行间距',
-  columnGap: '列间距',
-  flexWrap: '换行',
-  alignContent: '多行对齐',
-  order: '排列顺序',
-  gridTemplate: '网格轨道',
-  alignSelf: '自身对齐',
-  flexGrow: '弹性放大',
-  flexShrink: '弹性缩小',
-  transformOrigin: '变换原点',
-  visibility: '可见性',
-  display: '显示',
-  whiteSpace: '空白处理',
-  wordBreak: '断词',
-  wordSpacing: '词间距',
-  textIndent: '首行缩进',
-  perspective: '透视',
-  rotateX: 'X轴旋转',
-  rotateY: 'Y轴旋转',
-  textShadow: '文字阴影',
-  direction: '书写方向',
-  writingMode: '书写模式',
-  filter: '滤镜',
-  outline: '轮廓',
-  imageFit: '图片适配',
-  imagePosition: '图片锚点',
-  gradient: '渐变',
-  text: '文案',
-  controlCount: '控件规模',
 }
 
 export interface SendToChatResult {
@@ -272,6 +172,7 @@ export function DesignCompareBoard({
   onOpenTrackerSettings?: () => void
   onActionHint?: (message: string) => void
 }) {
+  const t = useLocaleT()
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
   const [chatNote, setChatNote] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ai' | 'rule'>('all')
@@ -282,7 +183,7 @@ export function DesignCompareBoard({
   const [hiddenLayerIds, setHiddenLayerIds] = useState<string[]>(() => loadHiddenLayers(storeKey))
   const [pickHint, setPickHint] = useState('')
   const userEraseRef = useRef(false)
-  const eraseDoneHintRef = useRef('已删除图层（可点「恢复已删除图层」撤销）。')
+  const eraseDoneHintRef = useRef(t('diff.board.eraseDone'))
 
   useEffect(() => {
     setOverrides(loadDiffOverrides(storeKey))
@@ -463,7 +364,7 @@ export function DesignCompareBoard({
         key: 'rule-' + idx,
         source: 'rule',
         severity: d.severity,
-        headline: `${PROP_LABEL[d.property] ?? d.property} · ${d.nodeName}`,
+        headline: `${diffPropLabel(t, d.property)} · ${d.nodeName}`,
         expected: d.expected === undefined ? undefined : String(d.expected),
         actual: d.actual === undefined ? undefined : String(d.actual),
         designId: String(d.designNodeId ?? ''),
@@ -539,14 +440,16 @@ export function DesignCompareBoard({
       ? visibleItems.filter((i) => selectedKeys.has(i.key))
       : visibleItems
     if (!targets.length) {
-      hint(selectedKeys.size ? '当前选中项无可复制差异' : '当前没有可复制的差异')
+      hint(
+        selectedKeys.size ? t('diff.board.hint.noCopySelection') : t('diff.board.hint.noCopy'),
+      )
       return
     }
     try {
-      await copyTextToClipboard(formatVisualDiffCopyText(targets, actionMeta))
-      hint(`已复制 ${targets.length} 条差异`)
+      await copyTextToClipboard(formatVisualDiffCopyText(targets, actionMeta, t))
+      hint(t('diff.board.hint.copied', { count: targets.length }))
     } catch (err) {
-      hint(`复制失败：${(err as Error).message}`)
+      hint(t('diff.board.hint.copyFailed', { message: (err as Error).message }))
     }
   }
 
@@ -555,13 +458,15 @@ export function DesignCompareBoard({
       ? visibleItems.filter((i) => selectedKeys.has(i.key))
       : visibleItems
     if (!targets.length) {
-      hint(selectedKeys.size ? '当前选中项无可导出差异' : '当前没有可导出的差异')
+      hint(
+        selectedKeys.size ? t('diff.board.hint.noExportSelection') : t('diff.board.hint.noExport'),
+      )
       return
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const filename = `tracescope-ui-diff-${stamp}.md`
-    downloadTextFile(filename, formatVisualDiffExportMarkdown(targets, actionMeta))
-    hint(`已导出：${filename}`)
+    downloadTextFile(filename, formatVisualDiffExportMarkdown(targets, actionMeta, t))
+    hint(t('diff.board.hint.exported', { filename }))
   }
 
   const submitDiffs = () => {
@@ -569,61 +474,69 @@ export function DesignCompareBoard({
       ? visibleItems.filter((i) => selectedKeys.has(i.key))
       : visibleItems
     if (!targets.length) {
-      hint(selectedKeys.size ? '当前选中项无可提交差异' : '当前没有可提交的差异')
+      hint(
+        selectedKeys.size ? t('diff.board.hint.noSubmitSelection') : t('diff.board.hint.noSubmit'),
+      )
       return
     }
     if (!trackerReady) {
       if (typeof openConfirmDialog === 'function') {
         openConfirmDialog({
-          title: '先配置协作平台？',
-          message:
-            '尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。',
-          confirmLabel: '打开配置',
+          title: t('diff.board.trackerConfig.title'),
+          message: t('diff.board.trackerConfig.message'),
+          confirmLabel: t('diff.board.trackerConfig.confirm'),
           onConfirm: () => {
             onOpenTrackerSettings?.()
           },
         })
       } else {
-        hint('请先在「仓库配置 → 协作平台」完成配置')
+        hint(t('diff.board.hint.finishTrackerConfig'))
       }
       return
     }
     if (typeof openConfirmDialog !== 'function') {
-      hint('当前宿主不支持弹窗输入，无法提交缺陷')
+      hint(t('diff.board.hint.noHostDialog'))
       return
     }
     openConfirmDialog({
-      title: '提交缺陷？',
-      message: `将把 ${targets.length} 条 UI 差异提交到协作平台（${trackerProvider || '已配置'}）。可修改下方标题后再提交。`,
-      inputLabel: '缺陷标题',
-      inputValue: defaultVisualDefectSubject(targets, actionMeta),
-      confirmLabel: '提交',
+      title: t('diff.board.submit.title'),
+      message: t('diff.board.submit.message', {
+        count: targets.length,
+        provider: trackerProvider || t('diff.board.trackerConfig.confirm'),
+      }),
+      inputLabel: t('diff.board.submit.inputLabel'),
+      inputValue: defaultVisualDefectSubject(targets, actionMeta, t),
+      confirmLabel: t('diff.board.submit.confirm'),
       onConfirm: (subject) => {
-        const report = unifiedItemsToFailReport(targets, actionMeta)
+        const report = unifiedItemsToFailReport(targets, actionMeta, t)
         void fetch('/tracescope/v1/tracker-submit', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            repoPath: actionMeta.repoPath,
-            baseCommit: report.baseCommit,
-            headCommit: report.headCommit,
-            report,
-            subject: String(subject || '').trim(),
-          }),
+          headers: localeHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify(
+            withLocale({
+              repoPath: actionMeta.repoPath,
+              baseCommit: report.baseCommit,
+              headCommit: report.headCommit,
+              report,
+              subject: String(subject || '').trim(),
+            }),
+          ),
         })
           .then(async (r) => {
             const text = await r.text()
             const data = text ? JSON.parse(text) : {}
-            if (!r.ok) throw new Error(data.error || '提交失败')
-            let tip = `已提交到 ${data.provider || trackerProvider || '协作平台'}`
+            if (!r.ok) throw new Error(data.error || t('diff.board.submit.failed'))
+            let tip = t('diff.board.submit.success', {
+              provider: data.provider || trackerProvider || 'tracker',
+            })
             if (data.id) tip += `（ID ${data.id}）`
-            tip += `，共 ${data.count || targets.length} 条。`
-            if (data.url) tip += ` 链接：${data.url}`
+            tip += t('diff.board.submit.successCount', { count: data.count || targets.length })
+            if (data.url) tip += t('diff.board.submit.successLink', { url: data.url })
             hint(tip)
           })
           .catch((err) => {
-            hint(`提交失败：${(err as Error).message}`)
+            hint(t('diff.board.submit.failMessage', { message: (err as Error).message }))
           })
       },
     })
@@ -736,7 +649,7 @@ export function DesignCompareBoard({
     const willSelect = !selectedKeys.has(item.key)
     if (willSelect) {
       if (item.designId && !resolveDesignBox(item.designId)) {
-        setPickHint('该差异缺少可定位的设计节点坐标，无法在对照图上高亮。')
+        setPickHint(t('diff.board.hint.noHotspot'))
       } else {
         setPickHint('')
         requestAnimationFrame(() => {
@@ -766,8 +679,8 @@ export function DesignCompareBoard({
   function hideLayer(nodeId: string) {
     if (!nodeId) return
     userEraseRef.current = true
-    eraseDoneHintRef.current = '已删除图层（可点「恢复已删除图层」撤销）。'
-    setPickHint('正在清理图层…')
+    eraseDoneHintRef.current = t('diff.board.eraseDone')
+    setPickHint(t('diff.board.erasing'))
     setHiddenLayerIds((prev) => (prev.includes(nodeId) ? prev : [...prev, nodeId]))
   }
 
@@ -789,23 +702,23 @@ export function DesignCompareBoard({
 
   function sendToChat() {
     if (typeof onAiAnalyze !== 'function') {
-      setChatNote('当前客户端不支持 AI 协助分析，请手动把布局源码与设计稿链接发给会话。')
+      setChatNote(t('diff.board.chatUnsupported'))
       return
     }
     onAiAnalyze({
       adapterId: data.page.adapterId,
       relativePath: data.page.relativePath,
     })
-    setChatNote('正在读取代码源码、把分析提示填入当前会话输入框…')
+    setChatNote(t('diff.board.chatFilling'))
   }
 
   const modeLabel =
     data.compareMode === 'heuristic'
-      ? '启发式静态'
+      ? t('diff.board.mode.heuristic')
       : data.compareMode === 'exact'
         ? data.enrichmentApplied
-          ? `属性级 · 深度增强（${data.enrichmentApplied}）`
-          : '属性级'
+          ? t('diff.board.mode.exactDeep', { name: data.enrichmentApplied })
+          : t('diff.board.mode.exact')
         : null
 
   return (
@@ -826,17 +739,17 @@ export function DesignCompareBoard({
             marginBottom: 8,
           }}
         >
-          <span>读取自缓存（{formatCompareSavedAt(data.savedAt)}），可直接查看；如需最新结果请重新生成。</span>
+          <span>{t('diff.board.cacheHint', { time: formatCompareSavedAt(data.savedAt) })}</span>
           {onRegenerate ? (
             <button type="button" style={COL.clearBtn} onClick={onRegenerate}>
-              重新生成
+              {t('diff.board.regenerate')}
             </button>
           ) : null}
         </div>
       ) : null}
 
       <div style={{ marginBottom: 6, fontSize: 12, color: '#5f584c' }}>
-        <strong>设计稿对照</strong>
+        <strong>{t('diff.board.title')}</strong>
         {modeLabel ? (
           <span
             style={{
@@ -859,7 +772,7 @@ export function DesignCompareBoard({
       {(data.relatedFiles?.length ?? 0) > 1 ? (
         <details style={{ marginBottom: 8, fontSize: 11, color: '#5f584c' }}>
           <summary style={{ cursor: 'pointer', userSelect: 'none' }}>
-            关联文件 {data.relatedFiles!.length - 1} 个（入口仍为上方单文件）
+            {t('diff.board.relatedFiles', { count: data.relatedFiles!.length - 1 })}
           </summary>
           <ul
             style={{
@@ -874,7 +787,7 @@ export function DesignCompareBoard({
               .filter((f) => f.role !== 'entry')
               .map((f) => (
                 <li key={f.relativePath} title={f.reason || f.role}>
-                  <span style={{ color: '#8a7f70' }}>[{relatedRoleLabel(f.role)}]</span>{' '}
+                  <span style={{ color: '#8a7f70' }}>[{relatedRoleLabel(f.role, t)}]</span>{' '}
                   {f.relativePath}
                 </li>
               ))}
@@ -882,19 +795,19 @@ export function DesignCompareBoard({
         </details>
       ) : null}
       <div style={{ fontSize: 11, color: '#8a7f70', marginBottom: 6 }}>
-        自动删除识别到的设计师备注；也可点击图上图层继续删除（从渲染图中擦除该区域像素，不是盖白块）。
+        {t('diff.board.eraseHint')}
         {hiddenLayerIds.length ? (
           <button
             type="button"
             style={{ ...COL.clearBtn, marginLeft: 8, padding: '1px 8px' }}
             onClick={() => {
               userEraseRef.current = true
-              eraseDoneHintRef.current = '已恢复图层。'
-              setPickHint('正在恢复图层…')
+              eraseDoneHintRef.current = t('diff.board.eraseRestored')
+              setPickHint(t('diff.board.restoring'))
               setHiddenLayerIds([])
             }}
           >
-            恢复已删除图层（{hiddenLayerIds.length}）
+            {t('diff.board.restoreLayers', { count: hiddenLayerIds.length })}
           </button>
         ) : null}
       </div>
@@ -915,12 +828,12 @@ export function DesignCompareBoard({
             onPick={(x, y) => {
               const id = findLayerAt(x, y)
               if (!id) {
-                setPickHint('未点中可删除图层，请点文字/标注区域。')
+                setPickHint(t('diff.board.missLayer'))
                 return
               }
               const box = pickBoxes.get(id)
               const label = box?.text || box?.name || id
-              if (window.confirm(`从对照图中删除图层「${label}」？\n（擦除该区域像素；可随时恢复）`)) {
+              if (window.confirm(t('diff.board.confirmErase', { label }))) {
                 hideLayer(id)
               }
             }}
@@ -962,26 +875,35 @@ export function DesignCompareBoard({
           }}
         >
           <strong style={{ fontSize: 12 }}>
-            差异清单（{visibleItems.length}
-            {selectedKeys.size ? `，已选 ${selectedKeys.size}` : ''}
-            ，点击多选 / 再点取消）
+            {t('diff.board.diffList', {
+              visible: visibleItems.length,
+              selection: selectedKeys.size
+                ? t('diff.board.diffListSelected', { count: selectedKeys.size })
+                : '',
+            })}
           </strong>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" style={COL.aiBtn} onClick={sendToChat}>
-              AI 协助分析
+              {t('diff.board.aiAnalyze')}
             </button>
             <button type="button" style={COL.clearBtn} onClick={() => void copyDiffs()}>
-              {selectedKeys.size ? `复制选中(${selectedKeys.size})` : '复制差异'}
+              {selectedKeys.size
+                ? t('diff.board.copySelected', { count: selectedKeys.size })
+                : t('diff.board.copyAll')}
             </button>
             <button type="button" style={COL.clearBtn} onClick={submitDiffs}>
-              {selectedKeys.size ? `提交选中(${selectedKeys.size})` : '提交缺陷'}
+              {selectedKeys.size
+                ? t('diff.board.submitSelected', { count: selectedKeys.size })
+                : t('diff.board.submitAll')}
             </button>
             <button type="button" style={COL.clearBtn} onClick={exportDiffs}>
-              {selectedKeys.size ? `导出选中(${selectedKeys.size})` : '导出报告'}
+              {selectedKeys.size
+                ? t('diff.board.exportSelected', { count: selectedKeys.size })
+                : t('diff.board.exportAll')}
             </button>
             {onRegenerate ? (
               <button type="button" style={COL.clearBtn} onClick={onRegenerate}>
-                重新生成
+                {t('diff.board.regenerate')}
               </button>
             ) : null}
             <button
@@ -989,9 +911,9 @@ export function DesignCompareBoard({
               style={COL.clearBtn}
               onClick={clearMarkers}
               disabled={!selectedKeys.size}
-              title="清除清单选中与对照图高亮"
+              title={t('diff.board.clearSelectionTitle')}
             >
-              清除选中
+              {t('diff.board.clearSelection')}
             </button>
           </div>
         </div>
@@ -1015,19 +937,17 @@ export function DesignCompareBoard({
                 onDelete={() => patchOverride(item.key, { deleted: true })}
                 onOpenEditor={(mode) => {
                   if (typeof openConfirmDialog !== 'function') {
-                    setChatNote(
-                      '当前宿主不支持弹窗输入。请更新插件后重试，或在 DeepSeek Harness 桌面端使用。',
-                    )
+                    setChatNote(t('diff.board.hostDialogUnsupported'))
                     return
                   }
                   if (mode === 'note') {
                     openConfirmDialog({
-                      title: '添加备注',
+                      title: t('diff.board.noteDialog.title'),
                       message: item.headline,
-                      inputLabel: '备注',
+                      inputLabel: t('diff.board.noteDialog.inputLabel'),
                       inputValue: item.note || '',
                       multiline: true,
-                      confirmLabel: '保存备注',
+                      confirmLabel: t('diff.board.noteDialog.confirm'),
                       onConfirm: (value) => {
                         patchOverride(item.key, { note: String(value ?? '').trim() })
                       },
@@ -1035,14 +955,18 @@ export function DesignCompareBoard({
                     return
                   }
                   openConfirmDialog({
-                    title: '编辑差异',
+                    title: t('diff.board.editDialog.title'),
                     message: item.headline,
                     fields: [
-                      { key: 'headline', label: '标题', value: item.headline },
-                      { key: 'expected', label: '设计稿期望', value: item.expected || '' },
-                      { key: 'actual', label: '实际值', value: item.actual || '' },
+                      { key: 'headline', label: t('diff.board.editDialog.headline'), value: item.headline },
+                      {
+                        key: 'expected',
+                        label: t('diff.board.editDialog.expected'),
+                        value: item.expected || '',
+                      },
+                      { key: 'actual', label: t('diff.board.editDialog.actual'), value: item.actual || '' },
                     ],
-                    confirmLabel: '保存',
+                    confirmLabel: t('diff.board.editDialog.confirm'),
                     onConfirm: (value) => {
                       const map =
                         value && typeof value === 'object' ? (value as Record<string, string>) : {}
@@ -1059,7 +983,7 @@ export function DesignCompareBoard({
           })}
           {visibleItems.length === 0 ? (
             <div style={{ fontSize: 12, color: '#8a7f70', padding: '6px 2px' }}>
-              当前筛选下没有差异项。
+              {t('diff.board.noDiffsInFilter')}
             </div>
           ) : null}
         </div>
@@ -1076,7 +1000,7 @@ export function DesignCompareBoard({
               }}
             >
               <strong style={{ fontSize: 12, color: '#8a7f70' }}>
-                已删除（误报）· {deletedItems.length}
+                {t('diff.board.deletedSection', { count: deletedItems.length })}
               </strong>
               <button
                 type="button"
@@ -1103,7 +1027,7 @@ export function DesignCompareBoard({
                   })
                 }}
               >
-                全部恢复
+                {t('diff.board.restoreAll')}
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1127,7 +1051,9 @@ export function DesignCompareBoard({
                   <div style={{ minWidth: 0 }}>
                     <span style={{ textDecoration: 'line-through' }}>{item.headline}</span>
                     {item.note ? (
-                      <div style={{ fontSize: 11, marginTop: 2 }}>备注：{item.note}</div>
+                      <div style={{ fontSize: 11, marginTop: 2 }}>
+                        {t('diff.board.notePrefix', { value: item.note })}
+                      </div>
                     ) : null}
                   </div>
                   <button
@@ -1148,7 +1074,7 @@ export function DesignCompareBoard({
                       })
                     }}
                   >
-                    恢复
+                    {t('diff.board.restoreOne')}
                   </button>
                 </div>
               ))}
@@ -1188,27 +1114,29 @@ interface NoteMask {
 }
 
 function propertyCovered(property: string, aiText: string): boolean {
+  const tr = getT()
+  const lbl = (prop: string) => diffPropLabel(tr, prop).toLowerCase()
   const tokens: Record<string, string[]> = {
-    width: ['宽度', '宽', 'width'],
-    height: ['高度', '高', 'height'],
-    marginTop: ['上间距', '上边距', '顶部间距', 'margin-top'],
-    marginBottom: ['下间距', '下边距', '底部间距', 'margin-bottom'],
-    marginLeft: ['左间距', '左边距', 'margin-left'],
-    marginRight: ['右间距', '右边距', 'margin-right'],
-    paddingTop: ['上内边距', 'padding-top'],
-    paddingBottom: ['下内边距', 'padding-bottom'],
-    paddingLeft: ['左内边距', 'padding-left'],
-    paddingRight: ['右内边距', 'padding-right'],
-    backgroundColor: ['背景色', '背景', 'background'],
-    color: ['文字颜色', '字色', '颜色', 'color'],
-    fontSize: ['字号', '字体大小', 'font-size'],
-    cornerRadius: ['圆角', '圆弧', '弧度', 'corner', 'radius'],
-    borderWidth: ['边框粗细', '描边粗细', 'border'],
-    borderColor: ['边框颜色', '描边颜色', 'border'],
-    fontWeight: ['字重', '粗细', 'font-weight'],
-    opacity: ['透明度', 'opacity'],
-    text: ['文案', '文字', '文本', 'text'],
-    controlCount: ['控件', '组件', 'control'],
+    width: [lbl('width'), 'width'],
+    height: [lbl('height'), 'height'],
+    marginTop: [lbl('marginTop'), 'margin-top'],
+    marginBottom: [lbl('marginBottom'), 'margin-bottom'],
+    marginLeft: [lbl('marginLeft'), 'margin-left'],
+    marginRight: [lbl('marginRight'), 'margin-right'],
+    paddingTop: [lbl('paddingTop'), 'padding-top'],
+    paddingBottom: [lbl('paddingBottom'), 'padding-bottom'],
+    paddingLeft: [lbl('paddingLeft'), 'padding-left'],
+    paddingRight: [lbl('paddingRight'), 'padding-right'],
+    backgroundColor: [lbl('backgroundColor'), 'background'],
+    color: [lbl('color'), 'color'],
+    fontSize: [lbl('fontSize'), 'font-size'],
+    cornerRadius: [lbl('cornerRadius'), 'corner', 'radius'],
+    borderWidth: [lbl('borderWidth'), 'border'],
+    borderColor: [lbl('borderColor'), 'border'],
+    fontWeight: [lbl('fontWeight'), 'font-weight'],
+    opacity: [lbl('opacity'), 'opacity'],
+    text: [lbl('text'), 'text'],
+    controlCount: [lbl('controlCount'), 'control'],
   }
   const keys = tokens[property]
   if (!keys) return false
@@ -1226,10 +1154,11 @@ function FilterTabs({
   aiCount: number
   ruleCount: number
 }) {
+  const t = getT()
   const tabs: Array<['all' | 'ai' | 'rule', string]> = [
-    ['all', `全部 ${aiCount + ruleCount}`],
-    ['ai', `AI 确权 ${aiCount}`],
-    ['rule', `规则比对 ${ruleCount}`],
+    ['all', t('diff.board.filter.all', { count: aiCount + ruleCount })],
+    ['ai', t('diff.board.filter.ai', { count: aiCount })],
+    ['rule', t('diff.board.filter.rule', { count: ruleCount })],
   ]
   return (
     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -1271,6 +1200,7 @@ function UnifiedCard({
   onDelete: () => void
   onOpenEditor: (mode: 'edit' | 'note') => void
 }) {
+  const t = getT()
   const isAi = item.source === 'ai'
 
   return (
@@ -1326,7 +1256,7 @@ function UnifiedCard({
             {active ? '✓' : ''}
           </span>
           <span style={{ color: SEVERITY_TEXT[item.severity], fontWeight: 700 }}>
-            [{SEVERITY_LABEL[item.severity]}]
+            [{diffSeverityLabel(t, item.severity)}]
           </span>{' '}
           <span
             style={{
@@ -1339,25 +1269,35 @@ function UnifiedCard({
               marginRight: 4,
             }}
           >
-            {isAi ? 'AI 确权' : '规则比对'}
+            {isAi ? t('diff.board.badge.ai') : t('diff.board.badge.rule')}
           </span>
           <strong>{item.headline}</strong>
           {item.location ? (
             <span style={{ color: '#7a8a82', fontWeight: 400 }}> · {item.location}</span>
           ) : null}
           {item.needsReview ? (
-            <span style={{ color: '#9a6700' }}>（需人工确认）</span>
+            <span style={{ color: '#9a6700' }}>{t('diff.needsReviewHint')}</span>
           ) : null}
         </div>
-        {item.expected ? <div style={{ color: '#335047' }}>设计稿：{item.expected}</div> : null}
-        {item.actual ? <div style={{ color: '#8a4b33' }}>实际：{item.actual}</div> : null}
+        {item.expected ? (
+          <div style={{ color: '#335047' }}>{t('diff.board.item.design', { value: item.expected })}</div>
+        ) : null}
+        {item.actual ? (
+          <div style={{ color: '#8a4b33' }}>{t('diff.board.item.actual', { value: item.actual })}</div>
+        ) : null}
         {item.codeSource ? (
-          <div style={{ color: '#8a7f60', wordBreak: 'break-all' }}>代码来源：{item.codeSource}</div>
+          <div style={{ color: '#8a7f60', wordBreak: 'break-all' }}>
+            {t('diff.board.item.codeSource', { value: item.codeSource })}
+          </div>
         ) : null}
         {item.suggestion ? (
-          <div style={{ color: '#0f6e56' }}>修改建议：{item.suggestion}</div>
+          <div style={{ color: '#0f6e56' }}>
+            {t('diff.board.item.suggestion', { value: item.suggestion })}
+          </div>
         ) : null}
-        {item.note ? <div style={{ color: '#5f584c' }}>备注：{item.note}</div> : null}
+        {item.note ? (
+          <div style={{ color: '#5f584c' }}>{t('diff.board.item.note', { value: item.note })}</div>
+        ) : null}
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -1366,11 +1306,10 @@ function UnifiedCard({
           style={COL.miniBtn}
           onClick={(e) => {
             e.stopPropagation()
-            if (window.confirm('确认删除这条差异？删除后视为误报，仅本机记住，可在下方恢复。'))
-              onDelete()
+            if (window.confirm(t('diff.board.confirmDeleteDiff'))) onDelete()
           }}
         >
-          删除
+          {t('diff.board.delete')}
         </button>
         <button
           type="button"
@@ -1380,7 +1319,7 @@ function UnifiedCard({
             onOpenEditor('note')
           }}
         >
-          备注
+          {t('diff.board.note')}
         </button>
         <button
           type="button"
@@ -1390,7 +1329,7 @@ function UnifiedCard({
             onOpenEditor('edit')
           }}
         >
-          编辑
+          {t('diff.board.edit')}
         </button>
       </div>
     </div>
@@ -1468,7 +1407,7 @@ function loadProxiedDesignImage(imageUrl: string): Promise<string> {
   })
     .then(async (r) => {
       const data = (await r.json()) as { dataUrl?: string; error?: string }
-      if (!r.ok || !data.dataUrl) throw new Error(data.error || '图片代理失败')
+      if (!r.ok || !data.dataUrl) throw new Error(data.error || getT()('errors.imageProxyFailed'))
       return data.dataUrl
     })
     .catch((err) => {
@@ -1484,7 +1423,7 @@ function loadHtmlImage(src: string): Promise<HTMLImageElement> {
     const el = new Image()
     if (!src.startsWith('data:')) el.crossOrigin = 'anonymous'
     el.onload = () => resolve(el)
-    el.onerror = () => reject(new Error('设计稿图片加载失败'))
+    el.onerror = () => reject(new Error(getT()('errors.designImageLoadFailed')))
     el.src = src
   })
 }
@@ -1596,6 +1535,7 @@ function RasterDesignView({
   onPick?: (x: number, y: number) => void
   onBusyChange?: (busy: boolean) => void
 }) {
+  const t = useLocaleT()
   const [displayUrl, setDisplayUrl] = useState(imageUrl || '')
   const [cleaning, setCleaning] = useState(false)
   const regionsSig = JSON.stringify(
@@ -1657,7 +1597,7 @@ function RasterDesignView({
           fontSize: 12,
         }}
       >
-        官方渲染图加载失败，请重新生成或检查 Figma 链接
+        {t('diff.board.renderFailed')}
       </div>
     )
   }
@@ -1708,7 +1648,7 @@ function RasterDesignView({
             padding: '4px 8px',
           }}
         >
-          正在清理备注…
+          {t('diff.board.cleaningNotes')}
         </div>
       ) : null}
     </div>

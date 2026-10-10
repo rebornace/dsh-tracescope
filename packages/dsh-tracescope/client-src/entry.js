@@ -18,14 +18,15 @@
     var VisualComparePanel = require('./visual/VisualComparePanel.tsx').VisualComparePanel
     var selfUpdate = require('./self-update.js')
     var registerPluginSettings = require('./register-plugin-settings.js').registerPluginSettings
+    var i18n = require('./locales/i18n.js')
+    var t = function (key, params) { return (i18n.getT())(key, params) }
 
     var TAB_ID = '@rebornace/dsh-tracescope'
     /**
      * Whether TraceScope auto-expands its right-sidebar tab on session entry.
      * Default ON; frequent users who prefer to open it manually can turn it off.
      * Stored in localStorage (per profile). Absent / invalid => enabled.
-     */
-    var AUTO_OPEN_KEY = 'tracescope.autoOpen'
+     */    var AUTO_OPEN_KEY = 'tracescope.autoOpen'
     function isAutoOpenEnabled() {
       try {
         return localStorage.getItem(AUTO_OPEN_KEY) !== 'off'
@@ -33,14 +34,12 @@
         return true
       }
     }
-    /** Set in apply(); used by the panel to fill the session composer. */
-    var hostCtx = null
+    /** Set in apply(); used by the panel to fill the session composer. */    var hostCtx = null
     /**
      * AbortController for the in-flight busy overlay request (analyze / sync / …).
      * Module-scoped so apiPost can attach the signal without threading it through
      * every call site; beginBusy guards against concurrent work.
-     */
-    var activeBusyAbort = null
+     */    var activeBusyAbort = null
 
     var styles = {
       root: {
@@ -241,10 +240,10 @@
     }
 
     function statusLabel(status) {
-      if (status === 'pass') return '已通过'
-      if (status === 'fail') return '未通过'
-      if (status === 'skip') return '已跳过'
-      return '待测'
+      if (status === 'pass') return t('已通过')
+      if (status === 'fail') return t('未通过')
+      if (status === 'skip') return t('已跳过')
+      return t('待测')
     }
 
     function statusBadgeStyle(status) {
@@ -256,15 +255,15 @@
 
     function apiGet(path, params) {
       var qs = new URLSearchParams(params || {}).toString()
-      return fetch(path + (qs ? '?' + qs : ''), { credentials: 'same-origin' }).then(function (r) {
+      return fetch(path + (qs ? '?' + qs : ''), { credentials: 'same-origin', headers: { 'accept-language': i18n.getActiveLocale(hostCtx) === 'en' ? 'en' : 'zh' } }).then(function (r) {
         return r.text().then(function (text) {
           var data = {}
           try {
             data = text ? JSON.parse(text) : {}
           } catch (_e) {
-            throw new Error(text ? text.slice(0, 200) : '服务器返回空响应')
+            throw new Error(text ? text.slice(0, 200) : t('服务器返回空响应'))
           }
-          if (!r.ok) throw new Error(data.error || '请求失败')
+          if (!r.ok) throw new Error(data.error || t('请求失败'))
           return data
         })
       })
@@ -281,8 +280,17 @@
       return fetch(path, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: {
+          'content-type': 'application/json',
+          'accept-language': i18n.getActiveLocale(hostCtx) === 'en' ? 'en' : 'zh',
+        },
+        body: JSON.stringify(
+          body && typeof body === 'object' && !Array.isArray(body)
+            ? Object.assign({}, body, {
+                locale: body.locale || (i18n.getActiveLocale(hostCtx) === 'en' ? 'en' : 'zh'),
+              })
+            : body,
+        ),
         signal: activeBusyAbort ? activeBusyAbort.signal : undefined,
       }).then(function (r) {
         return r.text().then(function (text) {
@@ -290,9 +298,9 @@
           try {
             data = text ? JSON.parse(text) : {}
           } catch (_e) {
-            throw new Error(text ? text.slice(0, 200) : '服务器返回空响应')
+            throw new Error(text ? text.slice(0, 200) : t('服务器返回空响应'))
           }
-          if (!r.ok) throw new Error(data.error || '请求失败')
+          if (!r.ok) throw new Error(data.error || t('请求失败'))
           return data
         })
       })
@@ -318,54 +326,54 @@
       var base = (meta && meta.baseCommit) || report.baseCommit || ''
       var head = (meta && meta.headCommit) || report.headCommit || ''
       var lines = [
-        '# TraceScope 验证报告',
+        t('# TraceScope 验证报告'),
         '',
-        '- 仓库：`' + repo + '`',
-        '- 稳定基线：`' + base + '`',
-        '- 待测提交：`' + head + '`',
-        '- 生成时间：' + (report.generatedAt || ''),
-        '- AI 分析：' + (report.modelEnriched ? '是' : '否（规则分析）'),
-        '- 变更文件数：' + ((report.changedFiles || []).length),
+        t('- 仓库：`') + repo + '`',
+        t('- 稳定基线：`') + base + '`',
+        t('- 待测提交：`') + head + '`',
+        t('- 生成时间：') + (report.generatedAt || ''),
+        t('- AI 分析：') + (report.modelEnriched ? t('是') : t('否（规则分析）')),
+        t('- 变更文件数：') + ((report.changedFiles || []).length),
         '',
       ]
       function renderSection(title, items) {
         lines.push('## ' + title, '')
         if (!items || !items.length) {
-          lines.push('_无_', '')
+          lines.push(t('_无_'), '')
           return
         }
         items.forEach(function (item, idx) {
           lines.push('### ' + (idx + 1) + '. ' + item.displayName, '')
-          lines.push('- 状态：`' + (item.status || 'pending') + '`')
-          lines.push('- 类型：`' + item.kind + '`')
-          lines.push('- 风险：`' + item.risk + '`')
+          lines.push(t('- 状态：`') + (item.status || 'pending') + '`')
+          lines.push(t('- 类型：`') + item.kind + '`')
+          lines.push(t('- 风险：`') + item.risk + '`')
           if (item.status === 'fail' && item.testerNote) {
-            lines.push('- 测试备注（给开发）：')
+            lines.push(t('- 测试备注（给开发）：'))
             lines.push('  ' + item.testerNote)
           }
           if (item.status === 'fail' && item.testerScreenshots && item.testerScreenshots.length) {
-            lines.push('- 截图（' + item.testerScreenshots.length + '）：')
+            lines.push(t('- 截图（') + item.testerScreenshots.length + '）：')
             item.testerScreenshots.forEach(function (s, i) {
               lines.push('  ' + (i + 1) + '. ' + s.name)
               lines.push('  ![' + s.name + '](' + s.dataUrl + ')')
             })
           }
-          lines.push('- 相关文件：')
+          lines.push(t('- 相关文件：'))
           ;(item.files || []).forEach(function (f) {
             lines.push('  - `' + f + '`')
           })
-          if (!(item.files || []).length) lines.push('  - （无）')
-          lines.push('- 建议验证：')
+          if (!(item.files || []).length) lines.push(t('  - （无）'))
+          lines.push(t('- 建议验证：'))
           ;(item.suggestedSteps || []).forEach(function (s, i) {
             lines.push('  ' + (i + 1) + '. ' + s)
           })
           lines.push('')
         })
       }
-      renderSection('直接项', report.direct || [])
-      renderSection('可能波及（依赖扩散）', report.ripple || [])
+      renderSection(t('直接项'), report.direct || [])
+      renderSection(t('可能波及（依赖扩散）'), report.ripple || [])
       if (report.attachments && report.attachments.length) {
-        lines.push('## 任务附件', '')
+        lines.push(t('## 任务附件'), '')
         report.attachments.forEach(function (a, i) {
           lines.push(
             i +
@@ -385,7 +393,7 @@
         return (it.status || '') === 'fail'
       })
       if (failed.length) {
-        lines.push('## 失败反馈（给开发）', '')
+        lines.push(t('## 失败反馈（给开发）'), '')
         failed.forEach(function (item, i) {
           lines.push(
             i +
@@ -394,14 +402,14 @@
               item.displayName +
               '**（' +
               item.kind +
-              ' / 风险 ' +
+              t(' / 风险 ') +
               item.risk +
               '）',
           )
-          lines.push('   - 备注：' + ((item.testerNote && item.testerNote.trim()) || '（测试未填写备注）'))
+          lines.push(t('   - 备注：') + ((item.testerNote && item.testerNote.trim()) || t('（测试未填写备注）')))
           if (item.testerScreenshots && item.testerScreenshots.length) {
             lines.push(
-              '   - 截图：' +
+              t('   - 截图：') +
                 item.testerScreenshots
                   .map(function (s) {
                     return s.name
@@ -415,7 +423,7 @@
           lines.push('')
         })
       }
-      lines.push('## 变更文件清单', '')
+      lines.push(t('## 变更文件清单'), '')
       ;(report.changedFiles || []).forEach(function (f) {
         lines.push('- `' + f + '`')
       })
@@ -430,8 +438,7 @@
      * desktop builds removed it and track the visible ("main-view") session
      * separately. Mirror that rule here: prefer a session retained by the main
      * view, else fall back to the first available session.
-     */
-    function resolveCurrentSessionId(sessions) {
+     */    function resolveCurrentSessionId(sessions) {
       var list = sessions && sessions.list
       if (!list || typeof list.getSnapshot !== 'function') return null
       var snap = list.getSnapshot()
@@ -465,17 +472,17 @@
         var conversation =
           hostCtx && (hostCtx.conversation || (hostCtx.get && hostCtx.get('conversation')))
         if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') {
-          throw new Error('找不到会话列表服务，请确认已打开会话页')
+          throw new Error(t('找不到会话列表服务，请确认已打开会话页'))
         }
         var sessionId = resolveCurrentSessionId(sessions)
-        if (!sessionId) throw new Error('请先打开并选中一个会话，再点「AI 智能分析」')
+        if (!sessionId) throw new Error(t('请先打开并选中一个会话，再点「AI 智能分析」'))
         var input = conversation && conversation.input
         if (!input || typeof input.shell !== 'function') {
-          throw new Error('找不到会话输入框服务')
+          throw new Error(t('找不到会话输入框服务'))
         }
         var shell = input.shell(sessionId)
         if (!shell || typeof shell.setDraft !== 'function') {
-          throw new Error('无法写入当前会话输入框')
+          throw new Error(t('无法写入当前会话输入框'))
         }
         shell.setDraft(prompt)
         return { ok: true }
@@ -492,8 +499,7 @@
     var REPO_PATH_KEY = 'tracescope.repoPath'
     var PROFILES_KEY = 'tracescope.profiles'
 
-    /** Per-repo detailed-config profiles map: { [repoInput]: profile }. */
-    function readProfilesMap() {
+    /** Per-repo detailed-config profiles map: { [repoInput]: profile }. */    function readProfilesMap() {
       try {
         var raw = JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}')
         return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
@@ -555,7 +561,7 @@
 
     function shortRepoLabel(value) {
       var s = String(value || '').trim().replace(/\\/g, '/')
-      if (!s) return '（未选仓库）'
+      if (!s) return t('（未选仓库）')
       s = s.replace(/\/+$/, '')
       var parts = s.split('/')
       var name = parts[parts.length - 1] || s
@@ -566,8 +572,7 @@
       return name || s
     }
 
-    /** Deduplicate empty/colliding checklist ids so status clicks cannot cross-link cards. */
-    function uniquifyReportIds(report) {
+    /** Deduplicate empty/colliding checklist ids so status clicks cannot cross-link cards. */    function uniquifyReportIds(report) {
       if (!report) return report
       var seen = {}
       function fixList(list, kind) {
@@ -592,11 +597,11 @@
 
     function defaultFailSubject(failed, repoPath) {
       var label = shortRepoLabel(repoPath || '')
-      var prefix = label && label !== '（未选仓库）' ? '[TraceScope][' + label + '] ' : '[TraceScope] '
+      var prefix = label && label !== t('（未选仓库）') ? '[TraceScope][' + label + '] ' : '[TraceScope] '
       if (failed.length === 1) {
-        return (prefix + '验证失败：' + (failed[0].displayName || '条目')).slice(0, 120)
+        return (prefix + t('验证失败：') + (failed[0].displayName || t('条目'))).slice(0, 120)
       }
-      return (prefix + '验证失败 ' + failed.length + ' 项').slice(0, 120)
+      return (prefix + t('验证失败 ') + failed.length + t(' 项')).slice(0, 120)
     }
 
     var MAX_SHOTS = 3
@@ -605,12 +610,12 @@
       var name = nameHint || (fileOrBlob && fileOrBlob.name) || 'screenshot.jpg'
       var reader = new FileReader()
       reader.onerror = function () {
-        if (fail) fail('读取图片失败')
+        if (fail) fail(t('读取图片失败'))
       }
       reader.onload = function () {
         var img = new Image()
         img.onerror = function () {
-          if (fail) fail('图片无法解码')
+          if (fail) fail(t('图片无法解码'))
         }
         img.onload = function () {
           try {
@@ -626,7 +631,7 @@
               dataUrl = canvas.toDataURL('image/jpeg', 0.55)
             }
             if (!dataUrl || dataUrl.length > 480000) {
-              if (fail) fail('截图过大，请换更小的图')
+              if (fail) fail(t('截图过大，请换更小的图'))
               return
             }
             done({
@@ -636,7 +641,7 @@
               dataUrl: dataUrl,
             })
           } catch (err) {
-            if (fail) fail(err.message || '压缩截图失败')
+            if (fail) fail(err.message || t('压缩截图失败'))
           }
         }
         img.src = reader.result
@@ -661,7 +666,7 @@
       return new Promise(function (resolve, reject) {
         var reader = new FileReader()
         reader.onerror = function () {
-          reject(new Error('读取文件失败'))
+          reject(new Error(t('读取文件失败')))
         }
         reader.onload = function () {
           var result = String(reader.result || '')
@@ -678,7 +683,7 @@
       return jsxs('div', {
         style: Object.assign({}, styles.row, { gap: 6 }),
         children: ['pass', 'fail', 'skip', 'pending'].map(function (s) {
-          var label = s === 'pass' ? '通过' : s === 'fail' ? '失败' : s === 'skip' ? '跳过' : '重置'
+          var label = s === 'pass' ? t('通过') : s === 'fail' ? t('失败') : s === 'skip' ? t('跳过') : t('重置')
           var active = status === s
           return jsx(
             'button',
@@ -687,12 +692,12 @@
               disabled: locked,
               title:
                 s === 'pass'
-                  ? '标记为验证通过'
+                  ? t('标记为验证通过')
                   : s === 'fail'
-                    ? '标记为验证失败'
+                    ? t('标记为验证失败')
                     : s === 'skip'
-                      ? '本轮不测，标记跳过'
-                      : '清除结果，恢复为待测',
+                      ? t('本轮不测，标记跳过')
+                      : t('清除结果，恢复为待测'),
               style: Object.assign(
                 {},
                 statusBtnStyle(s, active),
@@ -715,8 +720,7 @@
       return /^[0-9a-f]{7,40}$/i.test(String(value || '').trim())
     }
 
-    /** Branch picker ✓: branch name/tip, or a commit SHA loaded for that branch. */
-    function branchOwnsVersion(r, selected, commitListRef, commits) {
+    /** Branch picker ✓: branch name/tip, or a commit SHA loaded for that branch. */    function branchOwnsVersion(r, selected, commitListRef, commits) {
       if (!r || !selected) return false
       var sel = String(selected)
       if (sel === r.name || (r.sha && sel === r.sha)) return true
@@ -733,7 +737,7 @@
       var commitOpts = []
       ;(refs || []).forEach(function (r) {
         if (!r || !r.name) return
-        var prefix = r.kind === 'remote' ? '远端 ' : r.kind === 'tag' ? '标签 ' : ''
+        var prefix = r.kind === 'remote' ? t('远端 ') : r.kind === 'tag' ? t('标签 ') : ''
         var option = jsx(
           'option',
           {
@@ -759,17 +763,17 @@
       })
       var groups = []
       if (branchOpts.length) {
-        groups.push(jsx('optgroup', { label: '分支', children: branchOpts }, 'g-branch'))
+        groups.push(jsx('optgroup', { label: t('分支'), children: branchOpts }, 'g-branch'))
       }
       if (tagOpts.length) {
-        groups.push(jsx('optgroup', { label: '标签', children: tagOpts }, 'g-tag'))
+        groups.push(jsx('optgroup', { label: t('标签'), children: tagOpts }, 'g-tag'))
       }
       if (commitOpts.length) {
         groups.push(
           jsx(
             'optgroup',
             {
-              label: commitRefLabel ? '近期提交 · ' + commitRefLabel : '近期提交',
+              label: commitRefLabel ? t('近期提交 · ') + commitRefLabel : t('近期提交'),
               children: commitOpts,
             },
             'g-commit',
@@ -845,10 +849,10 @@
       var d = new Date(ms)
       if (isNaN(d.getTime())) return String(dateStr).slice(0, 16)
       var diff = Date.now() - d.getTime()
-      if (diff >= 0 && diff < 60 * 1000) return '刚刚'
-      if (diff >= 0 && diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + ' 分钟前'
-      if (diff >= 0 && diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + ' 小时前'
-      if (diff >= 0 && diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + ' 天前'
+      if (diff >= 0 && diff < 60 * 1000) return t('刚刚')
+      if (diff >= 0 && diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + t(' 分钟前')
+      if (diff >= 0 && diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + t(' 小时前')
+      if (diff >= 0 && diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + t(' 天前')
       function pad(n) {
         return n < 10 ? '0' + n : String(n)
       }
@@ -893,10 +897,10 @@
                         style: Object.assign({}, styles.badge, statusBadgeStyle(st)),
                         children: statusLabel(st),
                       }),
-                      jsx('span', { style: styles.badge, children: '风险 ' + item.risk }),
+                      jsx('span', { style: styles.badge, children: t('风险 ') + item.risk }),
                       jsx('span', {
                         style: styles.badge,
-                        children: item.kind === 'direct' ? '直接项' : '可能波及',
+                        children: item.kind === 'direct' ? t('直接项') : t('可能波及'),
                       }),
                     ],
                   }),
@@ -924,7 +928,7 @@
                 children: [
                   jsx('div', {
                     style: { fontWeight: 600, marginBottom: 4, color: '#b42318' },
-                    children: '失败备注（给开发）',
+                    children: t('失败备注（给开发）'),
                   }),
                   jsx('textarea', {
                     style: Object.assign({}, styles.input, {
@@ -935,7 +939,7 @@
                     }),
                     value: note,
                     disabled: locked,
-                    placeholder: '复现步骤、期望/实际结果、相关账号…（可 Ctrl+V 粘贴截图）',
+                    placeholder: t('复现步骤、期望/实际结果、相关账号…（可 Ctrl+V 粘贴截图）'),
                     onChange: function (e) {
                       if (locked) return
                       props.onNote(listKind, itemIndex, item.id, e.target.value)
@@ -958,7 +962,7 @@
                       if (!imageItem) return
                       e.preventDefault()
                       if (shots.length >= MAX_SHOTS) {
-                        props.onShotHint && props.onShotHint('每条最多 ' + MAX_SHOTS + ' 张截图')
+                        props.onShotHint && props.onShotHint(t('每条最多 ') + MAX_SHOTS + t(' 张截图'))
                         return
                       }
                       var blob = imageItem.getAsFile()
@@ -1003,14 +1007,14 @@
                           if (!files.length) return
                           var room = MAX_SHOTS - shots.length
                           if (room <= 0) {
-                            props.onShotHint && props.onShotHint('每条最多 ' + MAX_SHOTS + ' 张截图')
+                            props.onShotHint && props.onShotHint(t('每条最多 ') + MAX_SHOTS + t(' 张截图'))
                             return
                           }
                           var picked = files.filter(function (f) {
                             return f && f.type && f.type.indexOf('image/') === 0
                           }).slice(0, room)
                           if (!picked.length) {
-                            props.onShotHint && props.onShotHint('请选择图片文件')
+                            props.onShotHint && props.onShotHint(t('请选择图片文件'))
                             return
                           }
                           var next = shots.slice()
@@ -1057,16 +1061,16 @@
                           if (locked) return
                           if (fileRef.current) fileRef.current.click()
                         },
-                        children: '添加截图',
+                        children: t('添加截图'),
                       }),
                       jsx('span', {
                         style: { fontSize: 12, color: '#6b645a' },
                         children:
-                          '已附 ' +
+                          t('已附 ') +
                           shots.length +
                           '/' +
                           MAX_SHOTS +
-                          ' · 支持粘贴或选文件（自动压缩）',
+                          t(' · 支持粘贴或选文件（自动压缩）'),
                       }),
                     ],
                   }),
@@ -1114,7 +1118,7 @@
                                     color: '#fff',
                                     border: 0,
                                   }),
-                                  title: '移除截图',
+                                  title: t('移除截图'),
                                   disabled: locked,
                                   onClick: function () {
                                     if (locked) return
@@ -1155,7 +1159,7 @@
           jsxs('details', {
             style: { marginTop: 8 },
             children: [
-              jsx('summary', { children: '查看证据' }),
+              jsx('summary', { children: t('查看证据') }),
               jsx('ul', {
                 children: (item.files || []).map(function (f) {
                   return jsx('li', { children: jsx('code', { children: f }) }, f)
@@ -1182,8 +1186,7 @@
       return /^https:\/\/codeup\.aliyun\.com\//i.test(String(value || '').trim())
     }
 
-    /** True when input looks like a remote git URL (vs. a local folder path). */
-    function isGitRemoteInput(value) {
+    /** True when input looks like a remote git URL (vs. a local folder path). */    function isGitRemoteInput(value) {
       var s = String(value || '').trim()
       if (!s) return false
       if (/^https?:\/\//i.test(s)) return true
@@ -1197,6 +1200,16 @@
 
 
     function TraceScopePanelBody() {
+      // Re-render when Host locale switches (LocaleFace / locale/change).
+      var _locRev = useState(function () {
+        return i18n.getLocaleRevision()
+      })
+      var setLocRev = _locRev[1]
+      useEffect(function () {
+        return i18n.subscribeLocale(function () {
+          setLocRev(i18n.getLocaleRevision())
+        })
+      }, [])
       var initialRepo = localStorage.getItem(REPO_PATH_KEY) || ''
       var _repo = useState(initialRepo)
       var repoPath = _repo[0]
@@ -1267,7 +1280,7 @@
             setPickerSelected('')
           })
           .catch(function (err) {
-            setChatHint('浏览目录失败：' + (err.message || String(err)))
+            setChatHint(t('浏览目录失败：') + (err.message || String(err)))
           })
           .finally(function () {
             setPickerLoading(false)
@@ -1305,7 +1318,7 @@
       function confirmPicker() {
         var chosen = effectivePickerPath()
         if (!chosen) {
-          setChatHint('请先进入并选择一个文件夹')
+          setChatHint(t('请先进入并选择一个文件夹'))
           return
         }
         if (pickerPurpose === 'repo') {
@@ -1353,7 +1366,7 @@
         if (updateBusy) return
         setUpdateOpen(true)
         setUpdateBusy(true)
-        setUpdateMessage('正在检查 npm 最新版本…')
+        setUpdateMessage(t('正在检查 npm 最新版本…'))
         resetUpdatePanel()
         setUpdateInfo(null)
         selfUpdate
@@ -1364,23 +1377,23 @@
             if (info.installedVersion) setPluginVersion(info.installedVersion)
             if (info.updateAvailable) {
               setUpdateMessage(
-                '发现新版本 ' +
+                t('发现新版本 ') +
                   (info.latestVersion || '?') +
-                  '（当前 ' +
+                  t('（当前 ') +
                   (info.installedVersion || '?') +
                   '）' +
                   (info.registrySource ? ' · ' + info.registrySource : ''),
               )
             } else if (!info.latestVersion) {
-              setUpdateMessage('未能从 npm 读取最新版本，请检查网络后重试。')
+              setUpdateMessage(t('未能从 npm 读取最新版本，请检查网络后重试。'))
             } else {
               setUpdateMessage(
-                '已是最新' + (info.installedVersion ? '（' + info.installedVersion + '）' : '') + '。',
+                t('已是最新') + (info.installedVersion ? '（' + info.installedVersion + '）' : '') + '。',
               )
             }
           })
           .catch(function (err) {
-            setUpdateMessage('检查更新失败：' + (err.message || String(err)))
+            setUpdateMessage(t('检查更新失败：') + (err.message || String(err)))
           })
           .finally(function () {
             setUpdateBusy(false)
@@ -1390,7 +1403,7 @@
       function runApplyUpdate(force) {
         if (updateBusy) return
         setUpdateBusy(true)
-        setUpdateMessage(force ? '正在强制更新…' : '正在更新…')
+        setUpdateMessage(force ? t('正在强制更新…') : t('正在更新…'))
         resetUpdatePanel()
         var ensureInfo = updateInfo
           ? Promise.resolve(updateInfo)
@@ -1421,11 +1434,11 @@
               setUpdateOfferRestart(false)
               return
             }
-            setUpdateMessage(result.message || '更新失败')
+            setUpdateMessage(result.message || t('更新失败'))
             setUpdateCanForce(!!result.canForce || selfUpdate.forceRetryable(result.failure && result.failure.code))
           })
           .catch(function (err) {
-            setUpdateMessage('更新失败：' + (err.message || String(err)))
+            setUpdateMessage(t('更新失败：') + (err.message || String(err)))
           })
           .finally(function () {
             setUpdateBusy(false)
@@ -1436,7 +1449,7 @@
         if (dataDirBusy) return
         var target = String(dataDirDraft || '').trim()
         if (!target) {
-          setChatHint('数据目录不能为空')
+          setChatHint(t('数据目录不能为空'))
           return
         }
         if (dataDirInfo && target === dataDirInfo.dataRoot) {
@@ -1444,7 +1457,7 @@
           return
         }
         setDataDirBusy(true)
-        setChatHint('正在迁移数据到新目录，数据较多时请耐心等待，请勿关闭…')
+        setChatHint(t('正在迁移数据到新目录，数据较多时请耐心等待，请勿关闭…'))
         apiPost('/tracescope/v1/data-dir-change', { dataRoot: target })
           .then(function (data) {
             setDataDirInfo(data)
@@ -1452,12 +1465,12 @@
             setDataDirOpen(false)
             setChatHint(
               data.migrated
-                ? '数据已迁移至「' + data.dataRoot + '」，历史记录与附件均保留。'
-                : '数据目录已切换为「' + data.dataRoot + '」。',
+                ? t('数据已迁移至「') + data.dataRoot + t('」，历史记录与附件均保留。')
+                : t('数据目录已切换为「') + data.dataRoot + '」。',
             )
           })
           .catch(function (err) {
-            setChatHint('更改数据目录失败：' + (err.message || String(err)))
+            setChatHint(t('更改数据目录失败：') + (err.message || String(err)))
           })
           .finally(function () {
             setDataDirBusy(false)
@@ -1614,8 +1627,7 @@
         try {
           localStorage.setItem(MODE_KEY, next)
         } catch (_e) {
-          /* ignore */
-        }
+          /* ignore */        }
       }
       var _error = useState('')
       var error = _error[0]
@@ -1632,7 +1644,7 @@
       var busyRef = useRef(false)
       var busyMsgRef = useRef('')
       var busyBaseMsgRef = useRef('')
-      var _health = useState('检查中…')
+      var _health = useState(t('检查中…'))
       var health = _health[0]
       var setHealth = _health[1]
       var _pluginVersion = useState(null)
@@ -1721,13 +1733,13 @@
       function beginBusy(message) {
         if (busyRef.current) {
           setChatHint(
-            '请等待当前操作完成后再试' +
+            t('请等待当前操作完成后再试') +
               (busyMsgRef.current ? '（' + busyMsgRef.current + '）' : '') +
-              '。网络较慢时请勿重复点击。',
+              t('。网络较慢时请勿重复点击。'),
           )
           return false
         }
-        var text = message || '处理中，请稍候…'
+        var text = message || t('处理中，请稍候…')
         busyRef.current = true
         busyMsgRef.current = text
         busyBaseMsgRef.current = text
@@ -1758,16 +1770,15 @@
           try {
             ctrl.abort()
           } catch (_e) {
-            /* ignore */
-          }
+            /* ignore */          }
         }
         endBusy()
-        setChatHint('已取消当前操作。可调整版本后重试「生成验证清单」。')
+        setChatHint(t('已取消当前操作。可调整版本后重试「生成验证清单」。'))
       }
 
       function updateBusyMessage(message) {
         if (!busyRef.current) return
-        var text = message || '处理中，请稍候…'
+        var text = message || t('处理中，请稍候…')
         busyMsgRef.current = text
         setBusyMessage(text)
       }
@@ -1788,21 +1799,21 @@
             if (sec === 20) {
               if (/生成验证清单/.test(base)) {
                 updateBusyMessage(
-                  '正在分析版本差异与波及范围…（已用时 20 秒；大仓库或首次同步可能需要 1–3 分钟）',
+                  t('正在分析版本差异与波及范围…（已用时 20 秒；大仓库或首次同步可能需要 1–3 分钟）'),
                 )
               } else if (/同步仓库|远端 API 读取/.test(base)) {
-                updateBusyMessage('仍在同步版本信息…（已用时 20 秒；网络较慢时请稍候）')
+                updateBusyMessage(t('仍在同步版本信息…（已用时 20 秒；网络较慢时请稍候）'))
               } else if (/AI 智能分析/.test(base)) {
-                updateBusyMessage('仍在准备 AI 分析提示…（已用时 20 秒）')
+                updateBusyMessage(t('仍在准备 AI 分析提示…（已用时 20 秒）'))
               }
             } else if (sec === 60) {
               updateBusyMessage(
-                (base.replace(/…$/, '') || '仍在处理中') +
-                  '（已用时 60 秒）。若确认网络/仓库无响应，可点「取消」后重试。',
+                (base.replace(/…$/, '') || t('仍在处理中')) +
+                  t('（已用时 60 秒）。若确认网络/仓库无响应，可点「取消」后重试。'),
               )
             } else if (sec === 180) {
               updateBusyMessage(
-                '已等待超过 3 分钟，可能卡住了。建议取消后检查仓库路径、鉴权或网络再试。',
+                t('已等待超过 3 分钟，可能卡住了。建议取消后检查仓库路径、鉴权或网络再试。'),
               )
             }
           }, 1000)
@@ -1886,8 +1897,7 @@
        * Restore every detailed-config field for a repo from its saved profile.
        * Runs in the same batch as setRepoPath inside switchRepo, so capture
        * effects only ever see the fully restored values.
-       */
-      function applyRepoProfile(p) {
+       */      function applyRepoProfile(p) {
         restoringProfileRef.current = true
         pendingTrackerSyncRef.current = true
         // Reset transient catalog/feedback state belonging to the previous repo.
@@ -2135,8 +2145,7 @@
           if (payload.mode === 'https' && !payload.token) return
           localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
           apiPost('/tracescope/v1/auth-save', { remember: true, auth: payload }).catch(function () {
-            /* Host 落盘失败时仍保留 localStorage */
-          })
+            /* Host 落盘失败时仍保留 localStorage */          })
         } else if (authMode !== 'token') {
           localStorage.removeItem(AUTH_KEY)
           apiPost('/tracescope/v1/auth-save', { remember: false, auth: { mode: 'none' } }).catch(
@@ -2148,11 +2157,11 @@
       useEffect(function () {
         apiGet('/tracescope/v1/health')
           .then(function (data) {
-            setHealth('已连接')
+            setHealth(t('已连接'))
             if (data && data.version) setPluginVersion(data.version)
           })
           .catch(function () {
-            setHealth('Host API 未就绪')
+            setHealth(t('Host API 未就绪'))
           })
         apiGet('/tracescope/v1/auth')
           .then(function (data) {
@@ -2183,8 +2192,7 @@
             }
           })
           .catch(function () {
-            /* fall back to localStorage already applied in useState init */
-          })
+            /* fall back to localStorage already applied in useState init */          })
           .finally(function () {
             setAuthHydrated(true)
           })
@@ -2323,7 +2331,7 @@
         var value = String(text || '')
         if (!value) return
         function done() {
-          setCopyFlash((label || 'ID') + ' 已复制')
+          setCopyFlash((label || 'ID') + t(' 已复制'))
           setTimeout(function () {
             setCopyFlash('')
           }, 1600)
@@ -2331,14 +2339,13 @@
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(value).then(done).catch(function () {
-              setChatHint('复制失败，请手动选中：' + value)
+              setChatHint(t('复制失败，请手动选中：') + value)
             })
             return
           }
         } catch (_e) {
-          /* fall through */
-        }
-        setChatHint('请手动复制：' + value)
+          /* fall through */        }
+        setChatHint(t('请手动复制：') + value)
       }
 
       function stopJobPolling() {
@@ -2355,8 +2362,8 @@
         var cleared = clearComposerDraft()
         setChatHint(
           cleared.ok
-            ? '已取消等待并清空会话输入框草稿，可重新点「AI 智能分析」。'
-            : '已取消等待。清空草稿失败：' + (cleared.error || '未知错误') + '（可手动清空输入框）',
+            ? t('已取消等待并清空会话输入框草稿，可重新点「AI 智能分析」。')
+            : t('已取消等待。清空草稿失败：') + (cleared.error || t('未知错误')) + t('（可手动清空输入框）'),
         )
       }
 
@@ -2365,27 +2372,27 @@
         setReport(uniquifyReportIds(stored.report))
         setTab('direct')
         setHistoryId(stored.id || '')
-        var sourceLabel = stored.source === 'model' ? 'AI 分析' : '规则分析'
-        var prefix = opts && opts.fromHistory ? '已打开历史任务' : '已加载该版本对比的清单'
+        var sourceLabel = stored.source === 'model' ? t('AI 分析') : t('规则分析')
+        var prefix = opts && opts.fromHistory ? t('已打开历史任务') : t('已加载该版本对比的清单')
         setChatHint(
           prefix +
             '（' +
             sourceLabel +
             ' · ' +
             (stored.savedAt || '') +
-            '）。切换版本会自动换清单；点「刷新已存清单」可手动重载。',
+            t('）。切换版本会自动换清单；点「刷新已存清单」可手动重载。'),
         )
       }
 
       var refreshStoredReport = useCallback(
         function () {
           if (!repoPath.trim() || !baseCommit || !headCommit) {
-            setError('请先选择仓库和两个版本')
+            setError(t('请先选择仓库和两个版本'))
             return
           }
           viewingHistoryRef.current = null
           setError('')
-          if (!beginBusy('正在加载已存清单…')) return
+          if (!beginBusy(t('正在加载已存清单…'))) return
           apiPost('/tracescope/v1/report-load', {
             repoPath: repoPath.trim(),
             baseCommit: baseCommit,
@@ -2397,7 +2404,7 @@
               } else {
                 setReport(null)
                 setHistoryId('')
-                setChatHint('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。')
+                setChatHint(t('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。'))
               }
             })
             .catch(function (err) {
@@ -2429,7 +2436,7 @@
       var openHistoryEntry = useCallback(
         function (id) {
           if (!id) return
-          if (!beginBusy('正在打开历史任务…')) return
+          if (!beginBusy(t('正在打开历史任务…'))) return
           setError('')
           apiPost('/tracescope/v1/report-history-get', { id: id })
             .then(function (data) {
@@ -2469,7 +2476,7 @@
         function (nextPath) {
           if (busyRef.current) {
             setChatHint(
-              '请等待当前操作完成后再切换仓库' +
+              t('请等待当前操作完成后再切换仓库') +
                 (busyMsgRef.current ? '（' + busyMsgRef.current + '）' : ''),
             )
             return
@@ -2495,7 +2502,7 @@
           setBranchPickerOpen(false)
           setCommitListRef('')
           viewingHistoryRef.current = null
-          setChatHint('已切换仓库「' + shortRepoLabel(next) + '」，正在默认同步版本…')
+          setChatHint(t('已切换仓库「') + shortRepoLabel(next) + t('」，正在默认同步版本…'))
           setSettingsOpen(false)
         },
         [repoPath],
@@ -2528,7 +2535,7 @@
         // Clear stale list immediately so switching versions never shows the wrong pair.
         setReport(null)
         setHistoryId('')
-        setChatHint('正在加载该版本对比的已存清单…')
+        setChatHint(t('正在加载该版本对比的已存清单…'))
         apiPost('/tracescope/v1/report-load', {
           repoPath: repoPath.trim(),
           baseCommit: baseCommit,
@@ -2541,13 +2548,13 @@
             } else {
               setReport(null)
               setHistoryId('')
-              setChatHint('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。')
+              setChatHint(t('当前版本对比尚无已存清单，请「生成验证清单」或「AI 智能分析」。'))
             }
           })
           .catch(function () {
             if (cancelled) return
             setReport(null)
-            setChatHint('加载已存清单失败；可点「刷新清单」重试，或重新生成。')
+            setChatHint(t('加载已存清单失败；可点「刷新清单」重试，或重新生成。'))
           })
         return function () {
           cancelled = true
@@ -2582,14 +2589,14 @@
               if (data.status === 'published' && data.report) {
                 setReport(uniquifyReportIds(data.report))
                 setTab('direct')
-                setChatHint('清单已更新并持久化到本机（来自 AI 分析）')
+                setChatHint(t('清单已更新并持久化到本机（来自 AI 分析）'))
                 refreshHistory()
                 if (pollRef.current) {
                   clearInterval(pollRef.current)
                   pollRef.current = null
                 }
               } else if (data.status === 'error') {
-                setChatHint(data.error || '任务失败')
+                setChatHint(data.error || t('任务失败'))
                 if (pollRef.current) {
                   clearInterval(pollRef.current)
                   pollRef.current = null
@@ -2597,8 +2604,7 @@
               }
             })
             .catch(function () {
-              /* keep polling; transient errors are ok */
-            })
+              /* keep polling; transient errors are ok */            })
         }
         tick()
         if (pollRef.current) clearInterval(pollRef.current)
@@ -2615,7 +2621,7 @@
         function (forceFetch, opts) {
           setError('')
           if (!repoPath.trim()) {
-            setError('请填写本地路径或远端仓库地址')
+            setError(t('请填写本地路径或远端仓库地址'))
             return
           }
           var codeupToken = codeupRequestToken()
@@ -2623,24 +2629,24 @@
           if (isRemote) {
             if (authMode === 'token' || accessMode === 'codeup') {
               if (!codeupToken && !yxTokenSaved) {
-                setError('请选择「个人访问令牌」并填写令牌。填一次会记在本机。')
+                setError(t('请选择「个人访问令牌」并填写令牌。填一次会记在本机。'))
                 setSettingsOpen(true)
                 setRemoteAuthMode('token')
                 return
               }
             } else if (authMode === 'https') {
               if (!usableSecret(authToken)) {
-                setError('私有仓请填写 HTTPS 用户名和密码 / Token')
+                setError(t('私有仓请填写 HTTPS 用户名和密码 / Token'))
                 setSettingsOpen(true)
                 return
               }
             } else if (authMode === 'ssh') {
               if (!authKey.trim()) {
-                setError('请填写 SSH 私钥文件的本机绝对路径')
+                setError(t('请填写 SSH 私钥文件的本机绝对路径'))
                 return
               }
             } else if (isCodeupHttps(repoPath) && !codeupToken && !yxTokenSaved) {
-              setError('私有仓库请使用「个人访问令牌」')
+              setError(t('私有仓库请使用「个人访问令牌」'))
               setSettingsOpen(true)
               setRemoteAuthMode('token')
               return
@@ -2653,7 +2659,7 @@
           localStorage.setItem(ACCESS_MODE_KEY, effectiveAccessMode)
           rememberRepo(repoPath.trim())
           persistAuth()
-          if (!beginBusy(effectiveAccessMode === 'codeup' ? '正在通过远端 API 读取版本…' : '正在同步仓库版本…')) return
+          if (!beginBusy(effectiveAccessMode === 'codeup' ? t('正在通过远端 API 读取版本…') : t('正在同步仓库版本…'))) return
           apiPost('/tracescope/v1/commits', {
             repoPath: repoPath.trim(),
             limit: 80,
@@ -2706,25 +2712,25 @@
                 setHeadCommit(list[0].sha)
                 setBaseCommit(list[Math.min(1, list.length - 1)].sha)
                 setChatHint(
-                  '已同步' +
+                  t('已同步') +
                     (currentRef || (newest && newest.name)
-                      ? '分支「' + (currentRef || newest.name) + '」'
-                      : '版本') +
-                    '：待测 ' +
+                      ? t('分支「') + (currentRef || newest.name) + '」'
+                      : t('版本')) +
+                    t('：待测 ') +
                     (list[0].short || list[0].sha.slice(0, 7)) +
-                    '（最新），稳定 ' +
+                    t('（最新），稳定 ') +
                     ((list[1] && (list[1].short || list[1].sha.slice(0, 7))) ||
                       list[0].short ||
                       list[0].sha.slice(0, 7)) +
-                    (list[1] ? '（倒数第二）' : ''),
+                    (list[1] ? t('（倒数第二）') : ''),
                 )
               } else if (list.length && opts && opts.refName) {
                 setChatHint(
-                  '已加载分支「' +
+                  t('已加载分支「') +
                     opts.refName +
-                    '」近期提交 ' +
+                    t('」近期提交 ') +
                     list.length +
-                    ' 条，可在下方下拉里选具体 commit',
+                    t(' 条，可在下方下拉里选具体 commit'),
                 )
               }
             })
@@ -2803,14 +2809,13 @@
             setResolved(null)
             setSettingsOpen(true)
             setChatHint(
-              '上次使用的代码文件夹已不存在（可能被移动或删除）：' +
+              t('上次使用的代码文件夹已不存在（可能被移动或删除）：') +
                 p +
-                '。请点「浏览…」重新选择。',
+                t('。请点「浏览…」重新选择。'),
             )
           })
           .catch(function () {
-            /* non-fatal: let the action surface a clear error */
-          })
+            /* non-fatal: let the action surface a clear error */          })
       }, [])
 
       var selectedRelatedWorkItems = useCallback(
@@ -2827,12 +2832,12 @@
           setError('')
           setChatHint('')
           if (!repoPath.trim() || !baseCommit || !headCommit) {
-            setError('请选择项目路径和两个版本')
+            setError(t('请选择项目路径和两个版本'))
             return
           }
           function runAnalyze() {
             persistAuth()
-            if (!beginBusy('正在生成验证清单…')) return
+            if (!beginBusy(t('正在生成验证清单…'))) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/analyze', {
               repoPath: repoPath.trim(),
@@ -2857,10 +2862,10 @@
               viewingHistoryRef.current = null
               setChatHint(
                 accessMode === 'codeup'
-                  ? '已通过远端 API 生成直接项清单（无静态波及）。需要 AI 深度分析时点「AI 智能分析」。'
+                  ? t('已通过远端 API 生成直接项清单（无静态波及）。需要 AI 深度分析时点「AI 智能分析」。')
                   : related.length
-                    ? '已生成清单（含 ' + related.length + ' 条关联敏捷任务种子），并保存到本机。'
-                    : '已按规则生成清单并保存到本机。需要 AI 深度分析时点「AI 智能分析」。',
+                    ? t('已生成清单（含 ') + related.length + t(' 条关联敏捷任务种子），并保存到本机。')
+                    : t('已按规则生成清单并保存到本机。需要 AI 深度分析时点「AI 智能分析」。'),
               )
               refreshHistory()
             })
@@ -2874,10 +2879,10 @@
           }
           if (report) {
             setConfirmDlg({
-              title: '重新生成清单？',
+              title: t('重新生成清单？'),
               message:
-                '当前版本对比已有验证清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。',
-              confirmLabel: '重新生成',
+                t('当前版本对比已有验证清单。重新生成将覆盖现有清单与勾选进度，且同版本只保留最新一条历史。'),
+              confirmLabel: t('重新生成'),
               danger: false,
               onConfirm: runAnalyze,
             })
@@ -2909,12 +2914,12 @@
           setError('')
           setChatHint('')
           if (!repoPath.trim() || !baseCommit || !headCommit) {
-            setError('请选择项目路径和两个版本')
+            setError(t('请选择项目路径和两个版本'))
             return
           }
           function runChat() {
             persistAuth()
-            if (!beginBusy('正在准备AI 智能分析…')) return
+            if (!beginBusy(t('正在准备AI 智能分析…'))) return
             var related = selectedRelatedWorkItems()
             apiPost('/tracescope/v1/jobs', {
               repoPath: repoPath.trim(),
@@ -2945,26 +2950,25 @@
                   setChatHint(
                     warningPrefix +
                       (related.length
-                        ? '已把 ' + related.length + ' 条敏捷任务写入提示。'
+                        ? t('已把 ') + related.length + t(' 条敏捷任务写入提示。')
                         : '') +
-                      '已填入当前会话输入框（任务 ID 见下方，可复制给模型确认）。请核对后发送；Agent publish 后清单会刷新。未发送可再点按钮取消并清空草稿。',
+                      t('已填入当前会话输入框（任务 ID 见下方，可复制给模型确认）。请核对后发送；Agent publish 后清单会刷新。未发送可再点按钮取消并清空草稿。'),
                   )
                 } else {
                   setChatHint(
-                    (filled.error || '无法写入输入框') +
-                      '。请手动复制下方提示到会话发送。任务 ID：' +
+                    (filled.error || t('无法写入输入框')) +
+                      t('。请手动复制下方提示到会话发送。任务 ID：') +
                       data.jobId,
                   )
                   try {
                     if (navigator.clipboard && data.prompt) {
                       navigator.clipboard.writeText(data.prompt)
                       setChatHint(function (prev) {
-                        return prev + '（提示已尝试复制到剪贴板）'
+                        return prev + t('（提示已尝试复制到剪贴板）')
                       })
                     }
                   } catch (_clip) {
-                    /* ignore */
-                  }
+                    /* ignore */                  }
                 }
               })
               .catch(function (err) {
@@ -2978,10 +2982,10 @@
           // Only warn when overwriting a previous model-produced checklist.
           if (report && report.modelEnriched) {
             setConfirmDlg({
-              title: '重新发起 AI 智能分析？',
+              title: t('重新发起 AI 智能分析？'),
               message:
-                '当前版本对比已有 AI 分析清单。重新发起后，Agent publish 将覆盖现有清单与勾选进度。',
-              confirmLabel: '继续分析',
+                t('当前版本对比已有 AI 分析清单。重新发起后，Agent publish 将覆盖现有清单与勾选进度。'),
+              confirmLabel: t('继续分析'),
               danger: false,
               onConfirm: runChat,
             })
@@ -3010,7 +3014,7 @@
       var deleteSelectedHistory = useCallback(
         function () {
           if (!historyId) {
-            setError('请先在历史任务中选择一条记录')
+            setError(t('请先在历史任务中选择一条记录'))
             return
           }
           var target = (history || []).find(function (h) {
@@ -3020,18 +3024,18 @@
             ? shortSha(target.baseCommit) + '→' + shortSha(target.headCommit)
             : historyId
           setConfirmDlg({
-            title: '删除历史任务？',
-            message: '将永久删除该版本对比的清单与历史记录（' + desc + '），此操作不可恢复。',
-            confirmLabel: '删除',
+            title: t('删除历史任务？'),
+            message: t('将永久删除该版本对比的清单与历史记录（') + desc + t('），此操作不可恢复。'),
+            confirmLabel: t('删除'),
             danger: true,
             onConfirm: function () {
-              if (!beginBusy('正在删除历史任务…')) return
+              if (!beginBusy(t('正在删除历史任务…'))) return
               setError('')
               apiPost('/tracescope/v1/report-history-delete', { id: historyId })
                 .then(function () {
                   setHistoryId('')
                   setReport(null)
-                  setChatHint('已删除该历史任务。')
+                  setChatHint(t('已删除该历史任务。'))
                   refreshHistory()
                 })
                 .catch(function (err) {
@@ -3082,8 +3086,7 @@
             status: status,
             testerScreenshots: status === 'fail' ? undefined : [],
           }).catch(function () {
-            /* ignore persist errors for checklist clicks */
-          })
+            /* ignore persist errors for checklist clicks */          })
         }
       }, [repoPath, baseCommit, headCommit])
 
@@ -3172,7 +3175,7 @@
             status: 'fail',
             testerScreenshots: nextShots,
           }).catch(function (err) {
-            setChatHint(err.message || '保存截图失败（可能体积过大）')
+            setChatHint(err.message || t('保存截图失败（可能体积过大）'))
           })
         },
         [repoPath, baseCommit, headCommit],
@@ -3185,19 +3188,19 @@
       var uploadTaskFiles = useCallback(
         function (files) {
           if (!report) {
-            setChatHint('请先生成验证清单，再上传任务附件')
+            setChatHint(t('请先生成验证清单，再上传任务附件'))
             return
           }
           var list = (files || []).filter(Boolean)
           if (!list.length) return
           var currentCount = (report.attachments && report.attachments.length) || 0
           if (currentCount >= 8) {
-            setChatHint('任务附件最多 8 个')
+            setChatHint(t('任务附件最多 8 个'))
             return
           }
           var room = 8 - currentCount
           var queue = list.slice(0, room)
-          if (!beginBusy('正在上传任务附件…')) return
+          if (!beginBusy(t('正在上传任务附件…'))) return
           var idx = 0
           function next() {
             if (idx >= queue.length) {
@@ -3208,8 +3211,8 @@
             var electronPath = file && file.path ? String(file.path) : ''
             // Large files: prefer host-side copy via absolute path when Electron exposes it.
             if (electronPath && file.size > 35 * 1024 * 1024) {
-              updateBusyMessage('正在从本机路径添加「' + file.name + '」…')
-              setChatHint('正在从本机路径添加「' + file.name + '」…')
+              updateBusyMessage(t('正在从本机路径添加「') + file.name + '」…')
+              setChatHint(t('正在从本机路径添加「') + file.name + '」…')
               apiPost('/tracescope/v1/report-attachments', {
                 action: 'upload',
                 repoPath: repoPath.trim(),
@@ -3226,7 +3229,7 @@
                       return Object.assign({}, prev, { attachments: data.attachments })
                     })
                   }
-                  setChatHint('已添加附件「' + file.name + '」')
+                  setChatHint(t('已添加附件「') + file.name + '」')
                   next()
                 })
                 .catch(function (err) {
@@ -3240,13 +3243,13 @@
               setChatHint(
                 '「' +
                   file.name +
-                  '」过大（>40MB）。请在下方填写本机绝对路径后点「从路径添加」。',
+                  t('」过大（>40MB）。请在下方填写本机绝对路径后点「从路径添加」。'),
               )
               next()
               return
             }
-            updateBusyMessage('正在上传「' + file.name + '」…')
-            setChatHint('正在上传「' + file.name + '」…')
+            updateBusyMessage(t('正在上传「') + file.name + '」…')
+            setChatHint(t('正在上传「') + file.name + '」…')
             fileToBase64(file)
               .then(function (b64) {
                 return apiPost('/tracescope/v1/report-attachments', {
@@ -3266,7 +3269,7 @@
                     return Object.assign({}, prev, { attachments: data.attachments })
                   })
                 }
-                setChatHint('已添加附件「' + file.name + '」')
+                setChatHint(t('已添加附件「') + file.name + '」')
                 next()
               })
               .catch(function (err) {
@@ -3283,12 +3286,12 @@
       var uploadTaskLocalPath = useCallback(
         function () {
           if (!report) {
-            setChatHint('请先生成验证清单，再上传任务附件')
+            setChatHint(t('请先生成验证清单，再上传任务附件'))
             return
           }
           var localPath = taskAttachPath.trim()
           if (!localPath) return
-          if (!beginBusy('正在从路径添加附件…')) return
+          if (!beginBusy(t('正在从路径添加附件…'))) return
           setError('')
           apiPost('/tracescope/v1/report-attachments', {
             action: 'upload',
@@ -3305,7 +3308,7 @@
                 })
               }
               setTaskAttachPath('')
-              setChatHint('已从本机路径添加附件')
+              setChatHint(t('已从本机路径添加附件'))
             })
             .catch(function (err) {
               if (isAbortError(err)) return
@@ -3321,7 +3324,7 @@
       var removeTaskAttachment = useCallback(
         function (id) {
           if (!report || !id) return
-          if (!beginBusy('正在删除附件…')) return
+          if (!beginBusy(t('正在删除附件…'))) return
           apiPost('/tracescope/v1/report-attachments', {
             action: 'delete',
             repoPath: repoPath.trim(),
@@ -3336,7 +3339,7 @@
                   attachments: (data && data.attachments) || [],
                 })
               })
-              setChatHint('已移除任务附件')
+              setChatHint(t('已移除任务附件'))
             })
             .catch(function (err) {
               if (isAbortError(err)) return
@@ -3352,7 +3355,7 @@
       var downloadTaskAttachment = useCallback(
         function (att) {
           if (!report || !att) return
-          if (!beginBusy('正在下载附件…')) return
+          if (!beginBusy(t('正在下载附件…'))) return
           apiPost('/tracescope/v1/report-attachments', {
             action: 'download',
             repoPath: repoPath.trim(),
@@ -3362,13 +3365,13 @@
           })
             .then(function (data) {
               if (data && data.tooLarge && data.localPath) {
-                copyText(data.localPath, '本机路径')
+                copyText(data.localPath, t('本机路径'))
                 setChatHint(
-                  '附件较大，已复制本机路径：' + data.localPath + '（可在资源管理器中打开）',
+                  t('附件较大，已复制本机路径：') + data.localPath + t('（可在资源管理器中打开）'),
                 )
                 return
               }
-              if (!data || !data.dataBase64) throw new Error('下载失败')
+              if (!data || !data.dataBase64) throw new Error(t('下载失败'))
               var bin = atob(data.dataBase64)
               var bytes = new Uint8Array(bin.length)
               for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
@@ -3383,7 +3386,7 @@
               setTimeout(function () {
                 URL.revokeObjectURL(url)
               }, 1500)
-              setChatHint('已开始下载「' + att.name + '」')
+              setChatHint(t('已开始下载「') + att.name + '」')
             })
             .catch(function (err) {
               if (isAbortError(err)) return
@@ -3403,14 +3406,14 @@
             return (it.status || 'pending') === 'fail'
           })
           if (!failed.length) {
-            setChatHint('当前没有标记为失败的条目')
+            setChatHint(t('当前没有标记为失败的条目'))
             return
           }
           var lines = [
-            '【TraceScope 失败反馈】',
-            '仓库：' + (repoPath || report.repoPath || ''),
-            '稳定：' + (baseCommit || report.baseCommit || ''),
-            '待测：' + (headCommit || report.headCommit || ''),
+            t('【TraceScope 失败反馈】'),
+            t('仓库：') + (repoPath || report.repoPath || ''),
+            t('稳定：') + (baseCommit || report.baseCommit || ''),
+            t('待测：') + (headCommit || report.headCommit || ''),
             '',
           ]
           failed.forEach(function (it, i) {
@@ -3420,26 +3423,26 @@
                 '. ' +
                 it.displayName +
                 '（' +
-                (it.kind === 'direct' ? '直接' : '波及') +
-                ' / 风险 ' +
+                (it.kind === 'direct' ? t('直接') : t('波及')) +
+                t(' / 风险 ') +
                 it.risk +
                 '）',
             )
             if (it.files && it.files.length) {
-              lines.push('   文件：' + it.files.join(', '))
+              lines.push(t('   文件：') + it.files.join(', '))
             }
-            lines.push('   备注：' + ((it.testerNote && it.testerNote.trim()) || '（未填写）'))
+            lines.push(t('   备注：') + ((it.testerNote && it.testerNote.trim()) || t('（未填写）')))
             var shotNames = (it.testerScreenshots || [])
               .map(function (s) {
                 return s.name
               })
               .filter(Boolean)
             if (shotNames.length) {
-              lines.push('   截图：' + shotNames.join('、') + '（共 ' + shotNames.length + ' 张，详见本机清单）')
+              lines.push(t('   截图：') + shotNames.join('、') + t('（共 ') + shotNames.length + t(' 张，详见本机清单）'))
             }
             lines.push('')
           })
-          copyText(lines.join('\n'), '失败反馈')
+          copyText(lines.join('\n'), t('失败反馈'))
         },
         [report, repoPath, baseCommit, headCommit],
       )
@@ -3447,7 +3450,7 @@
       var exportReportFile = useCallback(
         function () {
           if (!report) {
-            setChatHint('当前没有可导出的清单')
+            setChatHint(t('当前没有可导出的清单'))
             return
           }
           var base = baseCommit || report.baseCommit || ''
@@ -3465,7 +3468,7 @@
             '.md'
 
           // Prefer server markdown when possible (small request: pair only, no full report body).
-          if (!beginBusy('正在导出清单…')) return
+          if (!beginBusy(t('正在导出清单…'))) return
           setError('')
           apiPost('/tracescope/v1/report-export', {
             repoPath: repoPath.trim() || report.repoPath || '',
@@ -3476,7 +3479,7 @@
               var text = (data && data.markdown) || ''
               var name = (data && data.filename) || filename
               downloadTextFile(name, text, 'text/markdown')
-              setChatHint('已导出：' + name)
+              setChatHint(t('已导出：') + name)
             })
             .catch(function () {
               // Fallback: build from the in-memory checklist (always works offline).
@@ -3486,7 +3489,7 @@
                 headCommit: head,
               })
               downloadTextFile(filename, text, 'text/markdown')
-              setChatHint('已导出（本地面板数据）：' + filename)
+              setChatHint(t('已导出（本地面板数据）：') + filename)
             })
             .finally(function () {
               endBusy()
@@ -3497,7 +3500,7 @@
 
       var saveTrackerSettings = useCallback(
         function () {
-          if (!beginBusy('正在保存协作平台配置…')) return
+          if (!beginBusy(t('正在保存协作平台配置…'))) return
           var payload = { provider: trackerProvider }
           if (trackerProvider === 'yunxiao') {
             payload.yunxiao = {
@@ -3530,10 +3533,10 @@
               setTrackerReady(Boolean(data && data.ready))
               setChatHint(
                 data && data.ready
-                  ? '协作平台配置已保存，可将失败反馈一键提交。'
+                  ? t('协作平台配置已保存，可将失败反馈一键提交。')
                   : trackerProvider === 'none'
-                    ? '已清除协作平台配置。'
-                    : '配置已写入，但仍不完整，请检查必填项。',
+                    ? t('已清除协作平台配置。')
+                    : t('配置已写入，但仍不完整，请检查必填项。'),
               )
             })
             .catch(function (err) {
@@ -3589,7 +3592,7 @@
 
       var loadYunxiaoCatalog = useCallback(
         function (action, extra) {
-          setYxCatalogHint('正在从云效拉取…')
+          setYxCatalogHint(t('正在从云效拉取…'))
           return apiPost(
             '/tracescope/v1/yunxiao-catalog',
             Object.assign(
@@ -3615,7 +3618,7 @@
               if (data && data.warning && !options.length) {
                 setYxCatalogHint(data.warning)
               } else {
-                setYxCatalogHint('已拉取 ' + options.length + ' 项')
+                setYxCatalogHint(t('已拉取 ') + options.length + t(' 项'))
               }
               return options
             })
@@ -3629,8 +3632,8 @@
 
       var refreshYunxiaoOrgs = useCallback(
         function () {
-          if (!beginBusy('正在拉取云效企业列表…')) return
-          setYxCatalogHint('正在拉取云效企业…')
+          if (!beginBusy(t('正在拉取云效企业列表…'))) return
+          setYxCatalogHint(t('正在拉取云效企业…'))
           loadYunxiaoCatalog('organizations')
             .then(function (options) {
               setYxOrgs(options)
@@ -3650,11 +3653,11 @@
         function (orgId) {
           var org = orgId || yxOrg
           if (!org) {
-            setYxCatalogHint('请先选择企业')
+            setYxCatalogHint(t('请先选择企业'))
             return
           }
-          if (!beginBusy('正在拉取云效项目与成员…')) return
-          setYxCatalogHint('正在拉取项目与成员…')
+          if (!beginBusy(t('正在拉取云效项目与成员…'))) return
+          setYxCatalogHint(t('正在拉取项目与成员…'))
           Promise.all([
             loadYunxiaoCatalog('projects', { organizationId: org }),
             loadYunxiaoCatalog('members', { organizationId: org }),
@@ -3668,10 +3671,10 @@
               if (members.length === 1) setYxAssignee(members[0].id)
               if (!projects.length) {
                 setYxCatalogHint(
-                  '企业已选中，但项目列表为空（请检查 PAT 项目权限，或手动填写 spaceId）',
+                  t('企业已选中，但项目列表为空（请检查 PAT 项目权限，或手动填写 spaceId）'),
                 )
               } else {
-                setYxCatalogHint('已拉取项目 ' + projects.length + ' 个、成员 ' + members.length + ' 人')
+                setYxCatalogHint(t('已拉取项目 ') + projects.length + t(' 个、成员 ') + members.length + t(' 人'))
               }
             })
             .catch(function (err) {
@@ -3689,10 +3692,10 @@
           var org = orgId || yxOrg
           var space = spaceId || yxSpace
           if (!org || !space) {
-            setYxCatalogHint('请先选择企业和项目')
+            setYxCatalogHint(t('请先选择企业和项目'))
             return
           }
-          if (!beginBusy('正在拉取云效缺陷类型…')) return
+          if (!beginBusy(t('正在拉取云效缺陷类型…'))) return
           loadYunxiaoCatalog('workitemTypes', {
             organizationId: org,
             spaceId: space,
@@ -3713,18 +3716,18 @@
       var refreshAgileWorkitems = useCallback(
         function () {
           if (!yxOrg || !yxSpace) {
-            setWiHint('请先在协作平台里选择企业和项目')
+            setWiHint(t('请先在协作平台里选择企业和项目'))
             return
           }
           var categories = Object.keys(wiCats || {}).filter(function (k) {
             return wiCats[k]
           })
           if (!categories.length) {
-            setWiHint('请至少勾选一种工作项类型')
+            setWiHint(t('请至少勾选一种工作项类型'))
             return
           }
-          if (!beginBusy('正在拉取敏捷任务…')) return
-          setWiHint('正在拉取敏捷任务…')
+          if (!beginBusy(t('正在拉取敏捷任务…'))) return
+          setWiHint(t('正在拉取敏捷任务…'))
           apiPost('/tracescope/v1/yunxiao-catalog', {
             action: 'workitems',
             endpoint: yxEndpoint,
@@ -3737,7 +3740,7 @@
               var items = (data && data.items) || []
               setWiItems(items)
               setWiSelected({})
-              setWiHint('已拉取 ' + items.length + ' 条，可多选后生成验证清单')
+              setWiHint(t('已拉取 ') + items.length + t(' 条，可多选后生成验证清单'))
             })
             .catch(function (err) {
               setWiHint(err.message || String(err))
@@ -3756,15 +3759,15 @@
             return (it.status || 'pending') === 'fail'
           })
           if (!failed.length) {
-            setChatHint('当前没有标记为失败的条目')
+            setChatHint(t('当前没有标记为失败的条目'))
             return
           }
           if (!trackerReady) {
             setConfirmDlg({
-              title: '先配置协作平台？',
+              title: t('先配置协作平台？'),
               message:
-                '尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。',
-              confirmLabel: '打开配置',
+                t('尚未配置完整的协作平台。请打开「仓库配置」选择云效 / GitHub / GitLab / Webhook 并保存。'),
+              confirmLabel: t('打开配置'),
               danger: false,
               onConfirm: function () {
                 setSettingsOpen(true)
@@ -3773,19 +3776,19 @@
             return
           }
           setConfirmDlg({
-            title: '提交失败反馈？',
+            title: t('提交失败反馈？'),
             message:
-              '将把 ' +
+              t('将把 ') +
               failed.length +
-              ' 条失败反馈提交到已配置的协作平台（' +
+              t(' 条失败反馈提交到已配置的协作平台（') +
               trackerProvider +
-              '）。可修改下方标题后再提交。',
-            inputLabel: '缺陷标题',
+              t('）。可修改下方标题后再提交。'),
+            inputLabel: t('缺陷标题'),
             inputValue: defaultFailSubject(failed, repoPath.trim() || report.repoPath || ''),
-            confirmLabel: '提交',
+            confirmLabel: t('提交'),
             danger: false,
             onConfirm: function (subject) {
-              if (!beginBusy('正在提交失败反馈到协作平台…')) return
+              if (!beginBusy(t('正在提交失败反馈到协作平台…'))) return
               setError('')
               apiPost('/tracescope/v1/tracker-submit', {
                 repoPath: repoPath.trim(),
@@ -3796,18 +3799,18 @@
               })
                 .then(function (data) {
                   var tip =
-                    '已提交到 ' +
+                    t('已提交到 ') +
                     (data.provider || trackerProvider) +
                     (data.id ? '（ID ' + data.id + '）' : '') +
-                    '，共 ' +
+                    t('，共 ') +
                     (data.count || failed.length) +
-                    ' 条失败。'
-                  if (data.url) tip += ' 链接：' + data.url
+                    t(' 条失败。')
+                  if (data.url) tip += t(' 链接：') + data.url
                   var uploaded = Number(data.uploadedAttachments || 0)
                   var failedUp = Number(data.failedAttachments || 0)
                   if (uploaded || failedUp) {
-                    tip += ' 附件上传成功 ' + uploaded + ' 个'
-                    if (failedUp) tip += '，失败 ' + failedUp + ' 个'
+                    tip += t(' 附件上传成功 ') + uploaded + t(' 个')
+                    if (failedUp) tip += t('，失败 ') + failedUp + t(' 个')
                     tip += '。'
                   }
                   if (data.attachmentErrors && data.attachmentErrors.length) {
@@ -3887,17 +3890,17 @@
                     }),
                     jsx('div', {
                       style: { fontWeight: 700, marginBottom: 6 },
-                      children: '加载中，请稍候',
+                      children: t('加载中，请稍候'),
                     }),
                     jsx('div', {
                       style: { color: '#6b645a', fontSize: 12, lineHeight: 1.45 },
                       children:
                         busyMessage ||
-                        '正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。',
+                        t('正在处理请求。网络较慢时请勿重复操作，完成前其它按钮已锁定。'),
                     }),
                     jsx('div', {
                       style: { marginTop: 8, fontSize: 11, color: '#8a7f70' },
-                      children: '已用时 ' + busyElapsed + ' 秒',
+                      children: t('已用时 ') + busyElapsed + t(' 秒'),
                     }),
                     jsx('button', {
                       type: 'button',
@@ -3907,7 +3910,7 @@
                         e.stopPropagation()
                         cancelBusy()
                       },
-                      children: '取消',
+                      children: t('取消'),
                     }),
                   ],
                 }),
@@ -3923,11 +3926,11 @@
               jsxs('div', {
                 style: { display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 },
                 children: [
-                  jsx('strong', { children: 'TraceScope 测试工作台' }),
+                  jsx('strong', { children: t('TraceScope 测试工作台') }),
                   jsx('span', {
                     style: { color: busy ? '#0f6e56' : '#6b645a', fontSize: 12 },
                     children: busy
-                      ? busyMessage || '处理中…'
+                      ? busyMessage || t('处理中…')
                       : health + (pluginVersion ? ' · v' + pluginVersion : ''),
                   }),
                 ],
@@ -3945,7 +3948,7 @@
                 children: [
                   jsxs('label', {
                     title:
-                      '进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。',
+                      t('进入会话时自动展开 TraceScope。关闭后进入会话保持侧栏当前状态、不自动切换，需要时再从右侧栏手动打开。'),
                     style: {
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -3966,12 +3969,12 @@
                         },
                         style: { margin: 0, cursor: busy ? 'default' : 'pointer' },
                       }),
-                      '自动展开',
+                      t('自动展开'),
                     ],
                   }),
                   jsx('button', {
                     type: 'button',
-                    title: '对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）',
+                    title: t('对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）'),
                     disabled: busy || updateBusy,
                     onClick: function () {
                       toggleUpdatePanel()
@@ -3985,14 +3988,14 @@
                     ),
                     children:
                       updateBusy
-                        ? '更新中…'
+                        ? t('更新中…')
                         : updateInfo && updateInfo.updateAvailable
-                          ? '有更新'
-                          : '检查更新',
+                          ? t('有更新')
+                          : t('检查更新'),
                   }),
                   jsx('button', {
                     type: 'button',
-                    title: '自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘',
+                    title: t('自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘'),
                     disabled: busy,
                     onClick: function () {
                       toggleDataDir()
@@ -4002,7 +4005,7 @@
                         ? Object.assign({}, styles.miniBtn, dataDirOpen ? styles.miniBtnActive : null)
                         : Object.assign({}, styles.miniBtn, { opacity: 0.7 }),
                     children:
-                      '数据目录' + (dataDirInfo ? ' · ' + formatBytes(dataDirInfo.sizeBytes) : ''),
+                      t('数据目录') + (dataDirInfo ? ' · ' + formatBytes(dataDirInfo.sizeBytes) : ''),
                   }),
                 ],
               }),
@@ -4030,7 +4033,7 @@
                     },
                     children:
                       updateMessage ||
-                      '对照 npm 检查版本。优先走官方插件管理器；若环境没有，会提示扩展坞或 CLI。无需安装插件市场。',
+                      t('对照 npm 检查版本。优先走官方插件管理器；若环境没有，会提示扩展坞或 CLI。无需安装插件市场。'),
                   }),
                   jsxs('div', {
                     style: Object.assign({}, styles.row, { gap: 6 }),
@@ -4042,7 +4045,7 @@
                         onClick: function () {
                           runCheckUpdate()
                         },
-                        children: updateBusy ? '请稍候…' : '重新检查',
+                        children: updateBusy ? t('请稍候…') : t('重新检查'),
                       }),
                       updateInfo && updateInfo.updateAvailable
                         ? jsx('button', {
@@ -4053,7 +4056,7 @@
                               runApplyUpdate(false)
                             },
                             children:
-                              '更新到 ' + (updateInfo.latestVersion || '最新版'),
+                              t('更新到 ') + (updateInfo.latestVersion || t('最新版')),
                           })
                         : null,
                       updateCanForce
@@ -4061,11 +4064,11 @@
                             type: 'button',
                             style: styles.secondary,
                             disabled: updateBusy,
-                            title: '在可选路径上强制再装',
+                            title: t('在可选路径上强制再装'),
                             onClick: function () {
                               runApplyUpdate(true)
                             },
-                            children: '强制更新',
+                            children: t('强制更新'),
                           })
                         : null,
                       jsx('button', {
@@ -4075,7 +4078,7 @@
                         onClick: function () {
                           setUpdateOpen(false)
                         },
-                        children: '收起',
+                        children: t('收起'),
                       }),
                     ],
                   }),
@@ -4098,7 +4101,7 @@
                 children: [
                   jsx('div', {
                     style: { fontSize: 12, color: '#5d564c' },
-                    children: '数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）',
+                    children: t('数据存放目录（更改后会自动把现有清单、附件、缓存仓库迁移过去）'),
                   }),
                   jsxs('div', {
                     style: Object.assign({}, styles.row, { gap: 6 }),
@@ -4122,14 +4125,14 @@
                         },
                         children:
                           dataDirDraft ||
-                          (dataDirInfo ? dataDirInfo.defaultRoot : '点击右侧浏览选择目录'),
+                          (dataDirInfo ? dataDirInfo.defaultRoot : t('点击右侧浏览选择目录')),
                       }),
                       jsx('button', {
                         type: 'button',
                         style: Object.assign({}, styles.secondary, { flex: '0 0 auto' }),
                         disabled: dataDirBusy,
                         onClick: openPicker,
-                        children: '浏览…',
+                        children: t('浏览…'),
                       }),
                     ],
                   }),
@@ -4137,9 +4140,9 @@
                     ? jsx('p', {
                         style: { margin: 0, color: '#9a6a1f', fontSize: 12 },
                         children:
-                          '当前目录由环境变量 TRACESCOPE_HOME 指定（' +
+                          t('当前目录由环境变量 TRACESCOPE_HOME 指定（') +
                           dataDirInfo.envRoot +
-                          '），请修改环境变量后重启，无法在此更改。',
+                          t('），请修改环境变量后重启，无法在此更改。'),
                       })
                     : jsxs('div', {
                         style: Object.assign({}, styles.row, { justifyContent: 'flex-end' }),
@@ -4151,14 +4154,14 @@
                             onClick: function () {
                               setDataDirOpen(false)
                             },
-                            children: '取消',
+                            children: t('取消'),
                           }),
                           jsx('button', {
                             type: 'button',
                             style: styles.primary,
                             disabled: dataDirBusy,
                             onClick: applyDataDir,
-                            children: dataDirBusy ? '迁移中…' : '更改并迁移',
+                            children: dataDirBusy ? t('迁移中…') : t('更改并迁移'),
                           }),
                         ],
                       }),
@@ -4196,7 +4199,7 @@
                       children: [
                         jsx('strong', {
                           style: { fontSize: 13 },
-                          children: pickerPurpose === 'repo' ? '选择代码文件夹' : '选择数据存放目录',
+                          children: pickerPurpose === 'repo' ? t('选择代码文件夹') : t('选择数据存放目录'),
                         }),
                         jsx('button', {
                           type: 'button',
@@ -4259,7 +4262,7 @@
                               browsePath('')
                             }
                           },
-                          children: '↑ 上级',
+                          children: t('↑ 上级'),
                         }),
                         jsx('div', {
                           title: pickerBrowse ? pickerBrowse.path : '',
@@ -4274,9 +4277,9 @@
                           },
                           children: pickerBrowse
                             ? pickerBrowse.isRoot
-                              ? '此电脑 / 磁盘'
+                              ? t('此电脑 / 磁盘')
                               : pickerBrowse.path
-                            : '加载中…',
+                            : t('加载中…'),
                         }),
                       ],
                     }),
@@ -4286,12 +4289,12 @@
                       children: pickerLoading
                         ? jsx('div', {
                             style: { padding: 16, textAlign: 'center', color: '#8a8378', fontSize: 12 },
-                            children: '正在读取…',
+                            children: t('正在读取…'),
                           })
                         : pickerBrowse && !pickerBrowse.dirs.length
                           ? jsx('div', {
                               style: { padding: 16, textAlign: 'center', color: '#8a8378', fontSize: 12 },
-                              children: '该目录下没有子文件夹，可直接选择当前目录。',
+                              children: t('该目录下没有子文件夹，可直接选择当前目录。'),
                             })
                           : (pickerBrowse ? pickerBrowse.dirs : []).map(function (d) {
                               var active = pickerSelected === d.path
@@ -4299,7 +4302,7 @@
                                 'button',
                                 {
                                   type: 'button',
-                                  title: active ? '已选中（双击进入）' : '单击选中，双击进入',
+                                  title: active ? t('已选中（双击进入）') : t('单击选中，双击进入'),
                                   onClick: function () {
                                     // Single click selects the folder (native-like).
                                     setPickerSelected(d.path)
@@ -4356,7 +4359,7 @@
                           title: effectivePickerPath(),
                           children: (function () {
                             var p = effectivePickerPath()
-                            return p ? '将使用：' + p : '请进入并选择一个文件夹'
+                            return p ? t('将使用：') + p : t('请进入并选择一个文件夹')
                           })(),
                         }),
                         jsx('button', {
@@ -4370,19 +4373,19 @@
                               setPickerSelected(pickerBrowse.path)
                             }
                           },
-                          children: '选当前目录',
+                          children: t('选当前目录'),
                         }),
                         jsx('button', {
                           type: 'button',
                           style: styles.secondary,
                           onClick: closePicker,
-                          children: '取消',
+                          children: t('取消'),
                         }),
                         jsx('button', {
                           type: 'button',
                           style: styles.primary,
                           onClick: confirmPicker,
-                          children: '确定',
+                          children: t('确定'),
                         }),
                       ],
                     }),
@@ -4411,7 +4414,7 @@
                 onClick: function () {
                   switchMode('functional')
                 },
-                children: '功能影响分析',
+                children: t('功能影响分析'),
               }),
               jsxs('button', {
                 type: 'button',
@@ -4424,7 +4427,7 @@
                   switchMode('ui')
                 },
                 children: [
-                  '设计差异分析',
+                  t('设计差异分析'),
                   jsx('span', {
                     style: {
                       fontSize: 10,
@@ -4435,7 +4438,7 @@
                       background: mode === 'ui' ? 'rgba(255,255,255,0.22)' : '#f1ede3',
                       color: mode === 'ui' ? '#fff' : '#8a7f70',
                     },
-                    children: '试验',
+                    children: t('试验'),
                   }),
                 ],
               }),
@@ -4455,7 +4458,7 @@
                     children: [
                       jsx('span', {
                         style: { fontWeight: 700, whiteSpace: 'nowrap' },
-                        children: '仓库',
+                        children: t('仓库'),
                       }),
                       jsx('select', {
                         style: Object.assign({}, styles.input, {
@@ -4465,7 +4468,7 @@
                         }),
                         value: repoList.indexOf(repoPath.trim()) !== -1 ? repoPath.trim() : '',
                         disabled: busy || (!repoList.length && !repoPath.trim()),
-                        title: repoPath || '选择已保存的仓库',
+                        title: repoPath || t('选择已保存的仓库'),
                         onChange: function (e) {
                           var v = e.target.value
                           if (v) switchRepo(v)
@@ -4476,8 +4479,8 @@
                             {
                               value: '',
                               children: repoPath.trim()
-                                ? '当前：' + shortRepoLabel(repoPath)
-                                : '选择仓库 / 先在配置中添加',
+                                ? t('当前：') + shortRepoLabel(repoPath)
+                                : t('选择仓库 / 先在配置中添加'),
                             },
                             'repo-empty',
                           ),
@@ -4501,7 +4504,7 @@
                       if (busy) return
                       setSettingsOpen(!settingsOpen)
                     },
-                    children: settingsOpen ? '收起配置' : '仓库配置',
+                    children: settingsOpen ? t('收起配置') : t('仓库配置'),
                   }),
                 ],
               }),
@@ -4513,20 +4516,20 @@
                       (resolved
                         ? ' · ' +
                           (resolved.source === 'codeup'
-                            ? '远端 API'
+                            ? t('远端 API')
                             : resolved.source === 'remote'
-                              ? '远端缓存'
-                              : '本地') +
+                              ? t('远端缓存')
+                              : t('本地')) +
                           (resolved.authMode && resolved.authMode !== 'none'
-                            ? ' · 认证 ' +
-                              (authMode === 'token' ? '个人访问令牌' : resolved.authMode)
+                            ? t(' · 认证 ') +
+                              (authMode === 'token' ? t('个人访问令牌') : resolved.authMode)
                             : authMode === 'token'
-                              ? ' · 认证 个人访问令牌'
+                              ? t(' · 认证 个人访问令牌')
                               : '') +
                           (authMode === 'token' && (yxTokenSaved || usableSecret(yxToken))
-                            ? ' · 令牌已保存'
+                            ? t(' · 令牌已保存')
                             : authMode === 'token'
-                              ? ' · 请填写个人访问令牌'
+                              ? t(' · 请填写个人访问令牌')
                               : '')
                         : ''),
                   })
@@ -4542,7 +4545,7 @@
                       jsxs('label', {
                         style: styles.label,
                         children: [
-                          mode === 'ui' ? '代码文件夹路径 / 远端代码库地址' : '本地文件夹路径 / 远端仓库地址',
+                          mode === 'ui' ? t('代码文件夹路径 / 远端代码库地址') : t('本地文件夹路径 / 远端仓库地址'),
                           jsxs('div', {
                             style: Object.assign({}, styles.row, { alignItems: 'stretch' }),
                             children: [
@@ -4552,8 +4555,8 @@
                                 disabled: busy,
                                 placeholder:
                                   mode === 'ui'
-                                    ? '普通代码文件夹即可（无需 git），或 https://…'
-                                    : '本地项目文件夹，或 https://github.com/org/repo.git',
+                                    ? t('普通代码文件夹即可（无需 git），或 https://…')
+                                    : t('本地项目文件夹，或 https://github.com/org/repo.git'),
                                 onChange: function (e) {
                                   setRepoPath(e.target.value)
                                 },
@@ -4566,7 +4569,7 @@
                                 style: styles.btn,
                                 disabled: busy,
                                 onClick: openRepoPicker,
-                                children: '浏览…',
+                                children: t('浏览…'),
                               }),
                             ],
                           }),
@@ -4574,8 +4577,8 @@
                             style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                             children:
                               mode === 'ui'
-                                ? 'UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。'
-                                : '支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。',
+                                ? t('UI 对比直接读取本地代码，普通文件夹即可、无需是 git 仓库；只有填远端地址时才需要认证。')
+                                : t('支持 Windows / macOS / Linux 路径，直接粘贴本机项目文件夹即可；填远端地址时才会出现认证选项。'),
                           }),
                         ],
                       }),
@@ -4583,7 +4586,7 @@
                       ? jsxs('label', {
                         style: styles.label,
                         children: [
-                          '读取方式',
+                          t('读取方式'),
                           jsx('select', {
                             style: styles.input,
                             value: accessMode,
@@ -4596,10 +4599,10 @@
                               } catch (_e) {}
                             },
                             children: [
-                              jsx('option', { value: 'git', children: '本地 Git（推荐）' }, 'mode-git'),
+                              jsx('option', { value: 'git', children: t('本地 Git（推荐）') }, 'mode-git'),
                               jsx('option', {
                                 value: 'codeup',
-                                children: '远端 API 兜底（无本机 Git）',
+                                children: t('远端 API 兜底（无本机 Git）'),
                               }, 'mode-codeup'),
                             ],
                           }),
@@ -4607,8 +4610,8 @@
                             style: { display: 'block', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                             children:
                               accessMode === 'codeup'
-                                ? '不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。'
-                                : '同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。',
+                                ? t('不克隆仓库，改用宿主提供的代码接口拉提交和 diff（当前支持云效 Codeup）。适合本机 Git 不可用时。静态波及仍需要本地 Git。')
+                                : t('同步远端时只保存 git 对象，不再检出整棵源码。已有的工作区缓存仍可继续用。'),
                           }),
                         ],
                       })
@@ -4626,7 +4629,7 @@
                                   loadCommits(true)
                                   setSettingsOpen(false)
                                 },
-                                children: '保存并加载版本',
+                                children: t('保存并加载版本'),
                               })
                             : jsx('button', {
                                 type: 'button',
@@ -4641,7 +4644,7 @@
                                   } catch (_e) {}
                                   setSettingsOpen(false)
                                 },
-                                children: isRemote ? '使用此代码库' : '使用此文件夹',
+                                children: isRemote ? t('使用此代码库') : t('使用此文件夹'),
                               }),
                           repoPath.trim() && repoList.indexOf(repoPath.trim()) !== -1
                             ? jsx('button', {
@@ -4669,7 +4672,7 @@
                                     setReport(null)
                                   }
                                 },
-                                children: '从列表移除',
+                                children: t('从列表移除'),
                               })
                             : null,
                         ],
@@ -4678,7 +4681,7 @@
                       !isRemote
                         ? jsx('p', {
                             style: { margin: '0 0 4px', color: '#0f6e56', fontSize: 12, lineHeight: 1.45 },
-                            children: '本地文件夹：直接读取，无需填写认证。',
+                            children: t('本地文件夹：直接读取，无需填写认证。'),
                           })
                         : null,
                       isRemote &&
@@ -4692,7 +4695,7 @@
                           jsxs('label', {
                             style: styles.label,
                             children: [
-                              '远端认证',
+                              t('远端认证'),
                               jsx('select', {
                                 style: styles.input,
                                 value: authMode,
@@ -4700,16 +4703,16 @@
                                   setRemoteAuthMode(e.target.value)
                                 },
                                 children: [
-                                  jsx('option', { value: 'none', children: '无需认证' }),
+                                  jsx('option', { value: 'none', children: t('无需认证') }),
                                   jsx('option', {
                                     value: 'token',
-                                    children: '个人访问令牌',
+                                    children: t('个人访问令牌'),
                                   }),
                                   jsx('option', {
                                     value: 'https',
-                                    children: 'HTTPS 用户名 + 密码/Token',
+                                    children: t('HTTPS 用户名 + 密码/Token'),
                                   }),
-                                  jsx('option', { value: 'ssh', children: 'SSH 私钥' }),
+                                  jsx('option', { value: 'ssh', children: t('SSH 私钥') }),
                                 ],
                               }),
                             ],
@@ -4718,7 +4721,7 @@
                             ? jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  '用户名',
+                                  t('用户名'),
                                   jsx('input', {
                                     style: styles.input,
                                     value: authUser,
@@ -4735,15 +4738,15 @@
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
-                              '个人访问令牌',
+                              t('个人访问令牌'),
                               jsx('input', {
                                 style: styles.input,
                                 type: 'password',
                                 value: yxToken,
                                 disabled: busy,
                                 placeholder: yxTokenSaved
-                                  ? '已保存在本机，留空则继续使用'
-                                  : '粘贴 PAT / 个人访问令牌即可',
+                                  ? t('已保存在本机，留空则继续使用')
+                                  : t('粘贴 PAT / 个人访问令牌即可'),
                                 onChange: function (e) {
                                   setYxToken(e.target.value)
                                 },
@@ -4756,7 +4759,7 @@
                                   lineHeight: 1.4,
                                 },
                                 children:
-                                  '适用于云效 Codeup、GitHub、GitLab 等。只需令牌，用户名固定为 git。云效仓库下同一份也可用于远端 API 与协作平台。',
+                                  t('适用于云效 Codeup、GitHub、GitLab 等。只需令牌，用户名固定为 git。云效仓库下同一份也可用于远端 API 与协作平台。'),
                               }),
                             ],
                           })
@@ -4765,12 +4768,12 @@
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
-                              '密码 / Token',
+                              t('密码 / Token'),
                               jsx('input', {
                                 style: styles.input,
                                 type: 'password',
                                 value: authToken,
-                                placeholder: '与上方用户名配套的密码或 Token',
+                                placeholder: t('与上方用户名配套的密码或 Token'),
                                 onChange: function (e) {
                                   setAuthToken(e.target.value)
                                 },
@@ -4783,7 +4786,7 @@
                                   lineHeight: 1.4,
                                 },
                                 children:
-                                  '标准 HTTPS 认证，需同时填写用户名。若只有个人访问令牌，请改用「个人访问令牌」模式。',
+                                  t('标准 HTTPS 认证，需同时填写用户名。若只有个人访问令牌，请改用「个人访问令牌」模式。'),
                               }),
                             ],
                           })
@@ -4792,11 +4795,11 @@
                         ? jsxs('label', {
                             style: styles.label,
                             children: [
-                              '私钥绝对路径',
+                              t('私钥绝对路径'),
                               jsx('input', {
                                 style: styles.input,
                                 value: authKey,
-                                placeholder: '本机 SSH 私钥文件的绝对路径',
+                                placeholder: t('本机 SSH 私钥文件的绝对路径'),
                                 onChange: function (e) {
                                   setAuthKey(e.target.value)
                                 },
@@ -4821,7 +4824,7 @@
                                   setRememberAuth(e.target.checked)
                                 },
                               }),
-                              '记住认证到本机',
+                              t('记住认证到本机'),
                             ],
                           })
                         : null,
@@ -4835,17 +4838,17 @@
                           borderTop: '1px solid var(--dsh-border, #ddd4c5)',
                           fontWeight: 700,
                         },
-                        children: '协作平台',
+                        children: t('协作平台'),
                       }),
                       jsx('p', {
                         style: { margin: '4px 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「设计差异分析」共用同一套平台配置。',
+                          t('关联工作项、提交失败反馈 / UI 差异缺陷。可选云效 / GitHub / GitLab / Webhook。选云效时令牌可与上方「个人访问令牌」共用。功能影响分析与「设计差异分析」共用同一套平台配置。'),
                       }),
                       jsxs('label', {
                         style: styles.label,
                         children: [
-                          '平台',
+                          t('平台'),
                           jsx('select', {
                             style: styles.input,
                             value: trackerProvider,
@@ -4853,11 +4856,11 @@
                               setTrackerProvider(e.target.value)
                             },
                             children: [
-                              jsx('option', { value: 'none', children: '不启用' }),
-                              jsx('option', { value: 'yunxiao', children: '阿里云效' }),
+                              jsx('option', { value: 'none', children: t('不启用') }),
+                              jsx('option', { value: 'yunxiao', children: t('阿里云效') }),
                               jsx('option', { value: 'github', children: 'GitHub Issues' }),
                               jsx('option', { value: 'gitlab', children: 'GitLab Issues' }),
-                              jsx('option', { value: 'webhook', children: '通用 Webhook' }),
+                              jsx('option', { value: 'webhook', children: t('通用 Webhook') }),
                             ],
                           }),
                         ],
@@ -4873,12 +4876,12 @@
                                   lineHeight: 1.4,
                                 },
                                 children:
-                                  '访问令牌与上方「个人访问令牌」共用。填好后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人。',
+                                  t('访问令牌与上方「个人访问令牌」共用。填好后点「拉取企业」，再依次选择企业 / 项目 / 缺陷类型 / 负责人。'),
                               }),
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  'API Endpoint（一般不用改）',
+                                  t('API Endpoint（一般不用改）'),
                                   jsx('input', {
                                     style: styles.input,
                                     value: yxEndpoint,
@@ -4897,12 +4900,12 @@
                                       marginBottom: 0,
                                     }),
                                     children: [
-                                      '访问令牌',
+                                      t('访问令牌'),
                                       jsx('input', {
                                         style: styles.input,
                                         type: 'password',
                                         value: yxToken,
-                                        placeholder: yxTokenSaved ? '已保存在本机' : '个人访问令牌',
+                                        placeholder: yxTokenSaved ? t('已保存在本机') : t('个人访问令牌'),
                                         onChange: function (e) {
                                           setYxToken(e.target.value)
                                         },
@@ -4914,14 +4917,14 @@
                                     style: styles.primary,
                                     disabled: busy || (!usableSecret(yxToken) && !yxTokenSaved),
                                     onClick: refreshYunxiaoOrgs,
-                                    children: '拉取企业',
+                                    children: t('拉取企业'),
                                   }),
                                 ],
                               }),
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  '企业 organizationId',
+                                  t('企业 organizationId'),
                                   jsx('select', {
                                     style: styles.input,
                                     value: yxOrg,
@@ -4947,8 +4950,8 @@
                                         {
                                           value: '',
                                           children: yxOrgs.length
-                                            ? '请选择企业'
-                                            : '先点「拉取企业」',
+                                            ? t('请选择企业')
+                                            : t('先点「拉取企业」'),
                                         },
                                         'yx-org-empty',
                                       ),
@@ -4967,7 +4970,7 @@
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  '项目 spaceId',
+                                  t('项目 spaceId'),
                                   jsx('select', {
                                     style: styles.input,
                                     value: yxSpace,
@@ -4989,10 +4992,10 @@
                                         {
                                           value: '',
                                           children: yxProjects.length
-                                            ? '请选择项目'
+                                            ? t('请选择项目')
                                             : yxOrg
-                                              ? '加载中或暂无项目'
-                                              : '先选择企业',
+                                              ? t('加载中或暂无项目')
+                                              : t('先选择企业'),
                                         },
                                         'yx-space-empty',
                                       ),
@@ -5014,7 +5017,7 @@
                                   jsxs('label', {
                                     style: styles.label,
                                     children: [
-                                      '缺陷类型 workitemTypeId',
+                                      t('缺陷类型 workitemTypeId'),
                                       jsx('select', {
                                         style: styles.input,
                                         value: yxType,
@@ -5028,10 +5031,10 @@
                                             {
                                               value: '',
                                               children: yxTypes.length
-                                                ? '请选择缺陷类型'
+                                                ? t('请选择缺陷类型')
                                                 : yxSpace
-                                                  ? '加载中或暂无类型'
-                                                  : '先选择项目',
+                                                  ? t('加载中或暂无类型')
+                                                  : t('先选择项目'),
                                             },
                                             'yx-type-empty',
                                           ),
@@ -5053,7 +5056,7 @@
                                   jsxs('label', {
                                     style: styles.label,
                                     children: [
-                                      '负责人 assignedTo',
+                                      t('负责人 assignedTo'),
                                       jsx('select', {
                                         style: styles.input,
                                         value: yxAssignee,
@@ -5067,10 +5070,10 @@
                                             {
                                               value: '',
                                               children: yxMembers.length
-                                                ? '请选择负责人'
+                                                ? t('请选择负责人')
                                                 : yxOrg
-                                                  ? '加载中或暂无成员'
-                                                  : '先选择企业',
+                                                  ? t('加载中或暂无成员')
+                                                  : t('先选择企业'),
                                             },
                                             'yx-member-empty',
                                           ),
@@ -5126,7 +5129,7 @@
                                           if (!e.target.checked) setYxRequestLog('')
                                         },
                                       }),
-                                      '请求日志（排查用，不含 token）',
+                                      t('请求日志（排查用，不含 token）'),
                                     ],
                                   }),
                                   yxDebugLog
@@ -5152,16 +5155,16 @@
                                                     navigator.clipboard
                                                       .writeText(yxRequestLog)
                                                       .then(function () {
-                                                        setYxCatalogHint('请求日志已复制')
+                                                        setYxCatalogHint(t('请求日志已复制'))
                                                       })
                                                       .catch(function () {
-                                                        setYxCatalogHint('复制失败，请手动全选复制')
+                                                        setYxCatalogHint(t('复制失败，请手动全选复制'))
                                                       })
                                                   } else {
-                                                    setYxCatalogHint('请手动全选下方日志复制')
+                                                    setYxCatalogHint(t('请手动全选下方日志复制'))
                                                   }
                                                 },
-                                                children: '复制日志',
+                                                children: t('复制日志'),
                                               }),
                                               jsx('button', {
                                                 type: 'button',
@@ -5170,7 +5173,7 @@
                                                 onClick: function () {
                                                   setYxRequestLog('')
                                                 },
-                                                children: '清空',
+                                                children: t('清空'),
                                               }),
                                             ],
                                           }),
@@ -5178,7 +5181,7 @@
                                             readOnly: true,
                                             value:
                                               yxRequestLog ||
-                                              '开启后执行「拉取企业 / 选企业」即可在此看到云效请求与响应摘要。',
+                                              t('开启后执行「拉取企业 / 选企业」即可在此看到云效请求与响应摘要。'),
                                             style: Object.assign({}, styles.input, {
                                               minHeight: 140,
                                               fontFamily:
@@ -5208,7 +5211,7 @@
                                     style: styles.input,
                                     type: 'password',
                                     value: ghToken,
-                                    placeholder: 'ghp_… 需要 issues:write',
+                                    placeholder: t('ghp_… 需要 issues:write'),
                                     onChange: function (e) {
                                       setGhToken(e.target.value)
                                     },
@@ -5249,7 +5252,7 @@
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  'labels（逗号分隔）',
+                                  t('labels（逗号分隔）'),
                                   jsx('input', {
                                     style: styles.input,
                                     value: ghLabels,
@@ -5295,7 +5298,7 @@
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  'projectId（数字或 group/project）',
+                                  t('projectId（数字或 group/project）'),
                                   jsx('input', {
                                     style: styles.input,
                                     value: glProject,
@@ -5308,7 +5311,7 @@
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  'labels（逗号分隔）',
+                                  t('labels（逗号分隔）'),
                                   jsx('input', {
                                     style: styles.input,
                                     value: glLabels,
@@ -5331,7 +5334,7 @@
                                   jsx('input', {
                                     style: styles.input,
                                     value: whUrl,
-                                    placeholder: 'https://… 可对接 Jira / 飞书 / 自建服务',
+                                    placeholder: t('https://… 可对接 Jira / 飞书 / 自建服务'),
                                     onChange: function (e) {
                                       setWhUrl(e.target.value)
                                     },
@@ -5341,7 +5344,7 @@
                               jsxs('label', {
                                 style: styles.label,
                                 children: [
-                                  'Authorization 头（可选）',
+                                  t('Authorization 头（可选）'),
                                   jsx('input', {
                                     style: styles.input,
                                     type: 'password',
@@ -5362,14 +5365,14 @@
                             style: Object.assign({}, styles.btn, { marginTop: 4 }),
                             disabled: busy,
                             onClick: saveTrackerSettings,
-                            children: trackerReady ? '保存平台配置（已就绪）' : '保存平台配置',
+                            children: trackerReady ? t('保存平台配置（已就绪）') : t('保存平台配置'),
                           })
                         : jsx('button', {
                             type: 'button',
                             style: Object.assign({}, styles.btn, { marginTop: 4 }),
                             disabled: busy,
                             onClick: saveTrackerSettings,
-                            children: '清除平台配置',
+                            children: t('清除平台配置'),
                           }),
                           ],
                         })
@@ -5392,12 +5395,12 @@
                     children: [
                       jsx('div', {
                         style: { fontWeight: 600, marginBottom: 6 },
-                        children: '关联敏捷任务（可选，多选）',
+                        children: t('关联敏捷任务（可选，多选）'),
                       }),
                       jsx('p', {
                         style: { margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.4 },
                         children:
-                          '勾选工作项类型后拉取任务，再多选任务。生成验证清单 / AI 智能分析时会把它们写入清单与提示。',
+                          t('勾选工作项类型后拉取任务，再多选任务。生成验证清单 / AI 智能分析时会把它们写入清单与提示。'),
                       }),
                       jsxs('div', {
                         style: Object.assign({}, styles.row, {
@@ -5407,11 +5410,11 @@
                         }),
                         children: ['Req', 'Bug', 'Task', 'Risk', 'Topic'].map(function (cat) {
                           var labels = {
-                            Req: '需求',
-                            Bug: '缺陷',
-                            Task: '任务',
-                            Risk: '风险',
-                            Topic: '专题',
+                            Req: t('需求'),
+                            Bug: t('缺陷'),
+                            Task: t('任务'),
+                            Risk: t('风险'),
+                            Topic: t('专题'),
                           }
                           return jsxs(
                             'label',
@@ -5452,7 +5455,7 @@
                             style: styles.primary,
                             disabled: busy,
                             onClick: refreshAgileWorkitems,
-                            children: '拉取任务',
+                            children: t('拉取任务'),
                           }),
                           jsx('button', {
                             type: 'button',
@@ -5465,7 +5468,7 @@
                               })
                               setWiSelected(next)
                             },
-                            children: '全选',
+                            children: t('全选'),
                           }),
                           jsx('button', {
                             type: 'button',
@@ -5474,12 +5477,12 @@
                             onClick: function () {
                               setWiSelected({})
                             },
-                            children: '清空选择',
+                            children: t('清空选择'),
                           }),
                           jsx('span', {
                             style: { color: '#6b645a', fontSize: 12 },
                             children:
-                              '已选 ' +
+                              t('已选 ') +
                               Object.keys(wiSelected).filter(function (k) {
                                 return wiSelected[k]
                               }).length +
@@ -5578,14 +5581,14 @@
                     onClick: function () {
                       loadCommits(true)
                     },
-                    children: '同步版本',
+                    children: t('同步版本'),
                   }),
                   jsx('button', {
                     type: 'button',
                     style: styles.primary,
                     disabled: busy || !baseCommit || !headCommit,
                     onClick: analyze,
-                    children: '生成验证清单',
+                    children: t('生成验证清单'),
                   }),
                   jsx('button', {
                     type: 'button',
@@ -5601,14 +5604,14 @@
                       }
                     },
                     children:
-                      jobId && jobStatus === 'pending' ? '取消等待并清空草稿' : 'AI 智能分析',
+                      jobId && jobStatus === 'pending' ? t('取消等待并清空草稿') : t('AI 智能分析'),
                   }),
                   jsx('button', {
                     type: 'button',
                     style: styles.btn,
                     disabled: busy || !baseCommit || !headCommit,
                     onClick: refreshStoredReport,
-                    children: '刷新清单',
+                    children: t('刷新清单'),
                   }),
                 ],
               }),
@@ -5624,7 +5627,7 @@
                     children: [
                       jsx('span', {
                         style: { fontWeight: 600, whiteSpace: 'nowrap' },
-                        children: '对话任务 ID',
+                        children: t('对话任务 ID'),
                       }),
                       jsx('code', {
                         style: {
@@ -5641,17 +5644,17 @@
                         type: 'button',
                         style: styles.btn,
                         onClick: function () {
-                          copyText(jobId, '任务 ID')
+                          copyText(jobId, t('任务 ID'))
                         },
-                        children: '复制',
+                        children: t('复制'),
                       }),
                       jsx('span', {
                         style: { color: '#6b645a', fontSize: 12 },
                         children:
                           jobStatus === 'pending'
-                            ? '等待 publish'
+                            ? t('等待 publish')
                             : jobStatus === 'published'
-                              ? '已发布'
+                              ? t('已发布')
                               : jobStatus || '',
                       }),
                     ],
@@ -5663,7 +5666,7 @@
                   jsxs('label', {
                     style: Object.assign({}, styles.label, { flex: 1, marginBottom: 0, minWidth: 180 }),
                     children: [
-                      '历史任务（多仓库）',
+                      t('历史任务（多仓库）'),
                       jsx('select', {
                         style: styles.input,
                         value: historyId,
@@ -5679,8 +5682,8 @@
                             {
                               value: '',
                               children: history.length
-                                ? '选择历史（含各仓库；同版本仅最新）'
-                                : '暂无历史',
+                                ? t('选择历史（含各仓库；同版本仅最新）')
+                                : t('暂无历史'),
                             },
                             'hist-empty',
                           ),
@@ -5691,7 +5694,7 @@
                               ' · ' +
                               (h.savedAt || '').replace('T', ' ').slice(0, 16) +
                               ' · ' +
-                              (h.source === 'model' ? 'AI' : '规则') +
+                              (h.source === 'model' ? 'AI' : t('规则')) +
                               ' · ' +
                               shortSha(h.baseCommit) +
                               '→' +
@@ -5707,16 +5710,16 @@
                     style: styles.btn,
                     disabled: busy || !historyId,
                     onClick: function () {
-                      copyText(historyId, '历史 ID')
+                      copyText(historyId, t('历史 ID'))
                     },
-                    children: '复制历史 ID',
+                    children: t('复制历史 ID'),
                   }),
                   jsx('button', {
                     type: 'button',
                     style: styles.btn,
                     disabled: busy || !historyId,
                     onClick: deleteSelectedHistory,
-                    children: '删除',
+                    children: t('删除'),
                   }),
                 ],
               }),
@@ -5751,7 +5754,7 @@
                           setBranchPickerOpen(!branchPickerOpen)
                           if (branchPickerOpen) setBranchQuery('')
                         },
-                        children: branchPickerOpen ? '收起分支' : '切换分支',
+                        children: branchPickerOpen ? t('收起分支') : t('切换分支'),
                       }),
                       !branchPickerOpen
                         ? jsx('span', {
@@ -5760,15 +5763,15 @@
                               var tip = newestBranchTip(refs)
                               if (tip && tip.name) {
                                 return (
-                                  '同步后默认用最新分支 ' +
+                                  t('同步后默认用最新分支 ') +
                                   tip.name +
-                                  '：待测=最新提交，稳定=倒数第二' +
+                                  t('：待测=最新提交，稳定=倒数第二') +
                                   (tip.date ? ' · ' + formatRefWhen(tip.date) : '')
                                 )
                               }
                               return refs && refs.length
-                                ? '按名称筛选；点稳定 / 待测后自动收起'
-                                : '先同步版本'
+                                ? t('按名称筛选；点稳定 / 待测后自动收起')
+                                : t('先同步版本')
                             })(),
                           })
                         : null,
@@ -5783,8 +5786,8 @@
                             value: branchQuery,
                             disabled: busy || !(refs && refs.length),
                             placeholder: refs && refs.length
-                              ? '输入分支名筛选；列表按最新提交时间排序'
-                              : '先同步版本',
+                              ? t('输入分支名筛选；列表按最新提交时间排序')
+                              : t('先同步版本'),
                             onChange: function (e) {
                               setBranchQuery(e.target.value)
                             },
@@ -5805,7 +5808,7 @@
                               if (!shown.length) {
                                 return jsx('div', {
                                   style: { padding: '8px 10px', color: '#6b645a', fontSize: 12 },
-                                  children: refs && refs.length ? '没有匹配的分支' : '同步后在这里选分支',
+                                  children: refs && refs.length ? t('没有匹配的分支') : t('同步后在这里选分支'),
                                 })
                               }
                               return shown.map(function (r, idx) {
@@ -5828,10 +5831,10 @@
                                   viewingHistoryRef.current = null
                                   if (target === 'base') {
                                     setBaseCommit(r.name)
-                                    setChatHint('稳定版本已切到分支 ' + r.name + '，正在加载该分支近期提交…')
+                                    setChatHint(t('稳定版本已切到分支 ') + r.name + t('，正在加载该分支近期提交…'))
                                   } else {
                                     setHeadCommit(r.name)
-                                    setChatHint('待测版本已切到分支 ' + r.name + '，正在加载该分支近期提交…')
+                                    setChatHint(t('待测版本已切到分支 ') + r.name + t('，正在加载该分支近期提交…'))
                                   }
                                   setBranchQuery('')
                                   setBranchPickerOpen(false)
@@ -5868,7 +5871,7 @@
                                           jsxs('div', {
                                             style: { wordBreak: 'break-all' },
                                             children: [
-                                              (r.kind === 'remote' ? '远端 ' : '') + r.name,
+                                              (r.kind === 'remote' ? t('远端 ') : '') + r.name,
                                               r.short
                                                 ? jsx('span', {
                                                     style: { color: '#8a7f70' },
@@ -5882,7 +5885,7 @@
                                                       background: '#dbeafe',
                                                       color: '#1d4ed8',
                                                     }),
-                                                    children: '最新',
+                                                    children: t('最新'),
                                                   })
                                                 : null,
                                             ],
@@ -5915,7 +5918,7 @@
                                         onClick: function () {
                                           pickBranch('base')
                                         },
-                                        children: onBase ? '稳定 ✓' : '稳定',
+                                        children: onBase ? t('稳定 ✓') : t('稳定'),
                                       }),
                                       jsx('button', {
                                         type: 'button',
@@ -5927,7 +5930,7 @@
                                         onClick: function () {
                                           pickBranch('head')
                                         },
-                                        children: onHead ? '待测 ✓' : '待测',
+                                        children: onHead ? t('待测 ✓') : t('待测'),
                                       }),
                                     ],
                                   },
@@ -5939,12 +5942,12 @@
                           branchQuery && matchingBranches(refs, branchQuery).length > 40
                             ? jsx('div', {
                                 style: { color: '#6b645a', fontSize: 11, marginTop: 4 },
-                                children: '匹配超过 40 个，请再输入几个字缩小范围',
+                                children: t('匹配超过 40 个，请再输入几个字缩小范围'),
                               })
                             : !branchQuery && matchingBranches(refs, '').length > 40
                               ? jsx('div', {
                                   style: { color: '#6b645a', fontSize: 11, marginTop: 4 },
-                                  children: '分支较多，输入名称筛选。列表先显示前 40 个',
+                                  children: t('分支较多，输入名称筛选。列表先显示前 40 个'),
                                 })
                               : null,
                         ],
@@ -5958,7 +5961,7 @@
                   jsxs('label', {
                     style: styles.label,
                     children: [
-                      '稳定版本',
+                      t('稳定版本'),
                       jsx(
                         'select',
                         {
@@ -5974,7 +5977,7 @@
                               loadCommits(true, { preserveSelection: true, refName: next })
                             }
                           },
-                          children: buildVersionOptions(refs, commits, '先同步版本', commitListRef),
+                          children: buildVersionOptions(refs, commits, t('先同步版本'), commitListRef),
                         },
                       ),
                     ],
@@ -5982,7 +5985,7 @@
                   jsxs('label', {
                     style: styles.label,
                     children: [
-                      '待测版本',
+                      t('待测版本'),
                       jsx(
                         'select',
                         {
@@ -5998,7 +6001,7 @@
                               loadCommits(true, { preserveSelection: true, refName: next })
                             }
                           },
-                          children: buildVersionOptions(refs, commits, '先同步版本', commitListRef),
+                          children: buildVersionOptions(refs, commits, t('先同步版本'), commitListRef),
                         },
                       ),
                     ],
@@ -6018,19 +6021,19 @@
                   jsx('div', {
                     style: { marginBottom: 8, color: '#6b645a' },
                     children:
-                      '变更文件 ' +
+                      t('变更文件 ') +
                       (report.changedFiles || []).length +
-                      ' · 直接 ' +
+                      t(' · 直接 ') +
                       (report.direct || []).length +
-                      ' · 波及 ' +
+                      t(' · 波及 ') +
                       (report.ripple || []).length +
                       ' · ' +
-                      (report.modelEnriched ? 'AI 分析' : '规则分析'),
+                      (report.modelEnriched ? t('AI 分析') : t('规则分析')),
                   }),
                   jsx('p', {
                     style: { margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 },
                     children:
-                      '验证时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。',
+                      t('验证时点右侧按钮记录结果。标记「失败」后可填写备注，便于复制反馈给开发。结果会写入本机。'),
                   }),
                   jsxs('div', {
                     style: Object.assign({}, styles.row, {
@@ -6055,13 +6058,13 @@
                             else pending += 1
                           })
                           return (
-                            '进度：通过 ' +
+                            t('进度：通过 ') +
                             pass +
-                            ' · 失败 ' +
+                            t(' · 失败 ') +
                             fail +
-                            ' · 跳过 ' +
+                            t(' · 跳过 ') +
                             skip +
-                            ' · 待测 ' +
+                            t(' · 待测 ') +
                             pending
                           )
                         })(),
@@ -6079,21 +6082,21 @@
                             type: 'button',
                             style: styles.btn,
                             onClick: copyFailFeedback,
-                            children: '复制失败反馈',
+                            children: t('复制失败反馈'),
                           }),
                           jsx('button', {
                             type: 'button',
                             style: styles.primary,
                             disabled: busy,
                             onClick: submitTracker,
-                            children: '提交缺陷',
+                            children: t('提交缺陷'),
                           }),
                           jsx('button', {
                             type: 'button',
                             style: styles.btn,
                             disabled: busy,
                             onClick: exportReportFile,
-                            children: '导出报告',
+                            children: t('导出报告'),
                           }),
                         ],
                       }),
@@ -6110,7 +6113,7 @@
                     children: [
                       jsx('div', {
                         style: { fontWeight: 600, marginBottom: 4 },
-                        children: '任务附件（整份验证任务）',
+                        children: t('任务附件（整份验证任务）'),
                       }),
                       jsx('p', {
                         style: {
@@ -6120,7 +6123,7 @@
                           lineHeight: 1.4,
                         },
                         children:
-                          '可上传视频录像、文档等。附件属于当前版本对比任务，不绑定单条 checklist。小文件可直接选择；大视频建议填本机绝对路径。',
+                          t('可上传视频录像、文档等。附件属于当前版本对比任务，不绑定单条 checklist。小文件可直接选择；大视频建议填本机绝对路径。'),
                       }),
                       jsxs('div', {
                         style: Object.assign({}, styles.row, {
@@ -6150,7 +6153,7 @@
                             onClick: function () {
                               if (taskAttachRef.current) taskAttachRef.current.click()
                             },
-                            children: '选择文件',
+                            children: t('选择文件'),
                           }),
                           jsx('input', {
                             style: Object.assign({}, styles.input, {
@@ -6159,7 +6162,7 @@
                               marginBottom: 0,
                             }),
                             value: taskAttachPath,
-                            placeholder: '或填本机绝对路径（大视频）',
+                            placeholder: t('或填本机绝对路径（大视频）'),
                             onChange: function (e) {
                               setTaskAttachPath(e.target.value)
                             },
@@ -6169,12 +6172,12 @@
                             style: styles.btn,
                             disabled: busy || !taskAttachPath.trim(),
                             onClick: uploadTaskLocalPath,
-                            children: '从路径添加',
+                            children: t('从路径添加'),
                           }),
                           jsx('span', {
                             style: { fontSize: 12, color: '#6b645a' },
                             children:
-                              '已附 ' +
+                              t('已附 ') +
                               ((report.attachments && report.attachments.length) || 0) +
                               '/8',
                           }),
@@ -6225,7 +6228,7 @@
                                       onClick: function () {
                                         downloadTaskAttachment(att)
                                       },
-                                      children: '下载',
+                                      children: t('下载'),
                                     }),
                                     jsx('button', {
                                       type: 'button',
@@ -6234,7 +6237,7 @@
                                       onClick: function () {
                                         removeTaskAttachment(att.id)
                                       },
-                                      children: '移除',
+                                      children: t('移除'),
                                     }),
                                   ],
                                 },
@@ -6244,7 +6247,7 @@
                           })
                         : jsx('p', {
                             style: { margin: 0, fontSize: 12, color: '#9a9185' },
-                            children: '暂无任务附件',
+                            children: t('暂无任务附件'),
                           }),
                     ],
                   }),
@@ -6259,7 +6262,7 @@
                           if (busy) return
                           setTab('direct')
                         },
-                        children: '直接项',
+                        children: t('直接项'),
                       }),
                       jsx('button', {
                         type: 'button',
@@ -6269,7 +6272,7 @@
                           if (busy) return
                           setTab('ripple')
                         },
-                        children: '可能波及',
+                        children: t('可能波及'),
                       }),
                     ],
                   }),
@@ -6290,7 +6293,7 @@
                           (tab === 'ripple' ? 'ripple' : 'direct') + '-' + index + '-' + (item.id || ''),
                         )
                       })
-                    : jsx('p', { style: { color: '#6b645a' }, children: '这一类没有条目' }),
+                    : jsx('p', { style: { color: '#6b645a' }, children: t('这一类没有条目') }),
                 ],
               })
             : null,
@@ -6312,7 +6315,7 @@
                     inputValue: opts.inputValue || '',
                     multiline: !!opts.multiline,
                     fields: opts.fields || null,
-                    confirmLabel: opts.confirmLabel || '保存',
+                    confirmLabel: opts.confirmLabel || t('保存'),
                     danger: false,
                     onConfirm: opts.onConfirm,
                   })
@@ -6336,7 +6339,7 @@
                     children: [
                       jsx('div', {
                         style: { fontWeight: 700, fontSize: 15, marginBottom: 8 },
-                        children: confirmDlg.title || '请确认',
+                        children: confirmDlg.title || t('请确认'),
                       }),
                       confirmDlg.message
                         ? jsx('p', {
@@ -6433,7 +6436,7 @@
                             onClick: function () {
                               setConfirmDlg(null)
                             },
-                            children: '取消',
+                            children: t('取消'),
                           }),
                           jsx('button', {
                             type: 'button',
@@ -6454,7 +6457,7 @@
                                 action()
                               }
                             },
-                            children: confirmDlg.confirmLabel || '确定',
+                            children: confirmDlg.confirmLabel || t('确定'),
                           }),
                         ],
                       }),
@@ -6527,6 +6530,28 @@
 
     function apply(ctx) {
       hostCtx = ctx
+      // Soft i18n: never hard-inject @deepseek-ai/dsh-client-locale (missing peer
+      // aborts activation). wireTracescopeI18n registers dicts when locale is
+      // available, retries if it appears later, and follows locale/change.
+      try {
+        if (ctx && typeof ctx.effect === 'function') {
+          ctx.effect(function () {
+            try {
+              return i18n.wireTracescopeI18n(ctx)
+            } catch (err) {
+              console.warn('[tracescope] locale wire skipped', err)
+              try {
+                i18n.setModuleTranslator(i18n.createTranslator(ctx))
+              } catch (_e) {}
+              return function () {}
+            }
+          }, 'tracescope locales')
+        } else {
+          i18n.setModuleTranslator(i18n.createTranslator(ctx))
+        }
+      } catch (err) {
+        console.warn('[tracescope] locale effect skipped', err)
+      }
       // Plugins detail / configuration seats (Desktop bundle page + older settings cards).
       // Host does not auto-draw Update; we register our own card.
       try {
@@ -6551,7 +6576,7 @@
                 return 'TraceScope'
               },
               description: function () {
-                return '对比版本、验证清单与 AI 智能分析（新建会话后也可从右侧栏打开）'
+                return t('对比版本、验证清单与 AI 智能分析（新建会话后也可从右侧栏打开）')
               },
             },
           ],
@@ -6595,8 +6620,7 @@
               })
             }
           } catch (_e) {
-            /* non-fatal: retry on next list change */
-          }
+            /* non-fatal: retry on next list change */          }
         }
 
         reconcile()
@@ -6616,6 +6640,8 @@
             {
               name: 'sidebar.right.pane.tab',
               key: TAB_ID,
+              // Tie the pane to Host LocaleFace so language switches re-render UI.
+              locale: i18n.LOCALE_NS,
             },
             TraceScopePanelBody,
           )
@@ -6628,6 +6654,7 @@
             {
               name: 'sidebar.right.pane.tab.title',
               key: TAB_ID,
+              locale: i18n.LOCALE_NS,
             },
             function TraceScopeTitle() {
               return jsx('span', { children: 'TraceScope' })

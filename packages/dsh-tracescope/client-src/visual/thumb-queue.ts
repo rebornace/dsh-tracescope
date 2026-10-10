@@ -1,3 +1,5 @@
+import { getT, localeHeaders, withLocale } from '../locales/i18n.js'
+
 /**
  * Bounded-concurrency + batched thumbnail loader.
  *
@@ -108,12 +110,12 @@ async function postThumbnails(
   const r = await fetch('/tracescope/v1/page-thumbnails', {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ figmaUrl, figmaToken, nodeIds }),
+    headers: localeHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify(withLocale({ figmaUrl, figmaToken, nodeIds })),
   })
   const text = await r.text()
   const data = text ? JSON.parse(text) : {}
-  if (!r.ok) throw new Error(data.error || '缩略图批量请求失败')
+  if (!r.ok) throw new Error(data.error || getT()('errors.thumbBatchFailed'))
   return (data.urls as Record<string, string>) || {}
 }
 

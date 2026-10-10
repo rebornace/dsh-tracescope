@@ -25,17 +25,18 @@ import {
   saveReportAttachmentFromLocalPath,
   type ImpactReport,
 } from '@rebornace/tracescope-core'
+import { I18nError } from '../i18n/messages.js'
 
 export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-load',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
       if (!repoPath || !baseCommit || !headCommit) {
-        throw new Error('需要 repoPath、baseCommit、headCommit')
+        throw new I18nError('ERR_MISSING_REPO_COMMITS', lang)
       }
       const stored = await loadHandtestReport(repoPath, baseCommit, headCommit)
       return { found: Boolean(stored), stored }
@@ -45,7 +46,7 @@ export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-history',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const repoPath =
         typeof body.repoPath === 'string'
           ? body.repoPath
@@ -65,11 +66,11 @@ export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-history-get',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const id = String(body.id ?? '')
-      if (!id) throw new Error('缺少 id')
+      if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const stored = await loadHandtestHistoryEntry(id)
-      if (!stored) throw new Error(`找不到历史任务 ${id}`)
+      if (!stored) throw new I18nError('ERR_HISTORY_NOT_FOUND', lang, { id })
       return { found: true, stored }
     },
   })
@@ -77,11 +78,11 @@ export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-history-delete',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const id = String(body.id ?? '')
-      if (!id) throw new Error('缺少 id')
+      if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const result = await deleteHandtestHistory(id)
-      if (!result.deleted) throw new Error(`找不到或无法删除历史任务 ${id}`)
+      if (!result.deleted) throw new I18nError('ERR_HISTORY_DELETE_FAILED', lang, { id })
       return { ok: true, ...result }
     },
   })
@@ -89,13 +90,13 @@ export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-save',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
       const report = body.report as ImpactReport | undefined
       if (!repoPath || !baseCommit || !headCommit || !report) {
-        throw new Error('需要 repoPath、baseCommit、headCommit、report')
+        throw new I18nError('ERR_MISSING_REPO_COMMITS_REPORT', lang)
       }
       const source =
         body.source === 'model' || body.source === 'deterministic'
@@ -117,7 +118,7 @@ export function registerReportRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/report-status',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
@@ -140,10 +141,10 @@ export function registerReportRoutes(ctx: Context) {
             : undefined
       const hasScreenshots = Object.prototype.hasOwnProperty.call(body, 'testerScreenshots')
       if (!repoPath || !baseCommit || !headCommit || !itemId) {
-        throw new Error('需要 repoPath、baseCommit、headCommit、itemId、status')
+        throw new I18nError('ERR_MISSING_STATUS_FIELDS', lang)
       }
       if (status !== 'pending' && status !== 'pass' && status !== 'fail' && status !== 'skip') {
-        throw new Error('status 必须是 pending|pass|fail|skip')
+        throw new I18nError('ERR_INVALID_STATUS', lang)
       }
       const stored = await patchHandtestItemStatus({
         repoInput: repoPath,
@@ -164,17 +165,17 @@ export function registerReportRoutes(ctx: Context) {
     path: '/tracescope/v1/report-attachments',
     method: 'POST',
     maxBodyBytes: 56 * 1024 * 1024,
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const action = String(body.action ?? 'list')
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
       if (!repoPath || !baseCommit || !headCommit) {
-        throw new Error('需要 repoPath、baseCommit、headCommit')
+        throw new I18nError('ERR_MISSING_REPO_COMMITS', lang)
       }
       const key = handtestReportKey(repoPath, baseCommit, headCommit)
       let stored = await loadHandtestReport(repoPath, baseCommit, headCommit)
-      if (!stored) throw new Error('请先生成验证清单，再上传任务附件')
+      if (!stored) throw new I18nError('ERR_REPORT_REQUIRED_FIRST', lang)
 
       if (action === 'list') {
         return {
@@ -187,7 +188,7 @@ export function registerReportRoutes(ctx: Context) {
       if (action === 'upload') {
         const current = normalizeReportAttachments(stored.report.attachments)
         if (current.length >= MAX_REPORT_ATTACHMENTS) {
-          throw new Error(`任务附件最多 ${MAX_REPORT_ATTACHMENTS} 个`)
+          throw new I18nError('ERR_MAX_ATTACHMENTS', lang, { max: MAX_REPORT_ATTACHMENTS })
         }
         const name = String(body.name ?? '').trim()
         const mime = typeof body.mime === 'string' ? body.mime : undefined
@@ -202,12 +203,12 @@ export function registerReportRoutes(ctx: Context) {
             mime,
           })
         } else if (dataBase64) {
-          if (!name) throw new Error('缺少附件文件名')
+          if (!name) throw new I18nError('ERR_MISSING_ATTACHMENT_NAME', lang)
           const raw = dataBase64.includes(',')
             ? dataBase64.slice(dataBase64.indexOf(',') + 1)
             : dataBase64
           const data = Buffer.from(raw, 'base64')
-          if (!data.length) throw new Error('附件内容为空')
+          if (!data.length) throw new I18nError('ERR_EMPTY_ATTACHMENT', lang)
           attachment = await saveReportAttachmentBuffer({
             reportKey: key,
             name,
@@ -215,7 +216,7 @@ export function registerReportRoutes(ctx: Context) {
             data,
           })
         } else {
-          throw new Error('请选择文件，或填写本机绝对路径（适合大视频）')
+          throw new I18nError('ERR_ATTACHMENT_UPLOAD_SOURCE', lang)
         }
         const next = normalizeReportAttachments([...current, attachment])
         stored = await saveHandtestReport({
@@ -236,7 +237,7 @@ export function registerReportRoutes(ctx: Context) {
 
       if (action === 'delete') {
         const id = String(body.id ?? body.attachmentId ?? '').trim()
-        if (!id) throw new Error('缺少附件 id')
+        if (!id) throw new I18nError('ERR_MISSING_ATTACHMENT_ID', lang)
         const current = normalizeReportAttachments(stored.report.attachments)
         const target = current.find((a) => a.id === id)
         const next = current.filter((a) => a.id !== id)
@@ -257,10 +258,10 @@ export function registerReportRoutes(ctx: Context) {
 
       if (action === 'download') {
         const id = String(body.id ?? body.attachmentId ?? '').trim()
-        if (!id) throw new Error('缺少附件 id')
+        if (!id) throw new I18nError('ERR_MISSING_ATTACHMENT_ID', lang)
         const current = normalizeReportAttachments(stored.report.attachments)
         const target = current.find((a) => a.id === id)
-        if (!target) throw new Error('找不到该附件')
+        if (!target) throw new I18nError('ERR_ATTACHMENT_NOT_FOUND', lang)
         const filePath = path.join(reportAttachmentsDir(key), target.storedName)
         if (target.size > MAX_ATTACHMENT_UPLOAD_BYTES) {
           return {
@@ -283,24 +284,24 @@ export function registerReportRoutes(ctx: Context) {
         }
       }
 
-      throw new Error('action 必须是 list|upload|delete|download')
+      throw new I18nError('ERR_ATTACHMENTS_ACTION_INVALID', lang)
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/report-export',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       let report = body.report as ImpactReport | undefined
       if (!report) {
         const repoPath = String(body.repoPath ?? body.repo ?? '')
         const baseCommit = String(body.baseCommit ?? '')
         const headCommit = String(body.headCommit ?? '')
         if (!repoPath || !baseCommit || !headCommit) {
-          throw new Error('需要 report，或 repoPath + baseCommit + headCommit')
+          throw new I18nError('ERR_EXPORT_REPORT_MISSING', lang)
         }
         const stored = await loadHandtestReport(repoPath, baseCommit, headCommit)
-        if (!stored?.report) throw new Error('找不到可导出的清单')
+        if (!stored?.report) throw new I18nError('ERR_EXPORT_REPORT_NOT_FOUND', lang)
         report = stored.report
       }
       const markdown = exportReportMarkdown(report)

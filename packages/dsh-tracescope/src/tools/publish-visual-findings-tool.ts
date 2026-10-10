@@ -6,6 +6,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { publishVisualFindings } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerPublishVisualFindingsTool(ctx: Context) {
   ctx.tools?.register(
@@ -51,7 +53,7 @@ export function registerPublishVisualFindingsTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已写回 UI 走查结论')
+          return toolText(v.summary || ui('TOOL_VISUAL_PUBLISHED', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

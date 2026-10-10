@@ -5,8 +5,12 @@
  *
  * Starter prompts in the composer are short task briefs that name these skills;
  * the full procedure lives here so tokens are not burned on every click.
+ *
+ * Language follows Host locale preference (settings.yaml / DSH_LOCALE / LANG),
+ * defaulting to Chinese — same rule as the sidebar UI.
  */
 import type { Context } from '../dsh-shims.js'
+import { resolveHostLang, type Lang } from '../i18n/lang.js'
 
 interface SkillRegistrationLike {
   name: string
@@ -28,7 +32,12 @@ function resolveSkillsService(ctx: Context): SkillsServiceLike | null {
   return null
 }
 
-const IMPACT_ANALYSIS_SKILL: SkillRegistrationLike = {
+/** Best-effort Host language (defaults zh). */
+export function resolveSkillsLang(ctx: Context): Lang {
+  return resolveHostLang(ctx)
+}
+
+const IMPACT_ZH: SkillRegistrationLike = {
   name: 'tracescope-impact-analysis',
   description:
     'TraceScope 功能影响分析：根据两版本 diff 推导手测范围与风险点，并用 tracescope_publish_handtest 写回侧栏清单。',
@@ -60,7 +69,39 @@ const IMPACT_ANALYSIS_SKILL: SkillRegistrationLike = {
 `,
 }
 
-const UI_REVIEW_SKILL: SkillRegistrationLike = {
+const IMPACT_EN: SkillRegistrationLike = {
+  name: 'tracescope-impact-analysis',
+  description:
+    'TraceScope impact analysis: derive hand-test scope and risks from a two-version diff, then publish the checklist via tracescope_publish_handtest.',
+  whenToUse:
+    'When the user clicks “AI analysis” in TraceScope Impact Analysis, or asks for impact analysis / a hand-test checklist from commits/diff. Starter prompts name this skill.',
+  source: 'bundled',
+  content: `# TraceScope impact analysis
+
+## Goal
+From the real base/head diff (and optional Yunxiao work items), derive hand-test cases and risks, separate direct vs ripple impact, and publish back to the sidebar.
+
+## Hard rules
+- Use TraceScope tools for the real diff; do not invent changes.
+- Must call \`tracescope_publish_handtest\` to publish (sidebar will not refresh otherwise). May publish multiple times.
+- Reply in English; keep conclusions actionable.
+
+## Tools
+- \`tracescope_create_handtest_job\` (create first if no sidebar job) / \`tracescope_list_commits\` / \`tracescope_get_diff\` / \`tracescope_analyze_impact\`
+- Codeup mode: prefer TraceScope / Codeup; do not assume local git
+- \`tracescope_publish_handtest\`: publish checklist
+
+## Steps
+1. Pull the real diff for the job’s repo, base, head (and linked work items).
+2. Derive hand-test cases and risks; mark \`direct\` vs \`ripple\`.
+3. Publish:
+   - \`jobId\`: ID from the job card
+   - \`items\`: \`[{displayName,kind(direct|ripple),risk(high|medium|low),files,suggestedSteps,evidence}]\`
+4. Brief English summary in chat; republish after user corrections.
+`,
+}
+
+const UI_ZH: SkillRegistrationLike = {
   name: 'tracescope-ui-review',
   description:
     'TraceScope UI 走查：对照设计稿与前端代码，充实差异清单（期望 vs 实际、位置、改法），并用 tracescope_publish_visual_findings 写回侧栏。',
@@ -105,7 +146,52 @@ const UI_REVIEW_SKILL: SkillRegistrationLike = {
 `,
 }
 
-const PAGE_MATCH_SKILL: SkillRegistrationLike = {
+const UI_EN: SkillRegistrationLike = {
+  name: 'tracescope-ui-review',
+  description:
+    'TraceScope UI review: compare design vs frontend code, enrich the findings list (expected vs actual, location, fix), and publish via tracescope_publish_visual_findings.',
+  whenToUse:
+    'When the user clicks “AI assist” in TraceScope, or asks for a design-vs-code UI review. Starter prompts name this skill.',
+  source: 'bundled',
+  content: `# TraceScope UI review
+
+## Goal
+Treat the design as source of truth and produce an **actionable findings list** (not a pixel-perfect UI rebuild). After publish, findings merge with static diffs in the sidebar.
+
+## Hard rules
+- **Do not** visit figma.com or call the Figma REST API.
+- **Do not** ask the user to paste the whole design tree; you cannot see the sidebar canvas — use the job’s render URL / static diffs, then tools if needed.
+- **Do not** embed data URL / base64 images in replies or tool args.
+- **Must** call \`tracescope_publish_visual_findings\`. May publish multiple times.
+- Ignore reasonable dynamic sizing / device differences; static diffs are clues only.
+- For list/pagination runtime areas: mark “runtime data uncertain” in findings and state the design’s expected copy/structure — **no** visual template fill.
+
+## How to get design context (priority)
+1. Design render http(s) URL on the job card (if any).
+2. Design image already on the TraceScope compare board (do not re-paste).
+3. Static diff summary on the job card.
+4. For node structure / copy / sizes: \`tracescope_get_design_snapshot\` (jobId; optional nodeId).
+5. Code: read real sources from the job’s dependency list; do not invent files.
+
+## Tools
+- \`tracescope_start_visual_review\` (create first if no sidebar job)
+- \`tracescope_get_design_snapshot\`: design tree snapshot on demand
+- \`tracescope_publish_visual_findings\`: publish findings
+
+## Steps
+1. After loading this skill, read code from the list.
+2. Compare render / static diffs (snapshot if needed); list only real issues.
+3. For each item: expected vs actual, files, and how to fix.
+4. Publish:
+   - \`jobId\`
+   - \`findings\`: \`[{title,severity,nodeId?,location?,expected?,actual?,codeSource?,suggestion?}]\`
+     - **\`nodeId\` must come from** \`tracescope_get_design_snapshot\` or a real id in the static summary (e.g. \`12:345\`); leave empty if unknown — use \`location\` + expected copy; **never invent ids**
+   - \`summary\` optional
+5. Brief English summary; republish after corrections.
+`,
+}
+
+const PAGE_ZH: SkillRegistrationLike = {
   name: 'tracescope-page-match',
   description:
     'TraceScope 设计页 ↔ 代码文件匹配：推荐最可能实现该页的仓库文件，并用 tracescope_publish_page_rematch 写回。',
@@ -134,11 +220,43 @@ const PAGE_MATCH_SKILL: SkillRegistrationLike = {
 `,
 }
 
+const PAGE_EN: SkillRegistrationLike = {
+  name: 'tracescope-page-match',
+  description:
+    'TraceScope design-page ↔ code-file match: recommend the most likely repo files for a page and publish via tracescope_publish_page_rematch.',
+  whenToUse:
+    'When the user clicks “AI recommend file” on a mapping card, or asks to rematch a design page to source. Starter prompts name this skill.',
+  source: 'bundled',
+  content: `# TraceScope page file match
+
+## Goal
+From page name, copy samples, and static candidates, recommend the most likely repo files and publish the sidebar selection.
+
+## Hard rules
+- **Do not** visit figma.com or call the Figma REST API.
+- **Must** call \`tracescope_publish_page_rematch\`. May publish multiple times.
+- Static candidates are clues only; you may recommend better paths outside the list.
+- If there is no sidebar job, call \`tracescope_start_page_rematch\` first for jobId and candidate prompt.
+
+## Steps
+1. Open candidates or search routes / page names / copy when needed; do not guess from filenames alone.
+2. Top 1–3 (confidence descending), each with \`relativePath\`, \`adapterId\`, \`confidence\` (0..1), English \`reason\`.
+3. Publish:
+   - \`jobId\`
+   - \`picks\`: \`[{adapterId,relativePath,kindLabel?,score?,reason?}]\`
+   - \`note\` optional
+4. Explain Top1; republish after user input.
+`,
+}
+
 /** Register plugin-bundled skills when the host skill registry is available. */
 export function registerBuiltinSkills(ctx: Context): void {
   const skills = resolveSkillsService(ctx)
   if (!skills) return
-  for (const skill of [IMPACT_ANALYSIS_SKILL, UI_REVIEW_SKILL, PAGE_MATCH_SKILL]) {
+  const lang = resolveSkillsLang(ctx)
+  const pack =
+    lang === 'en' ? [IMPACT_EN, UI_EN, PAGE_EN] : [IMPACT_ZH, UI_ZH, PAGE_ZH]
+  for (const skill of pack) {
     try {
       skills.register(skill)
     } catch {

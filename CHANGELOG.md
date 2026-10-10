@@ -5,6 +5,13 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.6 — 2026-10-10
+
+- **中英双语（跟随 Host）**：侧栏、插件详情 / 自更新、独立 panel、内置 skills、Host API 错误与 UI 说明支持中/英；语言跟随 DeepSeek Harness（`ctx.locale` / `Accept-Language`），插件内不设独立切换。
+- **发往会话输入框的 Starter 提示词双语**：功能影响分析 / UI 走查 / 页面匹配等写入 DSH 聊天框的内容随 Host 语言切换，方便英文用户阅读与改写。
+- **Bilingual UI (follows Host)**：Sidebar, plugin detail / self-update, standalone panel, bundled skills, Host API errors & notes support zh/en; language follows Desktop/Host locale — no in-plugin toggle.
+- **Bilingual composer starters**：Impact analysis / UI review / page rematch prompts dropped into the DSH chat box follow Host language for English users.
+
 ## 0.2.5 — 2026-10-02
 
 - **插件自更新（不依赖 dshmarket）**：Host `GET /tracescope/v1/self-update/check` 对照 npm / npmmirror；安装优先官方 `pluginManager.installBundle`，未就绪时提示扩展坞或 `dsh plugin add`；仅当本机已装市场时才可选走市场 Update API。

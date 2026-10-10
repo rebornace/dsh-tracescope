@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.2.5`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
+**版本: `0.2.6`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
 
 TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心能力：
 
@@ -10,6 +10,8 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心�
 | **设计差异分析** | 实现与 Figma / 蓝湖稿差在哪？静态对比、定位差异并回传缺陷 |
 
 推荐在 **官方 DeepSeek Harness 桌面端** 右侧栏使用；也可通过 MCP 在 Cursor / Claude 等客户端调用同一套能力。
+
+界面语言（中/英）**跟随桌面端 / Host 界面语言**，与系统设置一致，插件内无需单独切换。
 
 > **详细功能、侧栏流程、深度增强与已知限制** → [docs/GUIDE.md](./docs/GUIDE.md)  
 > 工程边界与包职责 → [ARCHITECTURE.md](./ARCHITECTURE.md)

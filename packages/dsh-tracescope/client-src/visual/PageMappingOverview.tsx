@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getT, localeHeaders, withLocale } from '../locales/i18n.js'
+import { useLocaleT } from '../locales/use-locale-t.js'
 import { requestPageThumbnail } from './thumb-queue.js'
 
 interface CodeFile {
@@ -59,26 +61,31 @@ export interface RematchApplyPayload {
   token: number
 }
 
-const KIND_BADGE: Record<PageMapping['kind'], { label: string; bg: string; fg: string }> = {
-  screen: { label: '整屏', bg: '#e7f0fb', fg: '#1d4e89' },
-  'list-item': { label: '列表项', bg: '#ece8fa', fg: '#4a3aa0' },
-  dialog: { label: '弹窗', bg: '#fdeede', fg: '#9a5b06' },
-}
-
-const STATUS_META: Record<PageMapping['status'], { dot: string; label: string }> = {
-  matched: { dot: '#1a9b6e', label: '已匹配' },
-  weak: { dot: '#dc8a05', label: '待确认' },
-  none: { dot: '#d92d20', label: '未匹配' },
-}
-
 type StatusFilter = 'all' | PageMapping['status']
 
-const FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: 'all', label: '全部' },
-  { id: 'matched', label: '已匹配' },
-  { id: 'weak', label: '待确认' },
-  { id: 'none', label: '未匹配' },
-]
+const KIND_STYLES: Record<PageMapping['kind'], { bg: string; fg: string }> = {
+  screen: { bg: '#e7f0fb', fg: '#1d4e89' },
+  'list-item': { bg: '#ece8fa', fg: '#4a3aa0' },
+  dialog: { bg: '#fdeede', fg: '#9a5b06' },
+}
+
+const STATUS_DOTS: Record<PageMapping['status'], string> = {
+  matched: '#1a9b6e',
+  weak: '#dc8a05',
+  none: '#d92d20',
+}
+
+function kindLabel(t: ReturnType<typeof getT>, kind: PageMapping['kind']): string {
+  if (kind === 'list-item') return t('mapping.kind.listItem')
+  if (kind === 'dialog') return t('mapping.kind.dialog')
+  return t('mapping.kind.screen')
+}
+
+function statusLabel(t: ReturnType<typeof getT>, status: PageMapping['status']): string {
+  if (status === 'matched') return t('mapping.filter.matched')
+  if (status === 'weak') return t('mapping.filter.weak')
+  return t('mapping.filter.none')
+}
 
 function storageKey(repoInput: string, figmaUrl: string) {
   return 'tracescope.map.selections:' + repoInput.trim() + ':' + figmaUrl.trim()
@@ -121,29 +128,28 @@ async function post<T = MatchAllResponse>(path: string, body: unknown) {
   const r = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: localeHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify(withLocale(body)),
   })
   const text = await r.text()
   let data: Record<string, unknown> = {}
   try {
     data = text ? (JSON.parse(text) as Record<string, unknown>) : {}
   } catch {
+    const t = getT()
     throw new Error(
       text
-        ? `服务器返回非 JSON（HTTP ${r.status}）：${text.slice(0, 120)}`
-        : `请求失败（HTTP ${r.status}）`,
+        ? t('errors.nonJson', { status: r.status, snippet: text.slice(0, 120) })
+        : t('errors.httpFailed', { status: r.status }),
     )
   }
   if (!r.ok) {
+    const t = getT()
     const detail = String(data.error || '').trim()
     if (r.status === 405) {
-      throw new Error(
-        detail ||
-          '请求失败（HTTP 405）：插件路由未加载或方法不匹配，请完全退出并重启 DeepSeek Harness 后再试',
-      )
+      throw new Error(detail || t('errors.http405'))
     }
-    throw new Error(detail || `请求失败（HTTP ${r.status}）`)
+    throw new Error(detail || t('errors.httpFailed', { status: r.status }))
   }
   return data as T
 }
@@ -182,6 +188,13 @@ export function PageMappingOverview({
   onAiRematch,
   rematchApply,
 }: PageMappingOverviewProps) {
+  const t = useLocaleT()
+  const filters: Array<{ id: StatusFilter; label: string }> = [
+    { id: 'all', label: t('mapping.filter.all') },
+    { id: 'matched', label: t('mapping.filter.matched') },
+    { id: 'weak', label: t('mapping.filter.weak') },
+    { id: 'none', label: t('mapping.filter.none') },
+  ]
   const [overview, setOverview] = useState<MatchAllResponse | null>(null)
   const [selections, setSelections] = useState<Record<string, SelectedCodeFile>>(() =>
     loadSelections(repoInput, figmaUrl),
@@ -221,7 +234,7 @@ export function PageMappingOverview({
     try {
       await onAiRematch(designId, selections[designId])
     } catch (err) {
-      setLocalError((err as Error).message || '准备推荐提示词失败')
+      setLocalError((err as Error).message || t('mapping.rematchPromptFailed'))
     } finally {
       setRematchingId('')
     }
@@ -247,15 +260,13 @@ export function PageMappingOverview({
   async function scan(force: boolean, scope: 'auto' | 'file' = 'auto') {
     setLocalError('')
     if (!figmaUrl.trim() || !figmaToken.trim()) {
-      setLocalError('请填写设计稿链接和访问 Token')
+      setLocalError(t('mapping.needUrlAndToken'))
       return
     }
     const linkNodeId = parseNodeIdFromFigmaUrl(figmaUrl)
     const effectiveScope = scope === 'file' ? 'file' : linkNodeId ? 'node' : 'file'
     const busyMsg =
-      effectiveScope === 'node'
-        ? '正在定位链接中的设计页并匹配代码…'
-        : '正在扫描整个设计文件、建立页面映射…'
+      effectiveScope === 'node' ? t('mapping.busy.locatePage') : t('mapping.busy.scanFile')
     onScanStateChange(true, busyMsg)
     setScanning(true)
     try {
@@ -367,7 +378,7 @@ export function PageMappingOverview({
         kindLabel: c.kindLabel || known?.kindLabel || c.adapterId,
         precise: c.precise ?? known?.precise ?? false,
         score: typeof c.score === 'number' ? c.score : 0.8,
-        reasons: c.reason ? [`AI：${c.reason}`] : ['AI 推荐'],
+        reasons: c.reason ? [t('mapping.aiReasonPrefix', { reason: c.reason })] : [t('mapping.aiRecommend')],
       }
     })
 
@@ -411,8 +422,7 @@ export function PageMappingOverview({
       choose(designId, { adapterId: top.adapterId, relativePath: top.relativePath })
     }
     setLocalError(
-      (note ? `✓ ${note}` : '✓ 已写回 AI 文件推荐并选中 Top1') +
-        '。若仍不对，可在会话继续纠正后再次写回。',
+      (note ? `✓ ${note}` : `✓ ${t('mapping.rematchApplied')}`) + t('mapping.rematchAppliedSuffix'),
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rematchApply?.token])
@@ -448,9 +458,7 @@ export function PageMappingOverview({
   return (
     <div>
       <p style={{ margin: '0 0 8px', fontSize: 12, color: '#6b645a', lineHeight: 1.55 }}>
-        {linkHasNodeId
-          ? '链接含 node-id：扫描会优先定位当前页（较快）。若要一次处理文件内全部页面，可用下方「扫描整个设计文件」。'
-          : '链接未指定页面：扫描会读取设计文件/项目内全部页面并自动映射。若只想对某一页，请复制带 node-id（Figma）或 image_id（蓝湖）的链接。'}
+        {linkHasNodeId ? t('mapping.hint.withNodeId') : t('mapping.hint.withoutNodeId')}
       </p>
       <button
         type="button"
@@ -460,15 +468,15 @@ export function PageMappingOverview({
       >
         {scanning
           ? isNodeScope
-            ? `定位中… ${elapsed}s`
-            : `扫描中… ${elapsed}s（页面较多时约需 20–40 秒，请勿关闭）`
+            ? t('mapping.scan.locating', { seconds: elapsed })
+            : t('mapping.scan.scanning', { seconds: elapsed })
           : overview
             ? linkHasNodeId
-              ? '重新扫描（当前链接页面）'
-              : '重新扫描设计稿'
+              ? t('mapping.scan.rescanNode')
+              : t('mapping.scan.rescanAll')
             : linkHasNodeId
-              ? '扫描当前链接页面'
-              : '扫描设计稿，自动映射页面'}
+              ? t('mapping.scan.scanNode')
+              : t('mapping.scan.scanAuto')}
       </button>
       {linkHasNodeId ? (
         <button
@@ -477,7 +485,9 @@ export function PageMappingOverview({
           disabled={busy || scanning}
           onClick={() => void scan(true, 'file')}
         >
-          {scanning && overview?.scope === 'file' ? `全文件扫描中… ${elapsed}s` : '扫描整个设计文件'}
+          {scanning && overview?.scope === 'file'
+            ? t('mapping.scan.fullFileBusy', { seconds: elapsed })
+            : t('mapping.scan.fullFile')}
         </button>
       ) : null}
 
@@ -497,24 +507,37 @@ export function PageMappingOverview({
           <div style={OV.summary}>
             {overview.scope === 'node' ? (
               <span>
-                单页模式（链接 node-id）· {overview.pages[0]?.mapping.designName || '当前节点'} ·
+                {t('mapping.summary.nodeMode', {
+                  name:
+                    overview.pages[0]?.mapping.designName ||
+                    overview.pages[0]?.mapping.designId ||
+                    '—',
+                })}
               </span>
             ) : (
-              <span>全文件 · </span>
+              <span>{t('mapping.summary.fullFile')}</span>
             )}
-            共 {overview.totals.pages} 个页面 ·
-            <span style={{ color: STATUS_META.matched.dot }}> 已匹配 {overview.totals.matched}</span> ·
-            <span style={{ color: STATUS_META.weak.dot }}> 待确认 {overview.totals.weak}</span> ·
-            <span style={{ color: STATUS_META.none.dot }}> 未匹配 {overview.totals.none}</span>
+            {t('mapping.summary.pages', { count: overview.totals.pages })}
+            <span style={{ color: STATUS_DOTS.matched }}>
+              {t('mapping.summary.matched', { count: overview.totals.matched })}
+            </span>{' '}
+            ·
+            <span style={{ color: STATUS_DOTS.weak }}>
+              {t('mapping.summary.weak', { count: overview.totals.weak })}
+            </span>{' '}
+            ·
+            <span style={{ color: STATUS_DOTS.none }}>
+              {t('mapping.summary.none', { count: overview.totals.none })}
+            </span>
             {overview.fromCache && overview.savedAt ? (
               <span style={{ marginLeft: 6, color: '#8a7a5c' }}>
-                · 读取自缓存（{formatSavedAt(overview.savedAt)}），点上方按钮可重新扫描
+                {t('mapping.summary.fromCache', { time: formatSavedAt(overview.savedAt) })}
               </span>
             ) : null}
           </div>
 
           <div style={OV.chipRow}>
-            {FILTERS.map((f) => {
+            {filters.map((f) => {
               const count =
                 f.id === 'all'
                   ? overview.totals.pages
@@ -541,11 +564,11 @@ export function PageMappingOverview({
           <input
             style={OV.search}
             value={query}
-            placeholder="搜索页面名称或已选代码文件…"
+            placeholder={t('mapping.searchPlaceholder')}
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          {groups.length === 0 ? <div style={OV.emptyHint}>没有符合条件的页面。</div> : null}
+          {groups.length === 0 ? <div style={OV.emptyHint}>{t('mapping.emptyPages')}</div> : null}
 
           {groups.map((g) => {
             const isCollapsed = !!collapsed[g.id]
@@ -557,7 +580,7 @@ export function PageMappingOverview({
                   onClick={() => setCollapsed({ ...collapsed, [g.id]: !isCollapsed })}
                 >
                   <span>{isCollapsed ? '▸' : '▾'}</span>
-                  <strong>{g.name || '未命名画布'}</strong>
+                  <strong>{g.name || t('mapping.unnamedCanvas')}</strong>
                   <span style={OV.canvasCount}>{g.items.length}</span>
                 </button>
                 {isCollapsed ? null : (
@@ -579,7 +602,9 @@ export function PageMappingOverview({
                           const file = selections[mapping.designId]
                           if (!file) {
                             setLocalError(
-                              `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先点卡片上的红色「点此指定代码文件」，选好后再点「界面对比」。`,
+                              t('mapping.error.noCodeForCompare', {
+                                name: mapping.designName || mapping.designId,
+                              }),
                             )
                             return
                           }
@@ -590,7 +615,9 @@ export function PageMappingOverview({
                           const file = selections[mapping.designId]
                           if (!file) {
                             setLocalError(
-                              `「${mapping.designName || mapping.designId}」还没有指定代码文件。请先指定代码文件后再「AI 协助分析」。`,
+                              t('mapping.error.noCodeForAi', {
+                                name: mapping.designName || mapping.designId,
+                              }),
                             )
                             return
                           }
@@ -619,7 +646,7 @@ export function PageMappingOverview({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="设计稿原图"
+          aria-label={t('mapping.previewAria')}
           style={OV.previewOverlay}
           onClick={() => setPreview(null)}
         >
@@ -633,14 +660,18 @@ export function PageMappingOverview({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {preview.name || '设计稿原图'}
+                {preview.name || t('mapping.previewFallbackName')}
               </strong>
               <button type="button" style={OV.previewClose} onClick={() => setPreview(null)}>
-                关闭
+                {t('mapping.close')}
               </button>
             </div>
             <div style={OV.previewBody}>
-              <img src={preview.url} alt={preview.name || '设计稿原图'} style={OV.previewImg} />
+              <img
+                src={preview.url}
+                alt={preview.name || t('mapping.previewFallbackName')}
+                style={OV.previewImg}
+              />
             </div>
           </div>
         </div>
@@ -688,14 +719,17 @@ function PageCard({
   busy: cardBusy,
   onOpenPreview,
 }: PageCardProps) {
+  const t = getT()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [thumbState, setThumbState] = useState<ThumbState>('idle')
   const [thumbUrl, setThumbUrl] = useState('')
   // Bumped to re-run the thumbnail fetch when the user clicks retry or when the
   // <img> itself fails to decode the returned URL.
   const [thumbNonce, setThumbNonce] = useState(0)
-  const status = STATUS_META[mapping.status]
-  const badge = KIND_BADGE[mapping.kind]
+  const statusDot = STATUS_DOTS[mapping.status]
+  const statusText = statusLabel(t, mapping.status)
+  const kindStyle = KIND_STYLES[mapping.kind]
+  const kindText = kindLabel(t, mapping.kind)
   const selCandidate = mapping.candidates.find(
     (c) => selected && c.adapterId === selected.adapterId && c.relativePath === selected.relativePath,
   )
@@ -801,7 +835,7 @@ function PageCard({
           <button
             type="button"
             style={OV.thumbOpenBtn}
-            title="点击查看原图"
+            title={t('mapping.thumb.viewOriginalTitle')}
             onClick={() => onOpenPreview?.(thumbUrl)}
           >
             <img
@@ -810,20 +844,22 @@ function PageCard({
               style={OV.thumbImg}
               onError={() => retryThumb(true)}
             />
-            <span style={OV.thumbOpenHint}>查看原图</span>
+            <span style={OV.thumbOpenHint}>{t('mapping.thumb.viewOriginal')}</span>
           </button>
         ) : thumbState === 'loading' ? (
-          <div style={OV.thumbFallback}>缩略图加载中…</div>
+          <div style={OV.thumbFallback}>{t('mapping.thumb.loading')}</div>
         ) : (
           <button type="button" style={OV.thumbRetry} onClick={retryThumb}>
-            缩略图加载失败，点此重试
+            {t('mapping.thumb.retry')}
           </button>
         )}
-        <span style={{ ...OV.statusTag, color: status.dot }}>
-          <span style={{ ...OV.statusDot, background: status.dot }} />
-          {status.label}
+        <span style={{ ...OV.statusTag, color: statusDot }}>
+          <span style={{ ...OV.statusDot, background: statusDot }} />
+          {statusText}
         </span>
-        <span style={{ ...OV.kindTag, background: badge.bg, color: badge.fg }}>{badge.label}</span>
+        <span style={{ ...OV.kindTag, background: kindStyle.bg, color: kindStyle.fg }}>
+          {kindText}
+        </span>
         {isActive ? (
           <span
             style={{
@@ -839,7 +875,7 @@ function PageCard({
               boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             }}
           >
-            正在查看
+            {t('mapping.viewing')}
           </span>
         ) : null}
       </div>
@@ -850,7 +886,7 @@ function PageCard({
         type="button"
         style={OV.fileBox}
         onClick={() => setPickerOpen(true)}
-        title={selFile?.relativePath || '指定代码文件'}
+        title={selFile?.relativePath || t('mapping.pickCodeFileTitle')}
       >
         {selFile ? (
           <span title={selFile.relativePath}>
@@ -859,7 +895,7 @@ function PageCard({
             {selCandidate ? ` · ${Math.round(selCandidate.score * 100)}%` : ''}
           </span>
         ) : (
-          <span style={{ color: '#b42318' }}>点此指定代码文件 →</span>
+          <span style={{ color: '#b42318' }}>{t('mapping.pickCodeFileCta')}</span>
         )}
       </button>
       {selFile ? (
@@ -872,9 +908,9 @@ function PageCard({
         style={OV.rematchLink}
         disabled={cardBusy}
         onClick={onAiRematch}
-        title="生成推荐提示词并填入当前会话；可核对后发送，也可继续对话纠正错误推荐"
+        title={t('mapping.aiRematchTitle')}
       >
-        {rematching ? '准备中…' : 'AI 推荐文件'}
+        {rematching ? t('mapping.aiRematchPreparing') : t('mapping.aiRematch')}
       </button>
 
       {pickerOpen ? (
@@ -901,17 +937,13 @@ function PageCard({
               : null),
           }}
           disabled={cardBusy}
-          title={
-            selected
-              ? '对比设计稿与已选代码文件'
-              : '请先点上方「点此指定代码文件」再对比'
-          }
+          title={selected ? t('mapping.compareTitle') : t('mapping.compareNeedFile')}
           onClick={() => {
             if (!selected) setPickerOpen(true)
             onCompare()
           }}
         >
-          {selected ? '界面对比' : '先选代码文件'}
+          {selected ? t('mapping.uiCompare') : t('mapping.pickCodeFirst')}
         </button>
         <button
           type="button"
@@ -920,17 +952,13 @@ function PageCard({
             ...(!selected ? { opacity: 0.7 } : null),
           }}
           disabled={cardBusy}
-          title={
-            selected
-              ? '先对比再生成 AI 分析提示词'
-              : '请先点上方「点此指定代码文件」再分析'
-          }
+          title={selected ? t('mapping.aiAnalyzeTitle') : t('mapping.aiAnalyzeNeedFile')}
           onClick={() => {
             if (!selected) setPickerOpen(true)
             onAiAnalyze()
           }}
         >
-          AI 协助分析
+          {t('mapping.aiAnalyze')}
         </button>
       </div>
     </div>
@@ -964,6 +992,7 @@ function CodeFilePickerModal({
   onChoose,
   onClose,
 }: CodeFilePickerModalProps) {
+  const t = getT()
   const [query, setQuery] = useState('')
   const [collapsedDirs, setCollapsedDirs] = useState<Record<string, boolean>>({})
 
@@ -1022,20 +1051,20 @@ function CodeFilePickerModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="指定代码文件"
+      aria-label={t('mapping.picker.title')}
       style={OV.pickerOverlay}
       onClick={onClose}
     >
       <div style={OV.pickerPanel} onClick={(e) => e.stopPropagation()}>
         <div style={OV.pickerHeader}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={OV.pickerTitle}>指定代码文件</div>
+            <div style={OV.pickerTitle}>{t('mapping.picker.title')}</div>
             <div style={OV.pickerSubtitle} title={designName}>
               {designName}
             </div>
           </div>
           <button type="button" style={OV.pickerClose} onClick={onClose}>
-            关闭
+            {t('mapping.close')}
           </button>
         </div>
 
@@ -1044,7 +1073,7 @@ function CodeFilePickerModal({
             autoFocus
             style={OV.pickerSearchInput}
             value={query}
-            placeholder="搜索文件名、路径或类型…（支持部分匹配）"
+            placeholder={t('mapping.picker.searchPlaceholder')}
             onChange={(e) => setQuery(e.target.value)}
           />
           <span style={OV.pickerCount}>
@@ -1055,7 +1084,7 @@ function CodeFilePickerModal({
         <div style={OV.pickerBody}>
           {visibleCandidates.length ? (
             <div style={OV.pickerSection}>
-              <div style={OV.pickerSectionTitle}>自动建议</div>
+              <div style={OV.pickerSectionTitle}>{t('mapping.picker.suggestions')}</div>
               <div style={OV.pickerSuggestList}>
                 {visibleCandidates.slice(0, 12).map((c) => {
                   const active = isActive(c.adapterId, c.relativePath)
@@ -1087,11 +1116,11 @@ function CodeFilePickerModal({
 
           <div style={OV.pickerSection}>
             <div style={OV.pickerSectionTitle}>
-              全部布局文件
-              {query.trim() ? ` · 匹配 ${filtered.length}` : ''}
+              {t('mapping.picker.allLayouts')}
+              {query.trim() ? t('mapping.picker.matchCount', { count: filtered.length }) : ''}
             </div>
             {groups.length === 0 ? (
-              <div style={OV.pickerEmpty}>没有匹配的文件，试试更短的关键词。</div>
+              <div style={OV.pickerEmpty}>{t('mapping.picker.empty')}</div>
             ) : (
               groups.map(({ dir, files }) => {
                 const collapsed = !!collapsedDirs[dir]

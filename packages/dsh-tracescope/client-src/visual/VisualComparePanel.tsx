@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { getT, localeHeaders, withLocale } from '../locales/i18n.js'
+import { useLocaleT } from '../locales/use-locale-t.js'
 import { PageMappingOverview } from './PageMappingOverview.js'
 import { DesignCompareBoard } from './DesignCompareBoard.js'
 import { LoadingOverlay } from './LoadingOverlay.js'
@@ -57,12 +59,12 @@ async function post(path: string, body: unknown) {
   const r = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: localeHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify(withLocale(body)),
   })
   const text = await r.text()
   const data = text ? JSON.parse(text) : {}
-  if (!r.ok) throw new Error(data.error || '请求失败')
+  if (!r.ok) throw new Error(data.error || getT()('errors.requestFailed'))
   return data
 }
 
@@ -180,6 +182,7 @@ function writeDeepEnrichmentEnabled(enabled: boolean) {
 }
 
 function labelForDesignUrl(url: string): string {
+  const t = getT()
   try {
     if (/lanhuapp\.com|lanhu\.woa\.com/i.test(url)) {
       const hashQ = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
@@ -196,9 +199,9 @@ function labelForDesignUrl(url: string): string {
       })()
       const imageId = fromHash.get('image_id') || fromHash.get('imageId') || ''
       const projectId = fromHash.get('project_id') || fromHash.get('pid') || ''
-      if (imageId) return `蓝湖 · ${imageId.slice(0, 8)}`
-      if (projectId) return `蓝湖项目 · ${projectId.slice(0, 8)}`
-      return '蓝湖设计稿'
+      if (imageId) return t('visual.label.lanhuPage', { id: imageId.slice(0, 8) })
+      if (projectId) return t('visual.label.lanhuProject', { id: projectId.slice(0, 8) })
+      return t('visual.label.lanhuDesign')
     }
     const u = new URL(url)
     const parts = u.pathname.split('/').filter(Boolean)
@@ -331,6 +334,7 @@ export function VisualComparePanel({
   trackerProvider,
   onOpenTrackerSettings,
 }: VisualComparePanelProps) {
+  const t = useLocaleT()
   const [figmaUrl, setFigmaUrlState] = useState(() => resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL))
   const [figmaToken, setFigmaTokenState] = useState(() =>
     resolveDesignCredential(repoInput, resolveUiConfig(repoInput, UI_CONFIG_FIGMA_URL)),
@@ -507,7 +511,7 @@ export function VisualComparePanel({
                 token: rematchTokenRef.current,
               })
               setError(
-                `✓ AI 已写回文件推荐（${picks[0]!.relativePath}）。可在会话继续纠正后再次写回。`,
+                t('visual.success.fileRematchWriteback', { path: picks[0]!.relativePath }),
               )
             }
           } else {
@@ -649,14 +653,12 @@ export function VisualComparePanel({
     setCompareData(null)
     setActiveDesignId('')
     setActiveCodeFile(null)
-    beginBusy(force ? '正在重新生成界面对比…' : '正在对比设计稿与代码，并生成标注…')
+    beginBusy(force ? t('visual.busy.regenerateCompare') : t('visual.busy.compare'))
     try {
       const result = await runDesignCompare(designId, codeFile, force)
       if (!result.ok) setError(result.error)
       else if (!result.designImageUrl) {
-        setError(
-          '界面对比已完成，但设计稿官方渲染图加载失败。后续「AI 协助分析」缺少设计图会明显影响效果，请检查设计稿链接/凭证后重试「界面对比」。',
-        )
+        setError(t('visual.error.compareDoneNoRaster'))
       }
     } finally {
       endBusy()
@@ -680,18 +682,14 @@ export function VisualComparePanel({
       activeCodeFile?.relativePath === codeFile.relativePath
 
     if (!boardReady) {
-      const proceed = window.confirm(
-        '尚未对该页完成「界面对比」。\n\n' +
-          '继续将先生成界面对比（可能需要几十秒到数分钟），再准备 AI 分析提示词；整体耗时与 token 消耗都会更高。\n\n' +
-          '若设计稿渲染图加载失败，分析质量会明显下降。\n\n是否仍要继续？',
-      )
+      const proceed = window.confirm(t('visual.confirm.noCompareYet'))
       if (!proceed) {
-        setError('已取消 AI 协助分析。建议先点「界面对比」，确认设计稿渲染成功后再分析。')
+        setError(t('visual.error.aiAnalyzeCancelled'))
         return
       }
     }
 
-    beginBusy(boardReady ? '正在准备 AI 协助分析…' : '正在生成界面对比，随后准备 AI 协助分析…')
+    beginBusy(boardReady ? t('visual.busy.preparingAi') : t('visual.busy.compareThenAi'))
     try {
       let designImageUrl =
         boardReady
@@ -701,25 +699,17 @@ export function VisualComparePanel({
       if (!boardReady) {
         const compared = await runDesignCompare(designId, codeFile, false)
         if (!compared.ok) {
-          setError(
-            `界面对比失败，已中止 AI 协助分析，避免无效 token 消耗。\n原因：${compared.error}`,
-          )
+          setError(t('visual.error.compareFailedAbort', { reason: compared.error }))
           return
         }
         designImageUrl = compared.designImageUrl
-        setBusyMessage('正在准备 AI 协助分析…')
+        setBusyMessage(t('visual.busy.preparingAi'))
       }
 
       if (!designImageUrl) {
-        const proceedWithoutRaster = window.confirm(
-          '设计稿官方渲染图加载失败（或尚未可用）。\n\n' +
-            '没有渲染图时，AI 只能依赖结构/文案差异，结论容易不准，但仍会消耗 token。\n\n' +
-            '建议先检查设计稿链接与凭证，重新「界面对比」成功后再分析。\n\n是否仍要继续？',
-        )
+        const proceedWithoutRaster = window.confirm(t('visual.confirm.noRaster'))
         if (!proceedWithoutRaster) {
-          setError(
-            '已取消：请先确认设计稿渲染图可加载（界面对比左侧出现设计图），再使用「AI 协助分析」。',
-          )
+          setError(t('visual.error.cancelNeedRaster'))
           return
         }
       }
@@ -745,31 +735,24 @@ export function VisualComparePanel({
           promptDesignImage,
       )
       if (!designRasterInPanel) {
-        const proceed = window.confirm(
-          '准备提示词时仍未拿到设计稿渲染图。继续发送可能导致效果差且浪费 token。\n\n是否仍要填入会话？',
-        )
+        const proceed = window.confirm(t('visual.confirm.promptNoRaster'))
         if (!proceed) {
-          setError('已取消填入提示词。请修复设计稿渲染后再试。')
+          setError(t('visual.error.cancelPrompt'))
           return
         }
       }
       if (typeof onSendToChat !== 'function' || !prompt) {
-        setError('无法准备 AI 协助分析，请重试。')
+        setError(t('visual.error.cannotPrepareAi'))
         return
       }
       const sent = onSendToChat(prompt)
       if (!sent.ok) {
-        setError(
-          (sent.error || '无法写入会话输入框') +
-            '；请确认已打开并选中一个会话，或重新点击「AI 协助分析」。',
-        )
+        setError((sent.error || t('errors.cannotWriteChat')) + t('visual.error.chatWriteSuffix'))
         return
       }
       if (jobId) setPendingJob({ jobId, designId, kind: 'findings' })
       setError(
-        designRasterInPanel
-          ? '✓ 已打开界面对比，并把「AI 协助分析」提示词填入当前会话。请核对后发送；写回后结论会出现在下方差异区。'
-          : '✓ 提示词已填入会话（注意：当前无设计稿渲染图，分析结果可能不准）。请核对后再发送。',
+        designRasterInPanel ? t('visual.success.aiPromptSent') : t('visual.success.aiPromptSentNoRaster'),
       )
     } catch (err) {
       setError((err as Error).message)
@@ -788,10 +771,10 @@ export function VisualComparePanel({
     codeFile?: { adapterId: string; relativePath: string },
   ) {
     setError('')
-    beginBusy('正在准备「AI 推荐文件」提示词…')
+    beginBusy(t('visual.busy.preparingRematch'))
     try {
       if (!figmaUrl.trim() || !figmaToken.trim()) {
-        setError('请先填写设计稿链接与访问凭证（Figma Token 或蓝湖 Cookie）')
+        setError(t('visual.error.needCredentials'))
         return
       }
       const res = await post('/tracescope/v1/match-page', {
@@ -807,21 +790,16 @@ export function VisualComparePanel({
       const prompt = (res as { prompt?: string }).prompt
       const jobId = (res as { jobId?: string }).jobId
       if (typeof onSendToChat !== 'function' || !prompt) {
-        setError('无法准备推荐提示词，请重试。')
+        setError(t('visual.error.cannotPrepareRematch'))
         return
       }
       const sent = onSendToChat(prompt)
       if (!sent.ok) {
-        setError(
-          (sent.error || '无法写入会话输入框') +
-            '；请确认已打开并选中一个会话，核对提示词后再发送。写回后侧栏会自动更新选中文件。',
-        )
+        setError((sent.error || t('errors.cannotWriteChat')) + t('visual.error.rematchChatWriteSuffix'))
         return
       }
       if (jobId) setPendingJob({ jobId, designId, kind: 'rematch' })
-      setError(
-        '✓ 已将「AI 推荐文件」提示词填入当前会话。请核对后发送；模型调用 tracescope_publish_page_rematch 后，侧栏会自动选中推荐文件。可继续对话纠正并再次写回。',
-      )
+      setError(t('visual.success.rematchPrompt'))
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -835,7 +813,7 @@ export function VisualComparePanel({
         <LoadingOverlay message={busyMessage} elapsedSeconds={elapsed} />
       ) : null}
       <strong>
-        设计差异分析
+        {t('visual.title')}
         <span
           style={{
             marginLeft: 8,
@@ -849,25 +827,19 @@ export function VisualComparePanel({
             verticalAlign: 'middle',
           }}
         >
-          试验
+          {t('visual.experimental')}
         </span>
       </strong>
-      <p style={S.hint}>
-        对照设计稿与代码实现，列出布局 / 样式 / 文案等差异（试验功能，结果请人工复核）。
-        支持 <b>Figma</b> 与 <b>蓝湖</b>：粘贴设计稿链接与访问凭证后扫描。
-        Figma 填 Personal Access Token；蓝湖填浏览器 Cookie（登录 lanhuapp.com 后从 DevTools 复制）。
-        链接带页面定位（Figma <code>node-id</code> / 蓝湖 <code>image_id</code>）时优先该页；否则扫描整个文件/项目。
-        链接与凭证会自动记住；常用链接可点选或删除。再对卡片做「界面对比」或「AI 协助分析」。
-      </p>
+      <p style={S.hint}>{t('visual.intro')}</p>
 
       <label style={S.label}>
-        设计稿链接
+        {t('visual.designLinkLabel')}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             style={{ ...S.input, flex: 1, marginTop: 0 }}
             value={figmaUrl}
             disabled={busy}
-            placeholder="Figma 或蓝湖链接，如 https://lanhuapp.com/web/#/item/project/detailDetach?..."
+            placeholder={t('visual.designLinkPlaceholder')}
             onChange={(e) => setFigmaUrl(e.target.value)}
             onBlur={() => {
               if (isLikelyDesignUrl(figmaUrl)) setSavedLinks(rememberSavedLink(figmaUrl))
@@ -877,26 +849,26 @@ export function VisualComparePanel({
             type="button"
             style={S.miniBtn}
             disabled={busy || !figmaUrl.trim()}
-            title="保存到常用链接"
+            title={t('visual.saveLinkTitle')}
             onClick={saveCurrentLink}
           >
-            保存
+            {t('visual.saveLink')}
           </button>
           <button
             type="button"
             style={S.miniBtn}
             disabled={busy || !figmaUrl.trim()}
-            title="清空当前链接"
+            title={t('visual.clearLinkTitle')}
             onClick={clearFigmaUrl}
           >
-            删除
+            {t('visual.deleteLink')}
           </button>
         </div>
       </label>
 
       {savedLinks.length > 0 ? (
         <div style={{ margin: '0 0 8px', fontSize: 12 }}>
-          <div style={{ color: '#667085', marginBottom: 4 }}>常用设计稿链接</div>
+          <div style={{ color: '#667085', marginBottom: 4 }}>{t('visual.savedLinksHeading')}</div>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
             {savedLinks.map((item) => {
               const active = item.url.trim() === figmaUrl.trim()
@@ -938,7 +910,7 @@ export function VisualComparePanel({
                     type="button"
                     style={S.miniBtn}
                     disabled={busy}
-                    title="从常用列表删除"
+                    title={t('visual.removeSavedLinkTitle')}
                     onClick={() => deleteSavedLink(item.url)}
                   >
                     ×
@@ -951,7 +923,7 @@ export function VisualComparePanel({
       ) : null}
 
       <label style={S.label}>
-        {isLikelyLanhuUrl(figmaUrl) ? '蓝湖 Cookie' : 'Figma Token'}
+        {isLikelyLanhuUrl(figmaUrl) ? t('visual.lanhuCookie') : t('visual.figmaToken')}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             style={{ ...S.input, flex: 1, marginTop: 0 }}
@@ -960,8 +932,8 @@ export function VisualComparePanel({
             disabled={busy}
             placeholder={
               isLikelyLanhuUrl(figmaUrl)
-                ? '从浏览器 DevTools → Network 请求头复制 Cookie'
-                : 'figd_…（与蓝湖 Cookie 分开保存）'
+                ? t('visual.lanhuCookiePlaceholder')
+                : t('visual.figmaTokenPlaceholder')
             }
             onChange={(e) => setFigmaToken(e.target.value)}
           />
@@ -969,10 +941,14 @@ export function VisualComparePanel({
             type="button"
             style={S.miniBtn}
             disabled={busy || !figmaToken.trim()}
-            title={isLikelyLanhuUrl(figmaUrl) ? '清除已保存的蓝湖 Cookie' : '清除已保存的 Figma Token'}
+            title={
+              isLikelyLanhuUrl(figmaUrl)
+                ? t('visual.clearLanhuCookieTitle')
+                : t('visual.clearFigmaTokenTitle')
+            }
             onClick={clearFigmaToken}
           >
-            清除
+            {t('visual.clearCredential')}
           </button>
         </div>
       </label>
@@ -997,15 +973,12 @@ export function VisualComparePanel({
           onChange={(e) => setDeepEnrichment(e.target.checked)}
         />
         <span>
-          <b>适配器深度增强</b>
-          （在通用属性级对比之上，启用各栈已注册的增强能力，如布局引擎、动态区域还原等；关闭则全栈统一走属性级静态解析，更快、结果粒度更一致）
+          <b>{t('visual.deepEnrichmentTitle')}</b>
+          {t('visual.deepEnrichmentBody')}
         </span>
       </label>
 
-      <p style={{ ...S.hint, margin: '2px 0 8px' }}>
-        「界面对比」生成设计对照图与静态差异清单；「AI 协助分析」补充/纠正差异项并写回下方清单（不做代码 UI 还原预览）。
-        蓝湖若自动匹配为空，需先在卡片上「指定代码文件」再点对比。
-      </p>
+      <p style={{ ...S.hint, margin: '2px 0 8px' }}>{t('visual.workflowHint')}</p>
 
       {error ? (
         <p
@@ -1030,7 +1003,7 @@ export function VisualComparePanel({
           busy={busy}
           activeDesignId={activeDesignId}
           onScanStateChange={(next, message) =>
-            next ? beginBusy(message || '正在扫描设计稿…') : endBusy()
+            next ? beginBusy(message || t('visual.busy.scanDesign')) : endBusy()
           }
           onDesignLinkUsed={onDesignLinkUsed}
           onCompare={compareFromOverview}
@@ -1054,14 +1027,19 @@ export function VisualComparePanel({
           }}
         >
           <div style={{ fontWeight: 700, fontSize: 13 }}>
-            当前对比：{String(
-              (compareData as { designTree?: { name?: string } })?.designTree?.name ?? '',
-            )}
+            {t('visual.currentCompare', {
+              name: String(
+                (compareData as { designTree?: { name?: string } })?.designTree?.name ?? '',
+              ),
+            })}
           </div>
           <div style={{ marginTop: 2, color: '#3f6b5c', wordBreak: 'break-all' }}>
-            设计稿 ↔ 代码文件：{(activeCodeFile as { relativePath?: string } | null)?.relativePath ??
-              (compareData as { page?: { relativePath?: string } })?.page?.relativePath ??
-              ''}
+            {t('visual.currentCompareFiles', {
+              path:
+                (activeCodeFile as { relativePath?: string } | null)?.relativePath ??
+                (compareData as { page?: { relativePath?: string } })?.page?.relativePath ??
+                '',
+            })}
           </div>
         </div>
       ) : null}
@@ -1084,7 +1062,7 @@ export function VisualComparePanel({
               (compareData as { designTree?: { id?: string } } | null)?.designTree?.id ?? '',
             )
             if (designId) aiAnalyzeFromOverview(designId, file)
-            else setError('无法确定当前设计节点，请重新进行界面对比。')
+            else setError(t('visual.error.noDesignNode'))
           }}
           onRegenerate={() => {
             const tree = (compareData as {
@@ -1097,7 +1075,7 @@ export function VisualComparePanel({
             if (designId && adapterId && relativePath) {
               void compareFromOverview(designId, { adapterId, relativePath }, true)
             } else {
-              setError('无法确定当前页面，请重新进行界面对比。')
+              setError(t('visual.error.noPage'))
             }
           }}
         />

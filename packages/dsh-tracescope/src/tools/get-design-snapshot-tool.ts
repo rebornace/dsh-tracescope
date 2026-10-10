@@ -5,6 +5,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { getDesignSnapshot } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerGetDesignSnapshotTool(ctx: Context) {
   ctx.tools?.register(
@@ -45,7 +47,7 @@ export function registerGetDesignSnapshotTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string; snapshot?: string }
-          return toolText(v.summary || v.snapshot || '设计快照')
+          return toolText(v.summary || v.snapshot || ui('TOOL_SNAPSHOT', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

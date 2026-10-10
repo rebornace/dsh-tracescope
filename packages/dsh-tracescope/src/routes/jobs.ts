@@ -5,14 +5,15 @@
 import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
 import { createHandtestJob } from '../agent-api.js'
+import { I18nError } from '../i18n/messages.js'
 import { getJob } from '../jobs.js'
 
 export function registerJobsRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/jobs',
     method: 'POST',
-    run: async (body) => {
-      const result = await createHandtestJob(body)
+    run: async (body, { lang }) => {
+      const result = await createHandtestJob({ ...body, locale: body.locale ?? body.lang ?? lang })
       return {
         jobId: result.jobId,
         status: result.status,
@@ -26,11 +27,11 @@ export function registerJobsRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/job',
     method: 'GET',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const id = String(body.id ?? body.jobId ?? '')
-      if (!id) throw new Error('缺少 id')
+      if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const job = getJob(id)
-      if (!job) throw new Error(`找不到任务 ${id}`)
+      if (!job) throw new I18nError('ERR_JOB_NOT_FOUND', lang, { id })
       return {
         jobId: job.id,
         status: job.status,

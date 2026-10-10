@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.5`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.2.6`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with two core capabilities:
 
@@ -10,6 +10,8 @@ TraceScope (`dsh-tracescope`) helps developers and testers with two core capabil
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
 
 Primary UX: **official DeepSeek Harness Desktop** sidebar. Same capabilities over MCP from Cursor / Claude / any client.
+
+UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle inside the plugin.
 
 > **Full features, workflows, enrichment, and limits** -> [docs/GUIDE.en.md](./docs/GUIDE.en.md)  
 > Package boundaries -> [ARCHITECTURE.md](./ARCHITECTURE.md)

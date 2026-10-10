@@ -6,6 +6,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { publishPageRematch } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerPublishPageRematchTool(ctx: Context) {
   ctx.tools?.register(
@@ -46,7 +48,7 @@ export function registerPublishPageRematchTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已写回文件匹配推荐')
+          return toolText(v.summary || ui('TOOL_REMATCH_PUBLISHED', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

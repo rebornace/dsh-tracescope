@@ -17,7 +17,7 @@ export function registerAuthRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/auth',
     method: 'GET',
-    run: async () => {
+    run: async (_body, _ctx) => {
       const auth = await loadStoredGitAuth()
       return { auth: auth ?? { mode: 'none' } }
     },
@@ -26,7 +26,7 @@ export function registerAuthRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/auth-save',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const remember = body.remember !== false && body.remember !== 'false'
       const auth = parseGitAuth(body.auth)
       if (!remember || !auth || auth.mode === 'none') {
@@ -47,7 +47,7 @@ export function registerAuthRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/yunxiao-token',
     method: 'GET',
-    run: async () => {
+    run: async (_body, _ctx) => {
       const access = await loadRememberedYunxiaoAccess()
       return {
         token: access.token,
@@ -61,7 +61,7 @@ export function registerAuthRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/yunxiao-token-save',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const access = await rememberYunxiaoAccess({
         token: typeof body.token === 'string' ? body.token : '',
         endpoint: typeof body.endpoint === 'string' ? body.endpoint : undefined,

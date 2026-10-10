@@ -17,6 +17,8 @@ import {
   type ImpactReport,
 } from '@rebornace/tracescope-core'
 import { parseFetchFlag } from './http/route-helpers.js'
+import { langFromBody, langFromRequest } from './i18n/lang.js'
+import { localizeError, msg } from './i18n/messages.js'
 import { loadCodeupHistory, loadRepoHistory } from './services/repo-history.js'
 import { runAnalyze } from './services/run-analyze.js'
 import { resolveCodeupAuth, resolveRequestGitAuth } from './services/request-auth.js'
@@ -40,6 +42,18 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
     'Access-Control-Allow-Origin': '*',
   })
   res.end(json)
+}
+
+function sendLocalizedError(
+  req: IncomingMessage,
+  res: ServerResponse,
+  status: number,
+  error: unknown,
+  body?: Record<string, unknown>,
+): void {
+  const acceptLang = langFromRequest(req)
+  const lang = body ? langFromBody(body, acceptLang) : acceptLang
+  sendJson(res, status, localizeError(error, lang))
 }
 
 async function readBody(req: IncomingMessage): Promise<string> {
@@ -140,9 +154,11 @@ async function handleApi(
   }
 
   if (url.pathname === '/api/commits' && req.method === 'POST') {
+    let body: Record<string, unknown> = {}
     try {
       const raw = await readBody(req)
-      const body = JSON.parse(raw || '{}') as {
+      body = JSON.parse(raw || '{}') as Record<string, unknown>
+      const parsed = body as {
         repoPath?: string
         limit?: number
         fetch?: boolean | string
@@ -156,18 +172,22 @@ async function handleApi(
           repositoryId?: string
         }
       }
-      const repoPath = body.repoPath ?? ''
-      const limit = Number(body.limit ?? 40)
-      const refName = typeof body.refName === 'string' ? body.refName.trim() : ''
+      const repoPath = String(parsed.repoPath ?? '')
+      const limit = Number(parsed.limit ?? 40)
+      const refName = typeof parsed.refName === 'string' ? parsed.refName.trim() : ''
+      const lang = langFromBody(body, langFromRequest(req))
       if (!repoPath) {
-        sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
+        sendJson(res, 400, {
+          error: msg('ERR_MISSING_REPO_PATH', lang),
+          code: 'ERR_MISSING_REPO_PATH',
+        })
         return true
       }
-      const fetchRemote = parseFetchFlag(body.fetch, true)
-      if (body.accessMode === 'codeup') {
+      const fetchRemote = parseFetchFlag(parsed.fetch, true)
+      if (parsed.accessMode === 'codeup') {
         const codeup = await resolveCodeupAuth({
           accessMode: 'codeup',
-          codeup: body.codeup ?? {},
+          codeup: (parsed.codeup as Record<string, unknown>) ?? {},
         })
         const history = await loadCodeupHistory(
           repoPath,
@@ -178,7 +198,7 @@ async function handleApi(
         sendJson(res, 200, history)
         return true
       }
-      const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath)
+      const auth = await resolveRequestGitAuth(parseGitAuth(parsed.auth), repoPath)
       const history = await loadRepoHistory(
         repoPath,
         Number.isFinite(limit) ? limit : 40,
@@ -189,7 +209,10 @@ async function handleApi(
       sendJson(res, 200, history)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
+      const lang = langFromBody(body, langFromRequest(req))
+      sendJson(res, 400, {
+        ...localizeError(new Error(`无法读取 git 历史：${message}`), lang),
+      })
     }
     return true
   }
@@ -197,8 +220,15 @@ async function handleApi(
   if (url.pathname === '/api/commits' && req.method === 'GET') {
     const repoPath = url.searchParams.get('repoPath') ?? ''
     const limit = Number(url.searchParams.get('limit') ?? '40')
+    const lang = langFromBody(
+      Object.fromEntries(url.searchParams.entries()),
+      langFromRequest(req),
+    )
     if (!repoPath) {
-      sendJson(res, 400, { error: '缺少 repoPath（本地路径或远端地址）' })
+      sendJson(res, 400, {
+        error: msg('ERR_MISSING_REPO_PATH', lang),
+        code: 'ERR_MISSING_REPO_PATH',
+      })
       return true
     }
     try {
@@ -216,20 +246,27 @@ async function handleApi(
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      sendJson(res, 400, { error: `无法读取 git 历史：${message}` })
+      sendJson(res, 400, {
+        ...localizeError(new Error(`无法读取 git 历史：${message}`), lang),
+      })
     }
     return true
   }
 
   if (url.pathname === '/api/analyze' && req.method === 'POST') {
+    let body: Record<string, unknown> = {}
     try {
       const raw = await readBody(req)
-      const body = JSON.parse(raw) as Record<string, unknown>
+      body = JSON.parse(raw) as Record<string, unknown>
       const repoPath = String(body.repoPath ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
+      const lang = langFromBody(body, langFromRequest(req))
       if (!repoPath || !baseCommit || !headCommit) {
-        sendJson(res, 400, { error: '需要 repoPath、baseCommit、headCommit' })
+        sendJson(res, 400, {
+          error: msg('ERR_MISSING_REPO_COMMITS', lang),
+          code: 'ERR_MISSING_REPO_COMMITS',
+        })
         return true
       }
       const accessMode = body.accessMode === 'codeup' ? 'codeup' : 'git'
@@ -256,61 +293,70 @@ async function handleApi(
         csv: result.csv,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      sendJson(res, 400, { error: message })
+      sendLocalizedError(req, res, 400, error, body)
     }
     return true
   }
 
   if (url.pathname === '/api/export' && req.method === 'POST') {
+    let body: Record<string, unknown> = {}
     try {
       const raw = await readBody(req)
-      const body = JSON.parse(raw) as {
-        exportDir?: string
-        report?: ImpactReport
-      }
-      if (!body.exportDir || !body.report) {
-        sendJson(res, 400, { error: '需要 exportDir 与 report' })
+      body = JSON.parse(raw) as Record<string, unknown>
+      const exportDir = typeof body.exportDir === 'string' ? body.exportDir : ''
+      const report = body.report as ImpactReport | undefined
+      const lang = langFromBody(body, langFromRequest(req))
+      if (!exportDir || !report) {
+        sendJson(res, 400, {
+          error: msg('ERR_MISSING_EXPORT_REPORT', lang),
+          code: 'ERR_MISSING_EXPORT_REPORT',
+        })
         return true
       }
-      const markdown = exportReportMarkdown(body.report)
-      const csv = exportReportCsv(body.report)
-      await writeReportExports(body.exportDir, markdown, csv)
+      const markdown = exportReportMarkdown(report)
+      const csv = exportReportCsv(report)
+      await writeReportExports(exportDir, markdown, csv)
       sendJson(res, 200, {
         ok: true,
         files: [
-          path.join(body.exportDir, 'tracescope-report.md'),
-          path.join(body.exportDir, 'tracescope-report.csv'),
+          path.join(exportDir, 'tracescope-report.md'),
+          path.join(exportDir, 'tracescope-report.csv'),
         ],
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      sendJson(res, 400, { error: message })
+      sendLocalizedError(req, res, 400, error, body)
     }
     return true
   }
 
   if (url.pathname === '/api/visual-compare' && req.method === 'POST') {
+    let body: Record<string, unknown> = {}
     try {
       const raw = await readBody(req)
-      const body = JSON.parse(raw || '{}') as {
-        figmaUrl?: string
-        figmaToken?: string
-        codePath?: string
-      }
-      const figmaUrl = (body.figmaUrl ?? '').trim()
-      const figmaToken = (body.figmaToken ?? '').trim()
-      const codePath = (body.codePath ?? '').trim()
+      body = JSON.parse(raw || '{}') as Record<string, unknown>
+      const figmaUrl = String(body.figmaUrl ?? '').trim()
+      const figmaToken = String(body.figmaToken ?? '').trim()
+      const codePath = String(body.codePath ?? '').trim()
+      const lang = langFromBody(body, langFromRequest(req))
       if (!figmaUrl || !figmaToken) {
-        sendJson(res, 400, { error: '需要 Figma 链接和访问 Token' })
+        sendJson(res, 400, {
+          error: msg('ERR_FIGMA_TOKEN_REQUIRED', lang),
+          code: 'ERR_FIGMA_TOKEN_REQUIRED',
+        })
         return true
       }
       if (!codePath) {
-        sendJson(res, 400, { error: '需要代码布局文件路径' })
+        sendJson(res, 400, {
+          error: msg('ERR_CODE_LAYOUT_PATH_REQUIRED', lang),
+          code: 'ERR_CODE_LAYOUT_PATH_REQUIRED',
+        })
         return true
       }
       if (!existsSync(codePath)) {
-        sendJson(res, 400, { error: `找不到代码文件：${codePath}` })
+        sendJson(res, 400, {
+          error: msg('ERR_CODE_FILE_NOT_FOUND', lang, { path: codePath }),
+          code: 'ERR_CODE_FILE_NOT_FOUND',
+        })
         return true
       }
 
@@ -341,8 +387,7 @@ async function handleApi(
         },
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      sendJson(res, 400, { error: message })
+      sendLocalizedError(req, res, 400, error, body)
     }
     return true
   }
