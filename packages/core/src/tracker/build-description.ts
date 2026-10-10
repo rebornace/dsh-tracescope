@@ -7,6 +7,7 @@ import {
   buildFailFeedbackDescription,
   type FeedbackLang,
 } from './feedback.js'
+import { buildCrashDefectBody, type CrashFeedbackMeta } from '../crash/feedback.js'
 import {
   buildVisualDiffFeedbackDescription,
   type FeedbackKind,
@@ -24,7 +25,24 @@ export function buildTrackerFeedbackDescription(input: {
   screenshotEmbeds?: Record<string, string>
   lang?: FeedbackLang | string
   visualMeta?: VisualDiffFeedbackMeta
+  prebuiltDescription?: string
+  crashMeta?: CrashFeedbackMeta
 }): string {
+  if (input.kind === 'crash') {
+    const prebuilt = input.prebuiltDescription?.trim()
+    if (prebuilt) return prebuilt
+    if (input.crashMeta) {
+      return buildCrashDefectBody({
+        incident: input.crashMeta.incident,
+        matchedFiles: input.crashMeta.matchedFiles,
+        summary: input.crashMeta.summary,
+        fixHints: input.crashMeta.fixHints,
+        repoPath: input.repoPath,
+        lang: input.lang,
+      })
+    }
+    return ''
+  }
   if (input.kind === 'visual-diff') {
     return buildVisualDiffFeedbackDescription({
       repoPath: input.repoPath,

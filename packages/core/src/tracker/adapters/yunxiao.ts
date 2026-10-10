@@ -61,6 +61,8 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
       embedScreenshotDataUrls: false,
       lang,
       visualMeta: ctx.visualMeta,
+      prebuiltDescription: ctx.prebuiltDescription,
+      crashMeta: ctx.crashMeta,
     })
     const result = await createYunxiaoWorkitem(
       yx,
@@ -153,6 +155,8 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
         screenshotEmbeds,
         lang,
         visualMeta: ctx.visualMeta,
+        prebuiltDescription: ctx.prebuiltDescription,
+        crashMeta: ctx.crashMeta,
       })
       const updated = await updateYunxiaoWorkitem(
         yx,

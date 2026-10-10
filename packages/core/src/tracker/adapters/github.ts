@@ -86,6 +86,8 @@ export const githubTrackerAdapter: TrackerAdapter = {
       embedScreenshotDataUrls: false,
       lang,
       visualMeta: ctx.visualMeta,
+      prebuiltDescription: ctx.prebuiltDescription,
+      crashMeta: ctx.crashMeta,
     })
 
     const created = await createGithubIssue(
@@ -227,6 +229,8 @@ export const githubTrackerAdapter: TrackerAdapter = {
         screenshotEmbeds,
         lang,
         visualMeta: ctx.visualMeta,
+        prebuiltDescription: ctx.prebuiltDescription,
+        crashMeta: ctx.crashMeta,
       })
       if (taskEmbedLines.length) {
         const heading =

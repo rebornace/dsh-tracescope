@@ -15,6 +15,7 @@ import {
   normalizeFeedbackLang,
   type FeedbackLang,
 } from './feedback.js'
+import { buildCrashDefectSubject, type CrashFeedbackMeta } from '../crash/feedback.js'
 import {
   buildVisualDiffFeedbackSubject,
   type FeedbackKind,
@@ -44,7 +45,9 @@ function orchError(lang: FeedbackLang, code: 'unsupported' | 'incomplete'): stri
 }
 
 function normalizeFeedbackKind(raw: unknown): FeedbackKind {
-  return raw === 'visual-diff' ? 'visual-diff' : 'impact'
+  if (raw === 'visual-diff') return 'visual-diff'
+  if (raw === 'crash') return 'crash'
+  return 'impact'
 }
 
 /** Submit failed-verification or UI-review feedback to the configured tracker. */
@@ -62,6 +65,9 @@ export async function submitFailFeedback(
     /** Defaults to impact verification wording. */
     feedbackKind?: FeedbackKind | string
     visualMeta?: VisualDiffFeedbackMeta
+    /** Pre-built markdown body (e.g. crash defect from analysis). */
+    prebuiltDescription?: string
+    crashMeta?: CrashFeedbackMeta
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<TrackerSubmitResult> {
@@ -80,7 +86,9 @@ export async function submitFailFeedback(
     input.subject?.trim() ||
     (feedbackKind === 'visual-diff'
       ? buildVisualDiffFeedbackSubject(input.items, input.visualMeta, lang)
-      : buildFailFeedbackSubject(input.items, input.repoPath, lang))
+      : feedbackKind === 'crash' && input.crashMeta
+        ? buildCrashDefectSubject(input.crashMeta.incident, lang)
+        : buildFailFeedbackSubject(input.items, input.repoPath, lang))
   const description = buildTrackerFeedbackDescription({
     kind: feedbackKind,
     repoPath: input.repoPath,
@@ -90,6 +98,8 @@ export async function submitFailFeedback(
     attachments: input.attachments,
     lang,
     visualMeta: input.visualMeta,
+    prebuiltDescription: input.prebuiltDescription,
+    crashMeta: input.crashMeta,
   })
 
   try {
@@ -106,6 +116,8 @@ export async function submitFailFeedback(
         lang,
         feedbackKind,
         visualMeta: input.visualMeta,
+        prebuiltDescription: input.prebuiltDescription,
+        crashMeta: input.crashMeta,
       },
       fetchImpl,
     )
