@@ -10,7 +10,7 @@ TraceScope (`dsh-tracescope`) helps developers and testers with three core capab
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
 | **Crash analysis** | Umeng U-APM or pasted stack trace → repo report, composer draft, or tracker filing. |
 
-Primary UX: **official DeepSeek Harness Desktop** sidebar. Same capabilities over MCP from Cursor / Claude / any client.
+Primary UX: **official DeepSeek Harness Desktop** sidebar. Impact analysis and design diff are available over MCP; **crash analysis is Host sidebar only** (`/tracescope/v1/crash-*`) — not in MCP yet.
 
 UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle inside the plugin.
 

@@ -795,7 +795,7 @@ export default {
   'crash.listLoading': '正在加载崩溃列表…',
   'crash.listTitle': '崩溃列表',
   'crash.mode': '崩溃分析',
-  'crash.needAnalyzeFirst': '请先点击「分析」或「分析并写入会话」',
+  'crash.needAnalyzeFirst': '请先点击「分析」',
   'crash.noRepoMatch': '未在仓库中匹配到堆栈引用的源文件',
   'crash.pasteFallback': '粘贴堆栈（Cookie 失效降级）',
   'crash.pasteLabel': '粘贴崩溃堆栈',

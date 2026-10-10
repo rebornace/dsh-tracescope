@@ -10,7 +10,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的三项核心�
 | **设计差异分析** | 实现与 Figma / 蓝湖稿差在哪？静态对比、定位差异并回传缺陷 |
 | **崩溃分析** | 友盟 U-APM 或粘贴堆栈 → 对照代码目录生成报告，写会话或提交缺陷 |
 
-推荐在 **官方 DeepSeek Harness 桌面端** 右侧栏使用；也可通过 MCP 在 Cursor / Claude 等客户端调用同一套能力。
+推荐在 **官方 DeepSeek Harness 桌面端** 右侧栏使用。**功能影响分析**与**设计差异分析**可通过 MCP 在 Cursor / Claude 等客户端调用；**崩溃分析**目前仅 Host 侧栏（`/tracescope/v1/crash-*`），MCP 尚未对等。
 
 界面语言（中/英）**跟随桌面端 / Host 界面语言**，与系统设置一致，插件内无需单独切换。
 
