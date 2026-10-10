@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.6`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.2.7`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with two core capabilities:
 

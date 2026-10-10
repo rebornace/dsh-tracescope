@@ -805,6 +805,7 @@ var init_zh = __esm({
       "diff.board.cleaningNotes": "正在清理备注…",
       "diff.board.clearSelection": "清除选中",
       "diff.board.clearSelectionTitle": "清除清单选中与对照图高亮",
+      "diff.board.selectItem": "选中此项",
       "diff.board.confirmDeleteDiff": "确认删除这条差异？删除后视为误报，仅本机记住，可在下方恢复。",
       "diff.board.confirmErase": "从对照图中删除图层「{label}」？\n（擦除该区域像素；可随时恢复）",
       "diff.board.copyAll": "复制差异",
@@ -1066,7 +1067,8 @@ var init_zh = __esm({
       "findings.suggestion": "修改建议：{value}",
       "findings.title": "AI 走查结论（{count}）",
       "findings.updatedAt": "更新于 {time}",
-      "ghp_… 需要 issues:write": "ghp_… 需要 issues:write",
+      "ghp_… 需要 issues:write": "ghp_… 需要仓库写权限（issues + 附件）",
+      "截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。": "截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。",
       "Host API 未就绪": "Host API 未就绪",
       "HTTPS 用户名 + 密码/Token": "HTTPS 用户名 + 密码/Token",
       "labels（逗号分隔）": "labels（逗号分隔）",
@@ -2049,6 +2051,7 @@ var init_en = __esm({
       "diff.board.cleaningNotes": "Cleaning notes…",
       "diff.board.clearSelection": "Clear selection",
       "diff.board.clearSelectionTitle": "Clear list selection and board highlights",
+      "diff.board.selectItem": "Select this item",
       "diff.board.confirmDeleteDiff": "Delete this diff? Treated as false positive locally; restore from below.",
       "diff.board.confirmErase": "Remove layer “{label}” from board?\n(Pixels erased; you can restore anytime.)",
       "diff.board.copyAll": "Copy diffs",
@@ -2310,7 +2313,8 @@ var init_en = __esm({
       "findings.suggestion": "Suggestion: {value}",
       "findings.title": "AI review findings ({count})",
       "findings.updatedAt": "Updated at {time}",
-      "ghp_… 需要 issues:write": "ghp_… requires issues:write",
+      "ghp_… 需要 issues:write": "ghp_… needs repo write access (issues + attachments)",
+      "截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。": "Screenshots upload to GitHub attachments and are inlined in the issue body. The token needs write access on the repo (same as gh --attach).",
       "Host API 未就绪": "Host API not ready",
       "HTTPS 用户名 + 密码/Token": "HTTPS username + password/token",
       "labels（逗号分隔）": "labels (comma-separated)",
@@ -4678,6 +4682,9 @@ function DesignCompareBoard({
   const [selectedKeys, setSelectedKeys] = (0, import_react3.useState)(() => /* @__PURE__ */ new Set());
   const [chatNote, setChatNote] = (0, import_react3.useState)("");
   const [sourceFilter, setSourceFilter] = (0, import_react3.useState)("all");
+  const [cardEditor, setCardEditor] = (0, import_react3.useState)(
+    null
+  );
   const storeKey = (0, import_react3.useMemo)(() => diffStoreKey(data), [data]);
   const [overrides, setOverrides] = (0, import_react3.useState)(
     () => loadDiffOverrides(storeKey)
@@ -4690,6 +4697,7 @@ function DesignCompareBoard({
     setOverrides(loadDiffOverrides(storeKey));
     setHiddenLayerIds(loadHiddenLayers(storeKey));
     setSelectedKeys(/* @__PURE__ */ new Set());
+    setCardEditor(null);
   }, [storeKey]);
   (0, import_react3.useEffect)(() => {
     try {
@@ -4970,7 +4978,14 @@ function DesignCompareBoard({
               baseCommit: report.baseCommit,
               headCommit: report.headCommit,
               report,
-              subject: String(subject || "").trim()
+              subject: String(subject || "").trim(),
+              feedbackKind: "visual-diff",
+              visualMeta: {
+                designName: actionMeta.designName,
+                designUrl: actionMeta.designUrl,
+                codePath: actionMeta.codePath,
+                platformLabel: actionMeta.platformLabel
+              }
             })
           )
         }).then(async (r) => {
@@ -5330,49 +5345,19 @@ function DesignCompareBoard({
             {
               item,
               active: isActive,
+              editorMode: cardEditor?.key === item.key ? cardEditor.mode : null,
               onSelect: () => toggleItem(item),
-              onDelete: () => patchOverride(item.key, { deleted: true }),
-              onOpenEditor: (mode) => {
-                if (typeof openConfirmDialog !== "function") {
-                  setChatNote(t2("diff.board.hostDialogUnsupported"));
+              onDelete: () => {
+                setCardEditor(null);
+                patchOverride(item.key, { deleted: true });
+              },
+              onPatch: (patch) => patchOverride(item.key, patch),
+              onEditorModeChange: (mode) => {
+                if (!mode) {
+                  setCardEditor(null);
                   return;
                 }
-                if (mode === "note") {
-                  openConfirmDialog({
-                    title: t2("diff.board.noteDialog.title"),
-                    message: item.headline,
-                    inputLabel: t2("diff.board.noteDialog.inputLabel"),
-                    inputValue: item.note || "",
-                    multiline: true,
-                    confirmLabel: t2("diff.board.noteDialog.confirm"),
-                    onConfirm: (value) => {
-                      patchOverride(item.key, { note: String(value ?? "").trim() });
-                    }
-                  });
-                  return;
-                }
-                openConfirmDialog({
-                  title: t2("diff.board.editDialog.title"),
-                  message: item.headline,
-                  fields: [
-                    { key: "headline", label: t2("diff.board.editDialog.headline"), value: item.headline },
-                    {
-                      key: "expected",
-                      label: t2("diff.board.editDialog.expected"),
-                      value: item.expected || ""
-                    },
-                    { key: "actual", label: t2("diff.board.editDialog.actual"), value: item.actual || "" }
-                  ],
-                  confirmLabel: t2("diff.board.editDialog.confirm"),
-                  onConfirm: (value) => {
-                    const map = value && typeof value === "object" ? value : {};
-                    patchOverride(item.key, {
-                      headline: map.headline ?? item.headline,
-                      expected: map.expected ?? item.expected,
-                      actual: map.actual ?? item.actual
-                    });
-                  }
-                });
+                setCardEditor({ key: item.key, mode });
               }
             },
             item.key
@@ -5537,12 +5522,46 @@ function FilterTabs({
 function UnifiedCard({
   item,
   active: active2,
+  editorMode,
   onSelect,
   onDelete,
-  onOpenEditor
+  onPatch,
+  onEditorModeChange
 }) {
   const t2 = getT();
   const isAi = item.source === "ai";
+  const [draftNote, setDraftNote] = (0, import_react3.useState)(item.note || "");
+  const [draftHeadline, setDraftHeadline] = (0, import_react3.useState)(item.headline);
+  const [draftExpected, setDraftExpected] = (0, import_react3.useState)(item.expected || "");
+  const [draftActual, setDraftActual] = (0, import_react3.useState)(item.actual || "");
+  const [confirmDelete, setConfirmDelete] = (0, import_react3.useState)(false);
+  const focusRef = (0, import_react3.useRef)(null);
+  (0, import_react3.useEffect)(() => {
+    if (editorMode === "note") setDraftNote(item.note || "");
+    if (editorMode === "edit") {
+      setDraftHeadline(item.headline);
+      setDraftExpected(item.expected || "");
+      setDraftActual(item.actual || "");
+    }
+    if (!editorMode) setConfirmDelete(false);
+  }, [editorMode, item.note, item.headline, item.expected, item.actual]);
+  (0, import_react3.useEffect)(() => {
+    if (!editorMode) return;
+    const id = window.setTimeout(() => {
+      const el = focusRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      if ("setSelectionRange" in el && typeof el.value === "string") {
+        const len = el.value.length;
+        try {
+          el.setSelectionRange(len, len);
+        } catch {
+        }
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [editorMode]);
+  const closeEditor = () => onEditorModeChange(null);
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "div",
     {
@@ -5559,34 +5578,30 @@ function UnifiedCard({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
           "div",
           {
-            role: "button",
-            tabIndex: 0,
-            "aria-pressed": active2,
-            onClick: onSelect,
-            onKeyDown: (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelect();
-              }
-            },
             style: {
               display: "block",
               width: "100%",
               textAlign: "left",
-              cursor: "pointer",
               color: "inherit"
             },
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                  "span",
+                  "button",
                   {
-                    "aria-hidden": true,
+                    type: "button",
+                    "aria-pressed": active2,
+                    title: active2 ? t2("diff.board.clearSelection") : t2("diff.board.selectItem"),
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      onSelect();
+                    },
                     style: {
                       display: "inline-block",
                       width: 14,
                       height: 14,
                       marginRight: 6,
+                      padding: 0,
                       borderRadius: 3,
                       border: "1px solid " + (active2 ? "#0f6e56" : "#c4bba8"),
                       background: active2 ? "#0f6e56" : "#fff",
@@ -5595,7 +5610,8 @@ function UnifiedCard({
                       lineHeight: "12px",
                       textAlign: "center",
                       verticalAlign: "middle",
-                      fontWeight: 700
+                      fontWeight: 700,
+                      cursor: "pointer"
                     },
                     children: active2 ? "✓" : ""
                   }
@@ -5632,19 +5648,148 @@ function UnifiedCard({
               item.actual ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { color: "#8a4b33" }, children: t2("diff.board.item.actual", { value: item.actual }) }) : null,
               item.codeSource ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { color: "#8a7f60", wordBreak: "break-all" }, children: t2("diff.board.item.codeSource", { value: item.codeSource }) }) : null,
               item.suggestion ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { color: "#0f6e56" }, children: t2("diff.board.item.suggestion", { value: item.suggestion }) }) : null,
-              item.note ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { color: "#5f584c" }, children: t2("diff.board.item.note", { value: item.note }) }) : null
+              item.note && editorMode !== "note" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { color: "#5f584c" }, children: t2("diff.board.item.note", { value: item.note }) }) : null
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }, children: [
+        editorMode === "note" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 8 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { style: { display: "grid", gap: 4, fontWeight: 600, color: "#5f584c" }, children: [
+            t2("diff.board.noteDialog.inputLabel"),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "textarea",
+              {
+                ref: (el) => {
+                  focusRef.current = el;
+                },
+                style: Object.assign({}, COL.editInput, { minHeight: 72, resize: "vertical" }),
+                value: draftNote,
+                onChange: (e) => setDraftNote(e.target.value),
+                onKeyDown: (e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    closeEditor();
+                  }
+                }
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 6 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                style: COL.miniBtn,
+                onClick: () => {
+                  onPatch({ note: draftNote.trim() });
+                  closeEditor();
+                },
+                children: t2("diff.board.noteDialog.confirm")
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.miniBtn, onClick: closeEditor, children: t2("取消") })
+          ] })
+        ] }) : null,
+        editorMode === "edit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 8, display: "grid", gap: 8 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { style: { display: "grid", gap: 4, fontWeight: 600, color: "#5f584c" }, children: [
+            t2("diff.board.editDialog.headline"),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                ref: (el) => {
+                  focusRef.current = el;
+                },
+                style: COL.editInput,
+                value: draftHeadline,
+                onChange: (e) => setDraftHeadline(e.target.value),
+                onKeyDown: (e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    closeEditor();
+                  }
+                }
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { style: { display: "grid", gap: 4, fontWeight: 600, color: "#5f584c" }, children: [
+            t2("diff.board.editDialog.expected"),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                style: COL.editInput,
+                value: draftExpected,
+                onChange: (e) => setDraftExpected(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { style: { display: "grid", gap: 4, fontWeight: 600, color: "#5f584c" }, children: [
+            t2("diff.board.editDialog.actual"),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                style: COL.editInput,
+                value: draftActual,
+                onChange: (e) => setDraftActual(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                style: COL.miniBtn,
+                onClick: () => {
+                  onPatch({
+                    headline: draftHeadline.trim() || item.headline,
+                    expected: draftExpected.trim(),
+                    actual: draftActual.trim()
+                  });
+                  closeEditor();
+                },
+                children: t2("diff.board.editDialog.confirm")
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.miniBtn, onClick: closeEditor, children: t2("取消") })
+          ] })
+        ] }) : null,
+        confirmDelete ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
+          {
+            style: {
+              marginTop: 6,
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              alignItems: "center",
+              color: "#8a4b33",
+              fontSize: 11
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: t2("diff.board.confirmDeleteDiff") }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: COL.miniBtn,
+                  onClick: () => {
+                    setConfirmDelete(false);
+                    onDelete();
+                  },
+                  children: t2("diff.board.delete")
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: COL.miniBtn, onClick: () => setConfirmDelete(false), children: t2("取消") })
+            ]
+          }
+        ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             "button",
             {
               type: "button",
               style: COL.miniBtn,
-              onClick: (e) => {
-                e.stopPropagation();
-                if (window.confirm(t2("diff.board.confirmDeleteDiff"))) onDelete();
+              onClick: () => {
+                closeEditor();
+                setConfirmDelete(true);
               },
               children: t2("diff.board.delete")
             }
@@ -5654,11 +5799,11 @@ function UnifiedCard({
             {
               type: "button",
               style: COL.miniBtn,
-              onClick: (e) => {
-                e.stopPropagation();
-                onOpenEditor("note");
+              onClick: () => {
+                setConfirmDelete(false);
+                onEditorModeChange(editorMode === "note" ? null : "note");
               },
-              children: t2("diff.board.note")
+              children: editorMode === "note" ? t2("取消") : t2("diff.board.note")
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -5666,11 +5811,11 @@ function UnifiedCard({
             {
               type: "button",
               style: COL.miniBtn,
-              onClick: (e) => {
-                e.stopPropagation();
-                onOpenEditor("edit");
+              onClick: () => {
+                setConfirmDelete(false);
+                onEditorModeChange(editorMode === "edit" ? null : "edit");
               },
-              children: t2("diff.board.edit")
+              children: editorMode === "edit" ? t2("取消") : t2("diff.board.edit")
             }
           )
         ] })
@@ -7908,7 +8053,8 @@ var styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 1e4,
+    // Above LoadingOverlay / folder pickers inside visual panel (those use ~10k–20k).
+    zIndex: 2e5,
     padding: 16
   },
   busyOverlay: {
@@ -12413,6 +12559,12 @@ function TraceScopePanelBody() {
                               }
                             })
                           ]
+                        }),
+                        jsx7("div", {
+                          style: { color: "#6b645a", fontSize: 11, marginTop: 4 },
+                          children: t(
+                            "截图会上传到 GitHub 附件并写入 Issue 正文；Token 需对该仓库有写权限（与 gh --attach 相同）。"
+                          )
                         })
                       ]
                     }) : null,
@@ -13351,10 +13503,10 @@ function TraceScopePanelBody() {
           setConfirmDlg({
             title: opts.title,
             message: opts.message || "",
-            inputLabel: opts.inputLabel,
+            inputLabel: opts.fields && opts.fields.length ? void 0 : opts.inputLabel,
             inputValue: opts.inputValue || "",
             multiline: !!opts.multiline,
-            fields: opts.fields || null,
+            fields: opts.fields && opts.fields.length ? opts.fields : null,
             confirmLabel: opts.confirmLabel || t("保存"),
             danger: false,
             onConfirm: opts.onConfirm
@@ -13365,12 +13517,15 @@ function TraceScopePanelBody() {
         style: styles.modalBackdrop,
         role: "dialog",
         "aria-modal": "true",
-        onClick: function() {
-          setConfirmDlg(null);
+        onMouseDown: function(e) {
+          if (e.target === e.currentTarget) setConfirmDlg(null);
         },
         children: [
           jsxs6("div", {
             style: Object.assign({}, styles.modalCard, { width: "min(480px, 100%)" }),
+            onMouseDown: function(e) {
+              e.stopPropagation();
+            },
             onClick: function(e) {
               e.stopPropagation();
             },
@@ -13449,7 +13604,15 @@ function TraceScopePanelBody() {
                         var action = confirmDlg.onConfirm;
                         var value = confirmDlg.inputValue;
                         setConfirmDlg(null);
-                        if (typeof action === "function") action(value);
+                        setTimeout(function() {
+                          if (typeof action === "function") {
+                            try {
+                              action(value);
+                            } catch (err2) {
+                              console.warn("[tracescope] confirm action failed", err2);
+                            }
+                          }
+                        }, 0);
                       }
                     }
                   })
@@ -13471,19 +13634,28 @@ function TraceScopePanelBody() {
                     style: confirmDlg.danger ? styles.danger : styles.primary,
                     onClick: function() {
                       var action = confirmDlg.onConfirm;
+                      var fields = confirmDlg.fields;
+                      var inputLabel = confirmDlg.inputLabel;
+                      var inputValue = confirmDlg.inputValue;
                       setConfirmDlg(null);
-                      if (typeof action !== "function") return;
-                      if (confirmDlg.fields && confirmDlg.fields.length) {
-                        var map = {};
-                        confirmDlg.fields.forEach(function(f) {
-                          map[f.key] = f.value || "";
-                        });
-                        action(map);
-                      } else if (confirmDlg.inputLabel) {
-                        action(confirmDlg.inputValue);
-                      } else {
-                        action();
-                      }
+                      setTimeout(function() {
+                        if (typeof action !== "function") return;
+                        try {
+                          if (fields && fields.length) {
+                            var map = {};
+                            fields.forEach(function(f) {
+                              map[f.key] = f.value || "";
+                            });
+                            action(map);
+                          } else if (inputLabel) {
+                            action(inputValue);
+                          } else {
+                            action();
+                          }
+                        } catch (err2) {
+                          console.warn("[tracescope] confirm action failed", err2);
+                        }
+                      }, 0);
                     },
                     children: confirmDlg.confirmLabel || t("确定")
                   })

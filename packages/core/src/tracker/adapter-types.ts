@@ -13,6 +13,8 @@ import type {
   TrackerProvider,
   TrackerSubmitResult,
 } from './types.js'
+import type { FeedbackLang } from './feedback.js'
+import type { FeedbackKind, VisualDiffFeedbackMeta } from './visual-feedback.js'
 
 export interface SubmitContext {
   repoPath: string
@@ -25,6 +27,12 @@ export interface SubmitContext {
   /** Whole persisted report, when adapters need attachments beyond the items. */
   report?: ImpactReport
   attachments?: ReportAttachment[]
+  /** Host UI language used for regenerated bodies / adapter messages. */
+  lang?: FeedbackLang
+  /** Impact verification vs UI-review diff defect. */
+  feedbackKind?: FeedbackKind
+  /** Extra fields for UI-review defect bodies. */
+  visualMeta?: VisualDiffFeedbackMeta
 }
 
 export interface TrackerAdapter {

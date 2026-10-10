@@ -176,6 +176,10 @@ export function DesignCompareBoard({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
   const [chatNote, setChatNote] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ai' | 'rule'>('all')
+  /** At most one card editor open; parent-owned so it cannot get stuck per-card. */
+  const [cardEditor, setCardEditor] = useState<null | { key: string; mode: 'note' | 'edit' }>(
+    null,
+  )
   const storeKey = useMemo(() => diffStoreKey(data), [data])
   const [overrides, setOverrides] = useState<Record<string, DiffOverride>>(() =>
     loadDiffOverrides(storeKey),
@@ -189,6 +193,7 @@ export function DesignCompareBoard({
     setOverrides(loadDiffOverrides(storeKey))
     setHiddenLayerIds(loadHiddenLayers(storeKey))
     setSelectedKeys(new Set())
+    setCardEditor(null)
   }, [storeKey])
 
   useEffect(() => {
@@ -520,6 +525,13 @@ export function DesignCompareBoard({
               headCommit: report.headCommit,
               report,
               subject: String(subject || '').trim(),
+              feedbackKind: 'visual-diff',
+              visualMeta: {
+                designName: actionMeta.designName,
+                designUrl: actionMeta.designUrl,
+                codePath: actionMeta.codePath,
+                platformLabel: actionMeta.platformLabel,
+              },
             }),
           ),
         })
@@ -933,50 +945,19 @@ export function DesignCompareBoard({
                 key={item.key}
                 item={item}
                 active={isActive}
+                editorMode={cardEditor?.key === item.key ? cardEditor.mode : null}
                 onSelect={() => toggleItem(item)}
-                onDelete={() => patchOverride(item.key, { deleted: true })}
-                onOpenEditor={(mode) => {
-                  if (typeof openConfirmDialog !== 'function') {
-                    setChatNote(t('diff.board.hostDialogUnsupported'))
+                onDelete={() => {
+                  setCardEditor(null)
+                  patchOverride(item.key, { deleted: true })
+                }}
+                onPatch={(patch) => patchOverride(item.key, patch)}
+                onEditorModeChange={(mode) => {
+                  if (!mode) {
+                    setCardEditor(null)
                     return
                   }
-                  if (mode === 'note') {
-                    openConfirmDialog({
-                      title: t('diff.board.noteDialog.title'),
-                      message: item.headline,
-                      inputLabel: t('diff.board.noteDialog.inputLabel'),
-                      inputValue: item.note || '',
-                      multiline: true,
-                      confirmLabel: t('diff.board.noteDialog.confirm'),
-                      onConfirm: (value) => {
-                        patchOverride(item.key, { note: String(value ?? '').trim() })
-                      },
-                    })
-                    return
-                  }
-                  openConfirmDialog({
-                    title: t('diff.board.editDialog.title'),
-                    message: item.headline,
-                    fields: [
-                      { key: 'headline', label: t('diff.board.editDialog.headline'), value: item.headline },
-                      {
-                        key: 'expected',
-                        label: t('diff.board.editDialog.expected'),
-                        value: item.expected || '',
-                      },
-                      { key: 'actual', label: t('diff.board.editDialog.actual'), value: item.actual || '' },
-                    ],
-                    confirmLabel: t('diff.board.editDialog.confirm'),
-                    onConfirm: (value) => {
-                      const map =
-                        value && typeof value === 'object' ? (value as Record<string, string>) : {}
-                      patchOverride(item.key, {
-                        headline: map.headline ?? item.headline,
-                        expected: map.expected ?? item.expected,
-                        actual: map.actual ?? item.actual,
-                      })
-                    },
-                  })
+                  setCardEditor({ key: item.key, mode })
                 }}
               />
             )
@@ -1190,18 +1171,58 @@ function FilterTabs({
 function UnifiedCard({
   item,
   active,
+  editorMode,
   onSelect,
   onDelete,
-  onOpenEditor,
+  onPatch,
+  onEditorModeChange,
 }: {
   item: UnifiedItem
   active: boolean
+  editorMode: null | 'note' | 'edit'
   onSelect: () => void
   onDelete: () => void
-  onOpenEditor: (mode: 'edit' | 'note') => void
+  onPatch: (patch: DiffOverride) => void
+  onEditorModeChange: (mode: null | 'note' | 'edit') => void
 }) {
   const t = getT()
   const isAi = item.source === 'ai'
+  const [draftNote, setDraftNote] = useState(item.note || '')
+  const [draftHeadline, setDraftHeadline] = useState(item.headline)
+  const [draftExpected, setDraftExpected] = useState(item.expected || '')
+  const [draftActual, setDraftActual] = useState(item.actual || '')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const focusRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (editorMode === 'note') setDraftNote(item.note || '')
+    if (editorMode === 'edit') {
+      setDraftHeadline(item.headline)
+      setDraftExpected(item.expected || '')
+      setDraftActual(item.actual || '')
+    }
+    if (!editorMode) setConfirmDelete(false)
+  }, [editorMode, item.note, item.headline, item.expected, item.actual])
+
+  useEffect(() => {
+    if (!editorMode) return
+    const id = window.setTimeout(() => {
+      const el = focusRef.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      if ('setSelectionRange' in el && typeof el.value === 'string') {
+        const len = el.value.length
+        try {
+          el.setSelectionRange(len, len)
+        } catch {
+          /* ignore */
+        }
+      }
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [editorMode])
+
+  const closeEditor = () => onEditorModeChange(null)
 
   return (
     <div
@@ -1216,32 +1237,28 @@ function UnifiedCard({
       }}
     >
       <div
-        role="button"
-        tabIndex={0}
-        aria-pressed={active}
-        onClick={onSelect}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onSelect()
-          }
-        }}
         style={{
           display: 'block',
           width: '100%',
           textAlign: 'left',
-          cursor: 'pointer',
           color: 'inherit',
         }}
       >
         <div>
-          <span
-            aria-hidden
+          <button
+            type="button"
+            aria-pressed={active}
+            title={active ? t('diff.board.clearSelection') : t('diff.board.selectItem')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect()
+            }}
             style={{
               display: 'inline-block',
               width: 14,
               height: 14,
               marginRight: 6,
+              padding: 0,
               borderRadius: 3,
               border: '1px solid ' + (active ? '#0f6e56' : '#c4bba8'),
               background: active ? '#0f6e56' : '#fff',
@@ -1251,10 +1268,11 @@ function UnifiedCard({
               textAlign: 'center',
               verticalAlign: 'middle',
               fontWeight: 700,
+              cursor: 'pointer',
             }}
           >
             {active ? '✓' : ''}
-          </span>
+          </button>
           <span style={{ color: SEVERITY_TEXT[item.severity], fontWeight: 700 }}>
             [{diffSeverityLabel(t, item.severity)}]
           </span>{' '}
@@ -1295,43 +1313,166 @@ function UnifiedCard({
             {t('diff.board.item.suggestion', { value: item.suggestion })}
           </div>
         ) : null}
-        {item.note ? (
+        {item.note && editorMode !== 'note' ? (
           <div style={{ color: '#5f584c' }}>{t('diff.board.item.note', { value: item.note })}</div>
         ) : null}
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          style={COL.miniBtn}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (window.confirm(t('diff.board.confirmDeleteDiff'))) onDelete()
+      {editorMode === 'note' ? (
+        <div style={{ marginTop: 8 }}>
+          <label style={{ display: 'grid', gap: 4, fontWeight: 600, color: '#5f584c' }}>
+            {t('diff.board.noteDialog.inputLabel')}
+            <textarea
+              ref={(el) => {
+                focusRef.current = el
+              }}
+              style={Object.assign({}, COL.editInput, { minHeight: 72, resize: 'vertical' })}
+              value={draftNote}
+              onChange={(e) => setDraftNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeEditor()
+                }
+              }}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button
+              type="button"
+              style={COL.miniBtn}
+              onClick={() => {
+                onPatch({ note: draftNote.trim() })
+                closeEditor()
+              }}
+            >
+              {t('diff.board.noteDialog.confirm')}
+            </button>
+            <button type="button" style={COL.miniBtn} onClick={closeEditor}>
+              {t('取消')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {editorMode === 'edit' ? (
+        <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+          <label style={{ display: 'grid', gap: 4, fontWeight: 600, color: '#5f584c' }}>
+            {t('diff.board.editDialog.headline')}
+            <input
+              ref={(el) => {
+                focusRef.current = el
+              }}
+              style={COL.editInput}
+              value={draftHeadline}
+              onChange={(e) => setDraftHeadline(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeEditor()
+                }
+              }}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontWeight: 600, color: '#5f584c' }}>
+            {t('diff.board.editDialog.expected')}
+            <input
+              style={COL.editInput}
+              value={draftExpected}
+              onChange={(e) => setDraftExpected(e.target.value)}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontWeight: 600, color: '#5f584c' }}>
+            {t('diff.board.editDialog.actual')}
+            <input
+              style={COL.editInput}
+              value={draftActual}
+              onChange={(e) => setDraftActual(e.target.value)}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              style={COL.miniBtn}
+              onClick={() => {
+                onPatch({
+                  headline: draftHeadline.trim() || item.headline,
+                  expected: draftExpected.trim(),
+                  actual: draftActual.trim(),
+                })
+                closeEditor()
+              }}
+            >
+              {t('diff.board.editDialog.confirm')}
+            </button>
+            <button type="button" style={COL.miniBtn} onClick={closeEditor}>
+              {t('取消')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmDelete ? (
+        <div
+          style={{
+            marginTop: 6,
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            color: '#8a4b33',
+            fontSize: 11,
           }}
         >
-          {t('diff.board.delete')}
-        </button>
-        <button
-          type="button"
-          style={COL.miniBtn}
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenEditor('note')
-          }}
-        >
-          {t('diff.board.note')}
-        </button>
-        <button
-          type="button"
-          style={COL.miniBtn}
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenEditor('edit')
-          }}
-        >
-          {t('diff.board.edit')}
-        </button>
-      </div>
+          <span>{t('diff.board.confirmDeleteDiff')}</span>
+          <button
+            type="button"
+            style={COL.miniBtn}
+            onClick={() => {
+              setConfirmDelete(false)
+              onDelete()
+            }}
+          >
+            {t('diff.board.delete')}
+          </button>
+          <button type="button" style={COL.miniBtn} onClick={() => setConfirmDelete(false)}>
+            {t('取消')}
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            style={COL.miniBtn}
+            onClick={() => {
+              closeEditor()
+              setConfirmDelete(true)
+            }}
+          >
+            {t('diff.board.delete')}
+          </button>
+          <button
+            type="button"
+            style={COL.miniBtn}
+            onClick={() => {
+              setConfirmDelete(false)
+              onEditorModeChange(editorMode === 'note' ? null : 'note')
+            }}
+          >
+            {editorMode === 'note' ? t('取消') : t('diff.board.note')}
+          </button>
+          <button
+            type="button"
+            style={COL.miniBtn}
+            onClick={() => {
+              setConfirmDelete(false)
+              onEditorModeChange(editorMode === 'edit' ? null : 'edit')
+            }}
+          >
+            {editorMode === 'edit' ? t('取消') : t('diff.board.edit')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

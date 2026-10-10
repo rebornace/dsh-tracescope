@@ -18,9 +18,10 @@ import {
 } from '../../yunxiao.js'
 import type { TrackerAdapter } from '../adapter-types.js'
 import type { TrackerConfig, TrackerSubmitResult } from '../types.js'
+import { buildTrackerFeedbackDescription } from '../build-description.js'
 import {
   bufferFromDataUrl,
-  buildFailFeedbackDescription,
+  normalizeFeedbackLang,
   safeAttachLabel,
 } from '../feedback.js'
 
@@ -42,14 +43,24 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
       endpoint: normalizeYunxiaoEndpoint(config.yunxiao?.endpoint),
     }
     const { subject } = ctx
+    const lang = normalizeFeedbackLang(ctx.lang)
+    const parseShotErr =
+      lang === 'en' ? 'could not parse screenshot data' : '无法解析截图数据'
+    const uploadFail = lang === 'en' ? 'upload failed' : '上传失败'
+    const updateDescFail =
+      lang === 'en' ? 'failed to update description' : '更新描述失败'
+    const unknownErr = lang === 'en' ? 'unknown error' : '未知错误'
     // Create without giant data-URL images; upload real files as workitem attachments.
-    const createDescription = buildFailFeedbackDescription({
+    const createDescription = buildTrackerFeedbackDescription({
+      kind: ctx.feedbackKind,
       repoPath: ctx.repoPath,
       baseCommit: ctx.baseCommit,
       headCommit: ctx.headCommit,
       items: ctx.items,
       attachments: ctx.attachments,
       embedScreenshotDataUrls: false,
+      lang,
+      visualMeta: ctx.visualMeta,
     })
     const result = await createYunxiaoWorkitem(
       yx,
@@ -82,7 +93,7 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
         const buf = bufferFromDataUrl(shot.dataUrl)
         if (!buf) {
           failedUploads += 1
-          attachmentErrors.push(`${shot.name}: 无法解析截图数据`)
+          attachmentErrors.push(`${shot.name}: ${parseShotErr}`)
           continue
         }
         const name = safeAttachLabel(shot.name) || `screenshot-${i + 1}-${j + 1}.jpg`
@@ -98,7 +109,7 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
           if (embed) screenshotEmbeds[`${i}:${j}`] = embed
         } else {
           failedUploads += 1
-          attachmentErrors.push(`${name}: ${up.error || '上传失败'}`)
+          attachmentErrors.push(`${name}: ${up.error || uploadFail}`)
         }
       }
     }
@@ -119,7 +130,7 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
         if (up.ok) uploaded += 1
         else {
           failedUploads += 1
-          attachmentErrors.push(`${att.name}: ${up.error || '上传失败'}`)
+          attachmentErrors.push(`${att.name}: ${up.error || uploadFail}`)
         }
       } catch (error: unknown) {
         failedUploads += 1
@@ -131,7 +142,8 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
 
     // Rewrite description so screenshots render inline under each failed item.
     if (Object.keys(screenshotEmbeds).length) {
-      const finalDescription = buildFailFeedbackDescription({
+      const finalDescription = buildTrackerFeedbackDescription({
+        kind: ctx.feedbackKind,
         repoPath: ctx.repoPath,
         baseCommit: ctx.baseCommit,
         headCommit: ctx.headCommit,
@@ -139,6 +151,8 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
         attachments: ctx.attachments,
         embedScreenshotDataUrls: false,
         screenshotEmbeds,
+        lang,
+        visualMeta: ctx.visualMeta,
       })
       const updated = await updateYunxiaoWorkitem(
         yx,
@@ -147,7 +161,9 @@ export const yunxiaoTrackerAdapter: TrackerAdapter = {
         fetchImpl,
       )
       if (!updated.ok) {
-        attachmentErrors.push(`更新描述失败: ${updated.error || '未知错误'}`)
+        attachmentErrors.push(
+          `${updateDescFail}: ${updated.error || unknownErr}`,
+        )
       }
     }
 

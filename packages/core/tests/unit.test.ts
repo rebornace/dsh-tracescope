@@ -451,6 +451,9 @@ describe('issue tracker fail feedback', () => {
     const failed = collectFailedItems(report)
     expect(failed).toHaveLength(1)
     expect(buildFailFeedbackSubject(failed, 'app')).toContain('登录')
+    expect(buildFailFeedbackSubject(failed, 'app')).toContain('验证失败：')
+    expect(/[\u4e00-\u9fff]/.test(buildFailFeedbackSubject(failed, 'app'))).toBe(true)
+    expect(buildFailFeedbackSubject(failed, 'app', 'en')).toContain('Verification failed:')
     expect(
       buildFailFeedbackDescription({
         repoPath: '/tmp/app',
@@ -459,6 +462,27 @@ describe('issue tracker fail feedback', () => {
         items: failed,
       }),
     ).toContain('按钮无响应')
+    const zhBody = buildFailFeedbackDescription({
+      repoPath: '/tmp/app',
+      baseCommit: 'aaa',
+      headCommit: 'bbb',
+      items: failed,
+      lang: 'zh',
+    })
+    expect(zhBody).toContain('## TraceScope 验证失败反馈')
+    expect(zhBody).toContain('仓库:')
+    expect(zhBody).toContain('验证备注:')
+    const enBody = buildFailFeedbackDescription({
+      repoPath: '/tmp/app',
+      baseCommit: 'aaa',
+      headCommit: 'bbb',
+      items: failed,
+      lang: 'en',
+    })
+    expect(enBody).toContain('## TraceScope verification failure feedback')
+    expect(enBody).toContain('Repository:')
+    expect(enBody).toContain('Tester note:')
+    expect(enBody).toContain('按钮无响应')
     const withShots = buildFailFeedbackDescription({
       repoPath: '/tmp/app',
       baseCommit: 'aaa',

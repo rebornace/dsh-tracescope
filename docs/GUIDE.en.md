@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.2.6`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.2.7`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -14,7 +14,7 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 | **Impact analysis** | Stable ↔ under-test (local git or Codeup API) | Direct + static ripple checklist; mark, attach, export, file defects |
 | **Design diff** | Figma / Lanhu + code pages | Static diffs + design raster highlights; optional AI write-back |
 
-Both share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook).
+Both share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). UI-review “Submit defect” uses a dedicated UI-diff issue body (not the impact-analysis verification template).
 
 Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. Same execute layer via `@rebornace/tracescope-mcp`.
 
@@ -145,7 +145,8 @@ Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:
 
 - Codeup API: no local static ripple  
 - Yunxiao inline images need attachment `embedUrl`s  
-- GitHub / GitLab / Webhook do not upload video binaries like Yunxiao  
+- GitHub Issues: screenshots (and attachable image/video) upload via user-attachments and are inlined in the issue body; token needs **repo write** access (same as `gh --attach`). Unsupported file types are skipped with an error note. GitHub Enterprise Server has no user-attachments store.
+- GitLab / Webhook: still do not upload binaries like Yunxiao / GitHub  
 
 **Design diff**
 
@@ -154,6 +155,7 @@ Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:
 - **Only `android-xml` has an enrichment plugin today**  
 - Lanhu auto-match may need a manual file pick  
 - Raster URLs can expire; re-compare after credential refresh  
+- Remote bare caches materialize a worktree for scanning; on Windows TraceScope enables `core.longpaths`. If checkout still fails with “Filename too long” (deep CocoaPods paths), move the TraceScope data directory to a shorter path (e.g. `D:\ts`) or enable OS long-path support, then retry (delete the stale `*-worktree` folder under the cache if needed)  
 
 **Install**
 

@@ -58,6 +58,7 @@ export default {
   'diff.board.exportAll': 'Export report',
   'diff.board.clearSelection': 'Clear selection',
   'diff.board.clearSelectionTitle': 'Clear list selection and board highlights',
+  'diff.board.selectItem': 'Select this item',
   'diff.board.hostDialogUnsupported': 'Host dialog unavailable. Update the plugin or use Desktop.',
   'diff.board.noteDialog.title': 'Add note',
   'diff.board.noteDialog.inputLabel': 'Note',

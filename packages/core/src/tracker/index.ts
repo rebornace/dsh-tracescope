@@ -17,8 +17,16 @@ export {
   bufferFromDataUrl,
   buildFailFeedbackDescription,
   buildFailFeedbackSubject,
+  normalizeFeedbackLang,
   safeAttachLabel,
 } from './feedback.js'
+export type { FeedbackLang } from './feedback.js'
+export { buildTrackerFeedbackDescription } from './build-description.js'
+export {
+  buildVisualDiffFeedbackDescription,
+  buildVisualDiffFeedbackSubject,
+} from './visual-feedback.js'
+export type { FeedbackKind, VisualDiffFeedbackMeta } from './visual-feedback.js'
 export {
   collectFailedItems,
   isTrackerConfigReady,
@@ -31,5 +39,13 @@ export {
 } from './registry.js'
 export { yunxiaoTrackerAdapter } from './adapters/yunxiao.js'
 export { githubTrackerAdapter } from './adapters/github.js'
+export {
+  createGithubIssue,
+  fetchGithubRepositoryId,
+  githubAttachmentMarkdown,
+  resolveGithubAttachMime,
+  updateGithubIssueBody,
+  uploadGithubUserAttachment,
+} from './adapters/github-api.js'
 export { gitlabTrackerAdapter } from './adapters/gitlab.js'
 export { webhookTrackerAdapter } from './adapters/webhook.js'

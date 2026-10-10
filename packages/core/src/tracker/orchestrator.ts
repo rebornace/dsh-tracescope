@@ -9,10 +9,17 @@ import type { ImpactReport, ScopeItem } from '../types.js'
 import type { TrackerConfig, TrackerProvider, TrackerSubmitResult } from './types.js'
 import type { TrackerAdapter } from './adapter-types.js'
 import { getTrackerAdapter } from './registry.js'
+import { buildTrackerFeedbackDescription } from './build-description.js'
 import {
-  buildFailFeedbackDescription,
   buildFailFeedbackSubject,
+  normalizeFeedbackLang,
+  type FeedbackLang,
 } from './feedback.js'
+import {
+  buildVisualDiffFeedbackSubject,
+  type FeedbackKind,
+  type VisualDiffFeedbackMeta,
+} from './visual-feedback.js'
 
 export function collectFailedItems(report: ImpactReport): ScopeItem[] {
   return [...report.direct, ...report.ripple].filter((i) => i.status === 'fail')
@@ -25,7 +32,22 @@ export function isTrackerConfigReady(config: TrackerConfig | null | undefined): 
   return adapter.isReady(config)
 }
 
-/** Submit failed-verification feedback to the configured tracker. */
+function orchError(lang: FeedbackLang, code: 'unsupported' | 'incomplete'): string {
+  if (lang === 'en') {
+    return code === 'unsupported'
+      ? 'No collaboration platform selected, or the platform is not supported'
+      : 'Collaboration platform configuration is incomplete or no platform is selected'
+  }
+  return code === 'unsupported'
+    ? '\u672a\u9009\u62e9\u534f\u4f5c\u5e73\u53f0\u6216\u5e73\u53f0\u4e0d\u53d7\u652f\u6301'
+    : '\u534f\u4f5c\u5e73\u53f0\u914d\u7f6e\u4e0d\u5b8c\u6574\u6216\u672a\u9009\u62e9\u5e73\u53f0'
+}
+
+function normalizeFeedbackKind(raw: unknown): FeedbackKind {
+  return raw === 'visual-diff' ? 'visual-diff' : 'impact'
+}
+
+/** Submit failed-verification or UI-review feedback to the configured tracker. */
 export async function submitFailFeedback(
   config: TrackerConfig,
   input: {
@@ -35,26 +57,39 @@ export async function submitFailFeedback(
     items: ScopeItem[]
     subject?: string
     attachments?: import('../types.js').ReportAttachment[]
+    /** Host UI language for subject/body wording. */
+    lang?: FeedbackLang | string
+    /** Defaults to impact verification wording. */
+    feedbackKind?: FeedbackKind | string
+    visualMeta?: VisualDiffFeedbackMeta
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<TrackerSubmitResult> {
+  const lang = normalizeFeedbackLang(input.lang)
+  const feedbackKind = normalizeFeedbackKind(input.feedbackKind)
   const provider: TrackerProvider = config.provider || 'none'
   const adapter: TrackerAdapter | undefined = getTrackerAdapter(provider)
   if (!adapter) {
-    return { ok: false, provider, error: '未选择协作平台或平台不受支持' }
+    return { ok: false, provider, error: orchError(lang, 'unsupported') }
   }
   if (!isTrackerConfigReady(config)) {
-    return { ok: false, provider, error: '协作平台配置不完整或未选择平台' }
+    return { ok: false, provider, error: orchError(lang, 'incomplete') }
   }
 
   const subject =
-    input.subject?.trim() || buildFailFeedbackSubject(input.items, input.repoPath)
-  const description = buildFailFeedbackDescription({
+    input.subject?.trim() ||
+    (feedbackKind === 'visual-diff'
+      ? buildVisualDiffFeedbackSubject(input.items, input.visualMeta, lang)
+      : buildFailFeedbackSubject(input.items, input.repoPath, lang))
+  const description = buildTrackerFeedbackDescription({
+    kind: feedbackKind,
     repoPath: input.repoPath,
     baseCommit: input.baseCommit,
     headCommit: input.headCommit,
     items: input.items,
     attachments: input.attachments,
+    lang,
+    visualMeta: input.visualMeta,
   })
 
   try {
@@ -68,6 +103,9 @@ export async function submitFailFeedback(
         subject,
         description,
         attachments: input.attachments,
+        lang,
+        feedbackKind,
+        visualMeta: input.visualMeta,
       },
       fetchImpl,
     )

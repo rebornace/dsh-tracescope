@@ -5,6 +5,14 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 0.2.7 — 2026-10-10
+
+- **GitHub Issues 加深**：缺陷提交支持附件上传（优先 `uploads.github.com`，失败回退 Contents API）；设计差异走查缺陷正文使用 visual-diff 模板（含截图/差异摘要），中英双语可随 Host。
+- **缺陷正文编码**：反馈模板内中文改为 Unicode 转义，避免打包后乱码。
+- **Windows 长路径**：设计扫描 worktree / clone 启用 `core.longpaths`，减轻 CocoaPods 等「Filename too long」。
+- **差异清单备注/编辑**：改为父级统一编辑态 + 内联编辑；宿主确认框关闭后延迟回调，修复弹窗操作后无法再次备注/编辑。
+- **GitHub Issues**：attachment upload + visual-diff defect body; feedback CJK encoding fix; Windows longpaths for design-scan worktrees; diff-list note/edit no longer stuck after dialogs.
+
 ## 0.2.6 — 2026-10-10
 
 - **中英双语（跟随 Host）**：侧栏、插件详情 / 自更新、独立 panel、内置 skills、Host API 错误与 UI 说明支持中/英；语言跟随 DeepSeek Harness（`ctx.locale` / `Accept-Language`），插件内不设独立切换。
