@@ -25,14 +25,56 @@ export interface CrashProviderConfig {
 
 export type CrashListSortField = 'lastSeenAt' | 'count' | 'title'
 
+export type CrashTimeRangePreset = '24h' | '7d' | '30d' | '90d' | 'custom'
+
 export interface CrashListQuery {
   keyword?: string
   errorKinds?: Array<'crash' | 'anr' | 'error' | 'other'>
   statuses?: Array<'open' | 'closed' | 'other'>
   appVersions?: string[]
-  /** Matches incident osVersion / deviceModel (local filter). */
+  /**
+   * @deprecated Prefer `osVersions` + `deviceModels`.
+   * Legacy single needle matched against osVersion/deviceModel jointly.
+   */
   osDevice?: string
+  /** OS version keywords (OR within list; AND with deviceModels when both set). */
+  osVersions?: string[]
+  /** Device model keywords (OR within list; AND with osVersions when both set). */
+  deviceModels?: string[]
+  /** Preset window; ignored when startAt/endAt are both set as a custom range. */
+  timeRange?: CrashTimeRangePreset
+  /** Inclusive range start (`YYYY-MM-DD` or ISO). */
+  startAt?: string
+  /** Inclusive range end (`YYYY-MM-DD` or ISO). */
+  endAt?: string
   sort?: { field: CrashListSortField; direction: 'asc' | 'desc' }
+  /** 1-based page index for remote providers. */
+  page?: number
+  pageSize?: number
+}
+
+export interface CrashListResult {
+  items: CrashIncidentSummary[]
+  page: number
+  pageSize: number
+  /** Total matching rows when the provider knows it. */
+  total?: number
+  hasMore?: boolean
+}
+
+/** Option row for Umeng-style filter dropdowns (`label` may differ from `value`). */
+export interface CrashFilterOption {
+  label: string
+  value: string
+}
+
+/** Dimension options from the crash provider (Umeng meta APIs). */
+export interface CrashFilterOptions {
+  versions: CrashFilterOption[]
+  osVersions: CrashFilterOption[]
+  devices: CrashFilterOption[]
+  /** Umeng `metaType` used for the meta calls (e.g. crash / anr / exception). */
+  metaType: string
 }
 
 export interface CrashIncidentSummary {
@@ -80,4 +122,9 @@ export interface CrashAnalysisReport {
   fixHints: string[]
   prompt: string
   defectBody: string
+  /**
+   * Optional AI session reply pasted/written back into TraceScope.
+   * Local 「分析」does not call a model; this field holds the chat outcome.
+   */
+  aiAnalysis?: string
 }

@@ -5,6 +5,7 @@
  */
 import {
   buildChatAnalysisPrompt,
+  buildCrashPrompt,
   buildReportFromPublishedItems,
   changedPathsFromDiffs,
   compareCodeup,
@@ -26,6 +27,8 @@ import {
   saveVisualRematch,
   visualFindingsKey,
   visualRematchKey,
+  type CrashIncident,
+  type CrashMatchedFile,
   type GitAuth,
   type GitCommitInfo,
   type GitRefInfo,
@@ -38,6 +41,7 @@ import {
   publishVisualJobRematch,
   type RematchPick,
 } from './visual-jobs.js'
+import { createCrashJob, getCrashJob, publishCrashJobAnalysis } from './crash-jobs.js'
 import { getDiffChunk } from './services/diff-chunk.js'
 import { runAnalyze } from './services/run-analyze.js'
 import { loadRepoHistory } from './services/repo-history.js'
@@ -541,5 +545,74 @@ export async function publishPageRematch(args: Record<string, unknown>) {
       n: picks.length,
       path: top.relativePath,
     }),
+  }
+}
+
+/** Create a crash-analysis chat job and return a composer prompt with jobId. */
+export function createCrashAnalysisJob(args: Record<string, unknown>) {
+  const repoPath = String(args.repoPath ?? '').trim()
+  if (!repoPath) throw new Error('缺少 repoPath')
+  const summary = String(args.summary ?? '').trim()
+  if (!summary) throw new Error('缺少 summary')
+  const stackText = String(args.stackText ?? '').trim()
+  if (!stackText) throw new Error('缺少 stackText')
+
+  const incidentRaw = args.incident
+  if (!incidentRaw || typeof incidentRaw !== 'object') throw new Error('缺少 incident')
+  const incident = incidentRaw as CrashIncident
+  if (!incident.id?.trim() || !incident.stackText?.trim()) {
+    throw new Error('incident 缺少 id 或 stackText')
+  }
+
+  const matchedFiles = Array.isArray(args.matchedFiles)
+    ? (args.matchedFiles as CrashMatchedFile[])
+    : []
+  const fixHints = Array.isArray(args.fixHints)
+    ? args.fixHints.filter((h): h is string => typeof h === 'string')
+    : []
+
+  const job = createCrashJob({ repoPath, incidentId: incident.id })
+  const promptLang = agentLang(args)
+  const prompt = buildCrashPrompt(
+    {
+      repoPath,
+      summary,
+      matchedFiles,
+      fixHints,
+      stackText: stackText || incident.stackText,
+      incident,
+      jobId: job.id,
+    },
+    promptLang,
+  )
+  return {
+    jobId: job.id,
+    status: job.status,
+    prompt,
+    summary: [
+      ui('AGENT_CRASH_CREATED', promptLang, { id: job.id }),
+      ui('AGENT_REPO', promptLang, { repo: repoPath }),
+      '',
+      ui('AGENT_CRASH_NEXT', promptLang),
+      '',
+      prompt,
+    ].join('\n'),
+  }
+}
+
+/** Agent write-back: publish crash AI conclusion for a pending job. */
+export function publishCrashAnalysis(args: Record<string, unknown>) {
+  const jobId = String(args.jobId ?? '').trim()
+  if (!jobId) throw new Error('缺少 jobId')
+  const job = getCrashJob(jobId)
+  if (!job) throw new Error(`找不到崩溃分析任务 ${jobId}`)
+  const analysis = String(args.analysis ?? args.aiAnalysis ?? '').trim()
+  if (!analysis) throw new Error('缺少 analysis')
+  const updated = publishCrashJobAnalysis(jobId, analysis)
+  const lang = agentLang(args)
+  return {
+    jobId,
+    status: updated.status,
+    summary: ui('AGENT_CRASH_PUBLISHED', lang, { id: jobId }),
   }
 }

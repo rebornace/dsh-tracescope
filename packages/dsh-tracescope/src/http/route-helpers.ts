@@ -139,21 +139,49 @@ export interface RouteOptions {
   run: (body: Record<string, unknown>, ctx: RouteContext) => Promise<unknown>
 }
 
+interface MethodRoute {
+  maxBodyBytes?: number
+  run: RouteOptions['run']
+}
+
+/**
+ * DSH host webServer allows only one exact handler per path. Fan out methods
+ * in-process so GET+POST on the same path does not throw at register time
+ * (which would abort later routes in the same `apply` batch).
+ */
+const routesByCtx = new WeakMap<Context, Map<string, Map<string, MethodRoute>>>()
+
 /** Register one same-origin JSON route with the DSH web server. */
 export function registerRoute(ctx: Context, options: RouteOptions) {
   const method = (options.method ?? 'POST').toUpperCase()
+  let byPath = routesByCtx.get(ctx)
+  if (!byPath) {
+    byPath = new Map()
+    routesByCtx.set(ctx, byPath)
+  }
+  let byMethod = byPath.get(options.path)
+  const isFirstForPath = !byMethod
+  if (!byMethod) {
+    byMethod = new Map()
+    byPath.set(options.path, byMethod)
+  }
+  byMethod.set(method, { maxBodyBytes: options.maxBodyBytes, run: options.run })
+  if (!isFirstForPath) return
+
   return ctx.effect?.(
-    () =>
-      ctx.webServer!.register({
+    () => {
+      const methods = byPath!.get(options.path)!
+      return ctx.webServer!.register({
         kind: 'exact',
         path: options.path,
         handler: async (req, res) => {
           const reqMethod = String(req.method ?? 'GET').toUpperCase()
           const acceptLang = langFromRequest(req)
+          const allowed = [...methods.keys()]
           // Browser / embedded webviews may probe with OPTIONS before POST.
           if (reqMethod === 'OPTIONS') {
             res.writeHead(204, {
-              'access-control-allow-methods': 'GET,POST,OPTIONS',
+              'access-control-allow-methods': `${allowed.join(',')},OPTIONS`,
               'access-control-allow-headers': 'content-type, accept-language',
               'access-control-max-age': '86400',
               'content-length': 0,
@@ -161,12 +189,13 @@ export function registerRoute(ctx: Context, options: RouteOptions) {
             res.end()
             return
           }
-          if (reqMethod !== method) {
-            const payload = {
-              error: msg('ERR_METHOD_NOT_ALLOWED', acceptLang, { method, reqMethod }),
+          const route = methods.get(reqMethod)
+          if (!route) {
+            const expect = allowed.join('|') || 'POST'
+            return sendJson(res, 405, {
+              error: msg('ERR_METHOD_NOT_ALLOWED', acceptLang, { method: expect, reqMethod }),
               code: 'ERR_METHOD_NOT_ALLOWED',
-            }
-            return sendJson(res, 405, payload)
+            })
           }
           if (!isTrustedRequest(req)) {
             return sendJson(res, 403, {
@@ -176,9 +205,9 @@ export function registerRoute(ctx: Context, options: RouteOptions) {
           }
           let body: Record<string, unknown> = {}
           let lang = acceptLang
-          if (method !== 'GET') {
+          if (reqMethod !== 'GET') {
             try {
-              body = (await readJsonBody(req, options.maxBodyBytes)) as Record<string, unknown>
+              body = (await readJsonBody(req, route.maxBodyBytes)) as Record<string, unknown>
               lang = langFromBody(body, acceptLang)
             } catch (error: unknown) {
               const localized = localizeError(error, acceptLang)
@@ -192,13 +221,14 @@ export function registerRoute(ctx: Context, options: RouteOptions) {
           }
           const routeCtx: RouteContext = { lang, req }
           try {
-            sendJson(res, 200, await options.run(body, routeCtx))
+            sendJson(res, 200, await route.run(body, routeCtx))
           } catch (error: unknown) {
             const localized = localizeError(error, lang)
             sendJson(res, 400, localized)
           }
         },
-      }),
+      })
+    },
     `tracescope: ${options.path}`,
   )
 }

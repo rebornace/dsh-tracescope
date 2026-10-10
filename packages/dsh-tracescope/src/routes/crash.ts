@@ -19,6 +19,8 @@ import {
 } from '@rebornace/tracescope-core'
 import type { Lang } from '../i18n/lang.js'
 import { I18nError } from '../i18n/messages.js'
+import { createCrashAnalysisJob } from '../agent-api.js'
+import { getCrashJob } from '../crash-jobs.js'
 import {
   isUmengNotReady,
   rethrowUmengCrashError,
@@ -93,7 +95,8 @@ function parseCrashMeta(raw: unknown): CrashFeedbackMeta | undefined {
         .filter((m) => m.path)
     : []
   const fixHints = Array.isArray(o.fixHints) ? o.fixHints.map(String) : undefined
-  return { incident, matchedFiles, summary, fixHints }
+  const aiAnalysis = typeof o.aiAnalysis === 'string' ? o.aiAnalysis : undefined
+  return { incident, matchedFiles, summary, fixHints, aiAnalysis }
 }
 
 async function runProbe(
@@ -145,6 +148,7 @@ export function registerCrashRoutes(ctx: Context) {
     run: runCrashConfigLoad,
   })
 
+  // Same path, POST body — method fan-out is handled in registerRoute.
   registerRoute(ctx, {
     path: '/tracescope/v1/crash-config',
     method: 'POST',
@@ -208,6 +212,54 @@ export function registerCrashRoutes(ctx: Context) {
   })
 
   registerRoute(ctx, {
+    path: '/tracescope/v1/crash-filter-options',
+    method: 'POST',
+    run: async (body, { lang }) => {
+      const b = asRecord(body)
+      const config = await resolveCrashConfigFromBody(b)
+      if (isUmengNotReady(config)) {
+        return {
+          versions: [],
+          osVersions: [],
+          devices: [],
+          metaType: 'crash',
+          error: umengNotReadyMessage(config, lang),
+        }
+      }
+      const adapter = getCrashProvider(config.provider)
+      if (!adapter?.listFilterOptions) {
+        return {
+          versions: [],
+          osVersions: [],
+          devices: [],
+          metaType: 'crash',
+          error: lang === 'en' ? 'Filter options are not supported for this provider' : '当前数据源不支持筛选选项',
+        }
+      }
+      const metaType =
+        typeof b.metaType === 'string' && b.metaType.trim()
+          ? b.metaType.trim()
+          : undefined
+      try {
+        const options = await adapter.listFilterOptions(config, { metaType })
+        return options
+      } catch (err) {
+        const mapped = umengCrashListFailure(err, lang)
+        if (mapped) {
+          return {
+            versions: [],
+            osVersions: [],
+            devices: [],
+            metaType: metaType || 'crash',
+            ...mapped,
+          }
+        }
+        throw err
+      }
+    },
+  })
+
+  registerRoute(ctx, {
     path: '/tracescope/v1/crash-list',
     method: 'POST',
     run: async (body, { lang }) => {
@@ -221,12 +273,27 @@ export function registerCrashRoutes(ctx: Context) {
       }
       const query = parseCrashListQuery(asRecord(body))
       try {
-        const items = await adapter.list(config, query)
-        return { items, capabilities: adapter.capabilities() }
+        const page = await adapter.list(config, query)
+        return {
+          items: page.items,
+          page: page.page,
+          pageSize: page.pageSize,
+          total: page.total,
+          hasMore: page.hasMore,
+          capabilities: adapter.capabilities(),
+        }
       } catch (err) {
         const mapped = umengCrashListFailure(err, lang)
         if (mapped) {
-          return { items: [], capabilities: adapter.capabilities(), ...mapped }
+          return {
+            items: [],
+            page: query.page ?? 1,
+            pageSize: query.pageSize,
+            total: 0,
+            hasMore: false,
+            capabilities: adapter.capabilities(),
+            ...mapped,
+          }
         }
         throw err
       }
@@ -272,6 +339,45 @@ export function registerCrashRoutes(ctx: Context) {
         lang: typeof b.lang === 'string' ? b.lang : lang,
       })
       return { report }
+    },
+  })
+
+  // Create a chat job + composer prompt (includes jobId + publish-tool hint).
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-ai-job',
+    method: 'POST',
+    run: async (body, { lang }) => {
+      const b = asRecord(body)
+      try {
+        return createCrashAnalysisJob({ ...b, lang: typeof b.lang === 'string' ? b.lang : lang })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes('repoPath')) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+        throw new I18nError('ERR_CRASH_MISSING_INCIDENT', lang)
+      }
+    },
+  })
+
+  // Poll crash AI job while the model analyses; panel auto-applies on publish.
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-job',
+    method: 'POST',
+    run: async (body, { lang }) => {
+      const b = asRecord(body)
+      const id = String(b.id ?? b.jobId ?? '').trim()
+      if (!id) throw new I18nError('ERR_MISSING_ID', lang)
+      const job = getCrashJob(id)
+      if (!job) {
+        throw new I18nError('ERR_CRASH_JOB_NOT_FOUND', lang, { id })
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        aiAnalysis: job.aiAnalysis,
+        error: job.error,
+        incidentId: job.incidentId,
+        updatedAt: job.updatedAt,
+      }
     },
   })
 }

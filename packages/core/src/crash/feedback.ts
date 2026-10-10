@@ -16,8 +16,14 @@ const COPY = {
     fullStack: '\u5b8c\u6574\u5806\u6808',
     fixHints: '\u6392\u67e5\u5efa\u8bae',
     askFix:
-      '\u8bf7\u6839\u636e\u4ee5\u4e0a\u62a5\u544a\u5728\u672c\u4ed3\u5e93\u5b9a\u4f4d\u6839\u56e0\u5e76\u7ed9\u51fa\u6700\u5c0f\u4fee\u590d\uff1b\u4e0d\u8981\u6539\u65e0\u5173\u6587\u4ef6\u3002',
+      '\u8bf7\u6839\u636e\u4ee5\u4e0a\u62a5\u544a\u5728\u672c\u4ed3\u5e93\u5b9a\u4f4d\u6839\u56e0\u5e76\u7ed9\u51fa\u6700\u5c0f\u4fee\u590d\uff1b\u4e0d\u8981\u6539\u65e0\u5173\u6587\u4ef6\u3002\u56de\u590d\u8bf7\u5305\u542b\uff1a\u6839\u56e0\u3001\u5f71\u54cd\u8303\u56f4\u3001\u4fee\u590d\u5efa\u8bae\u3002',
+    jobIdLabel: '\u4efb\u52a1 ID',
+    skillName: 'tracescope-crash-analysis',
+    publishTool: 'tracescope_publish_crash_analysis',
+    publishHint:
+      '\u5206\u6790\u5b8c\u6210\u540e\u5fc5\u987b\u8c03\u7528 tracescope_publish_crash_analysis \u5199\u56de\u4fa7\u680f\uff08jobId \u5fc5\u987b\u4e0e\u4e0a\u6587\u4e00\u81f4\uff1banalysis \u4e3a\u5b8c\u6574\u4e2d\u6587\u7ed3\u8bba\uff1a\u6839\u56e0\u3001\u5f71\u54cd\u3001\u4fee\u590d\u5efa\u8bae\uff09\u3002',
     count: '\u6b21\u6570',
+    aiAnalysis: 'AI \u5206\u6790\u7ed3\u8bba',
     defectTitle: '## TraceScope \u5d29\u6e83\u5206\u6790\u62a5\u544a',
     incident: '\u6807\u9898',
     exception: '\u5f02\u5e38',
@@ -45,8 +51,14 @@ const COPY = {
     fullStack: 'Full stack trace',
     fixHints: 'Suggested next steps',
     askFix:
-      'Using the report above, locate the root cause in this repository and propose a minimal fix; do not change unrelated files.',
+      'Using the report above, locate the root cause in this repository and propose a minimal fix; do not change unrelated files. Reply with: root cause, impact, and fix suggestions.',
+    jobIdLabel: 'Job ID',
+    skillName: 'tracescope-crash-analysis',
+    publishTool: 'tracescope_publish_crash_analysis',
+    publishHint:
+      'When done, you MUST call tracescope_publish_crash_analysis to write back to the sidebar (jobId must match above; analysis = full conclusion: root cause, impact, fix suggestions).',
     count: 'Count',
+    aiAnalysis: 'AI analysis',
     defectTitle: '## TraceScope crash analysis report',
     incident: 'Title',
     exception: 'Exception',
@@ -73,6 +85,7 @@ export interface CrashFeedbackMeta {
   matchedFiles: CrashMatchedFile[]
   summary: string
   fixHints?: string[]
+  aiAnalysis?: string
 }
 
 export interface CrashReportParts {
@@ -82,6 +95,8 @@ export interface CrashReportParts {
   fixHints: string[]
   stackText: string
   incident: CrashIncident
+  /** When set, prompt instructs the agent to publish via tool write-back. */
+  jobId?: string
 }
 
 function formatMatchedFiles(files: CrashMatchedFile[], lang: FeedbackLang): string {
@@ -116,8 +131,16 @@ export function buildCrashPrompt(parts: CrashReportParts, lang?: FeedbackLang | 
   const l = normalizeFeedbackLang(lang)
   const t = COPY[l]
   const exceptionName = resolveExceptionName(parts.incident, { stackText: parts.stackText })
+  const jobId = parts.jobId?.trim()
   const lines = [
     promptHeader(parts.incident, exceptionName, l),
+    ...(jobId
+      ? [
+          `${t.jobIdLabel}\uff1a${jobId}`,
+          `Skill\uff1a${t.skillName}`,
+          `${t.publishTool}`,
+        ]
+      : []),
     `${t.repo}\uff1a${parts.repoPath}`,
     `${t.summary}\uff1a${parts.summary}`,
     `${t.matchedFiles}\uff1a`,
@@ -128,6 +151,9 @@ export function buildCrashPrompt(parts: CrashReportParts, lang?: FeedbackLang | 
     lines.push('', hintsBlock)
   }
   lines.push('', `${t.fullStack}\uff1a`, parts.stackText.trim(), '', t.askFix)
+  if (jobId) {
+    lines.push('', t.publishHint)
+  }
   return lines.join('\n')
 }
 
@@ -146,6 +172,7 @@ export function buildCrashDefectBody(input: {
   fixHints?: string[]
   repoPath?: string
   lang?: FeedbackLang | string
+  aiAnalysis?: string
 }): string {
   const l = normalizeFeedbackLang(input.lang)
   const t = COPY[l]
@@ -179,8 +206,42 @@ export function buildCrashDefectBody(input: {
   if (hints.length) {
     lines.push(formatFixHints(hints, l), '')
   }
+  const ai = input.aiAnalysis?.trim()
+  if (ai) {
+    lines.push(`### ${t.aiAnalysis}`, '', ai, '')
+  }
   lines.push(`### ${t.stack}`, '', '```', stack, '```', '', '---', t.footer)
   return lines.join('\n')
+}
+
+/** Merge a pasted AI reply into an existing analysis report (updates defectBody). */
+export function applyAiAnalysisToReport(
+  report: {
+    incident: CrashIncident
+    matchedFiles: CrashMatchedFile[]
+    summary: string
+    fixHints?: string[]
+    prompt: string
+    defectBody: string
+    aiAnalysis?: string
+  },
+  aiAnalysis: string,
+  options?: { repoPath?: string; lang?: FeedbackLang | string },
+): typeof report & { aiAnalysis: string; defectBody: string } {
+  const text = aiAnalysis.trim()
+  return {
+    ...report,
+    aiAnalysis: text,
+    defectBody: buildCrashDefectBody({
+      incident: report.incident,
+      matchedFiles: report.matchedFiles,
+      summary: report.summary,
+      fixHints: report.fixHints,
+      repoPath: options?.repoPath,
+      lang: options?.lang,
+      aiAnalysis: text,
+    }),
+  }
 }
 
 export function buildCrashDefectSubject(incident: CrashIncident, lang?: FeedbackLang | string): string {

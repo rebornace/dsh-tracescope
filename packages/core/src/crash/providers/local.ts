@@ -32,9 +32,17 @@ export const localCrashProvider: CrashProvider = {
   },
 
   async list(config: CrashProviderConfig, _query?) {
-    if (config.provider !== 'local' || !config.stackText?.trim()) return []
+    if (config.provider !== 'local' || !config.stackText?.trim()) {
+      return { items: [], page: 1, pageSize: 1, total: 0, hasMore: false }
+    }
     const incident = buildIncident(config)
-    return [{ id: incident.id, title: incident.title, provider: incident.provider }]
+    return {
+      items: [{ id: incident.id, title: incident.title, provider: incident.provider }],
+      page: 1,
+      pageSize: 1,
+      total: 1,
+      hasMore: false,
+    }
   },
 
   async get(config: CrashProviderConfig, id: string): Promise<CrashIncident> {

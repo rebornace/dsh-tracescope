@@ -7,8 +7,10 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
-- **崩溃分析（第三条主能力）**：侧栏三档切换；友盟 U-APM Console Cookie 拉列表/详情（七项过滤）、自检与凭证本机保存；堆栈解析与代码目录文件命中；**写入会话**（填入 DSH 输入框不自动发送）与**提交缺陷**（`feedbackKind: crash` 专用正文）；Cookie 失效时可粘贴堆栈降级。Host：`/tracescope/v1/crash-*`。
-- **Crash analysis (third pillar)**：Sidebar mode; Umeng Console cookie list/detail + seven filters; stack parse + repo match; composer draft + dedicated crash defect body; paste-stack fallback when cookie auth fails.
+## 0.3.0 — 2026-10-10
+
+- **崩溃分析（第三条主能力）**：侧栏三档；友盟 Console Cookie 拉列表 / 详情；筛选区**默认折叠**；版本 / 系统 / 机型与 U-APM 元数据同源勾选（跨维并且、每维最多 10 项；机型 ID 如 `iPhone17,4` 保留逗号）；**分析并写入会话**创建 AI 任务，Agent 调用 `tracescope_publish_crash_analysis` 后侧栏自动回写结论（也可手动回写 / 粘贴）；粘贴堆栈降级；专用缺陷正文。Host：`crash-*`（含 `crash-filter-options` / `crash-ai-job` / `crash-job`）。
+- **Crash analysis (third pillar)**：Collapsed filters by default; Console-aligned version/OS/device pickers (AND across dims, max 10; device ids keep commas); session job + `tracescope_publish_crash_analysis` auto write-back; paste-stack fallback; dedicated defect body. Host routes include filter-options / ai-job / job poll.
 
 ## 0.2.7 — 2026-10-10
 

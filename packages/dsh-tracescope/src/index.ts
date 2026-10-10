@@ -31,6 +31,7 @@ import { registerPublishVisualFindingsTool } from './tools/publish-visual-findin
 import { registerStartPageRematchTool } from './tools/start-page-rematch-tool.js'
 import { registerPublishPageRematchTool } from './tools/publish-page-rematch-tool.js'
 import { registerGetDesignSnapshotTool } from './tools/get-design-snapshot-tool.js'
+import { registerPublishCrashAnalysisTool } from './tools/publish-crash-analysis-tool.js'
 
 import { registerCliCommand } from './commands/cli-command.js'
 import { registerBuiltinSkills } from './skills/builtin-skills.js'
@@ -63,6 +64,7 @@ export function apply(ctx: Context) {
   registerPublishVisualFindingsTool(ctx)
   registerStartPageRematchTool(ctx)
   registerPublishPageRematchTool(ctx)
+  registerPublishCrashAnalysisTool(ctx)
 
   // Built-in skills (no-op when host has no @deepseek-ai/dsh-skill).
   registerBuiltinSkills(ctx)

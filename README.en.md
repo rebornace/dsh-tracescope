@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.2.7`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.3.0`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with three core capabilities:
 
@@ -8,9 +8,9 @@ TraceScope (`dsh-tracescope`) helps developers and testers with three core capab
 |------------|-------------|
 | **Impact analysis** | What does this change affect? Build a verification checklist. |
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
-| **Crash analysis** | Umeng U-APM or pasted stack trace → repo report, composer draft, or tracker filing. |
+| **Crash analysis** | Umeng U-APM or pasted stack → repo report, AI write-back, composer draft, or tracker filing. |
 
-Primary UX: **official DeepSeek Harness Desktop** sidebar. Impact analysis and design diff are available over MCP; **crash analysis is Host sidebar only** (`/tracescope/v1/crash-*`) — not in MCP yet.
+Primary UX: **official DeepSeek Harness Desktop** sidebar. Impact analysis and design diff are available over MCP; **crash analysis** list/analyze uses the Host sidebar (`/tracescope/v1/crash-*`), with session write-back via `tracescope_publish_crash_analysis` (MCP package does not yet expose crash list APIs).
 
 UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle inside the plugin.
 
@@ -31,7 +31,7 @@ UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle
 
 **Design diff** - Figma / Lanhu as source of truth, **static** compare (not device render); major mobile / web / miniprogram stacks; layered match + property compare, optional AI write-back. Sidebar: raster, hotspot diffs, pick file, export defects.
 
-**Crash analysis** - Umeng U-APM Console Cookie list/detail (seven filters) or paste-stack fallback; stack parse + repo file match; **Write to session** for devs, **Submit defect** with dedicated crash body.
+**Crash analysis** - Umeng U-APM Console Cookie list/detail (filters collapsed by default; version/OS/device pickers match Console) or paste-stack fallback; stack parse + repo file match; **Analyze & write to session** with agent tool write-back; **Submit defect** with dedicated crash body.
 
 Details (adapter deep enrichment, credential memory, limitations): [User Guide](./docs/GUIDE.en.md).
 
