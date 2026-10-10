@@ -101,7 +101,7 @@ export function CrashBoard({
   const runAnalyze = useCallback(async (): Promise<CrashAnalysisReport | null> => {
     const stack = stackText.trim()
     if (!stack) {
-      setError(t('crash.pasteLabel'))
+      setError(t('crash.pasteRequired'))
       return null
     }
     const repo = repoPath.trim()
@@ -157,7 +157,7 @@ export function CrashBoard({
 
   function onSubmitClick() {
     if (!report) {
-      setError(t('crash.analyze'))
+      setError(t('crash.needAnalyzeFirst'))
       return
     }
     if (!trackerReady) {

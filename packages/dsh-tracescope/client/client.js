@@ -799,8 +799,10 @@ var init_zh = __esm({
       "crash.analyze": "分析",
       "crash.cookieHint": "友盟 U-APM 需登录控制台 Cookie，后续版本在此配置。",
       "crash.mode": "崩溃分析",
+      "crash.needAnalyzeFirst": "请先点击「分析」或「分析并写入会话」",
       "crash.noRepoMatch": "未在仓库中匹配到堆栈引用的源文件",
       "crash.pasteLabel": "粘贴崩溃堆栈",
+      "crash.pasteRequired": "请先粘贴崩溃堆栈",
       "crash.promptPreview": "会话提示词预览",
       "crash.submitDefect": "提交缺陷",
       "crash.umengConfig": "友盟配置",
@@ -2055,8 +2057,10 @@ var init_en = __esm({
       "crash.analyze": "Analyze",
       "crash.cookieHint": "Umeng U-APM needs a console login cookie; configuration UI coming later.",
       "crash.mode": "Crash analysis",
+      "crash.needAnalyzeFirst": "Run Analyze or Analyze & write to session first",
       "crash.noRepoMatch": "No stack-referenced source files matched in the repo",
       "crash.pasteLabel": "Paste crash stack trace",
+      "crash.pasteRequired": "Paste a crash stack trace first",
       "crash.promptPreview": "Session prompt preview",
       "crash.submitDefect": "Submit defect",
       "crash.umengConfig": "Umeng (U-APM)",
@@ -7269,7 +7273,7 @@ function CrashBoard({
   const runAnalyze = (0, import_react5.useCallback)(async () => {
     const stack = stackText.trim();
     if (!stack) {
-      setError(t2("crash.pasteLabel"));
+      setError(t2("crash.pasteRequired"));
       return null;
     }
     const repo = repoPath.trim();
@@ -7322,7 +7326,7 @@ function CrashBoard({
   }
   function onSubmitClick() {
     if (!report) {
-      setError(t2("crash.analyze"));
+      setError(t2("crash.needAnalyzeFirst"));
       return;
     }
     if (!trackerReady) {
