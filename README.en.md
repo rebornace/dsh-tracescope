@@ -2,12 +2,13 @@
 
 **Version: `0.2.7`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
-TraceScope (`dsh-tracescope`) helps developers and testers with two core capabilities:
+TraceScope (`dsh-tracescope`) helps developers and testers with three core capabilities:
 
 | Capability | In one line |
 |------------|-------------|
 | **Impact analysis** | What does this change affect? Build a verification checklist. |
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
+| **Crash analysis** | Umeng U-APM or pasted stack trace → repo report, composer draft, or tracker filing. |
 
 Primary UX: **official DeepSeek Harness Desktop** sidebar. Same capabilities over MCP from Cursor / Claude / any client.
 
@@ -29,6 +30,8 @@ UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle
 **Impact analysis** - stable vs under-test: direct changes + reverse-dependency ripple; full power on local git, Codeup API for diff fallback; checklist marking, screenshots, export, and tracker filing.
 
 **Design diff** - Figma / Lanhu as source of truth, **static** compare (not device render); major mobile / web / miniprogram stacks; layered match + property compare, optional AI write-back. Sidebar: raster, hotspot diffs, pick file, export defects.
+
+**Crash analysis** - Umeng U-APM Console Cookie list/detail (seven filters) or paste-stack fallback; stack parse + repo file match; **Write to session** for devs, **Submit defect** with dedicated crash body.
 
 Details (adapter deep enrichment, credential memory, limitations): [User Guide](./docs/GUIDE.en.md).
 
@@ -65,7 +68,7 @@ Catalogs: [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome
 | **Sidebar TraceScope → Check for updates** | Same flow |
 | **CLI** | `dsh plugin --profile desktop add @rebornace/dsh-tracescope`, then restart |
 
-Restart Desktop Harness after updating. Details: [User Guide · Updating](./docs/GUIDE.en.md#7-updating-this-plugin).
+Restart Desktop Harness after updating. Details: [User Guide · Updating](./docs/GUIDE.en.md#8-updating-this-plugin).
 
 ## Development & MCP
 
@@ -73,7 +76,7 @@ Restart Desktop Harness after updating. Details: [User Guide · Updating](./docs
 pnpm install && pnpm build && pnpm test
 ```
 
-MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#8-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
+MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#9-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 
 ## License
 

@@ -2,12 +2,13 @@
 
 **版本: `0.2.7`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
 
-TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心能力：
+TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的三项核心能力：
 
 | 能力 | 一句话 |
 |------|--------|
 | **功能影响分析** | 这次改动影响哪些页面 / 模块？生成可勾选的验证清单 |
 | **设计差异分析** | 实现与 Figma / 蓝湖稿差在哪？静态对比、定位差异并回传缺陷 |
+| **崩溃分析** | 友盟 U-APM 或粘贴堆栈 → 对照代码目录生成报告，写会话或提交缺陷 |
 
 推荐在 **官方 DeepSeek Harness 桌面端** 右侧栏使用；也可通过 MCP 在 Cursor / Claude 等客户端调用同一套能力。
 
@@ -29,6 +30,8 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的两项核心�
 **功能影响分析** — 稳定版 ↔ 待测版：直接变更 + 反向依赖波及；本地 Git 全量能力，云效代码接口可兜底读 diff；清单标注、截图、导出与协作提单。
 
 **设计差异分析** — 以 Figma / 蓝湖为真源做静态对比（非真机渲染）；覆盖主流移动 / Web / 小程序栈；分层匹配与属性对比，可选 AI 协助写回。侧栏支持对照图、差异定位、指定文件与缺陷导出。
+
+**崩溃分析** — 友盟 U-APM Console Cookie 拉列表/详情（七项过滤）或粘贴堆栈降级；堆栈解析与仓库文件命中；开发「写入会话」、测试「提交缺陷」（专用 crash 正文）。
 
 完整说明（含适配器深度增强、凭证记忆、限制清单）见 [功能说明](./docs/GUIDE.md)。
 
@@ -65,7 +68,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 | **侧栏 TraceScope →「检查更新」** | 同一套逻辑 |
 | **命令行** | `dsh plugin --profile desktop add @rebornace/dsh-tracescope` 后重启 |
 
-更新后请在桌面端重启 Harness。完整说明见 [功能说明 · 更新本插件](./docs/GUIDE.md#7-更新本插件)。
+更新后请在桌面端重启 Harness。完整说明见 [功能说明 · 更新本插件](./docs/GUIDE.md#8-更新本插件)。
 
 ## 开发与 MCP
 
@@ -73,7 +76,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 pnpm install && pnpm build && pnpm test
 ```
 
-MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#8-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
+MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#9-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
 
 ## License
 
