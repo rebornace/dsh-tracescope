@@ -35,6 +35,8 @@ type CrashListItem = {
   lastSeenAt?: string
   count?: number
   affectedUsers?: number
+  osVersion?: string
+  deviceModel?: string
 }
 
 type UmengIncident = CrashListItem & {
@@ -141,9 +143,16 @@ function parseListItems(raw: unknown): CrashListItem[] {
         lastSeenAt: typeof o.lastSeenAt === 'string' ? o.lastSeenAt : undefined,
         count: typeof o.count === 'number' ? o.count : undefined,
         affectedUsers: typeof o.affectedUsers === 'number' ? o.affectedUsers : undefined,
+        osVersion: typeof o.osVersion === 'string' ? o.osVersion : undefined,
+        deviceModel: typeof o.deviceModel === 'string' ? o.deviceModel : undefined,
       }
     })
     .filter((x) => x.id && x.title)
+}
+
+function cookieReady(hasStoredCookie: boolean, cookieValue: string): boolean {
+  const trimmed = cookieValue.trim()
+  return hasStoredCookie || (Boolean(trimmed) && trimmed !== MASKED_COOKIE)
 }
 
 function parseCapabilities(raw: unknown): FilterKey[] {
@@ -180,13 +189,6 @@ function applyClientFilters(items: CrashListItem[], filters: FilterState): Crash
       return Number.isFinite(ts) ? ts >= cutoff : true
     })
   }
-  const osNeedle = filters.osDevice.trim().toLowerCase()
-  if (osNeedle) {
-    rows = rows.filter((row) => {
-      const hay = [row.title, row.appVersion, row.id].filter(Boolean).join(' ').toLowerCase()
-      return hay.includes(osNeedle)
-    })
-  }
   return rows
 }
 
@@ -201,6 +203,8 @@ function buildListQueryBody(filters: FilterState): Record<string, unknown> {
     .map((v) => v.trim())
     .filter(Boolean)
   if (versions.length) body.appVersions = versions
+  const osDevice = filters.osDevice.trim()
+  if (osDevice) body.osDevice = osDevice
   body.sort = { field: filters.sortField, direction: filters.sortDir }
   return body
 }
@@ -341,9 +345,7 @@ export function CrashBoard({
 
   const fetchList = useCallback(async () => {
     if (!repo) return
-    const ready =
-      Boolean(appKey.trim()) && (hasStoredCookie || (cookie.trim() && cookie.trim() !== MASKED_COOKIE))
-    if (!ready) return
+    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return
 
     const gen = ++listGen.current
     setListBusy(true)
@@ -410,15 +412,18 @@ export function CrashBoard({
   }, [apiPost, configBody, fetchList, handleAuthFailure, remember, t])
 
   useEffect(() => {
-    if (!repo || !appKey.trim() || !hasStoredCookie) return
+    if (!repo || !appKey.trim() || !cookieReady(hasStoredCookie, cookie)) return
+    const draftCookieEdit =
+      !hasStoredCookie && cookie.trim().length > 0 && cookie.trim() !== MASKED_COOKIE
+    const debounceMs = filters.keyword.trim() || draftCookieEdit ? 400 : 0
     if (keywordTimer.current) clearTimeout(keywordTimer.current)
     keywordTimer.current = setTimeout(() => {
       void fetchList()
-    }, filters.keyword ? 350 : 0)
+    }, debounceMs)
     return () => {
       if (keywordTimer.current) clearTimeout(keywordTimer.current)
     }
-  }, [repo, appKey, hasStoredCookie, filters, fetchList])
+  }, [repo, appKey, hasStoredCookie, cookie, filters, fetchList])
 
   const onKeywordChange = useCallback((value: string) => {
     setFilters((f) => ({ ...f, keyword: value }))

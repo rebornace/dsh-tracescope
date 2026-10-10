@@ -7373,9 +7373,15 @@ function parseListItems(raw) {
       status: typeof o.status === "string" ? o.status : void 0,
       lastSeenAt: typeof o.lastSeenAt === "string" ? o.lastSeenAt : void 0,
       count: typeof o.count === "number" ? o.count : void 0,
-      affectedUsers: typeof o.affectedUsers === "number" ? o.affectedUsers : void 0
+      affectedUsers: typeof o.affectedUsers === "number" ? o.affectedUsers : void 0,
+      osVersion: typeof o.osVersion === "string" ? o.osVersion : void 0,
+      deviceModel: typeof o.deviceModel === "string" ? o.deviceModel : void 0
     };
   }).filter((x) => x.id && x.title);
+}
+function cookieReady(hasStoredCookie, cookieValue) {
+  const trimmed = cookieValue.trim();
+  return hasStoredCookie || Boolean(trimmed) && trimmed !== MASKED_COOKIE;
 }
 function parseCapabilities(raw) {
   if (!raw || typeof raw !== "object") return [];
@@ -7409,13 +7415,6 @@ function applyClientFilters(items, filters) {
       return Number.isFinite(ts) ? ts >= cutoff : true;
     });
   }
-  const osNeedle = filters.osDevice.trim().toLowerCase();
-  if (osNeedle) {
-    rows = rows.filter((row3) => {
-      const hay = [row3.title, row3.appVersion, row3.id].filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(osNeedle);
-    });
-  }
   return rows;
 }
 function buildListQueryBody(filters) {
@@ -7426,6 +7425,8 @@ function buildListQueryBody(filters) {
   if (filters.statuses.length) body2.statuses = filters.statuses;
   const versions = filters.appVersion.split(/[,;|\s]+/).map((v) => v.trim()).filter(Boolean);
   if (versions.length) body2.appVersions = versions;
+  const osDevice = filters.osDevice.trim();
+  if (osDevice) body2.osDevice = osDevice;
   body2.sort = { field: filters.sortField, direction: filters.sortDir };
   return body2;
 }
@@ -7544,8 +7545,7 @@ function CrashBoard({
   }, [apiPost2, appKey, remember, repo, t2]);
   const fetchList = (0, import_react5.useCallback)(async () => {
     if (!repo) return;
-    const ready = Boolean(appKey.trim()) && (hasStoredCookie || cookie.trim() && cookie.trim() !== MASKED_COOKIE);
-    if (!ready) return;
+    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
     const gen = ++listGen.current;
     setListBusy(true);
     setError("");
@@ -7606,15 +7606,17 @@ function CrashBoard({
     }
   }, [apiPost2, configBody, fetchList, handleAuthFailure, remember, t2]);
   (0, import_react5.useEffect)(() => {
-    if (!repo || !appKey.trim() || !hasStoredCookie) return;
+    if (!repo || !appKey.trim() || !cookieReady(hasStoredCookie, cookie)) return;
+    const draftCookieEdit = !hasStoredCookie && cookie.trim().length > 0 && cookie.trim() !== MASKED_COOKIE;
+    const debounceMs = filters.keyword.trim() || draftCookieEdit ? 400 : 0;
     if (keywordTimer.current) clearTimeout(keywordTimer.current);
     keywordTimer.current = setTimeout(() => {
       void fetchList();
-    }, filters.keyword ? 350 : 0);
+    }, debounceMs);
     return () => {
       if (keywordTimer.current) clearTimeout(keywordTimer.current);
     };
-  }, [repo, appKey, hasStoredCookie, filters, fetchList]);
+  }, [repo, appKey, hasStoredCookie, cookie, filters, fetchList]);
   const onKeywordChange = (0, import_react5.useCallback)((value) => {
     setFilters((f) => ({ ...f, keyword: value }));
   }, []);
