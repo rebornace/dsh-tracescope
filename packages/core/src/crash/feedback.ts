@@ -189,6 +189,34 @@ export function buildCrashDefectSubject(incident: CrashIncident, lang?: Feedback
   return `${t.subjectPrefix} ${title}`.slice(0, 120)
 }
 
+function firstNonEmptyMarkdownTitleLine(markdown: string): string {
+  for (const line of markdown.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    return trimmed.replace(/^#+\s*/, '').trim() || trimmed
+  }
+  return 'Crash'
+}
+
+/** Tracker subject for feedbackKind crash (never impact verification wording). */
+export function buildCrashFeedbackSubject(input: {
+  lang?: FeedbackLang | string
+  crashMeta?: CrashFeedbackMeta
+  prebuiltDescription?: string
+}): string {
+  const l = normalizeFeedbackLang(input.lang)
+  const t = COPY[l]
+  if (input.crashMeta) {
+    return buildCrashDefectSubject(input.crashMeta.incident, l)
+  }
+  const prebuilt = input.prebuiltDescription?.trim()
+  if (prebuilt) {
+    const title = firstNonEmptyMarkdownTitleLine(prebuilt)
+    return `${t.subjectPrefix} ${title}`.slice(0, 120)
+  }
+  return `${t.subjectPrefix} Crash`.slice(0, 120)
+}
+
 export function crashSummaryNoMatchLabel(lang?: FeedbackLang | string): string {
   return COPY[normalizeFeedbackLang(lang)].summaryNoMatch
 }

@@ -15,7 +15,7 @@ import {
   normalizeFeedbackLang,
   type FeedbackLang,
 } from './feedback.js'
-import { buildCrashDefectSubject, type CrashFeedbackMeta } from '../crash/feedback.js'
+import { buildCrashFeedbackSubject, type CrashFeedbackMeta } from '../crash/feedback.js'
 import {
   buildVisualDiffFeedbackSubject,
   type FeedbackKind,
@@ -86,8 +86,12 @@ export async function submitFailFeedback(
     input.subject?.trim() ||
     (feedbackKind === 'visual-diff'
       ? buildVisualDiffFeedbackSubject(input.items, input.visualMeta, lang)
-      : feedbackKind === 'crash' && input.crashMeta
-        ? buildCrashDefectSubject(input.crashMeta.incident, lang)
+      : feedbackKind === 'crash'
+        ? buildCrashFeedbackSubject({
+            lang,
+            crashMeta: input.crashMeta,
+            prebuiltDescription: input.prebuiltDescription,
+          })
         : buildFailFeedbackSubject(input.items, input.repoPath, lang))
   const description = buildTrackerFeedbackDescription({
     kind: feedbackKind,
