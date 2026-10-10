@@ -1,40 +1,12 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { SKIP_DIR_NAMES } from '../skip-paths.js'
 import type { ParsedStack } from './parse-stack.js'
-
-const SKIP_DIR_NAMES = new Set(['node_modules', 'Pods', '.git'])
 
 export interface RepoStackHit {
   path: string
   reason: string
   symbol?: string
-}
-
-function shouldSkipDir(name: string): boolean {
-  return SKIP_DIR_NAMES.has(name)
-}
-
-async function collectFilesByBasename(
-  dir: string,
-  basename: string,
-  out: string[],
-): Promise<void> {
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return
-  }
-  for (const ent of entries) {
-    const full = path.join(dir, ent.name)
-    if (ent.isDirectory()) {
-      if (!shouldSkipDir(ent.name)) {
-        await collectFilesByBasename(full, basename, out)
-      }
-    } else if (ent.isFile() && ent.name === basename) {
-      out.push(full)
-    }
-  }
 }
 
 function classPathScore(filePath: string, className?: string): number {
@@ -49,6 +21,43 @@ function classPathScore(filePath: string, className?: string): number {
   return score
 }
 
+async function buildBasenameIndex(repoRoot: string): Promise<Map<string, string[]>> {
+  const index = new Map<string, string[]>()
+
+  async function walk(dir: string): Promise<void> {
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const ent of entries) {
+      if (ent.isDirectory()) {
+        if (!SKIP_DIR_NAMES.has(ent.name)) {
+          await walk(path.join(dir, ent.name))
+        }
+      } else if (ent.isFile()) {
+        const full = path.join(dir, ent.name)
+        const list = index.get(ent.name)
+        if (list) {
+          list.push(full)
+        } else {
+          index.set(ent.name, [full])
+        }
+      }
+    }
+  }
+
+  await walk(repoRoot)
+  return index
+}
+
+function sortedCandidates(candidates: string[], className?: string): string[] {
+  return [...candidates].sort(
+    (a, b) => classPathScore(b, className) - classPathScore(a, className),
+  )
+}
+
 /**
  * Map parsed stack frames to source files under `repoRoot` by exact file name.
  */
@@ -58,6 +67,7 @@ export async function matchStackToRepo(
   limit: number,
 ): Promise<RepoStackHit[]> {
   const root = path.resolve(repoRoot)
+  const basenameIndex = await buildBasenameIndex(root)
   const hits: RepoStackHit[] = []
   const seenPaths = new Set<string>()
 
@@ -66,21 +76,23 @@ export async function matchStackToRepo(
     const fileName = frame.fileName
     if (!fileName) continue
 
-    const candidates: string[] = []
-    await collectFilesByBasename(root, fileName, candidates)
-    if (candidates.length === 0) continue
+    const candidates = basenameIndex.get(fileName)
+    if (!candidates?.length) continue
 
-    candidates.sort(
-      (a, b) => classPathScore(b, frame.className) - classPathScore(a, frame.className),
-    )
+    const ranked = sortedCandidates(candidates, frame.className)
+    let matched: string | undefined
+    for (const candidate of ranked) {
+      if (!seenPaths.has(candidate)) {
+        matched = candidate
+        break
+      }
+    }
+    if (!matched) continue
 
-    const best = candidates[0]
-    if (!best || seenPaths.has(best)) continue
-    seenPaths.add(best)
-
-    const score = classPathScore(best, frame.className)
+    seenPaths.add(matched)
+    const score = classPathScore(matched, frame.className)
     hits.push({
-      path: best,
+      path: matched,
       reason: score > 0 ? 'fileName+classPath' : 'fileName',
       symbol: frame.method,
     })
