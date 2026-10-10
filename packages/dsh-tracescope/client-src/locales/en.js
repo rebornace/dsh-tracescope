@@ -795,7 +795,7 @@ export default {
   'crash.listLoading': 'Loading crash list…',
   'crash.listTitle': 'Crash list',
   'crash.mode': 'Crash analysis',
-  'crash.needAnalyzeFirst': 'Run Analyze or Analyze & write to session first',
+  'crash.needAnalyzeFirst': 'Run Analyze first',
   'crash.noRepoMatch': 'No stack-referenced source files matched in the repo',
   'crash.pasteFallback': 'Paste stack (fallback)',
   'crash.pasteLabel': 'Paste crash stack trace',

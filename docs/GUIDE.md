@@ -33,7 +33,7 @@
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
-推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。同一套执行层也可通过 `@rebornace/tracescope-mcp` 在任意 MCP 客户端调用。
+推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。**功能影响分析**与**设计差异分析**的执行层也可通过 `@rebornace/tracescope-mcp` 在 MCP 客户端调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）。**崩溃分析**目前仅在 Host 侧栏与 `/tracescope/v1/crash-*` 路由提供，**尚未**纳入 MCP 工具表。
 
 ### 界面语言
 
@@ -152,9 +152,13 @@
 
 ### 4.4 分析、写会话与提单
 
-1. **分析** — `POST /tracescope/v1/crash-analyze`：解析堆栈、在代码目录内按文件名匹配源码，生成 `CrashAnalysisReport`。  
-2. **写入会话** — 将报告中的 `prompt` 填入 DeepSeek Harness **当前会话输入框**（`fillComposerDraft`），**不会自动发送**；开发核对后再发送，由模型在仓库内定位根因。  
-3. **提交缺陷** — 需先完成分析；使用 `feedbackKind: 'crash'` 与预构建 `defectBody`（中文模板经 `\u` 转义，避免打包乱码）。云效 / GitHub 附件能力与另两条主能力相同；GitLab / Webhook 仍不上传二进制附件。
+详情或粘贴区下方有三个按钮（从左到右），对应不同角色：
+
+| 侧栏按钮 | 典型角色 | 行为 |
+|----------|----------|------|
+| **分析** | 开发 / 测试共用 | 调用 `POST /tracescope/v1/crash-analyze`：解析堆栈、在代码目录内按文件名匹配源码，生成并展示 `CrashAnalysisReport`（摘要、命中文件、提示词预览）。测试提单前须先在本板完成分析（通常点本按钮；未生成报告时「提交缺陷」会提示请先点「分析」）。 |
+| **分析并写入会话** | **开发** | 面向开发：若尚无报告则先执行与分析相同的请求，再将 `prompt` 填入 DeepSeek Harness **当前会话输入框**（`fillComposerDraft`），**不会自动发送**。开发核对后再发送，由模型在仓库内定位根因。 |
+| **提交缺陷** | **测试** | 面向测试：将**已生成**的报告提交到协作平台（`feedbackKind: 'crash'` + 预构建 `defectBody`；中文模板经 `\u` 转义）。需配置侧栏协作平台；可修改标题。云效 / GitHub 附件规则与另两条主能力相同；GitLab / Webhook 仍不上传二进制附件。 |
 
 Host 路由（与侧栏一致）：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-list`、`crash-detail`、`crash-analyze`。
 
@@ -266,7 +270,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ## 9. MCP 工具一览
 
-包：`@rebornace/tracescope-mcp`。执行层与 DSH 共用 `@rebornace/dsh-tracescope/agent-api`。
+包：`@rebornace/tracescope-mcp`。下表工具的执行层与 DSH Host 共用 `@rebornace/dsh-tracescope/agent-api`。**崩溃分析**（`/tracescope/v1/crash-*`）不在此表，请使用桌面端侧栏「崩溃分析」档位。
 
 | Tool | 说明 |
 |------|------|

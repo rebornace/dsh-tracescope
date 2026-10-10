@@ -17,7 +17,7 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
-Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. Same execute layer via `@rebornace/tracescope-mcp`.
+Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. **Impact analysis** and **design diff** are also exposed via `@rebornace/tracescope-mcp` ([§9 MCP tools](#9-mcp-tools)). **Crash analysis** is **Host sidebar only** (`/tracescope/v1/crash-*`) and is **not** in the MCP tool list yet.
 
 ### UI language
 
@@ -87,9 +87,13 @@ Row click loads stack detail (`crash-detail`). On auth failure (e.g. `UMENG_AUTH
 
 ### Analyze, write session, submit defect
 
-1. **Analyze** — `POST /tracescope/v1/crash-analyze`: parse stack, match filenames under `repoPath`.  
-2. **Write to session** — fills the Harness composer draft with `prompt` via `fillComposerDraft`; **does not send**. Dev reviews and sends to the model.  
-3. **Submit defect** — requires analyze first; `feedbackKind: 'crash'` + prebuilt body (CJK escaped as `\u` in sources). Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook still skip binary uploads.
+Three sidebar buttons (left to right):
+
+| Button | Typical role | Behavior |
+|--------|--------------|----------|
+| **Analyze** | Dev & QA | `POST /tracescope/v1/crash-analyze` — parse stack, match files, show `CrashAnalysisReport`. QA should run this before filing; **Submit defect** prompts *Run Analyze first* if no report exists yet. |
+| **Analyze & write to session** | **Developers** | Dev workflow: analyze if needed, then fill the composer draft with `prompt` (`fillComposerDraft`, **does not send**). Dev reviews and sends to the model. |
+| **Submit defect** | **Testers / QA** | QA workflow: file the **existing** report to the tracker (`feedbackKind: 'crash'`, prebuilt body). Edit title as needed. Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook skip binaries. |
 
 Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-list`, `crash-detail`, `crash-analyze`.
 
@@ -178,7 +182,8 @@ The Host does not auto-draw Update for third-party bundles; TraceScope registers
 
 ## 9. MCP tools
 
-Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:  
+These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host. **Crash analysis** (`/tracescope/v1/crash-*`) is **not** listed here — use the Desktop sidebar **Crash analysis** mode.
+
 `open_panel`, `list_commits`, `get_diff`, `analyze_impact`, hand-test create/publish, visual review + snapshot + findings, page rematch create/publish.
 
 ---
