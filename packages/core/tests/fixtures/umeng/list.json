@@ -1,0 +1,38 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "total": 2,
+    "page": 1,
+    "pageSize": 20,
+    "list": [
+      {
+        "errorId": "umeng-fixture-crash-001",
+        "errorTitle": "java.lang.NullPointerException: demo null deref",
+        "errorType": "crash",
+        "appVersion": "3.4.1",
+        "buildVersion": "3410",
+        "osName": "Android",
+        "osVersion": "14",
+        "deviceModel": "Pixel 7",
+        "status": 0,
+        "count": 42,
+        "userCount": 17,
+        "firstTime": "2026-09-20T08:15:00.000Z",
+        "lastTime": "2026-10-08T19:42:11.000Z"
+      },
+      {
+        "errorId": "umeng-fixture-anr-002",
+        "errorTitle": "ANR in com.example.app.MainActivity",
+        "errorType": "anr",
+        "appVersion": "3.4.0",
+        "osName": "iOS",
+        "osVersion": "17.5",
+        "status": 1,
+        "count": 3,
+        "userCount": 3,
+        "lastTime": "2026-10-07T11:00:00.000Z"
+      }
+    ]
+  }
+}

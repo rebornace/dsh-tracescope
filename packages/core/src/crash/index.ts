@@ -27,6 +27,16 @@ export {
 } from './registry.js'
 export { localCrashProvider, LOCAL_CRASH_INCIDENT_ID } from './providers/local.js'
 export {
+  UmengCrashError,
+  clearUmengListCacheForTests,
+  mapUmengDetailResponse,
+  mapUmengListResponse,
+  umengCrashProvider,
+  UMENG_CONSOLE_DEFAULT_ORIGIN,
+  UMENG_HOST_ALLOWLIST,
+  type UmengCrashErrorCode,
+} from './providers/umeng-console.js'
+export {
   clearCrashCookie,
   cookiePresentLabel,
   isMaskedCrashSecret,

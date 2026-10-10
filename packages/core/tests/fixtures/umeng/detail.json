@@ -1,0 +1,21 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "errorId": "umeng-fixture-crash-001",
+    "errorTitle": "java.lang.NullPointerException: demo null deref",
+    "errorType": "crash",
+    "appVersion": "3.4.1",
+    "buildVersion": "3410",
+    "osName": "Android",
+    "osVersion": "14",
+    "deviceModel": "Pixel 7",
+    "status": 0,
+    "count": 42,
+    "userCount": 17,
+    "occurredAt": "2026-10-08T19:42:11.000Z",
+    "firstTime": "2026-09-20T08:15:00.000Z",
+    "lastTime": "2026-10-08T19:42:11.000Z",
+    "stackTrace": "java.lang.NullPointerException: demo null deref\n\tat com.example.feature.CheckoutViewModel.submit(CheckoutViewModel.kt:88)\n\tat com.example.ui.CheckoutFragment.onClick(CheckoutFragment.kt:41)\n\tat android.view.View.performClick(View.java:7659)\n\tat android.app.ActivityThread.main(ActivityThread.java:8733)"
+  }
+}

@@ -11,6 +11,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@rebornace/tracescope-core": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2"
