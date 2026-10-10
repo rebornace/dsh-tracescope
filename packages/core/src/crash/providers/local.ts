@@ -32,12 +32,15 @@ export const localCrashProvider: CrashProvider = {
   },
 
   async list(config: CrashProviderConfig) {
-    if (!config.stackText?.trim()) return []
+    if (config.provider !== 'local' || !config.stackText?.trim()) return []
     const incident = buildIncident(config)
     return [{ id: incident.id, title: incident.title, provider: incident.provider }]
   },
 
   async get(config: CrashProviderConfig, id: string): Promise<CrashIncident> {
+    if (config.provider !== 'local') {
+      throw new Error('Local crash provider requires provider: local')
+    }
     if (id !== LOCAL_CRASH_INCIDENT_ID) {
       throw new Error(`Unknown local crash incident: ${id}`)
     }
