@@ -52,8 +52,19 @@ import {
 } from './services/visual-flow.js'
 import { parseAuthFromToolArgs } from './tools/tool-helpers.js'
 import { parseFetchFlag } from './http/route-helpers.js'
+import { ui, langFromArgs } from './i18n/ui.js'
+import { resolveHostLang, type Lang } from './i18n/lang.js'
+import type { Context } from './dsh-shims.js'
 
 export { parseAuthFromToolArgs }
+
+/** Prefer explicit args.locale, else Host locale. */
+export function agentLang(args?: Record<string, unknown>, ctx?: Context): Lang {
+  if (args && (args.locale !== undefined || args.lang !== undefined)) {
+    return langFromArgs(args, 'zh')
+  }
+  return resolveHostLang(ctx)
+}
 
 function parseJsonArg(raw: unknown, label: string): unknown {
   if (typeof raw !== 'string') return raw
@@ -104,14 +115,18 @@ export async function analyzeImpactTool(args: Record<string, unknown>) {
     accessMode: job?.accessMode,
     codeup: job?.codeup,
   })
+  const lang = agentLang(args)
   const summary = [
-    `直接项 ${result.report.direct.length} · 可能波及 ${result.report.ripple.length}`,
-    '（规则分析；对话结论请用 tracescope_publish_handtest 回写面板）',
+    ui('AGENT_ANALYZE_SUMMARY', lang, {
+      direct: result.report.direct.length,
+      ripple: result.report.ripple.length,
+    }),
+    ui('AGENT_ANALYZE_RULE', lang),
     '',
-    '## 直接项',
+    ui('AGENT_DIRECT_SECTION', lang),
     ...result.report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
     '',
-    '## 可能波及',
+    ui('AGENT_RIPPLE_SECTION', lang),
     ...result.report.ripple.map((i) => `- [${i.risk}] ${i.displayName}`),
   ].join('\n')
   return {
@@ -189,6 +204,7 @@ export async function createHandtestJob(args: Record<string, unknown>) {
     codeup,
   })
   const relatedWorkItems = parseAgileWorkItemRefs(args.relatedWorkItems)
+  const promptLang = agentLang(args)
   const prompt = buildChatAnalysisPrompt({
     jobId: job.id,
     repoPath: repoInput,
@@ -196,6 +212,7 @@ export async function createHandtestJob(args: Record<string, unknown>) {
     headCommit,
     relatedWorkItems,
     accessMode,
+    lang: promptLang,
   })
   return {
     jobId: job.id,
@@ -203,15 +220,18 @@ export async function createHandtestJob(args: Record<string, unknown>) {
     prompt,
     resolved,
     relatedWorkItems,
-    summary: [
-      `已创建手测分析任务 ${job.id}`,
-      `仓库 ${repoInput}`,
-      `基线 ${baseCommit} → 待测 ${headCommit}`,
-      '',
-      '请按下方提示词分析，完成后调用 tracescope_publish_handtest 写回清单。',
-      '',
-      prompt,
-    ].join('\n'),
+    summary: (() => {
+      const lang = agentLang(args)
+      return [
+        ui('AGENT_HANDTEST_CREATED', lang, { id: job.id }),
+        ui('AGENT_REPO', lang, { repo: repoInput }),
+        ui('AGENT_BASE_HEAD', lang, { base: baseCommit, head: headCommit }),
+        '',
+        ui('AGENT_HANDTEST_NEXT', lang),
+        '',
+        prompt,
+      ].join('\n')
+    })(),
   }
 }
 
@@ -255,15 +275,19 @@ export async function publishHandtest(args: Record<string, unknown>) {
     report,
     source: 'model',
   })
+  const lang = agentLang(args)
   const summary = [
-    `已发布验证清单到 TraceScope 面板（任务 ${jobId}）`,
-    `并已持久化到本机，重启后同一仓库与两版本会自动恢复（再次「AI 智能分析」并 publish 才会覆盖）。`,
-    `直接 ${report.direct.length} · 波及 ${report.ripple.length}`,
+    ui('AGENT_HANDTEST_PUBLISHED', lang, { id: jobId }),
+    ui('AGENT_HANDTEST_PERSISTED', lang),
+    ui('AGENT_DIRECT_RIPPLE', lang, {
+      direct: report.direct.length,
+      ripple: report.ripple.length,
+    }),
     '',
-    '## 直接项',
+    ui('AGENT_DIRECT_SECTION', lang),
     ...report.direct.map((i) => `- [${i.risk}] ${i.displayName}`),
     '',
-    '## 可能波及',
+    ui('AGENT_RIPPLE_SECTION', lang),
     ...report.ripple.map((i) => `- [${i.risk}] ${i.displayName}`),
   ].join('\n')
   return {
@@ -281,13 +305,16 @@ export async function startVisualReview(args: Record<string, unknown>) {
   const result = await buildCodeVisualAnalysis(args)
   return {
     ...result,
-    summary: [
-      `已创建 UI 走查任务 ${result.jobId}`,
-      '请按提示词对照设计与代码，需要节点结构时调用 tracescope_get_design_snapshot。',
-      '完成后调用 tracescope_publish_visual_findings 写回。',
-      '',
-      result.prompt,
-    ].join('\n'),
+    summary: (() => {
+      const lang = agentLang(args)
+      return [
+        ui('AGENT_VISUAL_CREATED', lang, { id: result.jobId }),
+        ui('AGENT_VISUAL_NEXT', lang),
+        ui('AGENT_VISUAL_PUBLISH', lang),
+        '',
+        result.prompt,
+      ].join('\n')
+    })(),
   }
 }
 
@@ -337,10 +364,11 @@ export async function getDesignSnapshot(args: Record<string, unknown>) {
 
   const snapshot = formatDesignSnapshot(target as never, { maxNodes })
   const designName = job.designName || root.name || job.designId
+  const lang = agentLang(args)
   const summary = [
-    `设计快照 · ${designName}`,
-    `根节点：${target.id} ${target.name || ''}`.trim(),
-    `最多 ${maxNodes} 个节点（结构化文本，非 Figma API）`,
+    ui('AGENT_SNAPSHOT_TITLE', lang, { name: designName }),
+    ui('AGENT_SNAPSHOT_ROOT', lang, { id: target.id, name: target.name || '' }).trim(),
+    ui('AGENT_SNAPSHOT_MAX', lang, { n: maxNodes }),
     '',
     snapshot,
   ].join('\n')
@@ -402,14 +430,15 @@ export async function publishVisualFindings(args: Record<string, unknown>) {
     report,
   )
 
+  const lang = agentLang(args)
   const text = [
-    `已把 UI 走查结论写回 TraceScope 面板（任务 ${jobId}），并持久化到本机，重开后同一页面自动恢复。`,
-    `共 ${findings.length} 条：`,
+    ui('AGENT_VISUAL_PUBLISHED', lang, { id: jobId }),
+    ui('AGENT_FINDINGS_COUNT', lang, { n: findings.length }),
     ...findings.map(
       (f) => `- [${f.severity}] ${f.title}${f.suggestion ? `：${f.suggestion}` : ''}`,
     ),
     renderPatch && renderPatch.length
-      ? `（另收到 ${renderPatch.length} 组实验性 renderPatch，侧栏以差异清单为准，不再做代码还原预览。）`
+      ? ui('AGENT_RENDER_PATCH_NOTE', lang, { n: renderPatch.length })
       : '',
   ]
     .filter((l) => l !== '')
@@ -459,12 +488,18 @@ export async function startPageRematch(args: Record<string, unknown>) {
   const result = await buildPageRematchAnalysis(args)
   return {
     ...result,
-    summary: [
-      `已创建文件匹配任务 ${result.jobId}（候选 ${result.candidateCount}）`,
-      '完成后调用 tracescope_publish_page_rematch 写回推荐文件。',
-      '',
-      result.prompt,
-    ].join('\n'),
+    summary: (() => {
+      const lang = agentLang(args)
+      return [
+        ui('AGENT_REMATCH_CREATED', lang, {
+          id: result.jobId,
+          n: result.candidateCount,
+        }),
+        ui('AGENT_REMATCH_NEXT', lang),
+        '',
+        result.prompt,
+      ].join('\n')
+    })(),
   }
 }
 
@@ -502,6 +537,9 @@ export async function publishPageRematch(args: Record<string, unknown>) {
     status: updated.status,
     count: picks.length,
     topPath: top.relativePath,
-    summary: `已写回 ${picks.length} 个推荐并持久化；侧栏将选中 ${top.relativePath}，重启后仍可恢复`,
+    summary: ui('AGENT_REMATCH_PUBLISHED', agentLang(args), {
+      n: picks.length,
+      path: top.relativePath,
+    }),
   }
 }

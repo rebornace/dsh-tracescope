@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getT } from '../locales/i18n.js'
+import { useLocaleT } from '../locales/use-locale-t.js'
+import { diffPropLabel } from './diff-i18n.js'
 
 export interface WireNode {
   id: string
@@ -46,115 +49,13 @@ const SEV_COLOR: Record<VisualDiff['severity'], string> = {
   low: '#1a9b6e',
 }
 
-const PROPERTY_LABELS: Record<string, string> = {
-  width: '宽度',
-  height: '高度',
-  marginTop: '上外边距',
-  marginRight: '右外边距',
-  marginBottom: '下外边距',
-  marginLeft: '左外边距',
-  paddingTop: '上内边距',
-  paddingRight: '右内边距',
-  paddingBottom: '下内边距',
-  paddingLeft: '左内边距',
-  backgroundColor: '背景色',
-  borderWidth: '边框宽',
-  borderColor: '边框色',
-  borderTopWidth: '上边框宽',
-  borderRightWidth: '右边框宽',
-  borderBottomWidth: '下边框宽',
-  borderLeftWidth: '左边框宽',
-  borderTopColor: '上边框色',
-  borderRightColor: '右边框色',
-  borderBottomColor: '下边框色',
-  borderLeftColor: '左边框色',
-  cornerRadius: '圆角',
-  cornerRadii: '四角圆角',
-  opacity: '不透明度',
-  elevation: '阴影/海拔',
-  shadow: '外阴影',
-  innerShadow: '内阴影',
-  insetShadow: '内阴影参数',
-  shadows: '阴影叠层',
-  blur: '模糊',
-  blendMode: '混合模式',
-  rotation: '旋转',
-  scaleX: '缩放X',
-  scaleY: '缩放Y',
-  skewX: '倾斜X',
-  skewY: '倾斜Y',
-  zIndex: '层叠顺序',
-  fills: '填充叠层',
-  strokeAlign: '描边对齐',
-  fontFamily: '字体',
-  fontSize: '字号',
-  fontWeight: '字重',
-  lineHeight: '行高',
-  letterSpacing: '字间距',
-  color: '文字颜色',
-  textAlign: '对齐',
-  textDecoration: '文字装饰',
-  textTransform: '文字大小写',
-  overflow: '溢出裁剪',
-  clipPath: '裁剪路径',
-  aspectRatio: '宽高比',
-  maxLines: '最大行数',
-  textOverflow: '文本溢出',
-  minWidth: '最小宽度',
-  maxWidth: '最大宽度',
-  minHeight: '最小高度',
-  maxHeight: '最大高度',
-  textAdvanceWidth: '文本固有宽',
-  textBlockHeight: '文本块高',
-  flexDirection: '主轴方向',
-  alignItems: '交叉轴对齐',
-  justifyContent: '主轴分布',
-  fontStyle: '字体样式',
-  textAlignVertical: '垂直对齐',
-  borderStyle: '描边样式',
-  strokeDashArray: '虚线间隔',
-  strokeCap: '线帽',
-  strokeJoin: '线连接',
-  paragraphSpacing: '段间距',
-  sizingHorizontal: '横向尺寸模式',
-  sizingVertical: '纵向尺寸模式',
-  backdropBlur: '背景模糊',
-  position: '定位',
-  rowGap: '行间距',
-  columnGap: '列间距',
-  flexWrap: '换行',
-  alignContent: '多行对齐',
-  order: '排列顺序',
-  gridTemplate: '网格轨道',
-  alignSelf: '自身对齐',
-  flexGrow: '弹性放大',
-  flexShrink: '弹性缩小',
-  transformOrigin: '变换原点',
-  visibility: '可见性',
-  display: '显示',
-  whiteSpace: '空白处理',
-  wordBreak: '断词',
-  wordSpacing: '词间距',
-  textIndent: '首行缩进',
-  perspective: '透视',
-  rotateX: 'X轴旋转',
-  rotateY: 'Y轴旋转',
-  textShadow: '文字阴影',
-  direction: '书写方向',
-  writingMode: '书写模式',
-  filter: '滤镜',
-  outline: '轮廓',
-  imageFit: '图片适配',
-  imagePosition: '图片锚点',
-  gradient: '渐变',
-}
-
 function isUnresolvedValue(v: unknown): v is { unresolved: true; raw: string } {
   return !!v && typeof v === 'object' && 'unresolved' in (v as object)
 }
 
 function ValueView({ value }: { value: unknown }) {
-  if (isUnresolvedValue(value)) return <span>待确认：{value.raw}</span>
+  const t = getT()
+  if (isUnresolvedValue(value)) return <span>{t('diff.unresolved', { raw: value.raw })}</span>
   return <span>{String(value)}</span>
 }
 
@@ -184,6 +85,7 @@ function useContainerWidth<T extends HTMLElement>() {
 }
 
 export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
+  const t = useLocaleT()
   const { result, frameBox, designImageUrl, designTree, codeTree } = data
 
   const designNodes = useMemo(() => flattenTree(designTree), [designTree])
@@ -241,17 +143,23 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
           marginBottom: 8,
         }}
       >
-        <span>对比节点对 {result.comparedPairs}</span>
-        <span style={{ color: SEV_COLOR.high }}>高 {sevCounts.high}</span>
-        <span style={{ color: SEV_COLOR.medium }}>中 {sevCounts.medium}</span>
-        <span style={{ color: SEV_COLOR.low }}>低 {sevCounts.low}</span>
-        <span>未匹配 {result.unmatched.length}</span>
+        <span>{t('diff.compare.pairs', { count: result.comparedPairs })}</span>
+        <span style={{ color: SEV_COLOR.high }}>
+          {t('diff.compare.severityHigh', { count: sevCounts.high })}
+        </span>
+        <span style={{ color: SEV_COLOR.medium }}>
+          {t('diff.compare.severityMedium', { count: sevCounts.medium })}
+        </span>
+        <span style={{ color: SEV_COLOR.low }}>
+          {t('diff.compare.severityLow', { count: sevCounts.low })}
+        </span>
+        <span>{t('diff.compare.unmatched', { count: result.unmatched.length })}</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {/* Left: real Figma render with diff boxes overlaid */}
         <div>
-          <ColumnTitle>设计稿</ColumnTitle>
+          <ColumnTitle>{t('diff.column.design')}</ColumnTitle>
           <div ref={stageHostRef} style={{ width: '100%' }}>
             <div
               style={{
@@ -271,7 +179,7 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
                 />
               ) : (
                 <div style={{ padding: 8, fontSize: 11, color: '#8a7f70' }}>
-                  设计图渲染失败，仅显示结构差异。
+                  {t('diff.renderFailed')}
                 </div>
               )}
 
@@ -294,7 +202,10 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
                         key={id}
                         type="button"
                         onClick={() => setSelectedId(id)}
-                        title={`${node.name} · ${diffsByDesign.get(id)?.length ?? 0} 项差异`}
+                        title={t('diff.hotspotTitle', {
+                          name: node.name,
+                          count: diffsByDesign.get(id)?.length ?? 0,
+                        })}
                         style={{
                           position: 'absolute',
                           left: (x - frameBox.x) * fit,
@@ -319,7 +230,7 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
 
         {/* Right: code block tree */}
         <div>
-          <ColumnTitle>代码实现</ColumnTitle>
+          <ColumnTitle>{t('diff.column.code')}</ColumnTitle>
           <div
             style={{
               border: '1px solid var(--dsh-border,#ddd4c5)',
@@ -342,7 +253,7 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
                 }}
               />
             ) : (
-              <span style={{ fontSize: 11, color: '#8a7f70' }}>无代码结构。</span>
+              <span style={{ fontSize: 11, color: '#8a7f70' }}>{t('diff.noCodeTree')}</span>
             )}
           </div>
         </div>
@@ -359,11 +270,13 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
         }}
       >
         <strong style={{ fontSize: 13 }}>
-          {selectedDiffs.length ? selectedDiffs[0]!.nodeName : '差异明细'}
+          {selectedDiffs.length ? selectedDiffs[0]!.nodeName : t('diff.detailTitle')}
         </strong>
         {selectedCodeId ? (
           <span style={{ marginLeft: 8, fontSize: 12, color: '#6b645a' }}>
-            代码节点：{codeNodes.get(selectedCodeId)?.name ?? selectedCodeId}
+            {t('diff.codeNode', {
+              name: codeNodes.get(selectedCodeId)?.name ?? selectedCodeId,
+            })}
           </span>
         ) : null}
 
@@ -385,16 +298,16 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
               }}
             >
               <span style={{ fontWeight: 600 }}>
-                {PROPERTY_LABELS[d.property] ?? d.property}
+                {diffPropLabel(t, d.property)}
                 {d.needsReview ? (
-                  <span style={REVIEW_BADGE}>需确认</span>
+                  <span style={REVIEW_BADGE}>{t('diff.needsReview')}</span>
                 ) : null}
               </span>
               <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                 <ValueView value={d.expected} />
                 <span style={{ color: '#9a917f' }}>→</span>
                 {d.actual === undefined ? (
-                  <span style={{ color: '#d92d20', fontWeight: 700 }}>缺失</span>
+                  <span style={{ color: '#d92d20', fontWeight: 700 }}>{t('diff.missing')}</span>
                 ) : (
                   <ValueView value={d.actual} />
                 )}
@@ -415,12 +328,14 @@ export function VisualDiffBoard({ data }: { data: VisualDiffBoardData }) {
           }}
         >
           <summary style={{ cursor: 'pointer', color: '#0f6e56', fontWeight: 600 }}>
-            未匹配元素（{result.unmatched.length}）
+            {t('diff.unmatchedSection', { count: result.unmatched.length })}
           </summary>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {result.unmatched.map((u, i) => (
               <li key={i}>
-                <span style={SIDE_TAG}>{u.side === 'design' ? '仅设计稿' : '仅代码'}</span>
+                <span style={SIDE_TAG}>
+                  {u.side === 'design' ? t('diff.side.designOnly') : t('diff.side.codeOnly')}
+                </span>
                 {u.name}
                 {u.text ? `（${u.text}）` : ''}
               </li>

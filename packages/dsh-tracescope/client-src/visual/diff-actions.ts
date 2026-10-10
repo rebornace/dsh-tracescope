@@ -3,6 +3,9 @@
  * Builds a synthetic ImpactReport so the existing tracker-submit API can be reused.
  */
 
+import { getT } from '../locales/i18n.js'
+import { resolveT, type TranslateFn } from './diff-i18n.js'
+
 export interface VisualDiffActionItem {
   key: string
   source: 'ai' | 'rule'
@@ -48,15 +51,19 @@ interface SyntheticImpactReport {
   changedFiles: string[]
 }
 
-function itemNote(item: VisualDiffActionItem): string {
+function itemNote(item: VisualDiffActionItem, t: TranslateFn): string {
   const lines: string[] = []
-  if (item.location) lines.push(`位置：${item.location}`)
-  if (item.expected) lines.push(`设计期望：${item.expected}`)
-  if (item.actual) lines.push(`实际：${item.actual}`)
-  if (item.codeSource) lines.push(`代码来源：${item.codeSource}`)
-  if (item.suggestion) lines.push(`建议：${item.suggestion}`)
-  if (item.note) lines.push(`备注：${item.note}`)
-  lines.push(`来源：${item.source === 'ai' ? 'AI 协助' : '静态规则'}`)
+  if (item.location) lines.push(t('diff.field.location', { value: item.location }))
+  if (item.expected) lines.push(t('diff.field.expected', { value: item.expected }))
+  if (item.actual) lines.push(t('diff.field.actual', { value: item.actual }))
+  if (item.codeSource) lines.push(t('diff.field.codeSource', { value: item.codeSource }))
+  if (item.suggestion) lines.push(t('diff.field.suggestion', { value: item.suggestion }))
+  if (item.note) lines.push(t('diff.field.note', { value: item.note }))
+  lines.push(
+    t('diff.field.source', {
+      value: item.source === 'ai' ? t('diff.source.ai') : t('diff.source.rule'),
+    }),
+  )
   return lines.join('\n')
 }
 
@@ -64,20 +71,23 @@ function itemNote(item: VisualDiffActionItem): string {
 export function unifiedItemsToFailReport(
   items: VisualDiffActionItem[],
   meta: VisualDiffActionMeta,
+  t?: TranslateFn,
 ): SyntheticImpactReport {
+  const tr = resolveT(t)
   const codePath = (meta.codePath || '').trim()
   const direct: SyntheticScopeItem[] = items.map((item, index) => ({
     id: `ui-diff-${item.key || index}`,
-    displayName: item.headline || `UI 差异 ${index + 1}`,
+    displayName:
+      item.headline || tr('diff.itemIndexed', { index: index + 1 }),
     kind: 'direct',
     risk: item.severity,
     files: codePath ? [codePath] : [],
     evidence: codePath
-      ? [{ path: codePath, reason: item.headline || 'UI 差异' }]
+      ? [{ path: codePath, reason: item.headline || tr('diff.itemFallback') }]
       : [],
     suggestedSteps: item.suggestion ? [item.suggestion] : [],
     status: 'fail',
-    testerNote: itemNote(item),
+    testerNote: itemNote(item, tr),
   }))
   return {
     repoPath: meta.repoPath,
@@ -94,31 +104,42 @@ export function unifiedItemsToFailReport(
 export function defaultVisualDefectSubject(
   items: VisualDiffActionItem[],
   meta: VisualDiffActionMeta,
+  t?: TranslateFn,
 ): string {
-  const name = meta.designName || '设计稿'
-  const code = meta.codePath ? ` ↔ ${meta.codePath}` : ''
-  return `[UI 走查] ${name}${code}（${items.length} 条差异）`
+  const tr = resolveT(t)
+  const name = meta.designName || tr('diff.defaultDesignName')
+  const code = meta.codePath
+    ? tr('diff.defectSubjectCodePair', { path: meta.codePath })
+    : ''
+  return tr('diff.defectSubject', { name, codePair: code, count: items.length })
 }
 
 export function formatVisualDiffCopyText(
   items: VisualDiffActionItem[],
   meta: VisualDiffActionMeta,
+  t?: TranslateFn,
 ): string {
+  const tr = resolveT(t)
   const lines = [
-    '【TraceScope UI 差异反馈】',
-    `仓库：${meta.repoPath || ''}`,
-    meta.designName ? `设计稿：${meta.designName}` : '',
-    meta.designUrl ? `链接：${meta.designUrl}` : '',
-    meta.codePath ? `代码：${meta.codePath}` : '',
-    meta.platformLabel ? `平台：${meta.platformLabel}` : '',
+    tr('diff.export.feedbackTitle'),
+    tr('diff.export.repo', { value: meta.repoPath || '' }),
+    meta.designName ? tr('diff.export.design', { value: meta.designName }) : '',
+    meta.designUrl ? tr('diff.export.link', { value: meta.designUrl }) : '',
+    meta.codePath ? tr('diff.export.code', { value: meta.codePath }) : '',
+    meta.platformLabel ? tr('diff.export.platform', { value: meta.platformLabel }) : '',
     '',
   ].filter(Boolean)
 
   items.forEach((item, i) => {
     lines.push(
-      `${i + 1}. [${item.severity}] ${item.headline}（${item.source === 'ai' ? 'AI' : '规则'}）`,
+      tr('diff.export.lineItem', {
+        index: i + 1,
+        severity: item.severity,
+        headline: item.headline,
+        source: item.source === 'ai' ? tr('diff.source.aiShort') : tr('diff.source.ruleShort'),
+      }),
     )
-    const note = itemNote(item)
+    const note = itemNote(item, tr)
     for (const line of note.split('\n')) {
       lines.push(`   ${line}`)
     }
@@ -130,33 +151,39 @@ export function formatVisualDiffCopyText(
 export function formatVisualDiffExportMarkdown(
   items: VisualDiffActionItem[],
   meta: VisualDiffActionMeta,
+  t?: TranslateFn,
 ): string {
+  const tr = resolveT(t)
   const lines = [
-    '# TraceScope UI 走查差异报告',
+    tr('diff.export.reportTitle'),
     '',
-    `- 仓库：\`${meta.repoPath || ''}\``,
-    meta.designName ? `- 设计稿：${meta.designName}` : '',
-    meta.designUrl ? `- 链接：${meta.designUrl}` : '',
-    meta.codePath ? `- 代码：\`${meta.codePath}\`` : '',
-    meta.platformLabel ? `- 平台：${meta.platformLabel}` : '',
-    `- 生成时间：${new Date().toISOString()}`,
-    `- 差异数：${items.length}`,
+    tr('diff.export.mdRepo', { value: meta.repoPath || '' }),
+    meta.designName ? tr('diff.export.mdDesign', { value: meta.designName }) : '',
+    meta.designUrl ? tr('diff.export.mdLink', { value: meta.designUrl }) : '',
+    meta.codePath ? tr('diff.export.mdCode', { value: meta.codePath }) : '',
+    meta.platformLabel ? tr('diff.export.mdPlatform', { value: meta.platformLabel }) : '',
+    tr('diff.export.generatedAt', { value: new Date().toISOString() }),
+    tr('diff.export.diffCount', { count: items.length }),
     '',
-    '## 差异清单',
+    tr('diff.export.sectionList'),
     '',
   ].filter(Boolean)
 
   items.forEach((item, i) => {
     lines.push(`### ${i + 1}. ${item.headline}`)
     lines.push('')
-    lines.push(`- 严重程度：${item.severity}`)
-    lines.push(`- 来源：${item.source === 'ai' ? 'AI 协助' : '静态规则'}`)
-    if (item.location) lines.push(`- 位置：${item.location}`)
-    if (item.expected) lines.push(`- 设计期望：${item.expected}`)
-    if (item.actual) lines.push(`- 实际：${item.actual}`)
-    if (item.codeSource) lines.push(`- 代码来源：${item.codeSource}`)
-    if (item.suggestion) lines.push(`- 建议：${item.suggestion}`)
-    if (item.note) lines.push(`- 备注：${item.note}`)
+    lines.push(tr('diff.export.mdSeverity', { value: item.severity }))
+    lines.push(
+      tr('diff.export.mdSource', {
+        value: item.source === 'ai' ? tr('diff.source.ai') : tr('diff.source.rule'),
+      }),
+    )
+    if (item.location) lines.push(tr('diff.export.mdLocation', { value: item.location }))
+    if (item.expected) lines.push(tr('diff.export.mdExpected', { value: item.expected }))
+    if (item.actual) lines.push(tr('diff.export.mdActual', { value: item.actual }))
+    if (item.codeSource) lines.push(tr('diff.export.mdCodeSource', { value: item.codeSource }))
+    if (item.suggestion) lines.push(tr('diff.export.mdSuggestion', { value: item.suggestion }))
+    if (item.note) lines.push(tr('diff.export.mdNote', { value: item.note }))
     lines.push('')
   })
   return lines.join('\n')

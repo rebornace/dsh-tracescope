@@ -14,12 +14,13 @@ import {
   listYunxiaoWorkitems,
   listYunxiaoWorkitemTypes,
 } from '@rebornace/tracescope-core'
+import { I18nError } from '../i18n/messages.js'
 
 export function registerYunxiaoCatalogRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/yunxiao-catalog',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const action = String(body.action ?? '')
       const existing = await loadTrackerConfig()
       const remembered = await loadRememberedYunxiaoAccess()
@@ -29,7 +30,7 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
           : existing.yunxiao?.endpoint || remembered.endpoint || 'https://openapi-rdc.aliyuncs.com'
       const tokenRaw = typeof body.token === 'string' ? body.token.trim() : ''
       const token = !isMaskedSecret(tokenRaw) ? tokenRaw : remembered.token
-      if (!token) throw new Error('请先填写云效访问令牌并保存，或在本次请求中传入 token')
+      if (!token) throw new I18nError('ERR_YUNXIAO_TOKEN_REQUIRED', lang)
 
       const organizationId =
         typeof body.organizationId === 'string'
@@ -46,7 +47,7 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
         const result = await listYunxiaoOrganizations(endpoint, token)
         if (!result.ok) {
           if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
-          throw new Error(result.error || '获取企业列表失败')
+          throw new I18nError('ERR_YUNXIAO_ORGS_FAILED', lang)
         }
         return withDebug({ options: result.options }, result.debug)
       }
@@ -54,7 +55,7 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
         const result = await listYunxiaoProjects(endpoint, token, organizationId)
         if (!result.ok) {
           if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
-          throw new Error(result.error || '获取项目列表失败')
+          throw new I18nError('ERR_YUNXIAO_PROJECTS_FAILED', lang)
         }
         return withDebug({ options: result.options, warning: result.error }, result.debug)
       }
@@ -69,7 +70,7 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
         )
         if (!result.ok) {
           if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
-          throw new Error(result.error || '获取缺陷类型失败')
+          throw new I18nError('ERR_YUNXIAO_WORKITEM_TYPES_FAILED', lang)
         }
         return withDebug({ options: result.options }, result.debug)
       }
@@ -77,7 +78,7 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
         const result = await listYunxiaoMembers(endpoint, token, organizationId)
         if (!result.ok) {
           if (wantDebug) return withDebug({ options: [], error: result.error }, result.debug)
-          throw new Error(result.error || '获取成员列表失败')
+          throw new I18nError('ERR_YUNXIAO_MEMBERS_FAILED', lang)
         }
         return withDebug({ options: result.options }, result.debug)
       }
@@ -95,10 +96,10 @@ export function registerYunxiaoCatalogRoutes(ctx: Context) {
           spaceId,
           categories,
         )
-        if (!result.ok) throw new Error(result.error || '获取工作项失败')
+        if (!result.ok) throw new I18nError('ERR_YUNXIAO_WORKITEMS_FAILED', lang)
         return { items: result.items }
       }
-      throw new Error('action 必须是 organizations|projects|workitemTypes|members|workitems')
+      throw new I18nError('ERR_YUNXIAO_ACTION_INVALID', lang)
     },
   })
 }

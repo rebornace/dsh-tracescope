@@ -17,46 +17,60 @@ import {
   loadPageFindings,
   aiRematchDesignPage,
 } from '../services/visual-flow.js'
+import { I18nError } from '../i18n/messages.js'
 import { getVisualJob } from '../visual-jobs.js'
 
 export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/match-page',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
+      const localized: Record<string, unknown> = {
+        ...body,
+        locale: body.locale ?? body.lang ?? lang,
+      }
       // Chat-first rematch: return a composer prompt (no silent LLM call).
-      if (body.rematchPrompt === true || body.mode === 'rematch-prompt') {
-        return await buildPageRematchAnalysis(body)
+      if (localized.rematchPrompt === true || localized.mode === 'rematch-prompt') {
+        return await buildPageRematchAnalysis(localized)
       }
       // Legacy silent AI rematch (prefer rematchPrompt + chat).
-      if (body.aiRematch === true || body.mode === 'ai-rematch') {
-        return await aiRematchDesignPage(body, ctx)
+      if (localized.aiRematch === true || localized.mode === 'ai-rematch') {
+        return await aiRematchDesignPage(localized, ctx)
       }
-      return await matchDesignToRepo(body)
+      return await matchDesignToRepo(localized)
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/visual-compare',
     method: 'POST',
-    run: async (body) => {
-      return await compareDesignAgainstPage(body)
+    run: async (body, { lang }) => {
+      return await compareDesignAgainstPage({
+        ...body,
+        locale: body.locale ?? body.lang ?? lang,
+      } as Record<string, unknown>)
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/match-all',
     method: 'POST',
-    run: async (body) => {
-      return await matchAllDesignPages(body)
+    run: async (body, { lang }) => {
+      return await matchAllDesignPages({
+        ...body,
+        locale: body.locale ?? body.lang ?? lang,
+      } as Record<string, unknown>)
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/design-compare',
     method: 'POST',
-    run: async (body) => {
-      return await compareDesignStatic(body, ctx)
+    run: async (body, { lang }) => {
+      return await compareDesignStatic(
+        { ...body, locale: body.locale ?? body.lang ?? lang } as Record<string, unknown>,
+        ctx,
+      )
     },
   })
 
@@ -64,23 +78,29 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/hifi-compare',
     method: 'POST',
-    run: async (body) => {
-      return await compareDesignStatic(body, ctx)
+    run: async (body, { lang }) => {
+      return await compareDesignStatic(
+        { ...body, locale: body.locale ?? body.lang ?? lang } as Record<string, unknown>,
+        ctx,
+      )
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/code-visual-prompt',
     method: 'POST',
-    run: async (body) => {
-      return await buildCodeVisualAnalysis(body)
+    run: async (body, { lang }) => {
+      return await buildCodeVisualAnalysis({
+        ...body,
+        locale: body.locale ?? body.lang ?? lang,
+      } as Record<string, unknown>)
     },
   })
 
   registerRoute(ctx, {
     path: '/tracescope/v1/ai-rematch',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       return await aiRematchDesignPage(body, ctx)
     },
   })
@@ -88,7 +108,7 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/page-thumbnail',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       return await getDesignPageThumbnail(body)
     },
   })
@@ -96,7 +116,7 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/page-thumbnails',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       return await getDesignPageThumbnails(body)
     },
   })
@@ -106,11 +126,11 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/visual-job',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const id = String(body.id ?? body.jobId ?? '')
-      if (!id) throw new Error('缺少 id')
+      if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const job = getVisualJob(id)
-      if (!job) throw new Error(`找不到 UI 走查任务 ${id}`)
+      if (!job) throw new I18nError('ERR_VISUAL_JOB_NOT_FOUND', lang, { id })
       return {
         jobId: job.id,
         status: job.status,
@@ -128,7 +148,7 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/visual-findings-load',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       return await loadPageFindings(body)
     },
   })
@@ -137,17 +157,17 @@ export function registerVisualRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/proxy-image',
     method: 'GET',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const url = String(body.url ?? '').trim()
-      if (!url) throw new Error('缺少 url')
+      if (!url) throw new I18nError('ERR_MISSING_URL', lang)
       let parsed: URL
       try {
         parsed = new URL(url)
       } catch {
-        throw new Error('无效的图片链接')
+        throw new I18nError('ERR_INVALID_IMAGE_URL', lang)
       }
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        throw new Error('仅支持 http(s) 图片')
+        throw new I18nError('ERR_IMAGE_HTTP_ONLY', lang)
       }
       const host = parsed.hostname.toLowerCase()
       const allowed =
@@ -163,17 +183,20 @@ export function registerVisualRoutes(ctx: Context) {
         host.endsWith('.aliyuncs.com') ||
         host.endsWith('.myqcloud.com') ||
         host.endsWith('.qcloud.com')
-      if (!allowed) throw new Error('不允许代理该图片域名')
+      if (!allowed) throw new I18nError('ERR_IMAGE_PROXY_DOMAIN', lang)
       const response = await fetch(url, { redirect: 'follow' })
       if (!response.ok) {
-        throw new Error(`图片代理失败：${response.status} ${response.statusText}`)
+        throw new I18nError('ERR_IMAGE_PROXY_FAILED', lang, {
+          status: response.status,
+          statusText: response.statusText,
+        })
       }
       const contentType = response.headers.get('content-type') || 'image/png'
       if (!contentType.startsWith('image/')) {
-        throw new Error('代理目标不是图片')
+        throw new I18nError('ERR_IMAGE_PROXY_NOT_IMAGE', lang)
       }
       const buf = Buffer.from(await response.arrayBuffer())
-      if (buf.byteLength > 8 * 1024 * 1024) throw new Error('图片过大，无法代理')
+      if (buf.byteLength > 8 * 1024 * 1024) throw new I18nError('ERR_IMAGE_TOO_LARGE', lang)
       return {
         dataUrl: `data:${contentType};base64,${buf.toString('base64')}`,
       }

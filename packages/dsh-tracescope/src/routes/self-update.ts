@@ -7,6 +7,7 @@
  */
 import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
+import { ui } from '../i18n/ui.js'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -86,7 +87,7 @@ export function registerSelfUpdateRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/self-update/check',
     method: 'GET',
-    run: async () => {
+    run: async (_body, { lang }) => {
       const name = pkgJson.name || PACKAGE_NAME
       const installedVersion = pkgJson.version || null
       const { version: latestVersion, source } = await fetchLatestVersion(name)
@@ -104,7 +105,7 @@ export function registerSelfUpdateRoutes(ctx: Context) {
           cli: latestVersion
             ? `dsh plugin add "${name}@${latestVersion}"`
             : `dsh plugin update ${name}`,
-          desktop: '桌面端：扩展坞（Extension Dock）或「插件」页中更新本包，然后重启 Harness。',
+          desktop: ui('SELF_UPDATE_HINT', lang),
         },
       }
     },

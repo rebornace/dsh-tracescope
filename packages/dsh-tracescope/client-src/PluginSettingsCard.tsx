@@ -5,6 +5,8 @@
  * Apply prefers official pluginManager.installBundle; market is optional.
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
+import { getT } from './locales/i18n.js'
+import { useLocaleT } from './locales/use-locale-t.js'
 import {
   PACKAGE_NAME,
   applySelfUpdate,
@@ -14,6 +16,20 @@ import {
 } from './self-update.js'
 
 type UpdateInfo = Awaited<ReturnType<typeof checkSelfUpdate>>
+
+export type TracescopeTranslator = (key: string, params?: Record<string, string | number>) => string
+
+function resolveT(t?: TracescopeTranslator): TracescopeTranslator {
+  return t || getT()
+}
+
+/** User-facing errors (check/update/manual guide), zh or en. */
+function isErrorLikeMessage(message: string): boolean {
+  if (!message) return false
+  return /失败|未能|请在|命令行|fail(?:ed)?|unable|could not|please .*(update|restart)|command line|\bCLI\b|update manually|market:/i.test(
+    message,
+  )
+}
 
 const card: CSSProperties = {
   border: '1px solid var(--dsh-border, #ddd4c5)',
@@ -52,7 +68,6 @@ const row: CSSProperties = {
   paddingTop: 10,
 }
 const labelBox: CSSProperties = { minWidth: 0, flex: 1 }
-const label: CSSProperties = { fontWeight: 600, fontSize: 13 }
 const hint: CSSProperties = { marginTop: 3, fontSize: 12, color: '#6b645a', lineHeight: 1.45, whiteSpace: 'pre-wrap' }
 const actions: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }
 const primaryBtn: CSSProperties = {
@@ -103,9 +118,12 @@ function Btn(props: {
 export type PluginSettingsCardProps = {
   installedVersion?: string | null
   summaryOnly?: boolean
+  t?: TracescopeTranslator
 }
 
 export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement | null {
+  const liveT = useLocaleT()
+  const t = props.t || liveT
   const [busy, setBusy] = useState(false)
   const [info, setInfo] = useState<UpdateInfo | null>(null)
   const [message, setMessage] = useState('')
@@ -119,28 +137,36 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
 
   const runCheck = useCallback(async () => {
     setBusy(true)
-    setMessage('正在检查 npm 最新版本…')
+    setMessage(t('update.checkingNpm'))
     setCanForce(false)
     try {
       const next = await checkSelfUpdate()
       setInfo(next)
       if (next.installedVersion) setVersion(next.installedVersion)
       if (next.updateAvailable) {
-        setMessage(
-          `发现新版本 ${next.latestVersion || '?'}（当前 ${next.installedVersion || '?'}）` +
-            (next.registrySource ? ` · 来源 ${next.registrySource}` : ''),
-        )
+        let msg = t('update.foundVersion', {
+          latest: next.latestVersion || '?',
+          installed: next.installedVersion || '?',
+        })
+        if (next.registrySource) {
+          msg += t('update.foundVersionSourceSuffix', { source: next.registrySource })
+        }
+        setMessage(msg)
       } else if (!next.latestVersion) {
-        setMessage('未能从 npm 读取最新版本，请检查网络后重试。')
+        setMessage(t('update.npmReadFailed'))
       } else {
-        setMessage(`已是最新${next.installedVersion ? `（${next.installedVersion}）` : ''}。`)
+        setMessage(
+          next.installedVersion
+            ? t('update.alreadyLatestWithVersion', { version: next.installedVersion })
+            : t('update.alreadyLatest'),
+        )
       }
     } catch (e) {
-      setMessage('检查更新失败：' + ((e as Error)?.message || String(e)))
+      setMessage(t('update.checkFailedPrefix') + ((e as Error)?.message || String(e)))
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (probed.current) return
@@ -156,7 +182,7 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
       }
       setBusy(true)
       setCanForce(false)
-      setMessage('正在更新…')
+      setMessage(t('update.updating'))
       try {
         const result = await applySelfUpdate(info || (await checkSelfUpdate()), getSelfUpdateHostCtx(), {
           force,
@@ -177,18 +203,18 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
           setCanForce(!!result.canForce || forceRetryable(result.failure?.code))
         }
       } catch (e) {
-        setMessage('更新失败：' + ((e as Error)?.message || String(e)))
+        setMessage(t('update.updateFailedPrefix') + ((e as Error)?.message || String(e)))
       } finally {
         setBusy(false)
       }
     },
-    [info, runCheck],
+    [info, runCheck, t],
   )
 
   if (props.summaryOnly) {
     return (
       <span style={{ fontSize: 12, color: '#6b645a' }}>
-        版本对比、验证清单与设计差异
+        {t('settings.summaryDescription')}
         {version ? ` · v${version}` : ''}
       </span>
     )
@@ -201,42 +227,41 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
       <div style={Object.assign({}, head, { cursor: 'default' })}>
         <div style={{ minWidth: 0 }}>
           <div style={title}>
-            插件更新
+            {t('settings.title')}
             {version ? <span style={ver}>v{version}</span> : null}
             {updateReady ? (
               <span style={Object.assign({}, ver, { color: '#0f6e56', fontWeight: 700 })}>
-                · 有新版本 {info?.latestVersion}
+                {t('settings.newVersionBadge', { version: info?.latestVersion || '?' })}
               </span>
             ) : null}
           </div>
-          <div style={desc}>
-            {message ||
-              '对照 npm 检查本插件。优先走官方插件管理器；更新后请重启桌面端。'}
-          </div>
+          <div style={desc}>{message || t('settings.defaultDescription')}</div>
         </div>
       </div>
       <div style={body}>
         <div style={row}>
           <div style={labelBox}>
-            <div style={hint}>包名：{PACKAGE_NAME}</div>
+            <div style={hint}>{t('settings.packageNameLabel', { name: PACKAGE_NAME })}</div>
           </div>
           <div style={actions}>
             <Btn disabled={busy} onClick={() => void runCheck()}>
-              {busy ? '请稍候…' : '重新检查'}
+              {busy ? t('update.pleaseWait') : t('update.recheck')}
             </Btn>
             {updateReady ? (
               <Btn primary disabled={busy} onClick={() => void runUpdate(false)}>
-                {`更新到 ${info?.latestVersion || '最新版'}`}
+                {t('update.updateTo', {
+                  version: info?.latestVersion || t('update.latestVersionLabel'),
+                })}
               </Btn>
             ) : null}
             {canForce ? (
-              <Btn disabled={busy} title="在可选路径上强制再装" onClick={() => void runUpdate(true)}>
-                强制更新
+              <Btn disabled={busy} title={t('update.forceUpdateTitle')} onClick={() => void runUpdate(true)}>
+                {t('update.forceUpdate')}
               </Btn>
             ) : null}
           </div>
         </div>
-        {message && /失败|未能|请在|命令行/.test(message) ? <p style={err}>{message}</p> : null}
+        {message && isErrorLikeMessage(message) ? <p style={err}>{message}</p> : null}
       </div>
     </div>
   )
@@ -245,12 +270,39 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
 /** Compact action next to Uninstall on the bundle detail page. */
 export function PluginUpdateAction(props: {
   installedVersion?: string | null
+  t?: TracescopeTranslator
 }): ReactElement {
+  const liveT = useLocaleT()
+  const t = props.t || liveT
   const [busy, setBusy] = useState(false)
   const [info, setInfo] = useState<UpdateInfo | null>(null)
-  const [label, setLabel] = useState('更新')
-  const [title, setTitle] = useState('对照 npm 更新 TraceScope')
+  const [label, setLabel] = useState(() => t('update.action.label'))
+  const [title, setTitle] = useState(() => t('update.action.title'))
   const probed = useRef(false)
+
+  useEffect(() => {
+    // Refresh button labels when Host language switches.
+    if (!info) {
+      setLabel(t('update.action.label'))
+      setTitle(t('update.action.title'))
+      return
+    }
+    if (info.updateAvailable) {
+      setLabel(
+        info.latestVersion
+          ? t('update.updateTo', { version: info.latestVersion })
+          : t('update.action.label'),
+      )
+      setTitle(t('update.action.foundNewVersion', { version: info.latestVersion || '' }))
+    } else {
+      setLabel(
+        info.installedVersion
+          ? t('update.action.upToDateWithVersion', { version: info.installedVersion })
+          : t('update.action.upToDate'),
+      )
+      setTitle(info.latestVersion ? t('update.action.alreadyLatestTitle') : t('update.action.npmReadFailedTitle'))
+    }
+  }, [t, info])
 
   useEffect(() => {
     if (probed.current) return
@@ -259,17 +311,25 @@ export function PluginUpdateAction(props: {
       .then((next) => {
         setInfo(next)
         if (next.updateAvailable) {
-          setLabel(next.latestVersion ? `更新到 ${next.latestVersion}` : '更新')
-          setTitle(`发现新版本 ${next.latestVersion || ''}`)
+          setLabel(
+            next.latestVersion
+              ? t('update.updateTo', { version: next.latestVersion })
+              : t('update.action.label'),
+          )
+          setTitle(t('update.action.foundNewVersion', { version: next.latestVersion || '' }))
         } else {
-          setLabel(next.installedVersion ? `已最新 v${next.installedVersion}` : '已最新')
-          setTitle(next.latestVersion ? '当前已是最新版本' : '未能读取 npm 最新版本')
+          setLabel(
+            next.installedVersion
+              ? t('update.action.upToDateWithVersion', { version: next.installedVersion })
+              : t('update.action.upToDate'),
+          )
+          setTitle(next.latestVersion ? t('update.action.alreadyLatestTitle') : t('update.action.npmReadFailedTitle'))
         }
       })
       .catch((e) => {
         setTitle((e as Error)?.message || String(e))
       })
-  }, [])
+  }, [t])
 
   const onClick = useCallback(async () => {
     if (busy) return
@@ -278,40 +338,53 @@ export function PluginUpdateAction(props: {
       const current = info || (await checkSelfUpdate())
       setInfo(current)
       if (!current.updateAvailable) {
-        setLabel(current.installedVersion ? `已最新 v${current.installedVersion}` : '已最新')
-        setTitle(current.latestVersion ? '当前已是最新版本' : '未能读取 npm 最新版本')
+        setLabel(
+          current.installedVersion
+            ? t('update.action.upToDateWithVersion', { version: current.installedVersion })
+            : t('update.action.upToDate'),
+        )
+        setTitle(
+          current.latestVersion ? t('update.action.alreadyLatestTitle') : t('update.action.npmReadFailedTitle'),
+        )
         return
       }
-      setLabel('更新中…')
+      setLabel(t('update.action.updating'))
       const result = await applySelfUpdate(current, getSelfUpdateHostCtx(), {
         onProgress: (msg) => setTitle(msg),
       })
       if (result.ok) {
         setInfo(Object.assign({}, current, { updateAvailable: false, installedVersion: result.installedVersion }))
-        setLabel(result.installedVersion ? `已更新 v${result.installedVersion}` : '已更新')
+        setLabel(
+          result.installedVersion
+            ? t('update.action.updatedWithVersion', { version: result.installedVersion })
+            : t('update.action.updated'),
+        )
         setTitle(result.message)
       } else {
-        setLabel(result.channel === 'manual' ? '请手动更新' : '更新失败')
+        setLabel(result.channel === 'manual' ? t('update.action.manualRequired') : t('update.action.updateFailed'))
         setTitle(result.message)
       }
     } catch (e) {
-      setLabel('失败')
+      setLabel(t('update.action.failed'))
       setTitle((e as Error)?.message || String(e))
     } finally {
       setBusy(false)
     }
-  }, [busy, info])
+  }, [busy, info, t])
 
   const updateReady = info?.updateAvailable === true
+  const installedSuffix = props.installedVersion
+    ? t('update.action.currentInstalledSuffix', { version: props.installedVersion })
+    : ''
 
   return (
     <Btn
       primary={updateReady || !info}
       disabled={busy}
-      title={title + (props.installedVersion ? `（当前 ${props.installedVersion}）` : '')}
+      title={title + installedSuffix}
       onClick={() => void onClick()}
     >
-      {busy ? '更新中…' : label}
+      {busy ? t('update.action.updating') : label}
     </Btn>
   )
 }

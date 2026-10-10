@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.2.5`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.2.6`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -17,6 +17,10 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 Both share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook).
 
 Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. Same execute layer via `@rebornace/tracescope-mcp`.
+
+### UI language
+
+The sidebar, plugin detail / update UI, AI prompts, and Host API errors support **Chinese / English**. Language follows the Desktop (Host) UI locale — **there is no separate language toggle inside the plugin**. Unknown locales fall back to Chinese.
 
 ---
 

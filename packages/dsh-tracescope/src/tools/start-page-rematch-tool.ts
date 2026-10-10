@@ -5,6 +5,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { startPageRematch } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerStartPageRematchTool(ctx: Context) {
   ctx.tools?.register(
@@ -36,7 +38,7 @@ export function registerStartPageRematchTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已创建文件匹配任务')
+          return toolText(v.summary || ui('TOOL_REMATCH_CREATED', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

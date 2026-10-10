@@ -6,6 +6,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { publishHandtest } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerPublishHandtestTool(ctx: Context) {
   ctx.tools?.register(
@@ -43,7 +45,7 @@ export function registerPublishHandtestTool(ctx: Context) {
         },
         render: (_args, value) => {
           const v = value as { summary?: string }
-          return toolText(v.summary || '已发布验证清单')
+          return toolText(v.summary || ui('TOOL_HANDTEST_PUBLISHED', resolveHostLang(ctx)))
         },
       },
       async execute(args: Record<string, unknown>) {

@@ -13,18 +13,19 @@ import {
   resolveCodeupAuth,
   resolveRequestGitAuth,
 } from '../services/request-auth.js'
+import { I18nError } from '../i18n/messages.js'
 import { runAnalyze } from '../services/run-analyze.js'
 
 export function registerAnalyzeRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/analyze',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const baseCommit = String(body.baseCommit ?? '')
       const headCommit = String(body.headCommit ?? '')
       if (!repoPath || !baseCommit || !headCommit) {
-        throw new Error('需要 repoPath、baseCommit、headCommit')
+        throw new I18nError('ERR_MISSING_REPO_COMMITS', lang)
       }
       const accessMode = readAccessMode(body)
       return await runAnalyze({

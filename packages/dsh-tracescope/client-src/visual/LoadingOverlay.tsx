@@ -5,12 +5,15 @@
  * looks frozen. Render once at the top of a panel whenever work is in progress.
  */
 
+import { useLocaleT } from '../locales/use-locale-t.js'
+
 export interface LoadingOverlayProps {
   message?: string
   elapsedSeconds?: number
 }
 
 export function LoadingOverlay({ message, elapsedSeconds }: LoadingOverlayProps) {
+  const t = useLocaleT()
   // Rotate an inner element; the arc itself is built from a conic gradient
   // masked into a ring (see O.spinner / O.spinnerArc), so it stays perfectly
   // round instead of looking like a squared-off border.
@@ -62,12 +65,10 @@ export function LoadingOverlay({ message, elapsedSeconds }: LoadingOverlayProps)
               style={O.spinnerArc}
             />
           </svg>
-          <div style={O.title}>加载中，请稍候</div>
-          <div style={O.message}>
-            {message || '正在处理请求，网络较慢时请勿重复操作。'}
-          </div>
+          <div style={O.title}>{t('loading.title')}</div>
+          <div style={O.message}>{message || t('loading.defaultMessage')}</div>
           {typeof elapsedSeconds === 'number' ? (
-            <div style={O.elapsed}>已用时 {elapsedSeconds} 秒</div>
+            <div style={O.elapsed}>{t('loading.elapsed', { seconds: elapsedSeconds })}</div>
           ) : null}
         </div>
       </div>

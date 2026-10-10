@@ -7,6 +7,7 @@
  *   2. Optional dshmarket Update API v1 — only if already present
  *   3. Manual guide (Extension Dock / CLI)
  */
+import { getT } from './locales/i18n.js'
 
 export var PACKAGE_NAME = '@rebornace/dsh-tracescope'
 
@@ -26,7 +27,7 @@ function parseJson(text) {
   try {
     return JSON.parse(text)
   } catch (_e) {
-    throw new Error(text.slice(0, 200) || '服务器返回空响应')
+    throw new Error(text.slice(0, 200) || getT()('errors.emptyResponse'))
   }
 }
 
@@ -51,8 +52,12 @@ function hostFetch(path, options) {
 export function checkSelfUpdate() {
   return hostFetch('/tracescope/v1/self-update/check').then(function (res) {
     if (!res.ok) {
-      throw new Error((res.data && res.data.error) || '检查更新失败（HTTP ' + res.status + '）')
+      var t = getT()
+      throw new Error(
+        (res.data && res.data.error) || t('update.selfUpdate.checkHttpFailed', { status: res.status }),
+      )
     }
+    var tCheck = getT()
     return {
       packageName: res.data.packageName || PACKAGE_NAME,
       installedVersion: res.data.installedVersion || null,
@@ -62,21 +67,22 @@ export function checkSelfUpdate() {
       applyHint: res.data.applyHint || {
         pluginManagerSpec: PACKAGE_NAME,
         cli: 'dsh plugin update ' + PACKAGE_NAME,
-        desktop: '请在桌面端扩展坞或插件页更新本包后重启。',
+        desktop: tCheck('update.selfUpdate.defaultDesktopHint'),
       },
     }
   })
 }
 
 function unwrapRemote(result) {
-  if (result == null) return { ok: false, error: 'empty remote result' }
+  var t = getT()
+  if (result == null) return { ok: false, error: t('update.selfUpdate.emptyRemote') }
   if (typeof result === 'object' && 'ok' in result) {
     if (result.ok === true) return { ok: true, value: result.value !== undefined ? result.value : result }
     return {
       ok: false,
       error:
         (result.error && (result.error.message || result.error.code || String(result.error))) ||
-        'remote call failed',
+        t('update.selfUpdate.remoteCallFailed'),
     }
   }
   return { ok: true, value: result }
@@ -112,10 +118,12 @@ export function resolvePluginManager(ctx) {
 }
 
 function manualGuide(info) {
+  var t = getT()
   var hint = (info && info.applyHint) || {}
   return (
-    (hint.desktop || '请在桌面端扩展坞（Extension Dock）或「插件」页更新本包，然后重启 Harness。') +
-    '\n命令行：' +
+    (hint.desktop || t('update.selfUpdate.manualGuideDesktop')) +
+    '\n' +
+    t('update.selfUpdate.manualGuideCliPrefix') +
     (hint.cli || 'dsh plugin update ' + PACKAGE_NAME)
   )
 }
@@ -174,7 +182,7 @@ function waitMarketOperation(discovery, operationId, onProgress) {
           ) {
             return op
           }
-          if (attempt >= 180) throw new Error('更新超时')
+          if (attempt >= 180) throw new Error(getT()('update.selfUpdate.timeout'))
           return sleep(900).then(tick)
         })
       })
@@ -194,7 +202,8 @@ function applyViaMarket(force, onProgress) {
       return r.json().then(function (data) {
         if (r.status !== 202 || !data || !data.operation) {
           var fail = (data && data.failure) || {}
-          var err = new Error(fail.message || (data && data.error) || '市场更新启动失败')
+          var t = getT()
+          var err = new Error(fail.message || (data && data.error) || t('update.selfUpdate.marketStartFailed'))
           err.code = fail.code
           err.retryable = fail.retryable === true
           throw err
@@ -207,6 +216,11 @@ function applyViaMarket(force, onProgress) {
       })
     })
   })
+}
+
+function formatInstalledVersionSuffix(target) {
+  if (!target) return ''
+  return getT()('update.selfUpdate.pluginManagerSuccessVersionSuffix', { version: target })
 }
 
 /**
@@ -229,45 +243,48 @@ export function applySelfUpdate(info, ctx, opts) {
 
   var pm = resolvePluginManager(ctx)
   if (pm) {
-    progress('正在通过官方插件管理器安装 ' + spec + '…')
+    progress(getT()('update.selfUpdate.installingViaPluginManager', { spec: spec }))
     return Promise.resolve()
       .then(function () {
         return pm.installBundle(spec, { activate: true })
       })
       .then(function (raw) {
+        var t = getT()
         var unwrapped = unwrapRemote(raw)
         if (!unwrapped.ok) {
-          throw new Error(unwrapped.error || 'pluginManager.installBundle 失败')
+          throw new Error(unwrapped.error || t('update.selfUpdate.pluginManagerInstallFailed'))
         }
         var value = unwrapped.value || {}
         if (value.application === 'cancelled') {
-          throw new Error('更新已取消')
+          throw new Error(t('update.selfUpdate.cancelled'))
         }
         if (value.ok === false) {
-          throw new Error(value.error || '安装未成功')
+          throw new Error(value.error || t('update.selfUpdate.installNotSuccessful'))
         }
         return {
           ok: true,
           channel: 'pluginManager',
           installedVersion: target,
-          message:
-            '已通过官方插件管理器安装' +
-            (target ? ' ' + target : '') +
-            '。请重启 Harness（桌面端请在桌面端重启）后生效。',
+          message: t('update.selfUpdate.pluginManagerSuccess', {
+            version: formatInstalledVersionSuffix(target),
+          }),
           restartRequired: true,
           canRestartViaMarket: false,
         }
       })
       .catch(function (err) {
+        var t = getT()
         // Fall through to optional market / manual guide.
-        progress('官方插件管理器未能完成（' + (err.message || String(err)) + '），尝试其他方式…')
+        progress(
+          t('update.selfUpdate.pluginManagerFallback', { message: err.message || String(err) }),
+        )
         return applyViaMarket(force, function (op) {
           if (!op) return
-          if (op.state === 'queued') progress('市场：已排队…')
+          if (op.state === 'queued') progress(t('update.selfUpdate.marketQueued'))
           else if (op.state === 'running') {
             var p = op.progress || {}
-            if (p.percent != null) progress('市场：更新中 ' + p.percent + '%')
-            else progress('市场：更新中…')
+            if (p.percent != null) progress(t('update.selfUpdate.marketUpdatingPercent', { percent: p.percent }))
+            else progress(t('update.selfUpdate.marketUpdating'))
           }
         }).then(function (marketResult) {
           if (!marketResult) {
@@ -284,10 +301,9 @@ export function applySelfUpdate(info, ctx, opts) {
               ok: true,
               channel: 'market',
               installedVersion: op.installedVersion || target,
-              message:
-                '已通过插件市场更新到 ' +
-                (op.installedVersion || target || '?') +
-                '。请重启后生效。',
+              message: t('update.selfUpdate.marketSuccess', {
+                version: op.installedVersion || target || '?',
+              }),
               restartRequired: !!(op.outcome && op.outcome.restartRequired),
               canRestartViaMarket: !!(
                 marketResult.discovery && marketResult.discovery.canRestart
@@ -300,7 +316,7 @@ export function applySelfUpdate(info, ctx, opts) {
           return {
             ok: false,
             channel: 'market',
-            message: failure.message || '更新失败',
+            message: failure.message || t('update.selfUpdate.updateFailed'),
             failure: failure,
             guide: manualGuide(info),
             canForce: failure.code === 'RELEASE_TOO_FRESH' || failure.code === 'VERSION_UNCHANGED',
@@ -311,8 +327,9 @@ export function applySelfUpdate(info, ctx, opts) {
 
   return applyViaMarket(force, function (op) {
     if (!op) return
-    if (op.state === 'running') progress('市场：更新中…')
+    if (op.state === 'running') progress(getT()('update.selfUpdate.marketUpdating'))
   }).then(function (marketResult) {
+    var t = getT()
     if (!marketResult) {
       return {
         ok: false,
@@ -327,8 +344,9 @@ export function applySelfUpdate(info, ctx, opts) {
         ok: true,
         channel: 'market',
         installedVersion: op.installedVersion || target,
-        message:
-          '已通过插件市场更新到 ' + (op.installedVersion || target || '?') + '。请重启后生效。',
+        message: t('update.selfUpdate.marketSuccess', {
+          version: op.installedVersion || target || '?',
+        }),
         restartRequired: !!(op.outcome && op.outcome.restartRequired),
         canRestartViaMarket: !!(marketResult.discovery && marketResult.discovery.canRestart),
         discovery: marketResult.discovery,
@@ -338,7 +356,7 @@ export function applySelfUpdate(info, ctx, opts) {
     return {
       ok: false,
       channel: 'market',
-      message: failure.message || '更新失败',
+      message: failure.message || t('update.selfUpdate.updateFailed'),
       failure: failure,
       guide: manualGuide(info),
       canForce: failure.code === 'RELEASE_TOO_FRESH' || failure.code === 'VERSION_UNCHANGED',

@@ -4,6 +4,8 @@
  * DSH webServer. Keeping this in one place lets route modules stay declarative.
  */
 import type { Context } from '../dsh-shims.js'
+import { langFromBody, langFromRequest, type Lang } from '../i18n/lang.js'
+import { localizeError, msg } from '../i18n/messages.js'
 
 export function sendJson(res: { writeHead: Function; end: Function }, status: number, payload: unknown) {
   const body = JSON.stringify(payload)
@@ -124,12 +126,17 @@ export function parseFetchFlag(value: unknown, fallback: boolean): boolean {
   return fallback
 }
 
+export interface RouteContext {
+  lang: Lang
+  req: { headers: Record<string, string | string[] | undefined> }
+}
+
 export interface RouteOptions {
   path: string
   method?: string
   /** Override JSON body size limit (bytes). */
   maxBodyBytes?: number
-  run: (body: Record<string, unknown>) => Promise<unknown>
+  run: (body: Record<string, unknown>, ctx: RouteContext) => Promise<unknown>
 }
 
 /** Register one same-origin JSON route with the DSH web server. */
@@ -142,11 +149,12 @@ export function registerRoute(ctx: Context, options: RouteOptions) {
         path: options.path,
         handler: async (req, res) => {
           const reqMethod = String(req.method ?? 'GET').toUpperCase()
+          const acceptLang = langFromRequest(req)
           // Browser / embedded webviews may probe with OPTIONS before POST.
           if (reqMethod === 'OPTIONS') {
             res.writeHead(204, {
               'access-control-allow-methods': 'GET,POST,OPTIONS',
-              'access-control-allow-headers': 'content-type',
+              'access-control-allow-headers': 'content-type, accept-language',
               'access-control-max-age': '86400',
               'content-length': 0,
             })
@@ -154,29 +162,40 @@ export function registerRoute(ctx: Context, options: RouteOptions) {
             return
           }
           if (reqMethod !== method) {
-            return sendJson(res, 405, { error: `method not allowed（需要 ${method}，收到 ${reqMethod}）` })
+            const payload = {
+              error: msg('ERR_METHOD_NOT_ALLOWED', acceptLang, { method, reqMethod }),
+              code: 'ERR_METHOD_NOT_ALLOWED',
+            }
+            return sendJson(res, 405, payload)
           }
-          if (!isTrustedRequest(req)) return sendJson(res, 403, { error: 'untrusted request' })
+          if (!isTrustedRequest(req)) {
+            return sendJson(res, 403, {
+              error: msg('ERR_UNTRUSTED', acceptLang),
+              code: 'ERR_UNTRUSTED',
+            })
+          }
           let body: Record<string, unknown> = {}
+          let lang = acceptLang
           if (method !== 'GET') {
             try {
               body = (await readJsonBody(req, options.maxBodyBytes)) as Record<string, unknown>
+              lang = langFromBody(body, acceptLang)
             } catch (error: unknown) {
-              const message = error instanceof Error ? error.message : 'invalid body'
-              return sendJson(res, 400, {
-                error: message === 'body too large' ? '请求体过大，请缩小清单后重试' : 'invalid body',
-              })
+              const localized = localizeError(error, acceptLang)
+              return sendJson(res, 400, localized)
             }
           } else {
             const host = String(req.headers.host ?? '127.0.0.1')
             const url = new URL(req.url ?? '/', `http://${host}`)
             body = Object.fromEntries(url.searchParams.entries())
+            lang = langFromBody(body, acceptLang)
           }
+          const routeCtx: RouteContext = { lang, req }
           try {
-            sendJson(res, 200, await options.run(body))
+            sendJson(res, 200, await options.run(body, routeCtx))
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error)
-            sendJson(res, 400, { error: message })
+            const localized = localizeError(error, lang)
+            sendJson(res, 400, localized)
           }
         },
       }),

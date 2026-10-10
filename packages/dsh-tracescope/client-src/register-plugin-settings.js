@@ -9,6 +9,7 @@
  */
 import { jsx } from 'react/jsx-runtime'
 import { PluginSettingsCard, PluginUpdateAction } from './PluginSettingsCard.tsx'
+import { createTranslator, getT, setModuleTranslator } from './locales/i18n.js'
 import { PACKAGE_NAME, setSelfUpdateHostCtx } from './self-update.js'
 
 export var SETTINGS_NS = 'tracescope'
@@ -29,6 +30,10 @@ function isOurBundle(subject) {
 export function registerPluginSettings(ctx) {
   if (!ctx || !ctx.slots || typeof ctx.slots.inject !== 'function') return
   setSelfUpdateHostCtx(ctx)
+  // apply() owns wireTracescopeI18n; here only refresh the live translator handle.
+  try {
+    setModuleTranslator(createTranslator(ctx))
+  } catch (_e) {}
 
   ctx.slots.inject('plugins.detail.actions', function () {
     return ctx.slots.register(
@@ -42,6 +47,7 @@ export function registerPluginSettings(ctx) {
         if (!isOurBundle(subject)) return null
         return jsx(PluginUpdateAction, {
           installedVersion: (subject.pkg && subject.pkg.version) || null,
+          t: getT(),
         })
       },
     )
@@ -61,9 +67,13 @@ export function registerPluginSettings(ctx) {
           (ownerProps && ownerProps.installedVersion) ||
           null
         if (view === 'summary') {
-          return jsx(PluginSettingsCard, { summaryOnly: true, installedVersion: version })
+          return jsx(PluginSettingsCard, {
+            summaryOnly: true,
+            installedVersion: version,
+            t: getT(),
+          })
         }
-        return jsx(PluginSettingsCard, { installedVersion: version })
+        return jsx(PluginSettingsCard, { installedVersion: version, t: getT() })
       },
     )
   })
@@ -79,7 +89,7 @@ export function registerPluginSettings(ctx) {
             locale: SETTINGS_NS,
           },
           function SettingsPluginItem() {
-            return jsx(PluginSettingsCard, {})
+            return jsx(PluginSettingsCard, { t: getT() })
           },
         )
       })

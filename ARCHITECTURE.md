@@ -57,6 +57,7 @@ Legacy route `/tracescope/v1/hifi-compare` and `Hifi*` type aliases remain as co
 - Harness can also consume `@rebornace/tracescope-mcp` via `@deepseek-ai/dsh-mcp-client` if desired.
 - Shared agent execute layer: `@rebornace/dsh-tracescope/agent-api` (MCP + Host tools + `/jobs`).
 - Impact-analysis indexing skips dependency/build dirs (`SKIP_DIR_NAMES`) and caches per commit in-process.
+- **i18n**: client soft-binds Host `ctx.locale` when present (registers `tracescope` zh/en dictionaries; no hard `dsh.client.inject` on `@deepseek-ai/dsh-client-locale`, so older Desktops still activate). Falls back to `navigator.language`. Host routes localize `{ error, code? }` from `Accept-Language` / body `locale` via `src/i18n/*`.
 
 ### Self-update (no dshmarket hard dependency)
 

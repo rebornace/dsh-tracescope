@@ -1,14 +1,11 @@
 import type { PageFindings } from './panel-types.js'
+import { useLocaleT } from '../locales/use-locale-t.js'
+import { diffSeverityLabel } from './diff-i18n.js'
 
 const SEVERITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
   high: '#d92d20',
   medium: '#dc8a05',
   low: '#2f62b9',
-}
-const SEVERITY_LABEL: Record<'high' | 'medium' | 'low', string> = {
-  high: '高',
-  medium: '中',
-  low: '低',
 }
 
 /**
@@ -17,6 +14,7 @@ const SEVERITY_LABEL: Record<'high' | 'medium' | 'low', string> = {
  * expectation, the actual code result and the actionable fix.
  */
 export function FindingsSection({ data }: { data: PageFindings }) {
+  const t = useLocaleT()
   const time = new Date(data.savedAt)
   const at = Number.isNaN(time.getTime())
     ? ''
@@ -41,10 +39,10 @@ export function FindingsSection({ data }: { data: PageFindings }) {
         }}
       >
         <strong style={{ fontSize: 12, color: '#0d4a3a' }}>
-          AI 走查结论（{data.findings.length}）
+          {t('findings.title', { count: data.findings.length })}
         </strong>
         {at ? (
-          <span style={{ fontSize: 10, color: '#6b8a7d' }}>更新于 {at}</span>
+          <span style={{ fontSize: 10, color: '#6b8a7d' }}>{t('findings.updatedAt', { time: at })}</span>
         ) : null}
       </div>
 
@@ -76,19 +74,27 @@ export function FindingsSection({ data }: { data: PageFindings }) {
           >
             <div>
               <span style={{ color: SEVERITY_COLOR[f.severity], fontWeight: 700 }}>
-                [{SEVERITY_LABEL[f.severity]}]
+                [{diffSeverityLabel(t, f.severity)}]
               </span>{' '}
               <strong>{f.title}</strong>
               {f.location ? (
                 <span style={{ color: '#7a8a82', fontWeight: 400 }}> · {f.location}</span>
               ) : null}
             </div>
-            {f.expected ? <div style={{ color: '#335047' }}>设计稿：{f.expected}</div> : null}
-            {f.actual ? <div style={{ color: '#8a4b33' }}>实际代码：{f.actual}</div> : null}
-            {f.codeSource ? (
-              <div style={{ color: '#8a7f60', wordBreak: 'break-all' }}>代码来源：{f.codeSource}</div>
+            {f.expected ? (
+              <div style={{ color: '#335047' }}>{t('findings.designExpected', { value: f.expected })}</div>
             ) : null}
-            {f.suggestion ? <div style={{ color: '#0f6e56' }}>修改建议：{f.suggestion}</div> : null}
+            {f.actual ? (
+              <div style={{ color: '#8a4b33' }}>{t('findings.actualCode', { value: f.actual })}</div>
+            ) : null}
+            {f.codeSource ? (
+              <div style={{ color: '#8a7f60', wordBreak: 'break-all' }}>
+                {t('findings.codeSource', { value: f.codeSource })}
+              </div>
+            ) : null}
+            {f.suggestion ? (
+              <div style={{ color: '#0f6e56' }}>{t('findings.suggestion', { value: f.suggestion })}</div>
+            ) : null}
           </div>
         ))}
       </div>

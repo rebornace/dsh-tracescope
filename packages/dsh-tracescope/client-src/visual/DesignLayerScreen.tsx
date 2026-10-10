@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { getT } from '../locales/i18n.js'
 
 export interface GradientStop {
   color: string
@@ -602,6 +603,7 @@ export function DesignLayerScreen({
   activeNodeId,
   onSelectNode,
 }: DesignLayerScreenProps) {
+  const t = getT()
   const diffIndex = diffsByNode(diffs, side)
 
   /** Paint one node's own box/content. Children are flat siblings, not nested. */
@@ -741,7 +743,7 @@ export function DesignLayerScreen({
               fontSize: 11,
             }}
           >
-            运行时动态区域
+            {t('visual.layer.dynamicRegion')}
           </div>
         ) : null}
 
@@ -758,7 +760,7 @@ export function DesignLayerScreen({
               borderRadius: '0 0 6px 0',
             }}
           >
-            {node.aiInferred ? 'AI 还原' : '设计稿还原'}
+            {node.aiInferred ? t('visual.layer.aiRestore') : t('visual.layer.designRestore')}
           </div>
         ) : null}
 
@@ -777,7 +779,11 @@ export function DesignLayerScreen({
             }}
             title={node.aiNote}
           >
-            AI 推断{node.aiNote ? `：${node.aiNote}` : ''}
+            {t('visual.layer.aiInferred', {
+              suffix: node.aiNote
+                ? t('visual.layer.aiInferredSuffix', { note: node.aiNote })
+                : '',
+            })}
           </div>
         ) : null}
       </div>

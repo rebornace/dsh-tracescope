@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stat } from 'node:fs/promises'
+import { I18nError } from '../i18n/messages.js'
 
 const pkgJson = JSON.parse(
   // Bundled entry lives in dist/; package.json is one level up.
@@ -30,7 +31,7 @@ export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/health',
     method: 'GET',
-    run: async () => ({
+    run: async (_body, _ctx) => ({
       ok: true,
       name: 'tracescope',
       packageName: pkgJson.name || '@rebornace/dsh-tracescope',
@@ -45,7 +46,7 @@ export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/path-check',
     method: 'GET',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const target = String(body.path ?? '').trim()
       if (!target) return { exists: false, isDirectory: false, remote: false }
       if (isGitRemoteUrl(target)) {
@@ -63,9 +64,9 @@ export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/resolve',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
-      if (!repoPath) throw new Error('缺少 repoPath（本地路径或远端地址）')
+      if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
       const fetchRemote = parseFetchFlag(body.fetch, true)
       const auth = parseGitAuth(body.auth)
       const resolved = await resolveGitRepo(repoPath, { fetch: fetchRemote, auth })
@@ -76,10 +77,10 @@ export function registerRepoRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/commits',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, { lang }) => {
       const repoPath = String(body.repoPath ?? body.repo ?? '')
       const limit = Number(body.limit ?? 40)
-      if (!repoPath) throw new Error('缺少 repoPath（本地路径或远端地址）')
+      if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
       const fetchRemote = parseFetchFlag(body.fetch, true)
       const auth = await resolveRequestGitAuth(parseGitAuth(body.auth), repoPath)
       const refName = typeof body.refName === 'string' ? body.refName.trim() : ''

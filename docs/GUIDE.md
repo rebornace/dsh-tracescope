@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.2.5`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.2.6`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -32,6 +32,10 @@
 两条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。
 
 推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。同一套执行层也可通过 `@rebornace/tracescope-mcp` 在任意 MCP 客户端调用。
+
+### 界面语言
+
+侧栏、插件详情 / 更新、AI 提示词与 Host API 错误支持**中文 / English**。语言跟随桌面端（Host）界面语言，与设置中的语言偏好一致；**插件内不提供独立中英切换**。未知语言时回退中文。
 
 ---
 

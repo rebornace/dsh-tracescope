@@ -5,6 +5,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { listCommits, parseAuthFromToolArgs } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerListCommitsTool(ctx: Context) {
   ctx.tools?.register(
@@ -45,9 +47,14 @@ export function registerListCommitsTool(ctx: Context) {
             .slice(0, 20)
             .map((c) => `- ${c.short ?? c.shortSha ?? ''} ${c.subject ?? ''}`.trim())
           return toolText(
-            [`提交 ${v.commits?.length ?? 0} · 引用 ${v.refs?.length ?? 0}`, '', ...lines].join(
-              '\n',
-            ),
+            [
+              ui('TOOL_COMMITS', resolveHostLang(ctx), {
+                commits: v.commits?.length ?? 0,
+                refs: v.refs?.length ?? 0,
+              }),
+              '',
+              ...lines,
+            ].join('\n'),
           )
         },
       },

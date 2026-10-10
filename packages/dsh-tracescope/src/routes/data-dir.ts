@@ -20,7 +20,7 @@ export function registerDataDirRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/data-dir',
     method: 'GET',
-    run: async () => {
+    run: async (_body, _ctx) => {
       const dataRoot = await resolveDataRoot()
       const envRoot = envDataRoot()
       const [sizeBytes] = await Promise.all([directorySize(dataRoot)])
@@ -38,7 +38,7 @@ export function registerDataDirRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/data-dir-change',
     method: 'POST',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const target = typeof body.dataRoot === 'string' ? body.dataRoot : ''
       const result = await changeDataRoot(target)
       const sizeBytes = await directorySize(result.dataRoot)
@@ -50,7 +50,7 @@ export function registerDataDirRoutes(ctx: Context) {
   registerRoute(ctx, {
     path: '/tracescope/v1/browse',
     method: 'GET',
-    run: async (body) => {
+    run: async (body, _ctx) => {
       const target = typeof body.path === 'string' ? body.path.trim() : ''
       const result = target ? await listDirectories(target) : await browseRoot()
       return { ...result, quick: quickPlaces() }

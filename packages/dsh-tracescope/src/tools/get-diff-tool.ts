@@ -5,6 +5,8 @@ import type { Context } from '../dsh-shims.js'
 import { defineTool } from '../dsh-shims.js'
 import { getDiffTool } from '../agent-api.js'
 import { toolText } from './tool-helpers.js'
+import { resolveHostLang } from '../i18n/lang.js'
+import { ui } from '../i18n/ui.js'
 
 export function registerGetDiffTool(ctx: Context) {
   ctx.tools?.register(
@@ -55,11 +57,18 @@ export function registerGetDiffTool(ctx: Context) {
             files?: string[]
             diff?: string
           }
+          const lang = resolveHostLang(ctx)
+          const next =
+            v.nextOffset !== undefined && v.nextOffset >= 0
+              ? v.nextOffset
+              : ui('TOOL_DIFF_NONE', lang)
           return toolText(
             [
-              `变更文件 ${v.totalFiles ?? 0} · 本批 offset=${v.offset ?? 0} · next=${
-                v.nextOffset !== undefined && v.nextOffset >= 0 ? v.nextOffset : '无'
-              }`,
+              ui('TOOL_DIFF_HEADER', lang, {
+                total: v.totalFiles ?? 0,
+                offset: v.offset ?? 0,
+                next,
+              }),
               (v.files ?? []).map((f) => `- ${f}`).join('\n'),
               '',
               (v.diff ?? '').slice(0, 12_000),
