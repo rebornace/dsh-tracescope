@@ -7,14 +7,15 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 
 ---
 
-## 1. Two pillars
+## 1. Three pillars
 
 | Capability | Input | Output |
 |------------|-------|--------|
 | **Impact analysis** | Stable ↔ under-test (local git or Codeup API) | Direct + static ripple checklist; mark, attach, export, file defects |
 | **Design diff** | Figma / Lanhu + code pages | Static diffs + design raster highlights; optional AI write-back |
+| **Crash analysis** | Umeng U-APM Console (cookie) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; composer draft or tracker filing |
 
-Both share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). UI-review “Submit defect” uses a dedicated UI-diff issue body (not the impact-analysis verification template).
+All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
 Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. Same execute layer via `@rebornace/tracescope-mcp`.
 
@@ -58,7 +59,50 @@ Sidebar: design URL + credential, scan, per-card compare / pick file / AI assist
 
 ---
 
-## 4. Adapter deep enrichment
+## 4. Crash analysis
+
+Sidebar mode switch: **Impact analysis** / **Design diff** / **Crash analysis**. Crash mode reuses the **code directory** (a normal folder is enough for filename-based stack matching; git is not required) and **tracker** blocks above.
+
+### What it does
+
+Pull crash/ANR list and detail from **Umeng U-APM Console** via browser cookie, or **paste a stack trace** when cookie auth fails; match frames to files under the code directory; emit summary, hits, fix hints, a bilingual **`prompt`**, and a prebuilt **`defectBody`**.
+
+### Umeng cookie (Console)
+
+1. Sign in to [Umeng U-APM Console](https://console.umeng.com/), open the app crash list.  
+2. DevTools → **Network** → any `*.umeng.com` request → copy the full **Cookie** header.  
+3. Enter **AppKey** + **Cookie**, optionally **Remember credentials**, **Save**, then **Probe** (`crash-probe`) to verify. **Clear cookie** removes local storage only.  
+
+Sidebar compliance note (`crash.cookieHint`): reads only data your logged-in session can see; cookie stays on device and requests go to Umeng hosts only. Do not share cookies.
+
+Credentials/AppKey follow **repo override → global** (separate keys from Figma/Lanhu).
+
+### List and seven filters
+
+After config is ready the list loads automatically (keyword and unsaved cookie edits debounce ~400ms). Filters align with Console capabilities:
+
+**timeRange** (24h / 7d / 30d / all, with client-side `lastSeenAt` trimming where needed), **appVersion**, **errorKind** (crash / ANR / error / other), **osDevice** (matches `osVersion` / `deviceModel`), **sort** (count / last seen / title, asc/desc), **status**, **keyword**.
+
+Row click loads stack detail (`crash-detail`). On auth failure (e.g. `UMENG_AUTH`) the UI expands **paste stack** so analyze/submit still work.
+
+### Analyze, write session, submit defect
+
+1. **Analyze** — `POST /tracescope/v1/crash-analyze`: parse stack, match filenames under `repoPath`.  
+2. **Write to session** — fills the Harness composer draft with `prompt` via `fillComposerDraft`; **does not send**. Dev reviews and sends to the model.  
+3. **Submit defect** — requires analyze first; `feedbackKind: 'crash'` + prebuilt body (CJK escaped as `\u` in sources). Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook still skip binary uploads.
+
+Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-list`, `crash-detail`, `crash-analyze`.
+
+### Crash-specific limits (summary)
+
+- **Console transport** only — no official OpenAPI (`transport: openapi` not implemented); Console HTML/API changes can break list/detail → update plugin or paste stack.  
+- **Cookie expiry** — re-copy from browser when probe/list fails.  
+- **No symbolication** — no dSYM/ProGuard mapping; repo hits are **filename** search with heuristics.  
+- **Trackers** — GitLab/Webhook do not upload binaries (see [§10](#10-known-limitations)).  
+
+---
+
+## 5. Adapter deep enrichment
 
 The main compare path is **adapter-agnostic** (`toDesignDoc` → L1, else L2). Extra stack logic registers as plugins under `packages/dsh-tracescope/src/design-enrichment/`.
 
@@ -79,7 +123,7 @@ This product is **static design diff**, not runtime UI preview. Legacy `hifi-*` 
 
 ---
 
-## 5. Credentials vs repo switch
+## 6. Credentials vs repo switch
 
 - Design **URL** may be remembered per code repo (falls back to global)  
 - Figma token / Lanhu cookie resolve **per field**: repo override → global (switching repos does not wipe a shared login with an empty override)  
@@ -87,14 +131,14 @@ This product is **static design diff**, not runtime UI preview. Legacy `hifi-*` 
 
 ---
 
-## 6. Collaboration & local data
+## 7. Collaboration & local data
 
 Trackers: Yunxiao / GitHub / GitLab / Webhook; optional Yunxiao agile work items.  
 Local root: `~/.tracescope/` (auth, trackers, reports, attachments, caches).
 
 ---
 
-## 7. Updating this plugin
+## 8. Updating this plugin
 
 Self-update does **not** require dshmarket. Official Desktop without the community market can still check and install.
 
@@ -132,14 +176,14 @@ The Host does not auto-draw Update for third-party bundles; TraceScope registers
 
 ---
 
-## 8. MCP tools
+## 9. MCP tools
 
 Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:  
 `open_panel`, `list_commits`, `get_diff`, `analyze_impact`, hand-test create/publish, visual review + snapshot + findings, page rematch create/publish.
 
 ---
 
-## 9. Known limitations
+## 10. Known limitations
 
 **Impact**
 
@@ -157,17 +201,23 @@ Same surface as DSH Host tools via `@rebornace/dsh-tracescope/agent-api`:
 - Raster URLs can expire; re-compare after credential refresh  
 - Remote bare caches materialize a worktree for scanning; on Windows TraceScope enables `core.longpaths`. If checkout still fails with “Filename too long” (deep CocoaPods paths), move the TraceScope data directory to a shorter path (e.g. `D:\ts`) or enable OS long-path support, then retry (delete the stale `*-worktree` folder under the cache if needed)  
 
+**Crash analysis**
+
+- Umeng **Console cookie** only; cookie expiry or Console changes break list/detail — paste stack fallback  
+- No **symbolication**; filename-level repo search may mis-match in large monorepos  
+- Some filters may be applied locally if the remote Console call does not support them  
+
 **Install**
 
 - Market card versions can lag npm `latest`  
 - Desktop `minimumReleaseAge` (or similar) may delay fresh publishes; pin a version if needed  
-- Self-update does not need dshmarket; use the detail **Update** control or CLI ([§7](#7-updating-this-plugin))  
+- Self-update does not need dshmarket; use the detail **Update** control or CLI ([§8](#8-updating-this-plugin))  
 
 ---
 
-## 10. Out of 0.2.x scope
+## 11. Roadmap (not in current npm)
 
-Umeng adapter, Android USB, browser recording; scaffold packages `adapters/*` and `browser-extension`.
+Android USB, browser recording; `browser-extension` scaffolds. Umeng OpenAPI / more `CrashProvider`s; symbolication and sharper repo matching.
 
 ---
 

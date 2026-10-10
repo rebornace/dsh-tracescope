@@ -5,6 +5,11 @@
 
 User-facing milestones only. Install the npm `latest` tag. The plugin market version can lag that tag.
 
+## 未发布 / Unreleased
+
+- **崩溃分析（第三条主能力）**：侧栏三档切换；友盟 U-APM Console Cookie 拉列表/详情（七项过滤）、自检与凭证本机保存；堆栈解析与代码目录文件命中；**写入会话**（填入 DSH 输入框不自动发送）与**提交缺陷**（`feedbackKind: crash` 专用正文）；Cookie 失效时可粘贴堆栈降级。Host：`/tracescope/v1/crash-*`。
+- **Crash analysis (third pillar)**：Sidebar mode; Umeng Console cookie list/detail + seven filters; stack parse + repo match; composer draft + dedicated crash defect body; paste-stack fallback when cookie auth fails.
+
 ## 0.2.7 — 2026-10-10
 
 - **GitHub Issues 加深**：缺陷提交支持附件上传（优先 `uploads.github.com`，失败回退 Contents API）；设计差异走查缺陷正文使用 visual-diff 模板（含截图/差异摘要），中英双语可随 Host。
