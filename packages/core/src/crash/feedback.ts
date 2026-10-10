@@ -3,6 +3,7 @@
  * Chinese copy uses \\u escapes for ASCII-safe sources on Windows.
  */
 import { normalizeFeedbackLang, type FeedbackLang } from '../tracker/feedback.js'
+import { resolveExceptionName } from './resolve-exception.js'
 import type { CrashIncident, CrashMatchedFile } from './types.js'
 
 const COPY = {
@@ -75,14 +76,6 @@ export interface CrashReportParts {
   incident: CrashIncident
 }
 
-function resolveExceptionName(incident: CrashIncident, stackText: string): string {
-  if (incident.exceptionName?.trim()) return incident.exceptionName.trim()
-  const firstLine = stackText.split(/\r?\n/, 1)[0]?.trim() ?? ''
-  const colon = firstLine.indexOf(': ')
-  if (colon > 0) return firstLine.slice(0, colon).trim()
-  return firstLine || incident.title
-}
-
 function formatMatchedFiles(files: CrashMatchedFile[], lang: FeedbackLang): string {
   const t = COPY[lang]
   if (!files.length) return t.noMatch
@@ -114,7 +107,7 @@ function promptHeader(incident: CrashIncident, exceptionName: string, lang: Feed
 export function buildCrashPrompt(parts: CrashReportParts, lang?: FeedbackLang | string): string {
   const l = normalizeFeedbackLang(lang)
   const t = COPY[l]
-  const exceptionName = resolveExceptionName(parts.incident, parts.stackText)
+  const exceptionName = resolveExceptionName(parts.incident, { stackText: parts.stackText })
   const lines = [
     promptHeader(parts.incident, exceptionName, l),
     `${t.repo}\uff1a${parts.repoPath}`,
@@ -157,7 +150,7 @@ export function buildCrashDefectBody(input: {
 
   const lines = [t.defectTitle, '']
   appendMetaLine(lines, t.incident, incident.title)
-  appendMetaLine(lines, t.exception, incident.exceptionName ?? resolveExceptionName(incident, stackRaw))
+  appendMetaLine(lines, t.exception, resolveExceptionName(incident, { stackText: stackRaw }))
   appendMetaLine(lines, t.appVersion, incident.appVersion)
   appendMetaLine(lines, t.buildNumber, incident.buildNumber)
   appendMetaLine(lines, t.platform, incident.platform)
