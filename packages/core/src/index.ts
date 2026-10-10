@@ -190,17 +190,30 @@ export {
 } from './tracker/index.js'
 // Modular crash analysis subsystem (provider per data source + registry).
 export {
+  analyzeCrash,
+  buildCrashDefectBody,
+  buildCrashDefectSubject,
+  buildCrashPrompt,
   crashProviders,
   getCrashProvider,
-  registerCrashProvider,
   localCrashProvider,
   LOCAL_CRASH_INCIDENT_ID,
+  matchStackToRepo,
+  parseStackText,
+  registerCrashProvider,
+  type AnalyzeCrashOptions,
+  type CrashAnalysisReport,
+  type CrashMatchedFile,
   type CrashProvider,
   type CrashProviderCapabilities,
   type CrashIncident,
   type CrashIncidentSummary,
   type CrashProviderConfig,
   type CrashProviderId,
+  type CrashReportParts,
+  type ParsedStack,
+  type RepoStackHit,
+  type StackFrame,
 } from './crash/index.js'
 export {
   analyzeReportWithModel,
