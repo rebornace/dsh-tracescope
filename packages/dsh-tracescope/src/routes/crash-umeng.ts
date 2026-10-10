@@ -15,6 +15,8 @@ export function umengProviderI18nCode(errorCode: UmengCrashErrorCode): string {
   switch (errorCode) {
     case 'UMENG_AUTH':
       return 'ERR_CRASH_UMENG_AUTH'
+    case 'UMENG_FORBIDDEN':
+      return 'ERR_CRASH_UMENG_FORBIDDEN'
     case 'UMENG_OPENAPI_UNSUPPORTED':
       return 'ERR_CRASH_UMENG_OPENAPI'
     case 'UMENG_HOST_DENIED':
@@ -23,8 +25,10 @@ export function umengProviderI18nCode(errorCode: UmengCrashErrorCode): string {
       return 'ERR_CRASH_UMENG_HTTP'
     case 'UMENG_BAD_RESPONSE':
       return 'ERR_CRASH_UMENG_BAD_RESPONSE'
-    default:
-      return 'ERR_CRASH_UMENG_HTTP'
+    default: {
+      const _exhaustive: never = errorCode
+      throw new Error(`Unhandled Umeng error code: ${String(_exhaustive)}`)
+    }
   }
 }
 

@@ -796,8 +796,34 @@ var init_zh = __esm({
       "common.confirm": "确认",
       "common.copy": "复制",
       "common.loading": "加载中…",
-      "crash.analyze": "分析",
+      "crash.analyze": "本地分析",
+      "crash.analyzeLocalHint": "已完成本地堆栈匹配（未调用 AI）。需要模型结论请点「分析并写入会话」，再把 AI 回复粘贴回写。",
+      "crash.analyzeVsAiHint": "「本地分析」只做堆栈解析与仓库文件匹配；「分析并写入会话」会创建任务并把提示词交给 AI。Agent 应调用 tracescope_publish_crash_analysis，侧栏自动回写结论。",
+      "crash.aiApply": "回写 AI 结论",
+      "crash.aiApplied": "已将 AI 结论写入本条崩溃报告",
+      "crash.aiJobFail": "创建崩溃分析任务失败，请重试「分析并写入会话」",
+      "crash.aiJobNotReady": "AI 尚未通过工具写回结论。请确认会话中已调用 tracescope_publish_crash_analysis，或粘贴回复后再点回写。",
+      "crash.aiJobPending": "AI 仍在分析中，写回任务尚未完成。完成后会自动回写；也可稍后再点「回写 AI 结论」。",
+      "crash.aiJobTimeout": "等待 AI 写回超时。可粘贴会话回复后点「回写 AI 结论」，或重新「分析并写入会话」。",
+      "crash.aiJobWaiting": "等待 AI 工具写回…",
+      "crash.aiClipboardFail": "无法读取剪贴板，请手动粘贴 AI 回复",
+      "crash.aiEdit": "编辑 AI 结论",
+      "crash.aiFromClipboard": "从剪贴板粘贴并回写",
+      "crash.aiPasteHint": "点「分析并写入会话」后，请在会话中发送提示词；AI 应调用 tracescope_publish_crash_analysis，侧栏会自动回写。若未自动回写：点「回写 AI 结论」拉取，或粘贴回复后再点回写。",
+      "crash.aiPastePlaceholder": "粘贴 AI 回复（根因、影响、修复建议…）",
+      "crash.aiPasteRequired": "请先粘贴 AI 回复内容",
+      "crash.aiPasteTitle": "回写 AI 结论",
+      "crash.aiSummary": "AI 分析结论",
+      "crash.applyFilters": "应用筛选并查询",
+      "crash.appDisplayName": "应用名称",
+      "crash.appDisplayNamePlaceholder": "例如：CPP iOS / 线上 Android",
       "crash.appKey": "应用 AppKey",
+      "crash.appKeyPlaceholder": "友盟控制台 AppKey",
+      "crash.copied": "已复制缺陷正文到剪贴板",
+      "crash.copyFail": "复制失败，请手动选择文本",
+      "crash.copyReport": "复制报告",
+      "crash.exportReport": "导出 Markdown",
+      "crash.exported": "已导出：{name}",
       "crash.clearCookie": "清除 Cookie",
       "crash.col.affectedUsers": "影响用户",
       "crash.col.count": "次数",
@@ -806,8 +832,8 @@ var init_zh = __esm({
       "crash.cookie": "控制台 Cookie",
       "crash.cookieCleared": "已清除已保存的 Cookie",
       "crash.cookieExpired": "Cookie 已失效，请更新凭证或使用下方粘贴堆栈降级",
-      "crash.cookieHint": "仅读取您已在友盟 U-APM 控制台登录后可查看的数据；请遵守友盟服务条款，Cookie 仅存本机且仅发往友盟域名。",
-      "crash.cookiePlaceholder": "从浏览器 DevTools 复制 Cookie",
+      "crash.cookieHint": "请在 apm.umeng.com 崩溃列表页复制 Cookie（需含 EGG_SESS）；仅读取您已登录后可查看的数据，凭证存本机并镜像到全局。",
+      "crash.cookiePlaceholder": "从 apm.umeng.com DevTools 复制 Cookie",
       "crash.credentialsSaved": "凭证已保存",
       "crash.detailMissing": "未获取到崩溃详情",
       "crash.detailStack": "详情堆栈",
@@ -816,23 +842,52 @@ var init_zh = __esm({
       "crash.errorKind.error": "错误",
       "crash.errorKind.other": "其他",
       "crash.filter.appVersion": "应用版本",
-      "crash.filter.appVersionHint": "版本号，多个用逗号分隔",
+      "crash.filter.appVersionHint": "从友盟版本列表勾选",
       "crash.filter.errorKind": "错误类型",
       "crash.filter.keyword": "关键词",
       "crash.filter.keywordHint": "异常名或堆栈片段",
-      "crash.filter.osDevice": "系统 / 机型",
-      "crash.filter.osDeviceHint": "系统版本或机型关键词",
+      "crash.filter.deviceModels": "机型",
+      "crash.filter.deviceModelsPlaceholder": "从友盟设备列表勾选",
+      "crash.filter.endAt": "结束日期",
+      "crash.filter.osDevice": "系统版本 / 机型",
+      "crash.filter.osDeviceClear": "清除",
+      "crash.filter.osDeviceHelp": "选项来自友盟控制台同一套元数据接口；请勾选，勿手输，以保证请求参数有效。",
+      "crash.filter.osDeviceHint": "从友盟选项勾选",
+      "crash.filter.osDevicePlaceholder": "从友盟选项勾选（不选=全部）",
+      "crash.filter.optionsEmpty": "暂无选项（请先保存 Cookie，或点右侧刷新）",
+      "crash.filter.optionsHelp": "版本 / 系统 / 机型与友盟 U-APM 同源。多维度是「并且」关系（版本∩系统∩机型），同维度内多选是「或者」。每维最多 10 项；勾太多跨维组合很容易变成 0 条。",
+      "crash.filter.optionsLoading": "正在加载友盟筛选项…",
+      "crash.filter.optionsMaxHint": "每个维度最多选择 10 项（与友盟控制台一致）",
+      "crash.filter.optionsReload": "刷新选项",
+      "crash.filter.optionsSearch": "搜索选项…",
+      "crash.filter.optionsSelected": "已选 {count}/{max}",
+      "crash.filter.osVersions": "系统版本",
+      "crash.filter.osVersionsPlaceholder": "从友盟系统列表勾选",
+      "crash.filter.startAt": "开始日期",
+      "crash.filter.timeRangeHelp": "可选快捷范围，或直接改开始/结束日期做自定义区间（改日期会自动切到「自定义」）。查询会按该区间向友盟拉取列表。",
       "crash.filter.sort": "排序字段",
       "crash.filter.sortDir": "排序方向",
       "crash.filter.status": "处理状态",
       "crash.filter.timeRange": "时间范围",
       "crash.filters": "过滤",
+      "crash.filtersApplied": "已按当前条件查询列表",
+      "crash.filtersCollapsedHint": "点击展开筛选（默认折叠，少占空间）",
+      "crash.filtersDirty": "筛选条件已修改，点击右侧按钮后才会重新查询",
+      "crash.filtersIdle": "修改条件后需点击「应用筛选并查询」才会请求数据",
       "crash.listEmpty": "暂无列表数据（请先保存凭证并自检，或 Cookie 失效时使用粘贴降级）",
+      "crash.listEmptyFiltered": "当前筛选无匹配（友盟按「版本∩系统∩机型」并且关系过滤）。请先去掉系统/机型只留版本，或每维少选几项后再查；不选维度=全部。",
+      "crash.listEmptyHint": "暂无列表数据。请先保存凭证，再点「应用筛选并查询」或「刷新列表」；也可点「自检」拉取。Cookie 失效时可用下方粘贴堆栈。",
       "crash.listLoading": "正在加载崩溃列表…",
       "crash.listTitle": "崩溃列表",
+      "crash.localSummary": "本地分析摘要",
+      "crash.matchedFiles": "相关文件",
       "crash.mode": "崩溃分析",
-      "crash.needAnalyzeFirst": "请先点击「分析」",
-      "crash.noRepoMatch": "未在仓库中匹配到堆栈引用的源文件",
+      "crash.needAnalyzeFirst": "请先点击「本地分析」",
+      "crash.nextPage": "下一页",
+      "crash.noRepoMatch": "未在仓库中匹配到堆栈引用的源文件（常见于系统库/符号化不全的 iOS 堆栈）；仍可写入会话让 AI 分析，或粘贴完整业务堆栈。",
+      "crash.pageStatus": "第 {page} 页",
+      "crash.pageStatusTotal": "第 {page}/{totalPages} 页 · 共 {total} 条",
+      "crash.prevPage": "上一页",
       "crash.pasteFallback": "粘贴堆栈（Cookie 失效降级）",
       "crash.pasteLabel": "粘贴崩溃堆栈",
       "crash.pasteRequired": "请先粘贴崩溃堆栈",
@@ -857,9 +912,12 @@ var init_zh = __esm({
       "crash.timeRange.24h": "近 24 小时",
       "crash.timeRange.30d": "近 30 天",
       "crash.timeRange.7d": "近 7 天",
-      "crash.timeRange.all": "全部",
+      "crash.timeRange.90d": "近 90 天",
+      "crash.timeRange.all": "近 7 天（默认）",
+      "crash.timeRange.custom": "自定义",
       "crash.umengConfig": "友盟配置",
       "crash.writeSession": "分析并写入会话",
+      "crash.writeSessionHint": "提示词（含任务 ID）已写入会话输入框。请发送给 AI；完成后 Agent 调用 tracescope_publish_crash_analysis，侧栏会自动回写结论。若未自动回写可点「回写 AI 结论」或粘贴回复。",
       "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。",
       "diff.board.aiAnalyze": "AI 协助分析",
       "diff.board.badge.ai": "AI 确权",
@@ -2107,8 +2165,34 @@ var init_en = __esm({
       "common.confirm": "Confirm",
       "common.copy": "Copy",
       "common.loading": "Loading…",
-      "crash.analyze": "Analyze",
+      "crash.analyze": "Local analyze",
+      "crash.analyzeLocalHint": "Local stack matching done (no AI call). For model conclusions, use Analyze & write to session, then paste the reply back.",
+      "crash.analyzeVsAiHint": "Local analyze only parses the stack and matches repo files. Analyze & write to session sends a job prompt to AI; the agent should call tracescope_publish_crash_analysis so the sidebar auto-writes back.",
+      "crash.aiApply": "Apply AI reply",
+      "crash.aiApplied": "AI reply saved into this crash report",
+      "crash.aiJobFail": "Could not create the crash analysis job — retry Analyze & write to session",
+      "crash.aiJobNotReady": "AI has not published via the tool yet. Confirm tracescope_publish_crash_analysis was called, or paste the reply and apply.",
+      "crash.aiJobPending": "AI is still analyzing; write-back is pending. It will apply automatically, or click Apply AI reply again later.",
+      "crash.aiJobTimeout": "Timed out waiting for AI write-back. Paste the session reply and click Apply AI reply, or restart Analyze & write to session.",
+      "crash.aiJobWaiting": "Waiting for AI tool write-back…",
+      "crash.aiClipboardFail": "Could not read clipboard — paste the AI reply manually",
+      "crash.aiEdit": "Edit AI reply",
+      "crash.aiFromClipboard": "Paste clipboard & apply",
+      "crash.aiPasteHint": "After Analyze & write to session, send the prompt in chat. The agent should call tracescope_publish_crash_analysis for auto write-back. If not: click Apply AI reply to pull, or paste the reply first.",
+      "crash.aiPastePlaceholder": "Paste AI reply (root cause, impact, fix…)",
+      "crash.aiPasteRequired": "Paste the AI reply first",
+      "crash.aiPasteTitle": "Write back AI reply",
+      "crash.aiSummary": "AI analysis",
+      "crash.applyFilters": "Apply filters & search",
+      "crash.appDisplayName": "App name",
+      "crash.appDisplayNamePlaceholder": "e.g. CPP iOS / Prod Android",
       "crash.appKey": "AppKey",
+      "crash.appKeyPlaceholder": "Umeng console AppKey",
+      "crash.copied": "Defect body copied to clipboard",
+      "crash.copyFail": "Copy failed — select the text manually",
+      "crash.copyReport": "Copy report",
+      "crash.exportReport": "Export Markdown",
+      "crash.exported": "Exported: {name}",
       "crash.clearCookie": "Clear cookie",
       "crash.col.affectedUsers": "Affected users",
       "crash.col.count": "Count",
@@ -2117,8 +2201,8 @@ var init_en = __esm({
       "crash.cookie": "Console cookie",
       "crash.cookieCleared": "Saved cookie cleared",
       "crash.cookieExpired": "Cookie expired — update credentials or paste a stack below",
-      "crash.cookieHint": "Reads only data visible in your logged-in Umeng U-APM console; comply with Umeng terms. Cookie stays on this machine and is sent only to Umeng hosts.",
-      "crash.cookiePlaceholder": "Paste cookie from browser DevTools",
+      "crash.cookieHint": "Copy Cookie from the crash list on apm.umeng.com (needs EGG_SESS). Credentials stay on this machine and are mirrored globally.",
+      "crash.cookiePlaceholder": "Paste Cookie from apm.umeng.com DevTools",
       "crash.credentialsSaved": "Credentials saved",
       "crash.detailMissing": "Crash detail not available",
       "crash.detailStack": "Detail stack",
@@ -2127,23 +2211,52 @@ var init_en = __esm({
       "crash.errorKind.error": "Error",
       "crash.errorKind.other": "Other",
       "crash.filter.appVersion": "App version",
-      "crash.filter.appVersionHint": "Version; separate multiple with commas",
+      "crash.filter.appVersionHint": "Pick from Umeng version list",
       "crash.filter.errorKind": "Error kind",
       "crash.filter.keyword": "Keyword",
       "crash.filter.keywordHint": "Exception name or stack snippet",
-      "crash.filter.osDevice": "OS / device",
-      "crash.filter.osDeviceHint": "OS version or device keyword",
+      "crash.filter.deviceModels": "Device model",
+      "crash.filter.deviceModelsPlaceholder": "Pick from Umeng device list",
+      "crash.filter.endAt": "End date",
+      "crash.filter.osDevice": "OS version / device",
+      "crash.filter.osDeviceClear": "Clear",
+      "crash.filter.osDeviceHelp": "Options come from the same Umeng meta APIs as the console. Pick values — do not type free text.",
+      "crash.filter.osDeviceHint": "Pick from Umeng options",
+      "crash.filter.osDevicePlaceholder": "Pick from Umeng options (empty = all)",
+      "crash.filter.optionsEmpty": "No options yet (save Cookie, or reload)",
+      "crash.filter.optionsHelp": "Version / OS / device match U-APM. Dimensions are AND (version ∩ OS ∩ device); multi-select within a dimension is OR. Max 10 values per dimension — heavy cross-dimension picks often return 0 rows.",
+      "crash.filter.optionsLoading": "Loading Umeng filter options…",
+      "crash.filter.optionsMaxHint": "Max 10 selections per dimension (same as Umeng console)",
+      "crash.filter.optionsReload": "Reload options",
+      "crash.filter.optionsSearch": "Search options…",
+      "crash.filter.optionsSelected": "{count}/{max} selected",
+      "crash.filter.osVersions": "OS version",
+      "crash.filter.osVersionsPlaceholder": "Pick from Umeng OS list",
+      "crash.filter.startAt": "Start date",
+      "crash.filter.timeRangeHelp": "Pick a preset, or edit the start/end dates for a custom range (editing dates switches to Custom). The range is sent to Umeng when loading the list.",
       "crash.filter.sort": "Sort by",
       "crash.filter.sortDir": "Direction",
       "crash.filter.status": "Status",
       "crash.filter.timeRange": "Time range",
       "crash.filters": "Filters",
+      "crash.filtersApplied": "List refreshed with current filters",
+      "crash.filtersCollapsedHint": "Click to expand filters (collapsed by default)",
+      "crash.filtersDirty": "Filters changed — click the button to search again",
+      "crash.filtersIdle": "Edit filters, then click Apply filters & search to fetch",
       "crash.listEmpty": "No crashes listed (save credentials and run probe, or paste a stack if cookie failed)",
+      "crash.listEmptyFiltered": "No matches for this filter (Umeng ANDs version ∩ OS ∩ device). Try version only, or fewer values per dimension; leave a dimension empty for “all”.",
+      "crash.listEmptyHint": "No list data yet. Save credentials, then Apply filters & search or Refresh list (or Probe). If the cookie failed, paste a stack below.",
       "crash.listLoading": "Loading crash list…",
       "crash.listTitle": "Crash list",
+      "crash.localSummary": "Local analysis summary",
+      "crash.matchedFiles": "Matched files",
       "crash.mode": "Crash analysis",
-      "crash.needAnalyzeFirst": "Run Analyze first",
-      "crash.noRepoMatch": "No stack-referenced source files matched in the repo",
+      "crash.needAnalyzeFirst": "Run Local analyze first",
+      "crash.nextPage": "Next",
+      "crash.noRepoMatch": "No stack-referenced source files matched in the repo (common for system frames / incomplete iOS symbolication). You can still write to session for AI, or paste a fuller app stack.",
+      "crash.pageStatus": "Page {page}",
+      "crash.pageStatusTotal": "Page {page}/{totalPages} · {total} total",
+      "crash.prevPage": "Previous",
       "crash.pasteFallback": "Paste stack (fallback)",
       "crash.pasteLabel": "Paste crash stack trace",
       "crash.pasteRequired": "Paste a crash stack trace first",
@@ -2168,9 +2281,12 @@ var init_en = __esm({
       "crash.timeRange.24h": "Last 24 hours",
       "crash.timeRange.30d": "Last 30 days",
       "crash.timeRange.7d": "Last 7 days",
-      "crash.timeRange.all": "All",
+      "crash.timeRange.90d": "Last 90 days",
+      "crash.timeRange.all": "Last 7 days (default)",
+      "crash.timeRange.custom": "Custom",
       "crash.umengConfig": "Umeng (U-APM)",
       "crash.writeSession": "Analyze & write to session",
+      "crash.writeSessionHint": "Prompt (with job id) filled into the session composer. Send it; when the agent calls tracescope_publish_crash_analysis, the sidebar writes back automatically. If not, click Apply AI reply or paste the reply.",
       "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "Crash analysis matches stack paths under this code folder; a plain directory is enough (no git required).",
       "diff.board.aiAnalyze": "AI assist",
       "diff.board.badge.ai": "AI confirmed",
@@ -7351,6 +7467,100 @@ var CrashBoard_exports = {};
 __export(CrashBoard_exports, {
   CrashBoard: () => CrashBoard
 });
+function downloadTextFile2(filename, text, mime = "text/markdown") {
+  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1e3);
+}
+async function copyTextToClipboard2(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+  }
+  return false;
+}
+function stripAiSection(defectBody) {
+  let body2 = defectBody;
+  for (const header of AI_SECTION_HEADERS) {
+    const start = body2.indexOf(header);
+    if (start < 0) continue;
+    const fromContent = start + header.length;
+    const rest = body2.slice(fromContent);
+    const rel = rest.search(/\n### |\n---/);
+    const end = rel >= 0 ? fromContent + rel : body2.length;
+    body2 = `${body2.slice(0, start).replace(/\s+$/, "\n\n")}${body2.slice(end).replace(/^\s+/, "")}`;
+    break;
+  }
+  return body2;
+}
+function insertBeforeStackOrFooter(defectBody, block) {
+  for (const header of STACK_SECTION_HEADERS) {
+    const idx = defectBody.indexOf(header);
+    if (idx >= 0) {
+      const left = defectBody.slice(0, idx).replace(/\s+$/, "\n\n");
+      const right = defectBody.slice(idx);
+      return `${left}${block}${right}`;
+    }
+  }
+  const foot = defectBody.lastIndexOf("\n---");
+  if (foot >= 0) {
+    const left = defectBody.slice(0, foot).replace(/\s+$/, "\n\n");
+    return `${left}${block}${defectBody.slice(foot + 1)}`;
+  }
+  return `${defectBody.trim()}
+
+${block}`;
+}
+function mergeAiIntoReport(report, aiAnalysis) {
+  const text = aiAnalysis.trim();
+  if (!text) return { ...report, aiAnalysis: void 0 };
+  const block = `### AI 分析结论
+
+${text}
+
+`;
+  const body2 = insertBeforeStackOrFooter(stripAiSection(report.defectBody || ""), block);
+  return { ...report, aiAnalysis: text, defectBody: body2 };
+}
+function buildCrashExportMarkdown(report, repoPath) {
+  const lines = [
+    "# TraceScope crash analysis report",
+    "",
+    `- Repo: \`${repoPath}\``,
+    `- Title: ${report.incident.title}`,
+    `- Exception: ${report.incident.exceptionName || "—"}`,
+    `- Summary: ${report.summary}`,
+    "",
+    "## Matched files",
+    ""
+  ];
+  if (report.matchedFiles?.length) {
+    for (const m of report.matchedFiles) {
+      lines.push(`- \`${m.path}\`${m.symbol ? ` (${m.symbol})` : ""}${m.reason ? ` — ${m.reason}` : ""}`);
+    }
+  } else {
+    lines.push("_None_");
+  }
+  if (report.aiAnalysis?.trim()) {
+    lines.push("", "## AI analysis", "", report.aiAnalysis.trim());
+  }
+  if (report.fixHints?.length) {
+    lines.push("", "## Fix hints", "");
+    for (const h of report.fixHints) lines.push(`- ${h}`);
+  }
+  lines.push("", "## Defect body", "", report.defectBody, "", "## Stack", "", "```", report.incident.stackText, "```", "");
+  return lines.join("\n");
+}
 function parseUmengIncident(inc, fallbackId) {
   const platform = inc.platform;
   return {
@@ -7395,6 +7605,44 @@ function umengIncidentForAnalyze(selected, stack, titleText) {
     lastSeenAt: selected.lastSeenAt,
     rawRef: selected.rawRef
   };
+}
+function padDatePart(n) {
+  return String(n).padStart(2, "0");
+}
+function toDateInputValue(d) {
+  return `${d.getFullYear()}-${padDatePart(d.getMonth() + 1)}-${padDatePart(d.getDate())}`;
+}
+function rangeDatesForPreset(preset, now = /* @__PURE__ */ new Date()) {
+  const end = new Date(now);
+  const start = new Date(now);
+  if (preset === "24h") {
+  } else if (preset === "30d") {
+    start.setDate(end.getDate() - 29);
+  } else if (preset === "90d") {
+    start.setDate(end.getDate() - 89);
+  } else if (preset === "7d" || preset === "") {
+    start.setDate(end.getDate() - 6);
+  } else {
+    start.setDate(end.getDate() - 6);
+  }
+  return { startAt: toDateInputValue(start), endAt: toDateInputValue(end) };
+}
+function metaTypeFromFilters(filters) {
+  if (filters.errorKinds.length === 1) {
+    const kind = filters.errorKinds[0];
+    if (kind === "anr") return "anr";
+    if (kind === "error") return "exception";
+    if (kind === "crash") return "crash";
+  }
+  return "crash";
+}
+function pruneSelected(selected, options) {
+  if (!options.length) return selected;
+  const allowed = new Set(options.map((o) => o.value));
+  return selected.filter((v) => allowed.has(v));
+}
+function toggleSelectedValue(selected, value) {
+  return selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value];
 }
 function localIncidentId() {
   return "local-" + Date.now().toString(36);
@@ -7443,37 +7691,124 @@ function parseCapabilities(raw) {
   ]);
   return filters.filter((f) => typeof f === "string" && allowed.has(f));
 }
-function timeRangeCutoff(range) {
-  if (!range) return null;
-  const now = Date.now();
-  if (range === "24h") return now - 24 * 3600 * 1e3;
-  if (range === "7d") return now - 7 * 24 * 3600 * 1e3;
-  if (range === "30d") return now - 30 * 24 * 3600 * 1e3;
-  return null;
-}
-function applyClientFilters(items, filters) {
-  let rows = items;
-  const cutoff = timeRangeCutoff(filters.timeRange);
-  if (cutoff != null) {
-    rows = rows.filter((row3) => {
-      const ts = Date.parse(row3.lastSeenAt ?? "");
-      return Number.isFinite(ts) ? ts >= cutoff : true;
-    });
-  }
-  return rows;
-}
 function buildListQueryBody(filters) {
   const body2 = {};
   const kw = filters.keyword.trim();
   if (kw) body2.keyword = kw;
   if (filters.errorKinds.length) body2.errorKinds = filters.errorKinds;
   if (filters.statuses.length) body2.statuses = filters.statuses;
-  const versions = filters.appVersion.split(/[,;|\s]+/).map((v) => v.trim()).filter(Boolean);
-  if (versions.length) body2.appVersions = versions;
-  const osDevice = filters.osDevice.trim();
-  if (osDevice) body2.osDevice = osDevice;
+  if (filters.appVersions.length) body2.appVersions = [...filters.appVersions];
+  if (filters.osVersions.length) body2.osVersions = [...filters.osVersions];
+  if (filters.deviceModels.length) body2.deviceModels = [...filters.deviceModels];
+  if (filters.timeRange && filters.timeRange !== "custom") {
+    body2.timeRange = filters.timeRange;
+  } else if (filters.timeRange === "custom") {
+    body2.timeRange = "custom";
+    if (filters.startAt.trim()) body2.startAt = filters.startAt.trim();
+    if (filters.endAt.trim()) body2.endAt = filters.endAt.trim();
+  }
   body2.sort = { field: filters.sortField, direction: filters.sortDir };
   return body2;
+}
+function FilterOptionPicker(props) {
+  const {
+    title: title2,
+    options,
+    selected,
+    disabled,
+    loading,
+    searchPlaceholder,
+    emptyText,
+    loadingText,
+    clearLabel,
+    selectedCountLabel,
+    maxSelected = UMENG_FILTER_MAX_PER_DIMENSION,
+    maxSelectedHint,
+    onChange
+  } = props;
+  const [query, setQuery] = (0, import_react5.useState)("");
+  const filtered = (0, import_react5.useMemo)(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter(
+      (o) => o.label.toLowerCase().includes(needle) || o.value.toLowerCase().includes(needle)
+    );
+  }, [options, query]);
+  const atMax = selected.length >= maxSelected;
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 6 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, justifyContent: "space-between" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontWeight: 600, fontSize: 13 }, children: title2 }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 11, color: atMax ? "#b42318" : "#6b645a" }, children: selectedCountLabel.replace("{count}", String(selected.length)).replace("{max}", String(maxSelected)) })
+    ] }),
+    atMax && maxSelectedHint ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 11, color: "#b42318" }, children: maxSelectedHint }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+      "input",
+      {
+        style: input,
+        value: query,
+        disabled: disabled || loading,
+        placeholder: searchPlaceholder,
+        onChange: (e) => setQuery(e.target.value)
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+      "div",
+      {
+        style: {
+          maxHeight: 160,
+          overflow: "auto",
+          border: "1px solid var(--dsh-border, #ddd4c5)",
+          borderRadius: 8,
+          padding: 8,
+          background: "#fff",
+          display: "grid",
+          gap: 4
+        },
+        children: loading ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 12, color: "#6b645a" }, children: loadingText }) : filtered.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 12, color: "#6b645a" }, children: emptyText }) : filtered.map((opt) => {
+          const checked = selected.includes(opt.value);
+          const checkboxDisabled = Boolean(disabled || !checked && atMax);
+          return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+            "label",
+            {
+              style: {
+                display: "flex",
+                gap: 6,
+                alignItems: "flex-start",
+                fontWeight: 400,
+                fontSize: 12,
+                lineHeight: 1.35,
+                opacity: checkboxDisabled && !checked ? 0.55 : 1
+              },
+              title: opt.value !== opt.label ? opt.value : void 0,
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "input",
+                  {
+                    type: "checkbox",
+                    checked,
+                    disabled: checkboxDisabled,
+                    onChange: () => onChange(toggleSelectedValue(selected, opt.value))
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: opt.label })
+              ]
+            },
+            opt.value
+          );
+        })
+      }
+    ),
+    selected.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+      "button",
+      {
+        type: "button",
+        disabled,
+        style: { ...btn, padding: "4px 8px", fontSize: 11, justify: "fit-content" },
+        onClick: () => onChange([]),
+        children: clearLabel
+      }
+    ) : null
+  ] });
 }
 function isAuthFailure(errorCode, message) {
   if (errorCode === "UMENG_AUTH") return true;
@@ -7497,35 +7832,52 @@ function CrashBoard({
   const [hint2, setHint] = (0, import_react5.useState)("");
   const [report, setReport] = (0, import_react5.useState)(null);
   const [umengOpen, setUmengOpen] = (0, import_react5.useState)(true);
+  const [filtersOpen, setFiltersOpen] = (0, import_react5.useState)(false);
   const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
   const [provider] = (0, import_react5.useState)("umeng");
   const [appKey, setAppKey] = (0, import_react5.useState)("");
+  const [appDisplayName, setAppDisplayName] = (0, import_react5.useState)("");
   const [cookie, setCookie] = (0, import_react5.useState)("");
   const [hasStoredCookie, setHasStoredCookie] = (0, import_react5.useState)(false);
   const [remember, setRemember] = (0, import_react5.useState)(true);
   const [configBusy, setConfigBusy] = (0, import_react5.useState)(false);
   const [filters, setFilters] = (0, import_react5.useState)(() => defaultFilters());
+  const [appliedFilters, setAppliedFilters] = (0, import_react5.useState)(() => defaultFilters());
   const [capabilityFilters, setCapabilityFilters] = (0, import_react5.useState)([]);
+  const [filterOptions, setFilterOptions] = (0, import_react5.useState)({ versions: [], osVersions: [], devices: [] });
+  const [filterOptionsBusy, setFilterOptionsBusy] = (0, import_react5.useState)(false);
+  const [filterOptionsError, setFilterOptionsError] = (0, import_react5.useState)("");
   const [listItems, setListItems] = (0, import_react5.useState)([]);
   const [listBusy, setListBusy] = (0, import_react5.useState)(false);
+  const [listPage, setListPage] = (0, import_react5.useState)(1);
+  const [listTotal, setListTotal] = (0, import_react5.useState)(void 0);
+  const [listHasMore, setListHasMore] = (0, import_react5.useState)(false);
   const [selectedId, setSelectedId] = (0, import_react5.useState)("");
   const [selectedIncident, setSelectedIncident] = (0, import_react5.useState)(null);
   const [detailBusy, setDetailBusy] = (0, import_react5.useState)(false);
-  const keywordTimer = (0, import_react5.useRef)(null);
+  const [aiDraft, setAiDraft] = (0, import_react5.useState)("");
+  const [awaitingAiPaste, setAwaitingAiPaste] = (0, import_react5.useState)(false);
+  const [pendingCrashJobId, setPendingCrashJobId] = (0, import_react5.useState)("");
   const listGen = (0, import_react5.useRef)(0);
+  const detailPanelRef = (0, import_react5.useRef)(null);
+  const reportPanelRef = (0, import_react5.useRef)(null);
+  const aiPasteRef = (0, import_react5.useRef)(null);
+  const reportRef = (0, import_react5.useRef)(null);
+  reportRef.current = report;
   const repo = repoPath.trim();
   const configBody = (0, import_react5.useCallback)(() => {
     const body2 = {
       repoPath: repo || void 0,
       provider: "umeng",
       appKey: appKey.trim(),
+      appDisplayName: appDisplayName.trim(),
       remember
     };
     const cookieTrim = cookie.trim();
     if (cookieTrim && cookieTrim !== MASKED_COOKIE) body2.cookie = cookieTrim;
     else if (hasStoredCookie) body2.cookie = MASKED_COOKIE;
     return body2;
-  }, [appKey, cookie, hasStoredCookie, remember, repo]);
+  }, [appDisplayName, appKey, cookie, hasStoredCookie, remember, repo]);
   const loadConfig = (0, import_react5.useCallback)(async () => {
     try {
       const params = {};
@@ -7534,6 +7886,8 @@ function CrashBoard({
       const cfg = data.config;
       if (!cfg) return;
       if (typeof cfg.appKey === "string") setAppKey(cfg.appKey);
+      if (typeof cfg.appDisplayName === "string") setAppDisplayName(cfg.appDisplayName);
+      else setAppDisplayName("");
       setHasStoredCookie(cfg.hasCookie === true);
       if (cfg.hasCookie === true) setCookie(MASKED_COOKIE);
       else setCookie("");
@@ -7577,6 +7931,7 @@ function CrashBoard({
         repoPath: repo || void 0,
         provider: "umeng",
         appKey: appKey.trim(),
+        appDisplayName: appDisplayName.trim(),
         cookie: "",
         clearCookie: true,
         remember
@@ -7598,39 +7953,88 @@ function CrashBoard({
     } finally {
       setConfigBusy(false);
     }
-  }, [apiPost2, appKey, remember, repo, t2]);
-  const fetchList = (0, import_react5.useCallback)(async () => {
-    if (!repo) return;
-    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
-    const gen = ++listGen.current;
-    setListBusy(true);
-    setError("");
-    try {
-      const data = await apiPost2("/tracescope/v1/crash-list", {
-        ...configBody(),
-        ...buildListQueryBody(filters)
-      });
-      if (gen !== listGen.current) return;
-      const caps = parseCapabilities(data.capabilities);
-      if (caps.length) setCapabilityFilters(caps);
-      const errMsg = typeof data.error === "string" ? data.error : "";
-      const errCode = data.errorCode;
-      if (errMsg && isAuthFailure(errCode, errMsg)) {
-        handleAuthFailure(t2("crash.cookieExpired"));
-        setListItems([]);
-        return;
+  }, [apiPost2, appDisplayName, appKey, remember, repo, t2]);
+  const fetchList = (0, import_react5.useCallback)(
+    async (opts) => {
+      if (!repo) return;
+      if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
+      const page = opts?.page ?? listPage;
+      const queryFilters = opts?.filters ?? appliedFilters;
+      const gen = ++listGen.current;
+      setListBusy(true);
+      setError("");
+      try {
+        const data = await apiPost2("/tracescope/v1/crash-list", {
+          ...configBody(),
+          ...buildListQueryBody(queryFilters),
+          page,
+          pageSize: CRASH_LIST_PAGE_SIZE
+        });
+        if (gen !== listGen.current) return;
+        const caps = parseCapabilities(data.capabilities);
+        if (caps.length) setCapabilityFilters(caps);
+        const errMsg = typeof data.error === "string" ? data.error : "";
+        const errCode = data.errorCode;
+        if (errMsg && isAuthFailure(errCode, errMsg)) {
+          handleAuthFailure(t2("crash.cookieExpired"));
+          setListItems([]);
+          setListTotal(0);
+          setListHasMore(false);
+          return;
+        }
+        if (errMsg) setError(errMsg);
+        const items = parseListItems(data.items);
+        setListItems(items);
+        setListTotal(typeof data.total === "number" ? data.total : void 0);
+        setListHasMore(
+          data.hasMore === true || typeof data.total === "number" && page * CRASH_LIST_PAGE_SIZE < data.total || items.length >= CRASH_LIST_PAGE_SIZE
+        );
+      } catch (err2) {
+        const msg = err2.message || String(err2);
+        if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        else setError(msg);
+      } finally {
+        if (gen === listGen.current) setListBusy(false);
       }
-      if (errMsg) setError(errMsg);
-      const items = applyClientFilters(parseListItems(data.items), filters);
-      setListItems(items);
-    } catch (err2) {
-      const msg = err2.message || String(err2);
-      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
-      else setError(msg);
-    } finally {
-      if (gen === listGen.current) setListBusy(false);
+    },
+    [
+      apiPost2,
+      appKey,
+      appliedFilters,
+      configBody,
+      cookie,
+      handleAuthFailure,
+      hasStoredCookie,
+      listPage,
+      repo,
+      t2
+    ]
+  );
+  const applyFiltersAndFetch = (0, import_react5.useCallback)(() => {
+    if (!repo) {
+      setError(t2("选择仓库 / 先在配置中添加"));
+      return;
     }
-  }, [apiPost2, appKey, configBody, cookie, filters, handleAuthFailure, hasStoredCookie, repo, t2]);
+    if (!appKey.trim() || !cookieReady(hasStoredCookie, cookie)) {
+      setError(t2("crash.probeFail"));
+      setUmengOpen(true);
+      return;
+    }
+    const next = { ...filters };
+    setAppliedFilters(next);
+    setListPage(1);
+    setFiltersOpen(false);
+    setHint(t2("crash.filtersApplied"));
+    void fetchList({ page: 1, filters: next });
+  }, [appKey, cookie, fetchList, filters, hasStoredCookie, repo, t2]);
+  const goListPage = (0, import_react5.useCallback)(
+    (page) => {
+      const next = Math.max(1, page);
+      setListPage(next);
+      void fetchList({ page: next });
+    },
+    [fetchList]
+  );
   const runProbe = (0, import_react5.useCallback)(async () => {
     setConfigBusy(true);
     setError("");
@@ -7647,7 +8051,10 @@ function CrashBoard({
           setHasStoredCookie(true);
           setCookie(MASKED_COOKIE);
         }
-        void fetchList();
+        const next = { ...filters };
+        setAppliedFilters(next);
+        setListPage(1);
+        void fetchList({ page: 1, filters: next });
       } else {
         const msg = typeof data.error === "string" ? data.error : t2("crash.probeFail");
         if (!data.ok && isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
@@ -7660,22 +8067,24 @@ function CrashBoard({
     } finally {
       setConfigBusy(false);
     }
-  }, [apiPost2, configBody, fetchList, handleAuthFailure, remember, t2]);
-  (0, import_react5.useEffect)(() => {
-    if (!repo || !appKey.trim() || !cookieReady(hasStoredCookie, cookie)) return;
-    const draftCookieEdit = !hasStoredCookie && cookie.trim().length > 0 && cookie.trim() !== MASKED_COOKIE;
-    const debounceMs = filters.keyword.trim() || draftCookieEdit ? 400 : 0;
-    if (keywordTimer.current) clearTimeout(keywordTimer.current);
-    keywordTimer.current = setTimeout(() => {
-      void fetchList();
-    }, debounceMs);
-    return () => {
-      if (keywordTimer.current) clearTimeout(keywordTimer.current);
-    };
-  }, [repo, appKey, hasStoredCookie, cookie, filters, fetchList]);
+  }, [apiPost2, configBody, fetchList, filters, handleAuthFailure, remember, t2]);
+  const filtersDirty = (0, import_react5.useMemo)(
+    () => JSON.stringify(filters) !== JSON.stringify(appliedFilters),
+    [appliedFilters, filters]
+  );
+  const hasDimensionFilters = (0, import_react5.useMemo)(
+    () => appliedFilters.appVersions.length > 0 || appliedFilters.osVersions.length > 0 || appliedFilters.deviceModels.length > 0 || appliedFilters.statuses.length > 0 || Boolean(appliedFilters.keyword.trim()),
+    [appliedFilters]
+  );
   const onKeywordChange = (0, import_react5.useCallback)((value) => {
     setFilters((f) => ({ ...f, keyword: value }));
   }, []);
+  (0, import_react5.useEffect)(() => {
+    if (!selectedIncident || detailBusy) return;
+    const el = detailPanelRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedIncident, detailBusy]);
   const loadDetail = (0, import_react5.useCallback)(
     async (id) => {
       if (!id || !repo) return;
@@ -7683,6 +8092,9 @@ function CrashBoard({
       setError("");
       setSelectedId(id);
       setReport(null);
+      setAiDraft("");
+      setAwaitingAiPaste(false);
+      setUmengOpen(false);
       try {
         const data = await apiPost2("/tracescope/v1/crash-detail", {
           ...configBody(),
@@ -7746,7 +8158,13 @@ function CrashBoard({
     }
   }, [apiPost2, repo, selectedIncident, stackText, t2, title2]);
   async function onAnalyzeClick() {
-    await runAnalyze();
+    const r = await runAnalyze();
+    if (r) {
+      setHint(t2("crash.analyzeLocalHint"));
+      requestAnimationFrame(() => {
+        reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
   }
   async function onWriteSessionClick() {
     let r = report;
@@ -7757,12 +8175,162 @@ function CrashBoard({
       setHint(t2("找不到会话输入框服务"));
       return;
     }
-    const result = send(r.prompt);
-    if (result.ok) {
-      setHint(t2("diff.board.chatFilling"));
-    } else {
-      setError(result.error || t2("无法写入当前会话输入框"));
+    setBusy(true);
+    setError("");
+    try {
+      const jobRes = await apiPost2("/tracescope/v1/crash-ai-job", {
+        repoPath: repo,
+        summary: r.summary,
+        stackText: r.incident.stackText,
+        incident: r.incident,
+        matchedFiles: r.matchedFiles,
+        fixHints: r.fixHints
+      });
+      const jobId = typeof jobRes.jobId === "string" ? jobRes.jobId.trim() : "";
+      const prompt = typeof jobRes.prompt === "string" ? jobRes.prompt : r.prompt;
+      if (!jobId || !prompt.trim()) {
+        throw new Error(t2("crash.aiJobFail"));
+      }
+      const result = send(prompt);
+      if (result.ok) {
+        setPendingCrashJobId(jobId);
+        setAwaitingAiPaste(true);
+        setHint(t2("crash.writeSessionHint"));
+        requestAnimationFrame(() => {
+          aiPasteRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      } else {
+        setError(result.error || t2("无法写入当前会话输入框"));
+      }
+    } catch (err2) {
+      setError(err2.message || String(err2));
+    } finally {
+      setBusy(false);
     }
+  }
+  function applyAiText(raw) {
+    const text = raw.trim();
+    if (!text) {
+      setError(t2("crash.aiPasteRequired"));
+      return false;
+    }
+    const current = reportRef.current;
+    if (!current) {
+      setError(t2("crash.needAnalyzeFirst"));
+      return false;
+    }
+    const next = mergeAiIntoReport(current, text);
+    setReport(next);
+    reportRef.current = next;
+    setAiDraft(text);
+    setAwaitingAiPaste(false);
+    setPendingCrashJobId("");
+    setHint(t2("crash.aiApplied"));
+    setError("");
+    requestAnimationFrame(() => {
+      reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    return true;
+  }
+  async function pullCrashJobOnce(jobId) {
+    const id = jobId.trim();
+    if (!id) return "missing";
+    try {
+      const res = await apiPost2("/tracescope/v1/crash-job", { id });
+      const status = typeof res.status === "string" ? res.status : "";
+      if (status === "published") {
+        const analysis = typeof res.aiAnalysis === "string" ? res.aiAnalysis : "";
+        if (analysis.trim() && applyAiText(analysis)) return "applied";
+        return "error";
+      }
+      if (status === "error") return "error";
+      return "pending";
+    } catch {
+      return "missing";
+    }
+  }
+  async function onApplyAiClick() {
+    const draft = aiDraft.trim();
+    if (draft) {
+      applyAiText(draft);
+      return;
+    }
+    if (pendingCrashJobId) {
+      const state = await pullCrashJobOnce(pendingCrashJobId);
+      if (state === "applied") return;
+      if (state === "pending") {
+        setError(t2("crash.aiJobPending"));
+        return;
+      }
+      setError(t2("crash.aiJobNotReady"));
+      return;
+    }
+    setError(t2("crash.aiPasteRequired"));
+  }
+  (0, import_react5.useEffect)(() => {
+    if (!pendingCrashJobId) return;
+    let timer = null;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const MAX_WAIT_MS = 18e4;
+    const tick = async () => {
+      const state = await pullCrashJobOnce(pendingCrashJobId);
+      if (cancelled) return;
+      if (state === "applied") return;
+      if (state === "error") {
+        setPendingCrashJobId("");
+        setError(t2("crash.aiJobNotReady"));
+        return;
+      }
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        setPendingCrashJobId("");
+        setHint(t2("crash.aiJobTimeout"));
+        return;
+      }
+      timer = setTimeout(() => {
+        void tick();
+      }, 2e3);
+    };
+    timer = setTimeout(() => {
+      void tick();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [pendingCrashJobId]);
+  async function onPasteAiFromClipboard() {
+    try {
+      const text = await navigator.clipboard?.readText?.();
+      if (!text?.trim()) {
+        setError(t2("crash.aiPasteRequired"));
+        return;
+      }
+      setAiDraft(text);
+      applyAiText(text);
+    } catch {
+      setError(t2("crash.aiClipboardFail"));
+    }
+  }
+  async function onCopyReportClick() {
+    if (!report) {
+      setError(t2("crash.needAnalyzeFirst"));
+      return;
+    }
+    const ok = await copyTextToClipboard2(report.defectBody || buildCrashExportMarkdown(report, repo));
+    if (ok) setHint(t2("crash.copied"));
+    else setError(t2("crash.copyFail"));
+  }
+  function onExportReportClick() {
+    if (!report) {
+      setError(t2("crash.needAnalyzeFirst"));
+      return;
+    }
+    const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const idPart = (report.incident.id || "crash").replace(/[^\w.-]+/g, "_").slice(0, 40);
+    const filename = `tracescope-crash-${idPart}-${stamp}.md`;
+    downloadTextFile2(filename, buildCrashExportMarkdown(report, repo), "text/markdown");
+    setHint(t2("crash.exported", { name: filename }));
   }
   function onSubmitClick() {
     if (!report) {
@@ -7778,6 +8346,7 @@ function CrashBoard({
     const subject = report.incident.title || defaultTitle(stackText, title2) || t2("crash.submitDefect");
     onSubmitDefect(report, subject);
   }
+  const totalPages = typeof listTotal === "number" && listTotal > 0 ? Math.max(1, Math.ceil(listTotal / CRASH_LIST_PAGE_SIZE)) : void 0;
   const noMatch = report && (!report.matchedFiles || !report.matchedFiles.length);
   const activeFilters = capabilityFilters.length ? capabilityFilters : [
     "timeRange",
@@ -7788,13 +8357,74 @@ function CrashBoard({
     "status",
     "keyword"
   ];
-  const versionOptions = (0, import_react5.useMemo)(() => {
-    const set = /* @__PURE__ */ new Set();
-    for (const row3 of listItems) {
-      if (row3.appVersion) set.add(row3.appVersion);
+  const filterMetaType = (0, import_react5.useMemo)(() => metaTypeFromFilters(filters), [filters]);
+  const fetchFilterOptions = (0, import_react5.useCallback)(async () => {
+    if (!repo) return;
+    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
+    setFilterOptionsBusy(true);
+    setFilterOptionsError("");
+    try {
+      const data = await apiPost2("/tracescope/v1/crash-filter-options", {
+        ...configBody(),
+        metaType: filterMetaType
+      });
+      const errMsg = typeof data.error === "string" ? data.error : "";
+      if (errMsg && isAuthFailure(data.errorCode, errMsg)) {
+        handleAuthFailure(t2("crash.cookieExpired"));
+        return;
+      }
+      if (errMsg) {
+        setFilterOptionsError(errMsg);
+        return;
+      }
+      const toOpts = (raw) => {
+        if (!Array.isArray(raw)) return [];
+        return raw.map((row3) => {
+          if (!row3 || typeof row3 !== "object") return null;
+          const o = row3;
+          const value = typeof o.value === "string" ? o.value.trim() : "";
+          const label2 = typeof o.label === "string" ? o.label.trim() : value;
+          if (!value) return null;
+          return { value, label: label2 || value };
+        }).filter((x) => Boolean(x));
+      };
+      const versions = toOpts(data.versions);
+      const osVersions = toOpts(data.osVersions);
+      const devices = toOpts(data.devices);
+      setFilterOptions({ versions, osVersions, devices });
+      setFilters((f) => ({
+        ...f,
+        appVersions: pruneSelected(f.appVersions, versions),
+        osVersions: pruneSelected(f.osVersions, osVersions),
+        deviceModels: pruneSelected(f.deviceModels, devices)
+      }));
+      setAppliedFilters((f) => ({
+        ...f,
+        appVersions: pruneSelected(f.appVersions, versions),
+        osVersions: pruneSelected(f.osVersions, osVersions),
+        deviceModels: pruneSelected(f.deviceModels, devices)
+      }));
+    } catch (err2) {
+      const msg = err2.message || String(err2);
+      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+      else setFilterOptionsError(msg);
+    } finally {
+      setFilterOptionsBusy(false);
     }
-    return [...set].sort();
-  }, [listItems]);
+  }, [
+    apiPost2,
+    appKey,
+    configBody,
+    cookie,
+    filterMetaType,
+    handleAuthFailure,
+    hasStoredCookie,
+    repo,
+    t2
+  ]);
+  (0, import_react5.useEffect)(() => {
+    void fetchFilterOptions();
+  }, [fetchFilterOptions]);
   function toggleInList(key, value) {
     setFilters((f) => {
       const cur = f[key];
@@ -7815,7 +8445,41 @@ function CrashBoard({
     if (k === "other") return t2("crash.errorKind.other");
     return k || "—";
   }
+  const filtersSummary = (0, import_react5.useMemo)(() => {
+    const parts = [];
+    const tr = appliedFilters.timeRange;
+    if (tr === "24h") parts.push(t2("crash.timeRange.24h"));
+    else if (tr === "30d") parts.push(t2("crash.timeRange.30d"));
+    else if (tr === "90d") parts.push(t2("crash.timeRange.90d"));
+    else if (tr === "custom") {
+      const range = [appliedFilters.startAt, appliedFilters.endAt].filter(Boolean).join(" ~ ");
+      parts.push(range || t2("crash.timeRange.custom"));
+    } else {
+      parts.push(t2("crash.timeRange.7d"));
+    }
+    if (appliedFilters.errorKinds.length) {
+      parts.push(appliedFilters.errorKinds.map((k) => errorKindLabel(k)).join("/"));
+    }
+    if (appliedFilters.appVersions.length) {
+      parts.push(`${t2("crash.filter.appVersion")}×${appliedFilters.appVersions.length}`);
+    }
+    if (appliedFilters.osVersions.length) {
+      parts.push(`${t2("crash.filter.osVersions")}×${appliedFilters.osVersions.length}`);
+    }
+    if (appliedFilters.deviceModels.length) {
+      parts.push(`${t2("crash.filter.deviceModels")}×${appliedFilters.deviceModels.length}`);
+    }
+    if (appliedFilters.statuses.length) {
+      parts.push(appliedFilters.statuses.map((s) => statusLabel3(s)).join("/"));
+    }
+    if (appliedFilters.keyword.trim()) {
+      parts.push(`${t2("crash.filter.keyword")}: ${appliedFilters.keyword.trim()}`);
+    }
+    return parts.join(" · ");
+  }, [appliedFilters, t2]);
   const configDisabled = busy || configBusy || listBusy || detailBusy;
+  const appLabel = appDisplayName.trim() || appKey.trim();
+  const umengHeader = appLabel ? `${t2("crash.umengConfig")} · ${appLabel}` : t2("crash.umengConfig");
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { style: card, children: [
     /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 700, marginBottom: 8 }, children: t2("crash.mode") }),
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
@@ -7825,9 +8489,10 @@ function CrashBoard({
           type: "button",
           style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
           onClick: () => setUmengOpen((v) => !v),
+          title: appKey.trim() ? `${t2("crash.appKey")}: ${appKey.trim()}` : void 0,
           children: [
             umengOpen ? "▾ " : "▸ ",
-            t2("crash.umengConfig")
+            umengHeader
           ]
         }
       ),
@@ -7838,6 +8503,19 @@ function CrashBoard({
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("select", { style: input, value: provider, disabled: configDisabled, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }) })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          t2("crash.appDisplayName"),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "input",
+            {
+              style: input,
+              value: appDisplayName,
+              disabled: configDisabled,
+              placeholder: t2("crash.appDisplayNamePlaceholder"),
+              onChange: (e) => setAppDisplayName(e.target.value)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
           t2("crash.appKey"),
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
             "input",
@@ -7845,7 +8523,7 @@ function CrashBoard({
               style: input,
               value: appKey,
               disabled: configDisabled,
-              placeholder: t2("crash.appKey"),
+              placeholder: t2("crash.appKeyPlaceholder"),
               onChange: (e) => setAppKey(e.target.value)
             }
           )
@@ -7879,7 +8557,16 @@ function CrashBoard({
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void saveCredentials(), children: t2("crash.saveCredentials") }),
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: configDisabled, onClick: () => void runProbe(), children: configBusy ? t2("common.loading") : t2("crash.probe") }),
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: t2("crash.clearCookie") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled || listBusy, onClick: () => void fetchList(), children: listBusy ? t2("common.loading") : t2("crash.refreshList") })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "button",
+            {
+              type: "button",
+              style: btn,
+              disabled: configDisabled || listBusy,
+              onClick: () => void fetchList({ page: listPage }),
+              children: listBusy ? t2("common.loading") : t2("crash.refreshList")
+            }
+          )
         ] })
       ] }) : null
     ] }),
@@ -7888,48 +8575,145 @@ function CrashBoard({
       {
         style: {
           marginBottom: 10,
-          padding: 10,
           borderRadius: 8,
           border: "1px solid var(--dsh-border, #ddd4c5)",
-          background: "#faf8f3"
+          background: "#faf8f3",
+          overflow: "hidden"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 8, fontSize: 12 }, children: t2("crash.filters") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 8 }, children: [
-            activeFilters.includes("timeRange") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
-              t2("crash.filter.timeRange"),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-                "select",
-                {
-                  style: input,
-                  value: filters.timeRange,
-                  disabled: configDisabled,
-                  onChange: (e) => {
-                    setFilters((f) => ({ ...f, timeRange: e.target.value }));
-                  },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", children: t2("crash.timeRange.all") }),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "24h", children: t2("crash.timeRange.24h") }),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "7d", children: t2("crash.timeRange.7d") }),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "30d", children: t2("crash.timeRange.30d") })
-                  ]
-                }
-              )
-            ] }) : null,
-            activeFilters.includes("appVersion") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
-              t2("crash.filter.appVersion"),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-                "input",
-                {
-                  style: input,
-                  list: "crash-app-versions",
-                  value: filters.appVersion,
-                  disabled: configDisabled,
-                  placeholder: t2("crash.filter.appVersionHint"),
-                  onChange: (e) => setFilters((f) => ({ ...f, appVersion: e.target.value }))
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("datalist", { id: "crash-app-versions", children: versionOptions.map((v) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: v }, v)) })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+            "button",
+            {
+              type: "button",
+              style: {
+                ...btn,
+                width: "100%",
+                textAlign: "left",
+                fontWeight: 600,
+                borderRadius: 0,
+                background: "transparent",
+                padding: "8px 10px",
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-start"
+              },
+              onClick: () => setFiltersOpen((v) => !v),
+              "aria-expanded": filtersOpen,
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { flexShrink: 0 }, children: filtersOpen ? "▾" : "▸" }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { flex: 1, minWidth: 0 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { display: "block", fontSize: 12 }, children: t2("crash.filters") }),
+                  !filtersOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                    "span",
+                    {
+                      style: {
+                        display: "block",
+                        marginTop: 2,
+                        fontSize: 11,
+                        fontWeight: 400,
+                        color: filtersDirty ? "#b54708" : "#6b645a",
+                        lineHeight: 1.4,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      },
+                      title: filtersSummary,
+                      children: [
+                        filtersDirty ? `${t2("crash.filtersDirty")} · ` : "",
+                        filtersSummary || t2("crash.filtersCollapsedHint")
+                      ]
+                    }
+                  ) : null
+                ] })
+              ]
+            }
+          ),
+          filtersOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 8, padding: "0 10px 10px" }, children: [
+            activeFilters.includes("timeRange") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 6 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+                t2("crash.filter.timeRange"),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                  "select",
+                  {
+                    style: input,
+                    value: filters.timeRange,
+                    disabled: configDisabled,
+                    onChange: (e) => {
+                      const next = e.target.value;
+                      if (next === "custom") {
+                        setFilters((f) => ({
+                          ...f,
+                          timeRange: "custom",
+                          startAt: f.startAt || rangeDatesForPreset("7d").startAt,
+                          endAt: f.endAt || rangeDatesForPreset("7d").endAt
+                        }));
+                        return;
+                      }
+                      const dates = rangeDatesForPreset(next || "7d");
+                      setFilters((f) => ({
+                        ...f,
+                        timeRange: next,
+                        startAt: dates.startAt,
+                        endAt: dates.endAt
+                      }));
+                    },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "24h", children: t2("crash.timeRange.24h") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "7d", children: t2("crash.timeRange.7d") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "30d", children: t2("crash.timeRange.30d") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "90d", children: t2("crash.timeRange.90d") }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "custom", children: t2("crash.timeRange.custom") })
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, alignItems: "flex-end" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
+                  t2("crash.filter.startAt"),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "input",
+                    {
+                      type: "date",
+                      style: input,
+                      value: filters.startAt,
+                      disabled: configDisabled,
+                      max: filters.endAt || void 0,
+                      onChange: (e) => {
+                        const startAt = e.target.value;
+                        setFilters((f) => ({
+                          ...f,
+                          timeRange: "custom",
+                          startAt,
+                          endAt: f.endAt && startAt && f.endAt < startAt ? startAt : f.endAt
+                        }));
+                      }
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
+                  t2("crash.filter.endAt"),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "input",
+                    {
+                      type: "date",
+                      style: input,
+                      value: filters.endAt,
+                      disabled: configDisabled,
+                      min: filters.startAt || void 0,
+                      onChange: (e) => {
+                        const endAt = e.target.value;
+                        setFilters((f) => ({
+                          ...f,
+                          timeRange: "custom",
+                          endAt,
+                          startAt: f.startAt && endAt && f.startAt > endAt ? endAt : f.startAt
+                        }));
+                      }
+                    }
+                  )
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.filter.timeRangeHelp") })
             ] }) : null,
             activeFilters.includes("errorKind") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("fieldset", { style: { border: 0, margin: 0, padding: 0 }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("legend", { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 }, children: t2("crash.filter.errorKind") }),
@@ -7946,18 +8730,74 @@ function CrashBoard({
                 errorKindLabel(k)
               ] }, k)) })
             ] }) : null,
-            activeFilters.includes("osDevice") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
-              t2("crash.filter.osDevice"),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-                "input",
+            activeFilters.includes("appVersion") || activeFilters.includes("osDevice") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 10 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, justifyContent: "space-between" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 11, color: "#6b645a", lineHeight: 1.45, flex: 1 }, children: t2("crash.filter.optionsHelp") }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    disabled: configDisabled || filterOptionsBusy,
+                    style: { ...btn, padding: "4px 8px", fontSize: 11 },
+                    onClick: () => void fetchFilterOptions(),
+                    children: filterOptionsBusy ? t2("crash.filter.optionsLoading") : t2("crash.filter.optionsReload")
+                  }
+                )
+              ] }),
+              filterOptionsError ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 11, color: "#b42318" }, children: filterOptionsError }) : null,
+              activeFilters.includes("appVersion") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                FilterOptionPicker,
                 {
-                  style: input,
-                  value: filters.osDevice,
+                  title: t2("crash.filter.appVersion"),
+                  options: filterOptions.versions,
+                  selected: filters.appVersions,
                   disabled: configDisabled,
-                  placeholder: t2("crash.filter.osDeviceHint"),
-                  onChange: (e) => setFilters((f) => ({ ...f, osDevice: e.target.value }))
+                  loading: filterOptionsBusy,
+                  searchPlaceholder: t2("crash.filter.optionsSearch"),
+                  emptyText: t2("crash.filter.optionsEmpty"),
+                  loadingText: t2("crash.filter.optionsLoading"),
+                  clearLabel: t2("crash.filter.osDeviceClear"),
+                  selectedCountLabel: t2("crash.filter.optionsSelected"),
+                  maxSelectedHint: t2("crash.filter.optionsMaxHint"),
+                  onChange: (next) => setFilters((f) => ({ ...f, appVersions: next }))
                 }
-              )
+              ) : null,
+              activeFilters.includes("osDevice") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  FilterOptionPicker,
+                  {
+                    title: t2("crash.filter.osVersions"),
+                    options: filterOptions.osVersions,
+                    selected: filters.osVersions,
+                    disabled: configDisabled,
+                    loading: filterOptionsBusy,
+                    searchPlaceholder: t2("crash.filter.optionsSearch"),
+                    emptyText: t2("crash.filter.optionsEmpty"),
+                    loadingText: t2("crash.filter.optionsLoading"),
+                    clearLabel: t2("crash.filter.osDeviceClear"),
+                    selectedCountLabel: t2("crash.filter.optionsSelected"),
+                    maxSelectedHint: t2("crash.filter.optionsMaxHint"),
+                    onChange: (next) => setFilters((f) => ({ ...f, osVersions: next }))
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  FilterOptionPicker,
+                  {
+                    title: t2("crash.filter.deviceModels"),
+                    options: filterOptions.devices,
+                    selected: filters.deviceModels,
+                    disabled: configDisabled,
+                    loading: filterOptionsBusy,
+                    searchPlaceholder: t2("crash.filter.optionsSearch"),
+                    emptyText: t2("crash.filter.optionsEmpty"),
+                    loadingText: t2("crash.filter.optionsLoading"),
+                    clearLabel: t2("crash.filter.osDeviceClear"),
+                    selectedCountLabel: t2("crash.filter.optionsSelected"),
+                    maxSelectedHint: t2("crash.filter.optionsMaxHint"),
+                    onChange: (next) => setFilters((f) => ({ ...f, deviceModels: next }))
+                  }
+                )
+              ] }) : null
             ] }) : null,
             activeFilters.includes("sort") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: row, children: [
               /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
@@ -8028,64 +8868,126 @@ function CrashBoard({
                   value: filters.keyword,
                   disabled: configDisabled,
                   placeholder: t2("crash.filter.keywordHint"),
-                  onChange: (e) => onKeywordChange(e.target.value)
+                  onChange: (e) => onKeywordChange(e.target.value),
+                  onKeyDown: (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyFiltersAndFetch();
+                    }
+                  }
                 }
               )
-            ] }) : null
-          ] })
+            ] }) : null,
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginTop: 4, justifyContent: "space-between" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 11, color: filtersDirty ? "#b54708" : "#6b645a", lineHeight: 1.45 }, children: filtersDirty ? t2("crash.filtersDirty") : t2("crash.filtersIdle") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: primary,
+                  disabled: configDisabled || listBusy,
+                  onClick: () => applyFiltersAndFetch(),
+                  children: listBusy ? t2("common.loading") : t2("crash.applyFilters")
+                }
+              )
+            ] })
+          ] }) : null
         ]
       }
     ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6, fontSize: 12 }, children: t2("crash.listTitle") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, justifyContent: "space-between", marginBottom: 6 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, fontSize: 12 }, children: t2("crash.listTitle") }),
+        listItems.length || listBusy ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontSize: 11, color: "#6b645a" }, children: typeof listTotal === "number" ? t2("crash.pageStatusTotal", {
+          page: String(listPage),
+          totalPages: String(totalPages ?? "—"),
+          total: String(listTotal)
+        }) : t2("crash.pageStatus", { page: String(listPage) }) }) : null
+      ] }),
       listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: t2("crash.listLoading") }) : null,
-      !listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: t2("crash.listEmpty") }) : null,
-      listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("ul", { style: { margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }, children: listItems.map((item) => {
-        const active2 = item.id === selectedId;
-        return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      !listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: hasDimensionFilters ? t2("crash.listEmptyFiltered") : t2("crash.listEmptyHint") }) : null,
+      listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        "ul",
+        {
+          style: {
+            margin: 0,
+            padding: 0,
+            listStyle: "none",
+            display: "grid",
+            gap: 6,
+            maxHeight: 280,
+            overflow: "auto"
+          },
+          children: listItems.map((item) => {
+            const active2 = item.id === selectedId;
+            return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+              "button",
+              {
+                type: "button",
+                disabled: detailBusy,
+                onClick: () => void loadDetail(item.id),
+                style: {
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: active2 ? "2px solid var(--dsh-accent, #0f6e56)" : "1px solid var(--dsh-border, #ddd4c5)",
+                  background: active2 ? "#eef7f3" : "#fff",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  lineHeight: 1.45
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600 }, children: item.title }),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { color: "#6b645a", marginTop: 2 }, children: [
+                    t2("crash.col.version"),
+                    ": ",
+                    item.appVersion || "—",
+                    " · ",
+                    t2("crash.col.count"),
+                    ":",
+                    " ",
+                    item.count ?? "—",
+                    " · ",
+                    t2("crash.col.affectedUsers"),
+                    ": ",
+                    item.affectedUsers ?? "—",
+                    " ·",
+                    " ",
+                    t2("crash.col.status"),
+                    ": ",
+                    statusLabel3(item.status)
+                  ] })
+                ]
+              }
+            ) }, item.id);
+          })
+        }
+      ) : null,
+      listItems.length || listPage > 1 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginTop: 8, justifyContent: "space-between" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
           "button",
           {
             type: "button",
-            disabled: detailBusy,
-            onClick: () => void loadDetail(item.id),
-            style: {
-              width: "100%",
-              textAlign: "left",
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: active2 ? "2px solid var(--dsh-accent, #0f6e56)" : "1px solid var(--dsh-border, #ddd4c5)",
-              background: active2 ? "#eef7f3" : "#fff",
-              cursor: "pointer",
-              fontSize: 12,
-              lineHeight: 1.45
-            },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600 }, children: item.title }),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { color: "#6b645a", marginTop: 2 }, children: [
-                t2("crash.col.version"),
-                ": ",
-                item.appVersion || "—",
-                " · ",
-                t2("crash.col.count"),
-                ":",
-                " ",
-                item.count ?? "—",
-                " · ",
-                t2("crash.col.affectedUsers"),
-                ": ",
-                item.affectedUsers ?? "—",
-                " ·",
-                " ",
-                t2("crash.col.status"),
-                ": ",
-                statusLabel3(item.status)
-              ] })
-            ]
+            style: btn,
+            disabled: configDisabled || listBusy || listPage <= 1,
+            onClick: () => goListPage(listPage - 1),
+            children: t2("crash.prevPage")
           }
-        ) }, item.id);
-      }) }) : null
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            style: btn,
+            disabled: configDisabled || listBusy || (totalPages != null ? listPage >= totalPages : !listHasMore),
+            onClick: () => goListPage(listPage + 1),
+            children: t2("crash.nextPage")
+          }
+        )
+      ] }) : null
     ] }),
-    selectedIncident ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
+    selectedIncident || detailBusy ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { ref: detailPanelRef, style: { marginBottom: 10 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.detailStack") }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
         "pre",
@@ -8098,22 +9000,25 @@ function CrashBoard({
             borderRadius: 8,
             fontSize: 11,
             lineHeight: 1.4,
-            maxHeight: 160,
+            maxHeight: 200,
             overflow: "auto",
             whiteSpace: "pre-wrap"
           },
-          children: detailBusy ? t2("common.loading") : selectedIncident.stackText
+          children: detailBusy ? t2("common.loading") : selectedIncident?.stackText
         }
       )
     ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 10 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: busy || detailBusy, onClick: () => void onAnalyzeClick(), children: busy ? t2("common.loading") : t2("crash.analyze") }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onWriteSessionClick(), children: t2("crash.writeSession") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: () => void onCopyReportClick(), children: t2("crash.copyReport") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: onExportReportClick, children: t2("crash.exportReport") }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: onSubmitClick, children: t2("crash.submitDefect") })
     ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.analyzeVsAiHint") }),
     error ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#b42318", fontSize: 12, lineHeight: 1.45 }, children: error }) : null,
     hint2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: hint2 }) : null,
-    report ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 4, marginBottom: 10 }, children: [
+    report ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { ref: reportPanelRef, style: { marginTop: 4, marginBottom: 10 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
         "div",
         {
@@ -8125,20 +9030,80 @@ function CrashBoard({
             marginBottom: 8
           },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("AI 分析") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("crash.localSummary") }),
             /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }, children: report.summary }),
             noMatch ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "8px 0 0", fontSize: 12, color: "#b54708" }, children: t2("crash.noRepoMatch") }) : null
           ]
         }
       ),
       report.matchedFiles?.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 8 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("- 相关文件：") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.matchedFiles") }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("ul", { style: { margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.45 }, children: report.matchedFiles.map((m) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("li", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: m.path }),
           m.symbol ? ` · ${m.symbol}` : "",
           m.reason ? ` — ${m.reason}` : ""
         ] }, m.path + (m.symbol || ""))) })
       ] }) : null,
+      report.aiAnalysis?.trim() ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "div",
+        {
+          style: {
+            padding: "10px 12px",
+            background: "#eef7f3",
+            borderRadius: 8,
+            border: "1px solid var(--dsh-border, #ddd4c5)",
+            marginBottom: 8
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("crash.aiSummary") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }, children: report.aiAnalysis })
+          ]
+        }
+      ) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "div",
+        {
+          ref: aiPasteRef,
+          style: {
+            marginBottom: 8,
+            padding: 10,
+            borderRadius: 8,
+            border: awaitingAiPaste ? "2px solid var(--dsh-accent, #0f6e56)" : "1px dashed var(--dsh-border, #ddd4c5)",
+            background: awaitingAiPaste ? "#eef7f3" : "#fff"
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6, fontSize: 12 }, children: t2("crash.aiPasteTitle") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.aiPasteHint") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "textarea",
+              {
+                style: { ...input, minHeight: 96, resize: "vertical", fontFamily: "ui-monospace, monospace" },
+                value: aiDraft,
+                disabled: busy,
+                placeholder: t2("crash.aiPastePlaceholder"),
+                onChange: (e) => {
+                  setAiDraft(e.target.value);
+                  setAwaitingAiPaste(true);
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginTop: 8 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: primary,
+                  disabled: busy || !aiDraft.trim() && !pendingCrashJobId,
+                  onClick: () => void onApplyAiClick(),
+                  children: t2("crash.aiApply")
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy, onClick: () => void onPasteAiFromClipboard(), children: t2("crash.aiFromClipboard") }),
+              pendingCrashJobId ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 11, color: "#0f6e56" }, children: t2("crash.aiJobWaiting") }) : null
+            ] })
+          ]
+        }
+      ),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("details", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("summary", { style: { cursor: "pointer", fontWeight: 600, fontSize: 12 }, children: t2("crash.promptPreview") }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
@@ -8209,24 +9174,33 @@ function CrashBoard({
     ] })
   ] });
 }
-var import_react5, import_jsx_runtime5, MASKED_COOKIE, defaultFilters, card, label, input, row, btn, primary;
+var import_react5, import_jsx_runtime5, CRASH_LIST_PAGE_SIZE, AI_SECTION_HEADERS, STACK_SECTION_HEADERS, MASKED_COOKIE, defaultFilters, card, label, input, row, btn, primary, UMENG_FILTER_MAX_PER_DIMENSION;
 var init_CrashBoard = __esm({
   "client-src/visual/CrashBoard.tsx"() {
     "use strict";
     import_react5 = require("react");
     init_use_locale_t();
     import_jsx_runtime5 = require("react/jsx-runtime");
+    CRASH_LIST_PAGE_SIZE = 20;
+    AI_SECTION_HEADERS = ["### AI 分析结论", "### AI analysis"];
+    STACK_SECTION_HEADERS = ["### 堆栈", "### Stack trace"];
     MASKED_COOKIE = "••••••••";
-    defaultFilters = () => ({
-      timeRange: "",
-      appVersion: "",
-      errorKinds: [],
-      osDevice: "",
-      sortField: "count",
-      sortDir: "desc",
-      statuses: [],
-      keyword: ""
-    });
+    defaultFilters = () => {
+      const { startAt, endAt } = rangeDatesForPreset("7d");
+      return {
+        timeRange: "7d",
+        startAt,
+        endAt,
+        appVersions: [],
+        errorKinds: [],
+        osVersions: [],
+        deviceModels: [],
+        sortField: "count",
+        sortDir: "desc",
+        statuses: [],
+        keyword: ""
+      };
+    };
     card = {
       border: "1px solid var(--dsh-border, #ddd4c5)",
       borderRadius: 12,
@@ -8257,6 +9231,7 @@ var init_CrashBoard = __esm({
       color: "#fff",
       fontWeight: 700
     };
+    UMENG_FILTER_MAX_PER_DIMENSION = 10;
   }
 });
 
@@ -9253,7 +10228,7 @@ function apiPost(path, body2) {
     });
   });
 }
-function downloadTextFile2(filename, text, mime) {
+function downloadTextFile3(filename, text, mime) {
   var blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
@@ -12019,7 +12994,7 @@ function TraceScopePanelBody() {
       }).then(function(data) {
         var text = data && data.markdown || "";
         var name2 = data && data.filename || filename;
-        downloadTextFile2(name2, text, "text/markdown");
+        downloadTextFile3(name2, text, "text/markdown");
         setChatHint(t("已导出：") + name2);
       }).catch(function() {
         var text = buildLocalExportMarkdown(report, {
@@ -12027,7 +13002,7 @@ function TraceScopePanelBody() {
           baseCommit: base,
           headCommit: head2
         });
-        downloadTextFile2(filename, text, "text/markdown");
+        downloadTextFile3(filename, text, "text/markdown");
         setChatHint(t("已导出（本地面板数据）：") + filename);
       }).finally(function() {
         endBusy();
@@ -12295,7 +13270,8 @@ function TraceScopePanelBody() {
               incident: crashReport.incident,
               matchedFiles: crashReport.matchedFiles || [],
               summary: crashReport.summary || "",
-              fixHints: crashReport.fixHints || []
+              fixHints: crashReport.fixHints || [],
+              aiAnalysis: crashReport.aiAnalysis || ""
             }
           }).then(function(data) {
             var tip = t("已提交到 ") + (data.provider || trackerProvider) + (data.id ? "（ID " + data.id + "）" : "");

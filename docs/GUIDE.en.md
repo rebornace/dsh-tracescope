@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.2.7`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.3.0`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -13,11 +13,11 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 |------------|-------|--------|
 | **Impact analysis** | Stable ↔ under-test (local git or Codeup API) | Direct + static ripple checklist; mark, attach, export, file defects |
 | **Design diff** | Figma / Lanhu + code pages | Static diffs + design raster highlights; optional AI write-back |
-| **Crash analysis** | Umeng U-APM Console (cookie) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; composer draft or tracker filing |
+| **Crash analysis** | Umeng U-APM Console (cookie) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; AI tool write-back; composer draft or tracker filing |
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
-Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. **Impact analysis** and **design diff** are also exposed via `@rebornace/tracescope-mcp` ([§9 MCP tools](#9-mcp-tools)). **Crash analysis** is **Host sidebar only** (`/tracescope/v1/crash-*`) and is **not** in the MCP tool list yet.
+Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. **Impact analysis** and **design diff** are also exposed via `@rebornace/tracescope-mcp` ([§9 MCP tools](#9-mcp-tools)). **Crash analysis** list/detail/analyze uses the Host sidebar and `/tracescope/v1/crash-*`; Desktop chat can auto-write conclusions via Host tool `tracescope_publish_crash_analysis` (MCP package does not yet expose crash list APIs).
 
 ### UI language
 
@@ -65,44 +65,58 @@ Sidebar mode switch: **Impact analysis** / **Design diff** / **Crash analysis**.
 
 ### What it does
 
-Pull crash/ANR list and detail from **Umeng U-APM Console** via browser cookie, or **paste a stack trace** when cookie auth fails; match frames to files under the code directory; emit summary, hits, fix hints, a bilingual **`prompt`**, and a prebuilt **`defectBody`**.
+Pull crash/ANR list and detail from **Umeng U-APM Console** via browser cookie, or **paste a stack trace** when cookie auth fails; match frames to files under the code directory; run local analysis; write a bilingual prompt into the session and let the agent **publish** the AI conclusion back; file a dedicated tracker defect body.
 
 ### Umeng cookie (Console)
 
-1. Sign in to [Umeng U-APM Console](https://console.umeng.com/), open the app crash list.  
-2. DevTools → **Network** → any `*.umeng.com` request → copy the full **Cookie** header.  
-3. Enter **AppKey** + **Cookie**, optionally **Remember credentials**, **Save**, then **Probe** (`crash-probe`) to verify. **Clear cookie** removes local storage only.  
+1. Sign in to [Umeng U-APM Console](https://apm.umeng.com/), open the app **crash list** (`error_analysis/crash`).  
+2. DevTools → **Network** → an XHR to `apm.umeng.com` (e.g. `/hsf/analysis/errorList`) → copy the full **Cookie** header (account must open that app’s crash list; include `EGG_SESS` / `umplus_uc_token`; `ctoken` optional).  
+3. In the sidebar **Umeng** block enter **AppKey** + **Cookie**, keep **Remember credentials**, then **Save** or **Probe** (`crash-probe`; probe also persists when remember is on).  
+4. **Clear cookie** removes local storage only.  
 
 Sidebar compliance note (`crash.cookieHint`): reads only data your logged-in session can see; cookie stays on device and requests go to Umeng hosts only. Do not share cookies.
 
-Credentials/AppKey follow **repo override → global** (separate keys from Figma/Lanhu).
+Credentials/AppKey are mirrored to **global** and the current repo key (normalized remote Git URL). The Umeng block is collapsible; opening a crash detail collapses it so the analysis panel stays visible.
 
-### List and seven filters
+### List and filters (collapsed by default)
 
-After config is ready the list loads automatically (keyword and unsaved cookie edits debounce ~400ms). Filters align with Console capabilities:
+After credentials are ready you can load the list. The **Filters** block is **collapsed by default** (one-line summary of applied conditions). Expand when needed; click **Apply filters & search** to fetch (edits alone do not hit Umeng). After a successful apply the block collapses again.
 
-**timeRange** (24h / 7d / 30d / all, with client-side `lastSeenAt` trimming where needed), **appVersion**, **errorKind** (crash / ANR / error / other), **osDevice** (matches `osVersion` / `deviceModel`), **sort** (count / last seen / title, asc/desc), **status**, **keyword**.
+Version / OS / device options come from the same Console meta APIs (`getVersionsList` / `getMetaosList` / `getDevices`) — **pick only**, do not type free text. Request fields are `version` / `os` / `device` arrays.
+
+| Filter | Notes |
+|--------|--------|
+| **timeRange** | 24h / 7d / 30d / 90d or custom bounds (`dateType` + `startDay` / `endDay`; do not mix presets with `custom`) |
+| **appVersion** | Multi-select from Umeng versions; OR within the dimension |
+| **errorKind** | crash / ANR / error / other (single selection maps to Umeng `errorType`) |
+| **osVersions / deviceModels** | Multi-select from Umeng OS / device lists; **AND across dimensions** (version ∩ OS ∩ device), OR within a dimension; max **10** values per dimension (same as Console) |
+| **device values** | Hardware ids such as `iPhone17,4` (not display names); commas inside an id are kept intact |
+| **sort** | count / last seen / title, asc or desc |
+| **status** | open / closed / other (soft local filter; list rows may omit status) |
+| **keyword** | Sent as Umeng `errorAbstract` |
 
 Row click loads stack detail (`crash-detail`). On auth failure (e.g. `UMENG_AUTH`) the UI expands **paste stack** so analyze/submit still work.
 
-### Analyze, write session, submit defect
-
-Three sidebar buttons (left to right):
+### Analyze, write session, AI write-back, submit
 
 | Button | Typical role | Behavior |
 |--------|--------------|----------|
-| **Analyze** | Dev & QA | `POST /tracescope/v1/crash-analyze` — parse stack, match files, show `CrashAnalysisReport`. QA should run this before filing; **Submit defect** prompts *Run Analyze first* if no report exists yet. |
-| **Analyze & write to session** | **Developers** | Dev workflow: analyze if needed, then fill the composer draft with `prompt` (`fillComposerDraft`, **does not send**). Dev reviews and sends to the model. |
-| **Submit defect** | **Testers / QA** | QA workflow: file the **existing** report to the tracker (`feedbackKind: 'crash'`, prebuilt body). Edit title as needed. Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook skip binaries. |
+| **Analyze** (local) | Dev & QA | `POST /tracescope/v1/crash-analyze` — parse stack, match files, show summary. **No model call**. Required before filing. |
+| **Analyze & write to session** | **Developers** | Analyze if needed; create a crash AI job (`crash-ai-job`); fill the composer with a prompt that includes the **job id** (**does not send**). After send, the agent should call `tracescope_publish_crash_analysis`; the sidebar polls and **auto-writes** the green AI conclusion. If not, click **Apply AI reply** to pull, or paste then apply. |
+| **Copy / Export / Submit defect** | QA etc. | Copy report, export Markdown, or file to the tracker (`feedbackKind: 'crash'` + prebuilt `defectBody`, may include AI text). Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook skip binaries. |
 
-Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-list`, `crash-detail`, `crash-analyze`.
+Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-filter-options`, `crash-list`, `crash-detail`, `crash-analyze`, `crash-ai-job`, `crash-job`.
+
+Bundled skill: `tracescope-crash-analysis` (guides the agent to publish).
 
 ### Crash-specific limits (summary)
 
-- **Console transport** only — no official OpenAPI (`transport: openapi` not implemented); Console HTML/API changes can break list/detail → update plugin or paste stack.  
-- **Cookie expiry** — re-copy from browser when probe/list fails.  
-- **No symbolication** — no dSYM/ProGuard mapping; repo hits are **filename** search with heuristics.  
+- **Console transport** only — no official OpenAPI; Console changes can break list/detail → paste stack.  
+- **Cookie expiry** — re-copy from the browser when probe/list fails.  
+- **Filter intersection** — heavy multi-dimension picks often return 0 rows (AND semantics). Try fewer dimensions first.  
+- **No symbolication** — filename search heuristics may mis-match.  
 - **Trackers** — GitLab/Webhook do not upload binaries (see [§10](#10-known-limitations)).  
+- **MCP** — crash list/analyze APIs are not in `@rebornace/tracescope-mcp` yet; publish tool is registered on the DSH Host agent surface.  
 
 ---
 
@@ -182,9 +196,20 @@ The Host does not auto-draw Update for third-party bundles; TraceScope registers
 
 ## 9. MCP tools
 
-These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host. **Crash analysis** (`/tracescope/v1/crash-*`) is **not** listed here — use the Desktop sidebar **Crash analysis** mode.
+These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
-`open_panel`, `list_commits`, `get_diff`, `analyze_impact`, hand-test create/publish, visual review + snapshot + findings, page rematch create/publish.
+**Crash analysis:** list / detail / local analyze stay on the Desktop sidebar Host routes (`/tracescope/v1/crash-*`) and are **not** in the MCP package yet. Session write-back uses the Host-registered `tracescope_publish_crash_analysis` tool (same publish pattern as hand-test / visual findings; see [§4](#4-crash-analysis)).
+
+| Tool | Notes |
+|------|--------|
+| `tracescope_open_panel` | Open local visual panel |
+| `tracescope_list_commits` | List commits / refs |
+| `tracescope_get_diff` | Paginated unified diff |
+| `tracescope_analyze_impact` | Deterministic impact analysis |
+| `tracescope_create_handtest_job` / `tracescope_publish_handtest` | Hand-test chat job |
+| `tracescope_start_visual_review` / `tracescope_get_design_snapshot` / `tracescope_publish_visual_findings` | UI review |
+| `tracescope_start_page_rematch` / `tracescope_publish_page_rematch` | Page ↔ file match |
+| `tracescope_publish_crash_analysis` | (DSH Host) publish crash AI conclusion; not exported by MCP package yet |
 
 ---
 
@@ -210,7 +235,9 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host. **Crash a
 
 - Umeng **Console cookie** only; cookie expiry or Console changes break list/detail — paste stack fallback  
 - No **symbolication**; filename-level repo search may mis-match in large monorepos  
-- Some filters may be applied locally if the remote Console call does not support them  
+- Version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
+- Auto AI write-back requires the agent to call `tracescope_publish_crash_analysis`; otherwise use **Apply AI reply** or paste  
+- MCP package does not expose crash list/analyze tools yet — use the Desktop sidebar  
 
 **Install**
 

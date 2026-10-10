@@ -249,13 +249,75 @@ From page name, copy samples, and static candidates, recommend the most likely r
 `,
 }
 
+const CRASH_ZH: SkillRegistrationLike = {
+  name: 'tracescope-crash-analysis',
+  description:
+    'TraceScope 崩溃分析：根据堆栈与命中文件定位根因与修复建议，并用 tracescope_publish_crash_analysis 写回侧栏。',
+  whenToUse:
+    '用户在 TraceScope「崩溃分析」面板点击「分析并写入会话」、或要求根据崩溃/ANR 堆栈做根因分析时。Starter 提示词会点名本 skill。',
+  source: 'bundled',
+  content: `# TraceScope 崩溃分析
+
+## 目标
+根据侧栏给出的堆栈、命中文件与排查建议，定位根因、影响范围与最小修复，写回侧栏「AI 分析结论」。
+
+## 硬性约束
+- 必须以任务单中的堆栈与命中文件为准，禁止臆造不存在的符号/路径。
+- **必须**调用 \`tracescope_publish_crash_analysis\` 写回（否则侧栏不会自动刷新）。可多次写回。
+- 用中文；结论要可执行。
+
+## 工具
+- \`tracescope_publish_crash_analysis\`：写回结论（\`jobId\` + \`analysis\`）
+
+## 步骤
+1. 阅读任务单中的摘要、命中文件、完整堆栈。
+2. 给出：根因、影响范围、修复建议（可含关键代码路径）。
+3. 写回：
+   - \`jobId\`：任务单中的 ID
+   - \`analysis\`：完整结论文本（markdown 可）
+4. 会话里中文简述；用户纠正后再次写回。
+`,
+}
+
+const CRASH_EN: SkillRegistrationLike = {
+  name: 'tracescope-crash-analysis',
+  description:
+    'TraceScope crash analysis: locate root cause and fixes from a stack + matched files, then publish via tracescope_publish_crash_analysis.',
+  whenToUse:
+    'When the user clicks “Analyze & write to session” in TraceScope Crash analysis, or asks for crash/ANR root-cause analysis from a stack. Starter prompts name this skill.',
+  source: 'bundled',
+  content: `# TraceScope crash analysis
+
+## Goal
+From the stack, matched files, and hints in the job card, produce root cause, impact, and a minimal fix; publish back to the sidebar AI conclusion.
+
+## Hard rules
+- Ground conclusions in the provided stack and matched files; do not invent symbols/paths.
+- **Must** call \`tracescope_publish_crash_analysis\` (sidebar will not auto-refresh otherwise). May publish multiple times.
+- Reply in English; keep conclusions actionable.
+
+## Tools
+- \`tracescope_publish_crash_analysis\`: publish (\`jobId\` + \`analysis\`)
+
+## Steps
+1. Read the job summary, matched files, and full stack.
+2. Produce: root cause, impact, fix suggestions (with file paths when known).
+3. Publish:
+   - \`jobId\` from the job card
+   - \`analysis\`: full conclusion text (markdown ok)
+4. Brief chat summary; republish after user corrections.
+`,
+}
+
 /** Register plugin-bundled skills when the host skill registry is available. */
 export function registerBuiltinSkills(ctx: Context): void {
   const skills = resolveSkillsService(ctx)
   if (!skills) return
   const lang = resolveSkillsLang(ctx)
   const pack =
-    lang === 'en' ? [IMPACT_EN, UI_EN, PAGE_EN] : [IMPACT_ZH, UI_ZH, PAGE_ZH]
+    lang === 'en'
+      ? [IMPACT_EN, UI_EN, PAGE_EN, CRASH_EN]
+      : [IMPACT_ZH, UI_ZH, PAGE_ZH, CRASH_ZH]
   for (const skill of pack) {
     try {
       skills.register(skill)

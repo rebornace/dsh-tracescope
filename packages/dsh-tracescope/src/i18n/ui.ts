@@ -93,6 +93,22 @@ export const UI_MESSAGES: Record<string, { zh: string; en: string }> = {
     zh: '已发布验证清单到 TraceScope 面板（任务 {id}）',
     en: 'Published checklist to the TraceScope panel (job {id})',
   },
+  AGENT_CRASH_CREATED: {
+    zh: '已创建崩溃分析任务 {id}',
+    en: 'Created crash analysis job {id}',
+  },
+  AGENT_CRASH_NEXT: {
+    zh: '请按下方提示词分析，完成后必须调用 tracescope_publish_crash_analysis 写回侧栏结论。',
+    en: 'Follow the prompt below, then call tracescope_publish_crash_analysis to write the conclusion back to the sidebar.',
+  },
+  AGENT_CRASH_PUBLISHED: {
+    zh: '已将崩溃分析结论写回 TraceScope 面板（任务 {id}）',
+    en: 'Published crash conclusion to the TraceScope panel (job {id})',
+  },
+  TOOL_CRASH_PUBLISHED: {
+    zh: '崩溃分析结论已写回侧栏',
+    en: 'Crash analysis written back to the sidebar',
+  },
   AGENT_HANDTEST_PERSISTED: {
     zh: '并已持久化到本机，重启后同一仓库与两版本会自动恢复（再次「AI 智能分析」并 publish 才会覆盖）。',
     en: 'Persisted locally; the same repo/version pair restores after restart (re-run AI analysis + publish to overwrite).',

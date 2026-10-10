@@ -21,10 +21,14 @@ describe('localCrashProvider', () => {
     const stack = 'java.lang.NullPointerException: boom'
     const withStack = { provider: 'local' as const, stackText: stack, title: 'NPE' }
     const listed = await localCrashProvider.list(withStack)
-    expect(listed).toHaveLength(1)
-    expect(listed[0]?.id).toBe('local')
-    expect(listed[0]?.title).toBe('NPE')
-    expect(await localCrashProvider.list({ provider: 'local' })).toEqual([])
+    expect(listed.items).toHaveLength(1)
+    expect(listed.items[0]?.id).toBe('local')
+    expect(listed.items[0]?.title).toBe('NPE')
+    expect(await localCrashProvider.list({ provider: 'local' })).toMatchObject({
+      items: [],
+      total: 0,
+      hasMore: false,
+    })
   })
 
   it('capabilities exposes detail support without filters', () => {
@@ -36,6 +40,6 @@ describe('localCrashProvider', () => {
       provider: 'umeng',
       stackText: 'java.lang.NullPointerException: boom',
     })
-    expect(listed).toEqual([])
+    expect(listed.items).toEqual([])
   })
 })

@@ -3790,6 +3790,7 @@
                   matchedFiles: crashReport.matchedFiles || [],
                   summary: crashReport.summary || '',
                   fixHints: crashReport.fixHints || [],
+                  aiAnalysis: crashReport.aiAnalysis || '',
                 },
               })
                 .then(function (data) {

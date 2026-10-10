@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.2.7`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.3.0`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -29,11 +29,11 @@
 |------|------|------|
 | **功能影响分析** | 稳定版 ↔ 待测版（本地 Git 或云效代码接口） | 直接变更 + 静态波及清单；可标注、截图、导出、提单 |
 | **设计差异分析** | Figma / 蓝湖设计稿 + 代码仓页面 | 静态差异清单 + 设计对照图高亮；可 AI 协助写回、导出、提单 |
-| **崩溃分析** | 友盟 U-APM 控制台（Cookie）或粘贴堆栈 + 代码目录 | 堆栈解析、仓库文件命中、双语报告；开发写入会话、测试提交缺陷 |
+| **崩溃分析** | 友盟 U-APM 控制台（Cookie）或粘贴堆栈 + 代码目录 | 堆栈解析、仓库文件命中、双语报告；AI 工具写回结论；开发写会话、测试提交缺陷 |
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
-推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。**功能影响分析**与**设计差异分析**的执行层也可通过 `@rebornace/tracescope-mcp` 在 MCP 客户端调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）。**崩溃分析**目前仅在 Host 侧栏与 `/tracescope/v1/crash-*` 路由提供，**尚未**纳入 MCP 工具表。
+推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。**功能影响分析**与**设计差异分析**的执行层也可通过 `@rebornace/tracescope-mcp` 在 MCP 客户端调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）。**崩溃分析**列表 / 详情 / 分析走 Host 侧栏与 `/tracescope/v1/crash-*`；桌面端会话内可通过 Agent 工具 `tracescope_publish_crash_analysis` 自动写回结论（MCP 包尚未对等暴露崩溃列表类接口）。
 
 ### 界面语言
 
@@ -121,55 +121,62 @@
 
 ### 4.1 做什么
 
-从友盟 U-APM 控制台拉取崩溃/ANR 列表与详情，或在没有 Cookie 时**粘贴堆栈**降级；对照当前代码目录生成摘要、命中文件与修复提示，并输出可发给模型的双语 `prompt` 与协作平台缺陷正文。
+从友盟 U-APM 控制台拉取崩溃 / ANR 列表与详情，或在没有 Cookie 时**粘贴堆栈**降级；对照当前代码目录生成摘要、命中文件与修复提示；支持本地分析、将提示词写入会话并由 Agent **工具写回** AI 结论，以及向协作平台提交专用缺陷正文。
 
 ### 4.2 友盟凭证（Console Cookie）
 
-1. 浏览器登录 [友盟 U-APM 控制台](https://console.umeng.com/)，打开目标应用的崩溃列表页。  
-2. 开发者工具 → **Network** → 任选发往 `*.umeng.com` 的请求 → 复制请求头 **Cookie** 整段。  
-3. 侧栏填写 **AppKey** 与 **Cookie**，勾选「记住凭证」后点 **保存**；可用 **自检**（`crash-probe`）验证 Cookie 是否仍有效。  
+1. 浏览器登录 [友盟 U-APM 控制台](https://apm.umeng.com/)，打开目标应用的**崩溃列表**页（路径含 `error_analysis/crash`）。  
+2. 开发者工具 → **Network** → 任选发往 `apm.umeng.com` 的 XHR（如 `/hsf/analysis/errorList`）→ 复制请求头 **Cookie** 整段（须能打开该 App 崩溃列表；至少含 `EGG_SESS` / `umplus_uc_token`，`ctoken` 可选）。  
+3. 侧栏「友盟配置」填写 **AppKey** 与 **Cookie**，勾选「记住凭证」后点 **保存** 或 **自检**（`crash-probe`；自检成功也会按勾选写入本机）。  
 4. **清除 Cookie** 只删本机保存的 Cookie，不影响友盟账号。  
 
 合规说明（侧栏 `crash.cookieHint`）：仅读取您已在控制台登录后可查看的数据；Cookie 仅存本机且请求仅发往友盟域名。请遵守友盟服务条款，勿分享 Cookie。
 
-凭证与 AppKey 按「仓库覆盖 → 全局」记忆（键与 Figma/蓝湖分开），切换代码目录不会用空值覆盖已保存的 Cookie。
+凭证与 AppKey 会同时写入**全局**与当前仓库键（远程 Git URL 用规范化 URL）；切换代码目录时仍会带出已保存的 AppKey / Cookie。友盟配置区可折叠；点开某条崩溃详情时会自动收起，以便下方分析区露出来。
 
-### 4.3 列表与七项过滤
+### 4.3 列表与筛选（默认可折叠）
 
-配置就绪后自动拉列表（关键词与未保存的 Cookie 编辑有约 400ms 防抖）。过滤项与友盟 Console 能力对齐：
+凭证就绪后可拉列表。侧栏**过滤**区默认折叠（一行摘要当前条件），需要时再展开；修改后须点 **应用筛选并查询** 才会请求（避免误触频繁打友盟）。应用成功后过滤区会再次收起。
+
+筛选项与 U-APM Console 同源：版本 / 系统 / 机型来自元数据接口（`getVersionsList` / `getMetaosList` / `getDevices`），**仅可勾选**，勿手输；请求体字段为 `version` / `os` / `device` 数组。
 
 | 过滤 | 说明 |
 |------|------|
-| **timeRange** | 24h / 7d / 30d / 全部（部分在客户端按 `lastSeenAt` 二次过滤） |
-| **appVersion** | 版本号 |
-| **errorKind** | crash / ANR / error / other |
-| **osDevice** | 系统版本或机型关键词（匹配 `osVersion` / `deviceModel`） |
+| **timeRange** | 近 24h / 7d / 30d / 90d，或自定义起止日期（对应友盟 `dateType` + `startDay` / `endDay`；预设勿与 `custom` 混用） |
+| **appVersion** | 从友盟版本列表多选；同维度内为「或者」 |
+| **errorKind** | crash / ANR / error / other（单选时映射为友盟 `errorType`） |
+| **osVersions / deviceModels** | 从友盟系统 / 设备列表勾选；**跨维度为并且**（版本 ∩ 系统 ∩ 机型），同维度内多选为或者；每维最多 **10** 项（与控制台一致） |
+| **device 取值** | 使用硬件标识（如 `iPhone17,4`），不是展示名；标识中的逗号会原样保留，不会被拆开 |
 | **sort** | 次数 / 最近发生 / 标题，升序或降序 |
-| **status** | open / closed / other |
-| **keyword** | 标题等关键词 |
+| **status** | open / closed / other（本地软过滤；列表行可能缺状态字段） |
+| **keyword** | 作为友盟 `errorAbstract` 下发 |
 
-点击列表行加载详情堆栈（`crash-detail`）。Cookie 失效（如 `UMENG_AUTH`）时会提示并展开**粘贴堆栈**区，仍可分析与提单。
+点击列表行加载详情堆栈（`crash-detail`）。Cookie 失效（如 `UMENG_AUTH`）时会提示并展开**粘贴堆栈**区，仍可分析与提交。
 
-### 4.4 分析、写会话与提单
+### 4.4 分析、写会话、AI 回写与提交
 
-详情或粘贴区下方有三个按钮（从左到右），对应不同角色：
+详情或粘贴区下方主按钮：
 
 | 侧栏按钮 | 典型角色 | 行为 |
 |----------|----------|------|
-| **分析** | 开发 / 测试共用 | 调用 `POST /tracescope/v1/crash-analyze`：解析堆栈、在代码目录内按文件名匹配源码，生成并展示 `CrashAnalysisReport`（摘要、命中文件、提示词预览）。测试提单前须先在本板完成分析（通常点本按钮；未生成报告时「提交缺陷」会提示请先点「分析」）。 |
-| **分析并写入会话** | **开发** | 面向开发：若尚无报告则先执行与分析相同的请求，再将 `prompt` 填入 DeepSeek Harness **当前会话输入框**（`fillComposerDraft`），**不会自动发送**。开发核对后再发送，由模型在仓库内定位根因。 |
-| **提交缺陷** | **测试** | 面向测试：将**已生成**的报告提交到协作平台（`feedbackKind: 'crash'` + 预构建 `defectBody`；中文模板经 `\u` 转义）。需配置侧栏协作平台；可修改标题。云效 / GitHub 附件规则与另两条主能力相同；GitLab / Webhook 仍不上传二进制附件。 |
+| **分析**（本地分析） | 开发 / 测试共用 | `POST /tracescope/v1/crash-analyze`：解析堆栈、在代码目录内按文件名匹配源码，展示摘要与命中文件。**不调模型**。提交缺陷前须先有报告。 |
+| **分析并写入会话** | **开发** | 若尚无报告则先本地分析；再创建崩溃 AI 任务（`crash-ai-job`），把带 **任务 ID** 的提示词填入当前会话输入框（**不自动发送**）。发送后 Agent 应调用 `tracescope_publish_crash_analysis`；侧栏轮询任务并**自动回写**绿色「AI 分析结论」。若未自动回写，可点「回写 AI 结论」拉取，或粘贴回复后再回写。 |
+| **复制 / 导出 / 提交缺陷** | 测试等 | 复制报告、导出 Markdown，或提交到协作平台（`feedbackKind: 'crash'` + 预构建 `defectBody`，可含 AI 结论）。云效 / GitHub 附件规则与另两条主能力相同；GitLab / Webhook 仍不上传二进制。 |
 
-Host 路由（与侧栏一致）：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-list`、`crash-detail`、`crash-analyze`。
+Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-filter-options`、`crash-list`、`crash-detail`、`crash-analyze`、`crash-ai-job`、`crash-job`。
+
+桌面端内置 skill：`tracescope-crash-analysis`（引导 Agent 用写回工具）。
 
 ### 4.5 本节已知限制（摘要）
 
-- **Console 依赖**：取数走友盟 Web Console 协议，非官方 OpenAPI；`transport: openapi` 尚未实现。Console 页面或接口变更可能导致列表/详情失败，需更新插件或暂时用粘贴堆栈。  
-- **Cookie 生命周期**：会话过期需重新复制 Cookie；自检失败时请更新 Cookie 或使用粘贴降级。  
-- **无符号化**：不做 dSYM / mapping 还原；仓库命中按堆栈中的**文件名**在目录内搜索，多候选时启发式排序，可能误匹配或漏匹配。  
-- **协作附件**：GitLab Issues / 通用 Webhook 不会像云效 / GitHub 那样上传截图等二进制（与 §10 一致）。  
+- **Console 依赖**：取数走友盟 Web Console 协议，非官方 OpenAPI；`transport: openapi` 尚未实现。Console 变更可能导致列表 / 详情失败，可改用粘贴堆栈。  
+- **Cookie 生命周期**：会话过期需重新复制 Cookie；自检失败时请更新 Cookie 或粘贴降级。  
+- **筛选交集**：多维度同时勾选时很容易得到 0 条（并且关系）；请先少选维度，或清空系统 / 机型只留版本试查。  
+- **无符号化**：不做 dSYM / mapping 还原；仓库命中按堆栈**文件名**搜索，可能误匹配或漏匹配。  
+- **协作附件**：GitLab / Webhook 不上传二进制（与 §10 一致）。  
+- **MCP**：崩溃列表 / 详情 / 分析接口尚未进 `@rebornace/tracescope-mcp`；写回工具目前挂在 DSH Host Agent 面。  
 
-更完整的安装与协作限制见 [§10 已知限制](#10-已知限制)。
+更完整限制见 [§10 已知限制](#10-已知限制)。
 
 ---
 
@@ -270,7 +277,9 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ## 9. MCP 工具一览
 
-包：`@rebornace/tracescope-mcp`。下表工具的执行层与 DSH Host 共用 `@rebornace/dsh-tracescope/agent-api`。**崩溃分析**（`/tracescope/v1/crash-*`）不在此表，请使用桌面端侧栏「崩溃分析」档位。
+包：`@rebornace/tracescope-mcp`。下表工具的执行层与 DSH Host 共用 `@rebornace/dsh-tracescope/agent-api`。
+
+**崩溃分析**：列表 / 详情 / 本地分析走侧栏 Host 路由（`/tracescope/v1/crash-*`），**尚未**列入 MCP 工具表。桌面端会话写回使用 Host 注册的 `tracescope_publish_crash_analysis`（见 [§4.4](#44-分析写会话ai-回写与提交)），与手测 / UI 走查的 publish 模式相同。
 
 | Tool | 说明 |
 |------|------|
@@ -285,6 +294,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 | `tracescope_publish_visual_findings` | 写回设计差异结论 |
 | `tracescope_start_page_rematch` | 创建设计页 ↔ 文件匹配任务 |
 | `tracescope_publish_page_rematch` | 写回文件匹配推荐 |
+| `tracescope_publish_crash_analysis` | （DSH Host）写回崩溃 AI 结论；MCP 包暂未导出 |
 
 ---
 
@@ -307,9 +317,11 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ### 10.3 崩溃分析
 
-- 友盟 **Console Cookie** 取数，无 OpenAPI；Console 变更或 Cookie 过期会导致列表/详情失败，可粘贴堆栈继续分析  
+- 友盟 **Console Cookie** 取数，无 OpenAPI；Console 变更或 Cookie 过期会导致列表 / 详情失败，可粘贴堆栈继续分析  
 - 不做 ProGuard / dSYM **符号化**；仓库命中为文件名级静态搜索，复杂 monorepo 可能误匹配  
-- 友盟侧 keyword 等过滤若远程不支持，会在本地对标题等字段二次过滤，结果可能与控制台略有差异  
+- 版本 / 系统 / 机型为跨维度**并且**；勾选过多时控制台也会返回空列表（属预期）  
+- AI 自动回写依赖会话里 Agent 调用 `tracescope_publish_crash_analysis`；未调用时可手动「回写 AI 结论」或粘贴回复  
+- MCP 尚未提供崩溃列表 / 分析工具；请用桌面端侧栏  
 
 ### 10.4 安装与分发
 

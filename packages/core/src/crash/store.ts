@@ -17,10 +17,29 @@ export interface StoredCrashCredentialsFile {
   byRepo?: Record<string, CrashProviderConfig>
 }
 
-function repoKey(repoPath: string | undefined | null): string | null {
+/**
+ * Stable scope key for credentials.
+ * Remote URLs must NOT go through `path.resolve` (cwd-dependent on Windows).
+ * Filesystem paths stay absolute via resolve.
+ */
+export function crashRepoKey(repoPath: string | undefined | null): string | null {
   const raw = typeof repoPath === 'string' ? repoPath.trim() : ''
   if (!raw) return null
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    try {
+      const u = new URL(raw)
+      u.hash = ''
+      return u.toString().replace(/\/+$/, '').toLowerCase()
+    } catch {
+      return raw.toLowerCase()
+    }
+  }
   return path.resolve(raw)
+}
+
+/** @deprecated use crashRepoKey — kept as internal alias */
+function repoKey(repoPath: string | undefined | null): string | null {
+  return crashRepoKey(repoPath)
 }
 
 function asProviderId(value: unknown): CrashProviderId {
@@ -52,7 +71,8 @@ function normalizeFile(raw: unknown): StoredCrashCredentialsFile {
   if (o.byRepo && typeof o.byRepo === 'object' && !Array.isArray(o.byRepo)) {
     for (const [key, value] of Object.entries(o.byRepo as Record<string, unknown>)) {
       const entry = normalizeEntry(value)
-      if (entry) byRepo[path.resolve(key)] = entry
+      const normalizedKey = crashRepoKey(key) ?? key
+      if (entry) byRepo[normalizedKey] = entry
     }
   }
   return { global, byRepo: Object.keys(byRepo).length ? byRepo : undefined }
@@ -212,6 +232,19 @@ export async function saveCrashConfig(
 
   if (scope === 'repo' && key) {
     file.byRepo = { ...(file.byRepo ?? {}), [key]: next }
+    // Mirror Umeng credentials to global so they reload when repoPath changes
+    // (remote URL vs local clone, or older cwd-shifted keys). Repo-only
+    // clearCookie must not wipe the global cookie.
+    if (!clearCookie) {
+      file.global = {
+        provider: next.provider,
+        appKey: next.appKey ?? file.global?.appKey,
+        appDisplayName: next.appDisplayName ?? file.global?.appDisplayName,
+        cookie: next.cookie ?? file.global?.cookie,
+        consoleBaseUrl: next.consoleBaseUrl ?? file.global?.consoleBaseUrl,
+        transport: next.transport ?? file.global?.transport,
+      }
+    }
   } else {
     file.global = next
   }

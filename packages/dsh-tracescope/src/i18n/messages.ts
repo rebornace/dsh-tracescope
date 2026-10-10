@@ -145,6 +145,10 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
     zh: '友盟登录已失效或 Cookie 无效：{detail}',
     en: 'Umeng session expired or cookie invalid: {detail}',
   },
+  ERR_CRASH_UMENG_FORBIDDEN: {
+    zh: '友盟无权限访问该应用：{detail}',
+    en: 'Umeng account lacks permission for this app: {detail}',
+  },
   ERR_CRASH_UMENG_OPENAPI: {
     zh: '友盟 OpenAPI 传输尚未实现：{detail}',
     en: 'Umeng OpenAPI transport is not implemented: {detail}',
@@ -164,6 +168,10 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
   ERR_CRASH_MISSING_INCIDENT: {
     zh: '缺少有效的 incident（需 id 与 stackText）',
     en: 'Missing a valid incident (id and stackText required)',
+  },
+  ERR_CRASH_JOB_NOT_FOUND: {
+    zh: '找不到崩溃分析任务 {id}',
+    en: 'Crash analysis job not found: {id}',
   },
   ERR_TRACKER_UNSUPPORTED: {
     zh: '不支持的协作平台',
