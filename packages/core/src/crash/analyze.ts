@@ -6,6 +6,7 @@ import {
 } from './feedback.js'
 import { matchStackToRepo } from './match-repo.js'
 import { parseStackText } from './parse-stack.js'
+import { resolveExceptionName } from './resolve-exception.js'
 import type { CrashAnalysisReport, CrashIncident, CrashMatchedFile } from './types.js'
 
 const DEFAULT_MATCH_LIMIT = 10
@@ -15,15 +16,6 @@ export interface AnalyzeCrashOptions {
   repoPath: string
   lang?: FeedbackLang | string
   matchLimit?: number
-}
-
-function resolveExceptionName(incident: CrashIncident, parsedName?: string): string {
-  return (
-    incident.exceptionName?.trim() ||
-    parsedName?.trim() ||
-    incident.title.trim() ||
-    'Unknown exception'
-  )
 }
 
 function buildSummary(
@@ -105,7 +97,10 @@ export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashA
     reason: h.reason,
     symbol: h.symbol,
   }))
-  const exceptionName = resolveExceptionName(options.incident, parsed.exceptionName)
+  const exceptionName = resolveExceptionName(options.incident, {
+    parsedExceptionName: parsed.exceptionName,
+    stackText,
+  })
   const summary = buildSummary(options.incident, exceptionName, matchedFiles, lang)
   const fixHints = buildFixHints(matchedFiles, lang)
   const reportParts = {
