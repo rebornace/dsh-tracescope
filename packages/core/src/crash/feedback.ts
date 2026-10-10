@@ -67,6 +67,14 @@ const COPY = {
   },
 } as const
 
+/** Fields needed to build tracker defect body/subject for feedbackKind crash. */
+export interface CrashFeedbackMeta {
+  incident: CrashIncident
+  matchedFiles: CrashMatchedFile[]
+  summary: string
+  fixHints?: string[]
+}
+
 export interface CrashReportParts {
   repoPath: string
   summary: string

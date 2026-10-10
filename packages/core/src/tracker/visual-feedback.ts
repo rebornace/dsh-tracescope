@@ -8,7 +8,7 @@ import {
   type FeedbackLang,
 } from './feedback.js'
 
-export type FeedbackKind = 'impact' | 'visual-diff'
+export type FeedbackKind = 'impact' | 'visual-diff' | 'crash'
 
 export interface VisualDiffFeedbackMeta {
   designName?: string

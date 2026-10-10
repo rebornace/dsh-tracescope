@@ -14,6 +14,7 @@ import type {
   TrackerSubmitResult,
 } from './types.js'
 import type { FeedbackLang } from './feedback.js'
+import type { CrashFeedbackMeta } from '../crash/feedback.js'
 import type { FeedbackKind, VisualDiffFeedbackMeta } from './visual-feedback.js'
 
 export interface SubmitContext {
@@ -29,10 +30,14 @@ export interface SubmitContext {
   attachments?: ReportAttachment[]
   /** Host UI language used for regenerated bodies / adapter messages. */
   lang?: FeedbackLang
-  /** Impact verification vs UI-review diff defect. */
+  /** Impact verification, UI-review diff, or crash analysis defect. */
   feedbackKind?: FeedbackKind
   /** Extra fields for UI-review defect bodies. */
   visualMeta?: VisualDiffFeedbackMeta
+  /** Pre-built markdown when the host already composed the body (crash analysis). */
+  prebuiltDescription?: string
+  /** Crash incident context for subject/body when feedbackKind is crash. */
+  crashMeta?: CrashFeedbackMeta
 }
 
 export interface TrackerAdapter {

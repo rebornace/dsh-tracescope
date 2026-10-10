@@ -27,6 +27,7 @@ export {
   buildVisualDiffFeedbackSubject,
 } from './visual-feedback.js'
 export type { FeedbackKind, VisualDiffFeedbackMeta } from './visual-feedback.js'
+export type { CrashFeedbackMeta } from '../crash/feedback.js'
 export {
   collectFailedItems,
   isTrackerConfigReady,
