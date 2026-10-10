@@ -14,6 +14,7 @@ export {
   buildCrashDefectBody,
   buildCrashDefectSubject,
   buildCrashPrompt,
+  type CrashFeedbackMeta,
   type CrashReportParts,
 } from './feedback.js'
 export { parseStackText, type ParsedStack, type StackFrame } from './parse-stack.js'
@@ -25,3 +26,13 @@ export {
   registerCrashProvider,
 } from './registry.js'
 export { localCrashProvider, LOCAL_CRASH_INCIDENT_ID } from './providers/local.js'
+export {
+  clearCrashCookie,
+  cookiePresentLabel,
+  isMaskedCrashSecret,
+  loadCrashConfig,
+  publicCrashConfig,
+  resolveCrashConfigFromBody,
+  saveCrashConfig,
+  type StoredCrashCredentialsFile,
+} from './store.js'

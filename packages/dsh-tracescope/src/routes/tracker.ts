@@ -18,6 +18,7 @@ import {
   type TrackerProvider,
 } from '@rebornace/tracescope-core'
 import { I18nError } from '../i18n/messages.js'
+import { parseCrashMeta } from './crash.js'
 
 export function registerTrackerRoutes(ctx: Context) {
   registerRoute(ctx, {
@@ -148,13 +149,27 @@ export function registerTrackerRoutes(ctx: Context) {
       if (!isTrackerConfigReady(config)) {
         throw new I18nError('ERR_TRACKER_NOT_CONFIGURED', lang)
       }
+      const feedbackKind =
+        body.feedbackKind === 'visual-diff'
+          ? 'visual-diff'
+          : body.feedbackKind === 'crash'
+            ? 'crash'
+            : 'impact'
+      const isCrashSubmit = feedbackKind === 'crash'
       const report = body.report as ImpactReport | undefined
-      if (!report) throw new I18nError('ERR_MISSING_REPORT', lang)
-      const failed = collectFailedItems(report)
-      if (!failed.length) throw new I18nError('ERR_NO_FAILED_ITEMS', lang)
-      const repoPath = String(body.repoPath ?? report.repoPath ?? '')
-      const baseCommit = String(body.baseCommit ?? report.baseCommit ?? '')
-      const headCommit = String(body.headCommit ?? report.headCommit ?? '')
+      if (!isCrashSubmit && !report) throw new I18nError('ERR_MISSING_REPORT', lang)
+      const failed = report ? collectFailedItems(report) : []
+      if (!isCrashSubmit && !failed.length) throw new I18nError('ERR_NO_FAILED_ITEMS', lang)
+      const repoPath = String(body.repoPath ?? report?.repoPath ?? '')
+      const baseCommit = String(body.baseCommit ?? report?.baseCommit ?? '')
+      const headCommit = String(body.headCommit ?? report?.headCommit ?? '')
+      const prebuiltDescription =
+        typeof body.prebuiltDescription === 'string'
+          ? body.prebuiltDescription
+          : typeof body.defectBody === 'string'
+            ? body.defectBody
+            : undefined
+      const crashMeta = parseCrashMeta(body.crashMeta)
       const visualMetaRaw =
         body.visualMeta && typeof body.visualMeta === 'object'
           ? (body.visualMeta as Record<string, unknown>)
@@ -179,11 +194,12 @@ export function registerTrackerRoutes(ctx: Context) {
         headCommit,
         items: failed,
         subject: typeof body.subject === 'string' ? body.subject : undefined,
-        attachments: report.attachments,
+        attachments: report?.attachments,
         lang,
-        feedbackKind:
-          body.feedbackKind === 'visual-diff' ? 'visual-diff' : 'impact',
+        feedbackKind,
         visualMeta,
+        prebuiltDescription,
+        crashMeta,
       })
       if (!result.ok) {
         throw new I18nError('ERR_SUBMIT_DEFECT_FAILED', lang, {

@@ -9,6 +9,13 @@ export interface CrashProviderConfig {
   stackText?: string
   /** Optional display title override (local provider). */
   title?: string
+  /** Umeng U-APM application key (console transport). */
+  appKey?: string
+  appDisplayName?: string
+  /** Session cookie — server-side only; never log or expose to client in full. */
+  cookie?: string
+  consoleBaseUrl?: string
+  transport?: 'console' | 'openapi'
 }
 
 export interface CrashIncidentSummary {
