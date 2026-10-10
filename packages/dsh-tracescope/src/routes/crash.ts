@@ -5,7 +5,7 @@ import type { Context } from '../dsh-shims.js'
 import { registerRoute } from '../http/route-helpers.js'
 import {
   analyzeCrash,
-  cookiePresentLabel,
+  clearCrashCookie,
   getCrashProvider,
   isMaskedCrashSecret,
   loadCrashConfig,
@@ -16,7 +16,9 @@ import {
   type CrashIncident,
   type CrashProviderConfig,
 } from '@rebornace/tracescope-core'
+import type { Lang } from '../i18n/lang.js'
 import { I18nError } from '../i18n/messages.js'
+import { isUmengNotReady, umengNotReadyMessage, umengNotReadyParams } from './crash-umeng.js'
 
 function asRecord(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body)
@@ -87,23 +89,15 @@ function parseCrashMeta(raw: unknown): CrashFeedbackMeta | undefined {
   return { incident, matchedFiles, summary, fixHints }
 }
 
-function umengNotReadyMessage(config: CrashProviderConfig, lang: string): string {
-  const present = cookiePresentLabel(config)
-  if (lang === 'en') {
-    return `Umeng console provider is not ready in this build (appKey: ${config.appKey?.trim() ? 'yes' : 'no'}, cookie present: ${present})`
-  }
-  return `\u53cb\u76df Console \u53d6\u6570\u6682\u672a\u5c31\u7eea\uff08appKey\uff1a${config.appKey?.trim() ? '\u6709' : '\u65e0'}\uff0c cookie present: ${present}\uff09`
-}
-
-async function runProbe(config: CrashProviderConfig, lang: string): Promise<{ ok: boolean; error?: string }> {
+async function runProbe(
+  config: CrashProviderConfig,
+  lang: Lang,
+): Promise<{ ok: boolean; error?: string }> {
   if (config.provider === 'umeng') {
-    const adapter = getCrashProvider('umeng')
-    if (!adapter) {
+    if (isUmengNotReady(config)) {
       return { ok: false, error: umengNotReadyMessage(config, lang) }
     }
-    if (!adapter.isReady(config)) {
-      return { ok: false, error: umengNotReadyMessage(config, lang) }
-    }
+    const adapter = getCrashProvider('umeng')!
     const probe = (adapter as { probe?: (c: CrashProviderConfig) => Promise<{ ok: boolean; error?: string }> })
       .probe
     if (probe) return probe(config)
@@ -149,6 +143,7 @@ export function registerCrashRoutes(ctx: Context) {
       const b = asRecord(body)
       const remember = b.remember !== false && b.remember !== 'false'
       const repoPath = typeof b.repoPath === 'string' ? b.repoPath : undefined
+      const clearCookie = b.clearCookie === true || b.cookie === ''
       const existing = await loadCrashConfig(repoPath)
       const incoming: CrashProviderConfig = {
         provider: b.provider === 'umeng' ? 'umeng' : b.provider === 'local' ? 'local' : existing.provider,
@@ -157,19 +152,33 @@ export function registerCrashRoutes(ctx: Context) {
         appKey: typeof b.appKey === 'string' ? b.appKey.trim() : existing.appKey,
         appDisplayName:
           typeof b.appDisplayName === 'string' ? b.appDisplayName.trim() : existing.appDisplayName,
-        cookie:
-          typeof b.cookie === 'string' && !isMaskedCrashSecret(b.cookie)
+        cookie: clearCookie
+          ? undefined
+          : typeof b.cookie === 'string' && !isMaskedCrashSecret(b.cookie)
             ? b.cookie.trim()
-            : b.cookie === '' || b.clearCookie === true
-              ? undefined
-              : existing.cookie,
+            : existing.cookie,
         consoleBaseUrl:
           typeof b.consoleBaseUrl === 'string' ? b.consoleBaseUrl.trim() : existing.consoleBaseUrl,
         transport:
           b.transport === 'console' || b.transport === 'openapi' ? b.transport : existing.transport,
       }
-      const saved = await saveCrashConfig(incoming, { repoPath, remember })
+      if (clearCookie) {
+        await clearCrashCookie(repoPath)
+      }
+      const saved = await saveCrashConfig(incoming, { repoPath, remember, clearCookie })
       return { ok: true, config: publicCrashConfig(saved) }
+    },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-cookie-clear',
+    method: 'POST',
+    run: async (body, _ctx) => {
+      const b = asRecord(body)
+      const repoPath = typeof b.repoPath === 'string' ? b.repoPath : undefined
+      await clearCrashCookie(repoPath)
+      const config = await loadCrashConfig(repoPath)
+      return { ok: true, config: publicCrashConfig(config) }
     },
   })
 
@@ -188,12 +197,12 @@ export function registerCrashRoutes(ctx: Context) {
     method: 'POST',
     run: async (body, { lang }) => {
       const config = await resolveCrashConfigFromBody(asRecord(body))
+      if (isUmengNotReady(config)) {
+        return { items: [], error: umengNotReadyMessage(config, lang) }
+      }
       const adapter = getCrashProvider(config.provider)
       if (!adapter) {
         throw new I18nError('ERR_CRASH_PROVIDER', lang, { provider: config.provider })
-      }
-      if (config.provider === 'umeng' && !adapter.isReady(config)) {
-        return { items: [], error: umengNotReadyMessage(config, lang) }
       }
       const items = await adapter.list(config)
       return { items, capabilities: adapter.capabilities() }
@@ -208,14 +217,12 @@ export function registerCrashRoutes(ctx: Context) {
       const id = typeof b.id === 'string' ? b.id.trim() : ''
       if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const config = await resolveCrashConfigFromBody(b)
+      if (isUmengNotReady(config)) {
+        throw new I18nError('ERR_CRASH_UMENG_NOT_READY', lang, umengNotReadyParams(config, lang))
+      }
       const adapter = getCrashProvider(config.provider)
       if (!adapter) {
         throw new I18nError('ERR_CRASH_PROVIDER', lang, { provider: config.provider })
-      }
-      if (config.provider === 'umeng' && !adapter.isReady(config)) {
-        throw new I18nError('ERR_CRASH_UMENG_NOT_READY', lang, {
-          cookie: cookiePresentLabel(config),
-        })
       }
       const incident = await adapter.get(config, id)
       return { incident }

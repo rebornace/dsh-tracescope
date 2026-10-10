@@ -151,15 +151,24 @@ export async function saveCrashConfig(
   options: {
     repoPath?: string | null
     remember?: boolean | string
+    /** When true, persist with no cookie (do not fall back via keepCookie). */
+    clearCookie?: boolean
     cacheRoot?: string
   } = {},
 ): Promise<CrashProviderConfig> {
   const remember = options.remember !== false && options.remember !== 'false'
+  const clearCookie = options.clearCookie === true
   const file = await readCredentialsFile(options.cacheRoot)
   const key = repoKey(options.repoPath)
   const scope: 'global' | 'repo' = key ? 'repo' : 'global'
   const existing =
     scope === 'repo' && key ? file.byRepo?.[key] : file.global
+
+  const resolvedCookie = clearCookie
+    ? undefined
+    : remember
+      ? keepCookie(cfg.cookie, existing?.cookie)
+      : undefined
 
   const next: CrashProviderConfig = {
     provider: asProviderId(cfg.provider),
@@ -168,7 +177,7 @@ export async function saveCrashConfig(
     appKey: typeof cfg.appKey === 'string' ? cfg.appKey.trim() : existing?.appKey,
     appDisplayName:
       typeof cfg.appDisplayName === 'string' ? cfg.appDisplayName.trim() : existing?.appDisplayName,
-    cookie: remember ? keepCookie(cfg.cookie, existing?.cookie) : undefined,
+    cookie: resolvedCookie,
     consoleBaseUrl:
       typeof cfg.consoleBaseUrl === 'string' ? cfg.consoleBaseUrl.trim() : existing?.consoleBaseUrl,
     transport: cfg.transport ?? existing?.transport,
