@@ -80,7 +80,7 @@ MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#9-mcp-tools). Modul
 
 ## Roadmap
 
-Crash sources are **horizontally extensible** via `CrashProvider`. Today: Umeng U-APM, Firebase Crashlytics, and paste-stack; **more platforms will land over time**. If you urgently need a specific platform, please [open an Issue](https://github.com/rebornace/dsh-tracescope/issues) — clear requests can be prioritized. Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).
+Crash sources (`CrashProvider`), collaboration trackers (`TrackerAdapter`), and design sources (normalize to `DesignDoc`) are all **horizontally extensible**. Today: Umeng / Crashlytics / paste-stack; Yunxiao / GitHub / GitLab / Webhook; Figma / Lanhu. **More platforms will land over time**. Request prioritization via [Issues](https://github.com/rebornace/dsh-tracescope/issues). Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).
 
 ## License
 

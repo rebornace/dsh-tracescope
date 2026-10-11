@@ -43,7 +43,7 @@ Crash list/detail/analyze runs on the DSH Host (`/tracescope/v1/crash-*`) and th
 | `crashlytics` | User access token (prefer live `gcloud auth print-access-token`) or service-account JWT | Firebase Crashlytics REST `v1alpha` `reports/topIssues` | User tokens need `x-goog-user-project`; proxy-aware fetch; SA support for full reports is incomplete upstream |
 | `local` | Pasted `stackText` | — | Fallback when remote credentials fail |
 
-New backends plug in by implementing `CrashProvider` and registering in the crash registry — **horizontal extension**, not a single-vendor fork. More platforms are planned; product roadmap and feedback channel: [docs/GUIDE.md §11](./docs/GUIDE.md#11-路线图与扩展计划).
+New backends plug in by implementing `CrashProvider` and registering in the crash registry — **horizontal extension**, not a single-vendor fork. The same pattern applies to collaboration trackers (`TrackerAdapter` in `packages/core/src/tracker/`) and design sources (`design/sources/*` → `DesignDoc`). Product roadmap and feedback: [docs/GUIDE.md §11](./docs/GUIDE.md#11-路线图与扩展计划).
 
 Credentials persist under the TraceScope cache root (`crash-credentials.json`, global + per-repo). Product steps and limits: [docs/GUIDE.md §4](./docs/GUIDE.md#4-崩溃分析) / [GUIDE.en.md §4](./docs/GUIDE.en.md#4-crash-analysis).
 
