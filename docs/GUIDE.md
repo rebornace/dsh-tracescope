@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.3.1`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.3.2`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -33,7 +33,7 @@
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
-推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。**功能影响分析**与**设计差异分析**的执行层也可通过 `@rebornace/tracescope-mcp` 在 MCP 客户端调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）。**崩溃分析**列表 / 详情 / 分析走 Host 侧栏与 `/tracescope/v1/crash-*`；桌面端会话内可通过 Agent 工具 `tracescope_publish_crash_analysis` 自动写回结论（MCP 包尚未对等暴露崩溃列表类接口）。
+推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。三条主能力的执行层均可通过 `@rebornace/tracescope-mcp` 在常见 Agent（Cursor / Claude 等）调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）；桌面端侧栏是更好的可视化壳，不是业务独占面。崩溃分析在 MCP 与 Host 共用 `agent-api`（list / detail / analyze / job / publish）。
 
 ### 界面语言
 
@@ -233,7 +233,7 @@ Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`cra
 - **筛选交集**：多维度同时勾选时很容易得到 0 条（并且关系）；请先少选维度，或清空系统 / 机型只留版本试查。  
 - **无符号化**：不做 dSYM / mapping 还原；仓库命中按堆栈**文件名**搜索，可能误匹配或漏匹配。  
 - **协作附件**：GitLab / Webhook 不上传二进制（与 §10 一致）。  
-- **MCP**：崩溃列表 / 详情 / 分析接口尚未进 `@rebornace/tracescope-mcp`；写回工具目前挂在 DSH Host Agent 面。  
+- **MCP**：崩溃工具已进 `@rebornace/tracescope-mcp`（与侧栏共用 agent-api）；无侧栏时也可在任意 MCP 客户端完成列表 → 分析 → 写回。  
 
 更完整限制见 [§10 已知限制](#10-已知限制)。
 
@@ -339,7 +339,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 包：`@rebornace/tracescope-mcp`。下表工具的执行层与 DSH Host 共用 `@rebornace/dsh-tracescope/agent-api`。
 
-**崩溃分析**：列表 / 详情 / 本地分析走侧栏 Host 路由（`/tracescope/v1/crash-*`），**尚未**列入 MCP 工具表。桌面端会话写回使用 Host 注册的 `tracescope_publish_crash_analysis`（见 [§4.4](#44-分析写会话ai-回写与提交)），与手测 / UI 走查的 publish 模式相同。
+**崩溃分析**与侧栏共用 `@rebornace/dsh-tracescope/agent-api`：MCP 可完整跑 probe → list → detail → analyze → create job → publish（凭证可用工具参数或 `~/.tracescope` 已存配置）。桌面端侧栏仍走 Host `/tracescope/v1/crash-*`，会话写回工具名与 MCP 相同：`tracescope_publish_crash_analysis`（见 [§4.4](#44-分析写会话ai-回写与提交)）。
 
 | Tool | 说明 |
 |------|------|
@@ -354,7 +354,14 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 | `tracescope_publish_visual_findings` | 写回设计差异结论 |
 | `tracescope_start_page_rematch` | 创建设计页 ↔ 文件匹配任务 |
 | `tracescope_publish_page_rematch` | 写回文件匹配推荐 |
-| `tracescope_publish_crash_analysis` | （DSH Host）写回崩溃 AI 结论；MCP 包暂未导出 |
+| `tracescope_crash_probe` | 校验崩溃数据源凭证；`remember` 可写入本机 |
+| `tracescope_crash_filter_options` | 版本 / 系统 / 机型筛选选项 |
+| `tracescope_crash_list` | 崩溃 / ANR 列表 |
+| `tracescope_crash_detail` | 按 id 取详情与堆栈 |
+| `tracescope_crash_analyze` | 本地堆栈解析与仓库文件命中（不调模型） |
+| `tracescope_create_crash_analysis_job` | 创建 AI 任务并返回带 jobId 的提示词 |
+| `tracescope_publish_crash_analysis` | 写回崩溃 AI 结论（MCP 与 DSH Host 同名） |
+| `tracescope_get_crash_job` | 轮询任务状态 / 已写回结论 |
 
 ---
 
@@ -384,7 +391,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 - 不做 ProGuard / dSYM **符号化**；仓库命中为文件名级静态搜索，复杂 monorepo 可能误匹配  
 - 友盟：版本 / 系统 / 机型为跨维度**并且**；勾选过多时控制台也会返回空列表（属预期）  
 - AI 自动回写依赖会话里 Agent 调用 `tracescope_publish_crash_analysis`；未调用时可手动「回写 AI 结论」或粘贴回复  
-- MCP 尚未提供崩溃列表 / 分析工具；请用桌面端侧栏  
+- 无本机凭证时须在 MCP 工具参数中传入 Cookie / Token；或先在侧栏保存后再用 MCP  
 
 ### 10.4 安装与分发
 

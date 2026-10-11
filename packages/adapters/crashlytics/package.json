@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/tracescope-adapter-crashlytics",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Firebase Crashlytics adapter for TraceScope crash analysis",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

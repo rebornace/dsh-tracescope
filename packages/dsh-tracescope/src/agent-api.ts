@@ -27,7 +27,6 @@ import {
   saveVisualRematch,
   visualFindingsKey,
   visualRematchKey,
-  type CrashIncident,
   type CrashMatchedFile,
   type GitAuth,
   type GitCommitInfo,
@@ -42,6 +41,16 @@ import {
   type RematchPick,
 } from './visual-jobs.js'
 import { createCrashJob, getCrashJob, publishCrashJobAnalysis } from './crash-jobs.js'
+import {
+  analyzeCrashTool,
+  getCrashIncident,
+  getCrashJobStatus,
+  listCrashFilterOptions,
+  listCrashIncidents,
+  parseCrashIncident,
+  parseCrashMeta,
+  probeCrash,
+} from './services/crash-flow.js'
 import { getDiffChunk } from './services/diff-chunk.js'
 import { runAnalyze } from './services/run-analyze.js'
 import { loadRepoHistory } from './services/repo-history.js'
@@ -61,6 +70,16 @@ import { resolveHostLang, type Lang } from './i18n/lang.js'
 import type { Context } from './dsh-shims.js'
 
 export { parseAuthFromToolArgs }
+export {
+  analyzeCrashTool,
+  getCrashIncident,
+  getCrashJobStatus,
+  listCrashFilterOptions,
+  listCrashIncidents,
+  parseCrashIncident,
+  parseCrashMeta,
+  probeCrash,
+}
 
 /** Prefer explicit args.locale, else Host locale. */
 export function agentLang(args?: Record<string, unknown>, ctx?: Context): Lang {
@@ -554,22 +573,34 @@ export function createCrashAnalysisJob(args: Record<string, unknown>) {
   if (!repoPath) throw new Error('缺少 repoPath')
   const summary = String(args.summary ?? '').trim()
   if (!summary) throw new Error('缺少 summary')
-  const stackText = String(args.stackText ?? '').trim()
-  if (!stackText) throw new Error('缺少 stackText')
 
-  const incidentRaw = args.incident
-  if (!incidentRaw || typeof incidentRaw !== 'object') throw new Error('缺少 incident')
-  const incident = incidentRaw as CrashIncident
-  if (!incident.id?.trim() || !incident.stackText?.trim()) {
-    throw new Error('incident 缺少 id 或 stackText')
+  const incidentRaw = parseJsonArg(args.incident, 'incident')
+  let incident = parseCrashIncident(incidentRaw)
+  const stackTextArg = String(args.stackText ?? '').trim()
+  if (!incident && stackTextArg) {
+    incident = parseCrashIncident({
+      id: String(args.id ?? 'local-paste').trim() || 'local-paste',
+      title: String(args.title ?? 'pasted stack'),
+      provider: 'local',
+      stackText: stackTextArg,
+    })
   }
+  if (!incident) throw new Error('缺少 incident')
+  const stackText = stackTextArg || incident.stackText
+  if (!stackText.trim()) throw new Error('缺少 stackText')
 
-  const matchedFiles = Array.isArray(args.matchedFiles)
-    ? (args.matchedFiles as CrashMatchedFile[])
-    : []
-  const fixHints = Array.isArray(args.fixHints)
-    ? args.fixHints.filter((h): h is string => typeof h === 'string')
-    : []
+  const matchedRaw = parseJsonArg(args.matchedFiles, 'matchedFiles')
+  const matchedFiles = Array.isArray(matchedRaw)
+    ? (matchedRaw as CrashMatchedFile[])
+    : Array.isArray(args.matchedFiles)
+      ? (args.matchedFiles as CrashMatchedFile[])
+      : []
+  const fixHintsRaw = parseJsonArg(args.fixHints, 'fixHints')
+  const fixHints = Array.isArray(fixHintsRaw)
+    ? fixHintsRaw.filter((h): h is string => typeof h === 'string')
+    : Array.isArray(args.fixHints)
+      ? args.fixHints.filter((h): h is string => typeof h === 'string')
+      : []
 
   const job = createCrashJob({ repoPath, incidentId: incident.id })
   const promptLang = agentLang(args)
@@ -579,7 +610,7 @@ export function createCrashAnalysisJob(args: Record<string, unknown>) {
       summary,
       matchedFiles,
       fixHints,
-      stackText: stackText || incident.stackText,
+      stackText,
       incident,
       jobId: job.id,
     },

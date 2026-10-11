@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.3.1`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.3.2`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with three core capabilities:
 
@@ -10,7 +10,7 @@ TraceScope (`dsh-tracescope`) helps developers and testers with three core capab
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
 | **Crash analysis** | Umeng U-APM / Firebase Crashlytics or pasted stack → repo report, AI write-back, composer draft, or tracker filing. |
 
-Primary UX: **official DeepSeek Harness Desktop** sidebar. Impact analysis and design diff are available over MCP; **crash analysis** list/analyze uses the Host sidebar (`/tracescope/v1/crash-*`), with session write-back via `tracescope_publish_crash_analysis` (MCP package does not yet expose crash list APIs).
+Primary UX: **official DeepSeek Harness Desktop** sidebar. All three pillars (including **crash analysis**) are available over `@rebornace/tracescope-mcp` for Cursor / Claude / other agents; the sidebar is a richer shell. Crash MCP tools share `agent-api` with the Host (list / detail / analyze / publish).
 
 UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle inside the plugin.
 
