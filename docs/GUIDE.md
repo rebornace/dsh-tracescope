@@ -113,6 +113,8 @@
 
 蓝湖若自动匹配为空，需在卡片上「指定代码文件」后再对比。
 
+设计稿来源同样按**横向扩展**接入（拉取后归一到统一 `DesignDoc`，主对比路径不绑死 Figma / 蓝湖）。若你需要 MasterGo、即时设计等其它设计平台，欢迎 [提 Issue](https://github.com/rebornace/dsh-tracescope/issues)（见 [§11](#11-路线图与扩展计划)）。
+
 ---
 
 ## 4. 崩溃分析
@@ -287,6 +289,7 @@ Compose、iOS、Flutter、RN、Web、小程序等：**不因开关而走安卓�
 - 可改默认缺陷标题；云效支持附件上传与详情内嵌图  
 - 功能影响、设计差异、**崩溃分析**共用同一套平台配置；崩溃提单使用专用 crash 正文  
 - 可选关联云效敏捷任务（多选类型与任务），辅助清单种子 / 提示词  
+- 协作平台按 **`TrackerAdapter` 注册表**横向扩展（与崩溃 `CrashProvider`、设计稿来源同一思路）；需要 Jira / 飞书等可 [提 Issue](https://github.com/rebornace/dsh-tracescope/issues)（见 [§11](#11-路线图与扩展计划)）  
 
 ### 7.2 本机目录 `~/.tracescope/`
 
@@ -393,9 +396,17 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ## 11. 路线图与扩展计划
 
-崩溃分析在架构上按 **`CrashProvider` 横向扩展**：侧栏「数据源」可切换，核心只依赖统一的列表 / 详情 / 筛选契约。当前已接入 **友盟 U-APM**、**Firebase Crashlytics** 与粘贴堆栈降级；**更多平台会陆续支持**（例如 Sentry、Bugly、各厂商 APM 等），不绑死单一厂商。
+TraceScope 的三条能力都按**插件化横向扩展**，不绑死单一厂商：侧栏与 Host 路由保持稳定，新后端实现统一契约后注册即可。
 
-**欢迎反馈优先顺序。** 若你工作中很需要某个崩溃 / APM 平台，请到仓库提 [GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues)（写清平台名、鉴权方式、是否有公开 API、典型使用场景）。需求明确时我会尽快适配接入。
+| 扩展面 | 契约（摘要） | 当前已接入 | 可继续扩展（示例） |
+|--------|----------------|------------|--------------------|
+| **崩溃数据源** | `CrashProvider`（列表 / 详情 / 筛选） | 友盟 U-APM、Firebase Crashlytics、粘贴堆栈 | Sentry、Bugly、各厂商 APM 等 |
+| **协作 / 缺陷平台** | `TrackerAdapter`（提交缺陷、附件策略等） | 云效、GitHub Issues、GitLab Issues、通用 Webhook | Jira、飞书 / Lark、其它工单系统等 |
+| **设计稿来源** | 拉取后归一到 `DesignDoc`，再走统一静态对比 | Figma、蓝湖 | MasterGo、即时设计、其它设计协作平台等 |
+
+代码侧栈适配（`PlatformAdapter`）与可选 **enrichment** 仍按栈扩展，与上表「外部平台」扩展正交。
+
+**欢迎反馈优先顺序。** 若你工作中很需要某一崩溃 / APM、协作平台或设计平台，请到仓库提 [GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues)（写清平台名、鉴权方式、是否有公开 API、典型使用场景）。需求明确时我会尽快适配接入。
 
 其它规划（非本版 npm 必交付）：
 

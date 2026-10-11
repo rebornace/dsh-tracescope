@@ -57,6 +57,8 @@ Sidebar: design URL + credential, scan, per-card compare / pick file / AI assist
 | Figma | PAT (`figd_…`) |
 | Lanhu | Browser cookie (`image_id` = one screen, else project) |
 
+Design sources are **horizontally extensible** too (fetch → vendor-neutral `DesignDoc`; the compare path is not Figma/Lanhu-only). Need MasterGo, js.design, etc.? Please [open an Issue](https://github.com/rebornace/dsh-tracescope/issues) (see [§11](#11-roadmap--extension-plans)).
+
 ---
 
 ## 4. Crash analysis
@@ -209,6 +211,7 @@ This product is **static design diff**, not runtime UI preview. Legacy `hifi-*` 
 ## 7. Collaboration & local data
 
 Trackers: Yunxiao / GitHub / GitLab / Webhook; optional Yunxiao agile work items.  
+Trackers are **horizontally extensible** via the `TrackerAdapter` registry (same idea as crash `CrashProvider` and design sources) — request Jira / Feishu / Lark etc. via [Issues](https://github.com/rebornace/dsh-tracescope/issues) (see [§11](#11-roadmap--extension-plans)).  
 Local root: `~/.tracescope/` (auth, trackers, reports, attachments, caches).
 
 ---
@@ -309,9 +312,17 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
 ## 11. Roadmap & extension plans
 
-Crash analysis is built for **horizontal extension** through the `CrashProvider` contract: the sidebar **Provider** switch and Host routes stay the same while new backends plug in. Today: **Umeng U-APM**, **Firebase Crashlytics**, and paste-stack fallback. **More platforms will be added gradually** (e.g. Sentry, Bugly, other vendor APMs) — TraceScope is not locked to one vendor.
+All three pillars are built for **horizontal, pluggable extension** — TraceScope is not locked to one vendor. Sidebar UX and Host routes stay stable; new backends implement a shared contract and register.
 
-**Feedback welcome for prioritization.** If your team urgently needs a crash / APM platform, please [open a GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues) (platform name, auth model, public API if any, typical workflow). Clear requests can be adapted as soon as practical.
+| Extension surface | Contract (summary) | Today | Can grow (examples) |
+|-------------------|--------------------|-------|---------------------|
+| **Crash sources** | `CrashProvider` (list / detail / filters) | Umeng U-APM, Firebase Crashlytics, paste-stack | Sentry, Bugly, other vendor APMs |
+| **Collaboration / trackers** | `TrackerAdapter` (file defects, attachment policy, …) | Yunxiao, GitHub Issues, GitLab Issues, generic Webhook | Jira, Feishu / Lark, other issue systems |
+| **Design sources** | Fetch → normalize to `DesignDoc`, then shared static compare | Figma, Lanhu | MasterGo, js.design, other design tools |
+
+Code-side `PlatformAdapter` stacks and optional **enrichment** plugins remain orthogonal to the external-platform table above.
+
+**Feedback welcome for prioritization.** If your team urgently needs a crash / APM, tracker, or design platform, please [open a GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues) (platform name, auth model, public API if any, typical workflow). Clear requests can be adapted as soon as practical.
 
 Other items (not required for the current npm cut):
 

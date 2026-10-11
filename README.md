@@ -80,7 +80,7 @@ MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#9-mcp-工具
 
 ## 后续计划
 
-崩溃数据源按 **`CrashProvider` 横向扩展**，当前已支持友盟 U-APM、Firebase Crashlytics 与粘贴堆栈；**更多平台会陆续接入**。若你很需要某一平台，请到 [Issues](https://github.com/rebornace/dsh-tracescope/issues) 反馈，需求明确时可尽快优先适配。完整说明见 [功能说明 · 路线图与扩展计划](./docs/GUIDE.md#11-路线图与扩展计划)。
+崩溃数据源（`CrashProvider`）、协作 / 缺陷平台（`TrackerAdapter`）、设计稿来源（归一到 `DesignDoc`）都按**横向扩展**，不绑死单一厂商。当前：友盟 / Crashlytics / 粘贴堆栈；云效 / GitHub / GitLab / Webhook；Figma / 蓝湖。**更多平台会陆续接入**。若你很需要某一平台，请到 [Issues](https://github.com/rebornace/dsh-tracescope/issues) 反馈。完整说明见 [功能说明 · 路线图与扩展计划](./docs/GUIDE.md#11-路线图与扩展计划)。
 
 ## License
 
