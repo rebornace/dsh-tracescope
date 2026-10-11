@@ -2,6 +2,7 @@
  * Crash provider registry — horizontal extension point for crash data sources.
  */
 import type { CrashProvider } from './provider-types.js'
+import { crashlyticsCrashProvider } from './providers/crashlytics.js'
 import { localCrashProvider } from './providers/local.js'
 import { umengCrashProvider } from './providers/umeng-console.js'
 
@@ -23,5 +24,6 @@ export function getCrashProvider(id: string): CrashProvider | undefined {
 
 registerCrashProvider(localCrashProvider)
 registerCrashProvider(umengCrashProvider)
+registerCrashProvider(crashlyticsCrashProvider)
 
 export { type CrashProvider }

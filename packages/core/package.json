@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/tracescope-core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Git-diff impact analysis and design↔code visual compare for TraceScope",
   "license": "MIT",
   "type": "module",
@@ -27,6 +27,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
+    "undici": "^6.21.0",
     "yaml": "^2.7.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 # TraceScope
 
-**版本: `0.3.0`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
+**版本: `0.3.1`** · [更新日志](./CHANGELOG.md) · [中文](./README.md) · [English](./README.en.md)
 
 TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的三项核心能力：
 
@@ -8,7 +8,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的三项核心�
 |------|--------|
 | **功能影响分析** | 这次改动影响哪些页面 / 模块？生成可勾选的验证清单 |
 | **设计差异分析** | 实现与 Figma / 蓝湖稿差在哪？静态对比、定位差异并回传缺陷 |
-| **崩溃分析** | 友盟 U-APM 或粘贴堆栈 → 对照代码目录生成报告，AI 写回结论，写会话或提交缺陷 |
+| **崩溃分析** | 友盟 U-APM / Firebase Crashlytics 或粘贴堆栈 → 对照代码目录生成报告，AI 写回结论，写会话或提交缺陷 |
 
 推荐在 **官方 DeepSeek Harness 桌面端** 右侧栏使用。**功能影响分析**与**设计差异分析**可通过 MCP 在 Cursor / Claude 等客户端调用；**崩溃分析**列表 / 分析走 Host 侧栏（`/tracescope/v1/crash-*`），会话内可通过 `tracescope_publish_crash_analysis` 自动写回（MCP 包尚未对等暴露列表接口）。
 
@@ -31,7 +31,7 @@ TraceScope（仓库名 `dsh-tracescope`）面向开发与测试的三项核心�
 
 **设计差异分析** — 以 Figma / 蓝湖为真源做静态对比（非真机渲染）；覆盖主流移动 / Web / 小程序栈；分层匹配与属性对比，可选 AI 协助写回。侧栏支持对照图、差异定位、指定文件与缺陷导出。
 
-**崩溃分析** — 友盟 U-APM Console Cookie 拉列表 / 详情（筛选默认可折叠，版本 / 系统 / 机型与控制台同源勾选）或粘贴堆栈降级；堆栈解析与仓库文件命中；「分析并写入会话」+ Agent 工具写回 AI 结论；测试「提交缺陷」（专用 crash 正文）。
+**崩溃分析** — 友盟 U-APM（Cookie）或 Firebase Crashlytics（Access Token / 服务账号；本机 gcloud 可自动刷新 Token；国内走系统代理 / `HTTPS_PROXY`）拉列表 / 详情（筛选默认可折叠）或粘贴堆栈降级；堆栈解析与仓库文件命中；「分析并写入会话」+ Agent 工具写回 AI 结论；测试「提交缺陷」（专用 crash 正文）。
 
 完整说明（含适配器深度增强、凭证记忆、限制清单）见 [功能说明](./docs/GUIDE.md)。
 
@@ -77,6 +77,10 @@ pnpm install && pnpm build && pnpm test
 ```
 
 MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#9-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
+
+## 后续计划
+
+崩溃数据源按 **`CrashProvider` 横向扩展**，当前已支持友盟 U-APM、Firebase Crashlytics 与粘贴堆栈；**更多平台会陆续接入**。若你很需要某一平台，请到 [Issues](https://github.com/rebornace/dsh-tracescope/issues) 反馈，需求明确时可尽快优先适配。完整说明见 [功能说明 · 路线图与扩展计划](./docs/GUIDE.md#11-路线图与扩展计划)。
 
 ## License
 

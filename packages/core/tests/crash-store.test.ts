@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   crashRepoKey,
+  isMaskedCrashSecret,
   loadCrashConfig,
   publicCrashConfig,
   resolveCrashConfigFromBody,
@@ -131,5 +132,80 @@ describe('crash credential store', () => {
     expect(resolved.cookie).toBe('real-session-cookie')
     expect(publicCrashConfig(resolved).cookie).toBe('\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022')
     expect(publicCrashConfig(resolved).hasCookie).toBe(true)
+  })
+
+  it('resolveCrashConfigFromBody infers crashlytics when provider omitted but SA credentials present', async () => {
+    await setupRoot()
+    const sa = JSON.stringify({
+      client_email: 'sa@demo.iam.gserviceaccount.com',
+      private_key: '-----BEGIN PRIVATE KEY-----\\nABC\\n-----END PRIVATE KEY-----\\n',
+    })
+    const resolved = await resolveCrashConfigFromBody({
+      // provider intentionally omitted / wrong — used to fall through to local
+      provider: '',
+      projectId: 'demo-project',
+      appId: '1:1234567890:android:abcdef',
+      serviceAccountJson: sa,
+      accessToken: '',
+    })
+    expect(resolved.provider).toBe('crashlytics')
+    expect(resolved.projectId).toBe('demo-project')
+    expect(resolved.appId).toBe('1:1234567890:android:abcdef')
+    expect(resolved.serviceAccountJson).toBe(sa)
+    expect(publicCrashConfig(resolved).hasServiceAccount).toBe(true)
+  })
+
+  it('isMaskedCrashSecret treats UI question-mark mask as masked', () => {
+    expect(isMaskedCrashSecret('????????')).toBe(true)
+    expect(isMaskedCrashSecret('••••••••')).toBe(true)
+    expect(isMaskedCrashSecret('{"type":"service_account"}')).toBe(false)
+  })
+
+  it('resolveCrashConfigFromBody keeps stored SA when client sends question-mark mask', async () => {
+    await setupRoot()
+    const sa = JSON.stringify({
+      client_email: 'sa@demo.iam.gserviceaccount.com',
+      private_key: '-----BEGIN PRIVATE KEY-----\\nABC\\n-----END PRIVATE KEY-----\\n',
+    })
+    await saveCrashConfig(
+      {
+        provider: 'crashlytics',
+        projectId: 'demo-project',
+        appId: '1:123:android:abc',
+        serviceAccountJson: sa,
+      },
+      { remember: true },
+    )
+    const resolved = await resolveCrashConfigFromBody({
+      provider: 'crashlytics',
+      projectId: 'demo-project',
+      appId: '1:123:android:abc',
+      serviceAccountJson: '????????',
+    })
+    expect(resolved.serviceAccountJson).toBe(sa)
+    expect(resolved.provider).toBe('crashlytics')
+  })
+
+  it('saveCrashConfig keeps crashlytics service account without accessToken', async () => {
+    await setupRoot()
+    const sa = JSON.stringify({
+      client_email: 'sa@demo.iam.gserviceaccount.com',
+      private_key: '-----BEGIN PRIVATE KEY-----\\nABC\\n-----END PRIVATE KEY-----\\n',
+    })
+    await saveCrashConfig(
+      {
+        provider: 'crashlytics',
+        projectId: 'demo-project',
+        appId: '1:123:android:abc',
+        serviceAccountJson: sa,
+      },
+      { remember: true },
+    )
+    const loaded = await loadCrashConfig()
+    expect(loaded.provider).toBe('crashlytics')
+    expect(loaded.serviceAccountJson).toBe(sa)
+    expect(loaded.accessToken).toBeUndefined()
+    expect(publicCrashConfig(loaded).hasServiceAccount).toBe(true)
+    expect(publicCrashConfig(loaded).hasAccessToken).toBe(false)
   })
 })

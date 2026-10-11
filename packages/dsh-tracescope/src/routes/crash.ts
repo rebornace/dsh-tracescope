@@ -22,12 +22,49 @@ import { I18nError } from '../i18n/messages.js'
 import { createCrashAnalysisJob } from '../agent-api.js'
 import { getCrashJob } from '../crash-jobs.js'
 import {
+  crashlyticsCrashListFailure,
+  crashlyticsNotReadyMessage,
+  crashlyticsNotReadyParams,
+  isCrashlyticsNotReady,
+  rethrowCrashlyticsError,
+} from './crash-crashlytics.js'
+import {
   isUmengNotReady,
   rethrowUmengCrashError,
   umengCrashListFailure,
   umengNotReadyMessage,
   umengNotReadyParams,
 } from './crash-umeng.js'
+
+function parseProviderId(raw: unknown, fallback: CrashProviderConfig['provider']): CrashProviderConfig['provider'] {
+  if (raw === 'umeng' || raw === 'local' || raw === 'crashlytics') return raw
+  return fallback
+}
+
+function providerNotReady(config: CrashProviderConfig): boolean {
+  return isUmengNotReady(config) || isCrashlyticsNotReady(config)
+}
+
+function providerNotReadyMessage(config: CrashProviderConfig, lang: Lang): string {
+  if (config.provider === 'crashlytics') return crashlyticsNotReadyMessage(config, lang)
+  return umengNotReadyMessage(config, lang)
+}
+
+function mapProviderListFailure(
+  err: unknown,
+  lang: Lang,
+): { error: string; errorCode: string } | null {
+  return umengCrashListFailure(err, lang) ?? crashlyticsCrashListFailure(err, lang)
+}
+
+function rethrowProviderCrashError(err: unknown, lang: Lang): never {
+  try {
+    rethrowUmengCrashError(err, lang)
+  } catch (mapped) {
+    if (mapped !== err) throw mapped
+  }
+  rethrowCrashlyticsError(err, lang)
+}
 
 function asRecord(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body)
@@ -41,7 +78,10 @@ function parseIncident(raw: unknown): CrashIncident | null {
   const id = typeof o.id === 'string' ? o.id.trim() : ''
   const title = typeof o.title === 'string' ? o.title.trim() : ''
   const stackText = typeof o.stackText === 'string' ? o.stackText : ''
-  const provider = o.provider === 'umeng' || o.provider === 'local' ? o.provider : 'local'
+  const provider =
+    o.provider === 'umeng' || o.provider === 'local' || o.provider === 'crashlytics'
+      ? o.provider
+      : 'local'
   if (!id || !stackText.trim()) return null
   return {
     id,
@@ -103,13 +143,14 @@ async function runProbe(
   config: CrashProviderConfig,
   lang: Lang,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (config.provider === 'umeng') {
-    if (isUmengNotReady(config)) {
-      return { ok: false, error: umengNotReadyMessage(config, lang) }
+  if (config.provider === 'umeng' || config.provider === 'crashlytics') {
+    if (providerNotReady(config)) {
+      return { ok: false, error: providerNotReadyMessage(config, lang) }
     }
-    const adapter = getCrashProvider('umeng')!
-    const probe = (adapter as { probe?: (c: CrashProviderConfig) => Promise<{ ok: boolean; error?: string }> })
-      .probe
+    const adapter = getCrashProvider(config.provider)!
+    const probe = (
+      adapter as { probe?: (c: CrashProviderConfig) => Promise<{ ok: boolean; error?: string }> }
+    ).probe
     if (probe) return probe(config)
     return { ok: true }
   }
@@ -162,10 +203,33 @@ export function registerCrashRoutes(ctx: Context) {
       const b = asRecord(body)
       const remember = b.remember !== false && b.remember !== 'false'
       const repoPath = typeof b.repoPath === 'string' ? b.repoPath : undefined
-      const clearCookie = b.clearCookie === true || b.cookie === ''
+      // Only clear secrets when the client explicitly asks. Empty unused fields
+      // (e.g. accessToken while using serviceAccountJson) must NOT wipe credentials —
+      // that previously forced probe into local mode ("需要提供 stackText").
+      const clearCookie = b.clearCookie === true
       const existing = await loadCrashConfig(repoPath)
+      const provider = parseProviderId(b.provider, existing.provider)
+      const projectId = typeof b.projectId === 'string' ? b.projectId.trim() : existing.projectId
+      const appId = typeof b.appId === 'string' ? b.appId.trim() : existing.appId
+      const accessToken = clearCookie
+        ? undefined
+        : typeof b.accessToken === 'string' && !isMaskedCrashSecret(b.accessToken)
+          ? b.accessToken.trim()
+          : existing.accessToken
+      const serviceAccountJson = clearCookie
+        ? undefined
+        : typeof b.serviceAccountJson === 'string' && !isMaskedCrashSecret(b.serviceAccountJson)
+          ? b.serviceAccountJson.trim()
+          : existing.serviceAccountJson
+      const resolvedProvider =
+        provider === 'local' &&
+        projectId?.trim() &&
+        appId?.trim() &&
+        (accessToken?.trim() || serviceAccountJson?.trim())
+          ? 'crashlytics'
+          : provider
       const incoming: CrashProviderConfig = {
-        provider: b.provider === 'umeng' ? 'umeng' : b.provider === 'local' ? 'local' : existing.provider,
+        provider: resolvedProvider,
         stackText: typeof b.stackText === 'string' ? b.stackText : existing.stackText,
         title: typeof b.title === 'string' ? b.title : existing.title,
         appKey: typeof b.appKey === 'string' ? b.appKey.trim() : existing.appKey,
@@ -180,6 +244,10 @@ export function registerCrashRoutes(ctx: Context) {
           typeof b.consoleBaseUrl === 'string' ? b.consoleBaseUrl.trim() : existing.consoleBaseUrl,
         transport:
           b.transport === 'console' || b.transport === 'openapi' ? b.transport : existing.transport,
+        projectId,
+        appId,
+        accessToken,
+        serviceAccountJson,
       }
       if (clearCookie) {
         await clearCrashCookie(repoPath)
@@ -217,13 +285,13 @@ export function registerCrashRoutes(ctx: Context) {
     run: async (body, { lang }) => {
       const b = asRecord(body)
       const config = await resolveCrashConfigFromBody(b)
-      if (isUmengNotReady(config)) {
+      if (providerNotReady(config)) {
         return {
           versions: [],
           osVersions: [],
           devices: [],
           metaType: 'crash',
-          error: umengNotReadyMessage(config, lang),
+          error: providerNotReadyMessage(config, lang),
         }
       }
       const adapter = getCrashProvider(config.provider)
@@ -244,7 +312,7 @@ export function registerCrashRoutes(ctx: Context) {
         const options = await adapter.listFilterOptions(config, { metaType })
         return options
       } catch (err) {
-        const mapped = umengCrashListFailure(err, lang)
+        const mapped = mapProviderListFailure(err, lang)
         if (mapped) {
           return {
             versions: [],
@@ -264,8 +332,8 @@ export function registerCrashRoutes(ctx: Context) {
     method: 'POST',
     run: async (body, { lang }) => {
       const config = await resolveCrashConfigFromBody(asRecord(body))
-      if (isUmengNotReady(config)) {
-        return { items: [], error: umengNotReadyMessage(config, lang) }
+      if (providerNotReady(config)) {
+        return { items: [], error: providerNotReadyMessage(config, lang) }
       }
       const adapter = getCrashProvider(config.provider)
       if (!adapter) {
@@ -283,7 +351,7 @@ export function registerCrashRoutes(ctx: Context) {
           capabilities: adapter.capabilities(),
         }
       } catch (err) {
-        const mapped = umengCrashListFailure(err, lang)
+        const mapped = mapProviderListFailure(err, lang)
         if (mapped) {
           return {
             items: [],
@@ -308,7 +376,14 @@ export function registerCrashRoutes(ctx: Context) {
       const id = typeof b.id === 'string' ? b.id.trim() : ''
       if (!id) throw new I18nError('ERR_MISSING_ID', lang)
       const config = await resolveCrashConfigFromBody(b)
-      if (isUmengNotReady(config)) {
+      if (providerNotReady(config)) {
+        if (config.provider === 'crashlytics') {
+          throw new I18nError(
+            'ERR_CRASH_CRASHLYTICS_NOT_READY',
+            lang,
+            crashlyticsNotReadyParams(config, lang),
+          )
+        }
         throw new I18nError('ERR_CRASH_UMENG_NOT_READY', lang, umengNotReadyParams(config, lang))
       }
       const adapter = getCrashProvider(config.provider)
@@ -319,7 +394,7 @@ export function registerCrashRoutes(ctx: Context) {
         const incident = await adapter.get(config, id)
         return { incident }
       } catch (err) {
-        rethrowUmengCrashError(err, lang)
+        rethrowProviderCrashError(err, lang)
       }
     },
   })

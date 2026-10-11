@@ -1,0 +1,51 @@
+{
+  "events": [
+    {
+      "name": "projects/demo-project/apps/1:1234567890:android:abcdef/events/evt-001",
+      "eventId": "evt-001",
+      "eventTime": "2026-10-10T11:59:00Z",
+      "platform": "android",
+      "issueTitle": "MainActivity.java",
+      "issueSubtitle": "java.lang.NullPointerException",
+      "version": {
+        "displayVersion": "1.2.3",
+        "buildVersion": "123",
+        "displayName": "1.2.3 (123)"
+      },
+      "device": {
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "displayName": "Google (Pixel 8)",
+        "marketingName": "Pixel 8"
+      },
+      "operatingSystem": {
+        "os": "Android",
+        "displayVersion": "14",
+        "displayName": "Android (14)"
+      },
+      "exceptions": [
+        {
+          "type": "java.lang.NullPointerException",
+          "exceptionMessage": "Attempt to invoke virtual method on a null object reference",
+          "blamed": true,
+          "frames": [
+            {
+              "symbol": "com.example.MainActivity.onCreate",
+              "file": "MainActivity.java",
+              "line": "42",
+              "library": "app",
+              "blamed": true
+            },
+            {
+              "symbol": "android.app.Activity.performCreate",
+              "file": "Activity.java",
+              "line": "1",
+              "library": "android",
+              "owner": "PLATFORM"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

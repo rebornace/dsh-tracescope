@@ -1,0 +1,14 @@
+{
+  "id": "crashlytics-issue-001",
+  "title": "MainActivity.java",
+  "subtitle": "java.lang.NullPointerException",
+  "errorType": "FATAL",
+  "state": "OPEN",
+  "sampleEvent": "projects/demo-project/apps/1:1234567890:android:abcdef/events/evt-001",
+  "uri": "https://console.firebase.google.com/project/demo-project/crashlytics/app/android:com.example/issues/crashlytics-issue-001",
+  "firstSeenVersion": "1.0.0",
+  "lastSeenVersion": "1.2.3",
+  "firstSeenTime": "2026-10-01T10:00:00Z",
+  "lastSeenTime": "2026-10-10T12:00:00Z",
+  "name": "projects/demo-project/apps/1:1234567890:android:abcdef/issues/crashlytics-issue-001"
+}

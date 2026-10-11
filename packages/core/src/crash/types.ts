@@ -1,7 +1,7 @@
 /**
  * Crash analysis shared types — config and incident shapes for all providers.
  */
-export type CrashProviderId = 'local' | 'umeng'
+export type CrashProviderId = 'local' | 'umeng' | 'crashlytics'
 
 export interface CrashProviderConfig {
   provider: CrashProviderId
@@ -16,11 +16,28 @@ export interface CrashProviderConfig {
   cookie?: string
   /**
    * Repo-scoped storage only: when false, `loadCrashConfig(repo)` must not inherit
-   * `global.cookie` after the user cleared cookie for that repo.
+   * `global.cookie` / secrets after the user cleared them for that repo.
    */
   inheritGlobalCookie?: boolean
   consoleBaseUrl?: string
   transport?: 'console' | 'openapi'
+  /** Firebase / GCP project id (Crashlytics). */
+  projectId?: string
+  /**
+   * Firebase App id, e.g. `1:1234567890:android:abcdef`.
+   * Distinct from Umeng `appKey`.
+   */
+  appId?: string
+  /**
+   * OAuth access token for Crashlytics REST API (Bearer).
+   * Prefer a short-lived token from `gcloud auth print-access-token`, or mint via service account.
+   */
+  accessToken?: string
+  /**
+   * Google service-account JSON (stringified). Used to mint access tokens when
+   * `accessToken` is absent. Server-side only; never log in full.
+   */
+  serviceAccountJson?: string
 }
 
 export type CrashListSortField = 'lastSeenAt' | 'count' | 'title'

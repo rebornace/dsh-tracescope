@@ -165,6 +165,30 @@ export const ERROR_MESSAGES: Record<string, { zh: string; en: string }> = {
     zh: '友盟返回数据无法解析：{detail}',
     en: 'Umeng response could not be parsed: {detail}',
   },
+  ERR_CRASH_CRASHLYTICS_NOT_READY: {
+    zh: 'Crashlytics 尚未就绪（projectId：{projectId}，appId：{appId}，token：{token}）',
+    en: 'Crashlytics is not ready (projectId: {projectId}, appId: {appId}, token: {token})',
+  },
+  ERR_CRASH_CRASHLYTICS_AUTH: {
+    zh: 'Crashlytics 鉴权失败（Access Token / 服务账号无效）：{detail}',
+    en: 'Crashlytics authentication failed (access token / service account invalid): {detail}',
+  },
+  ERR_CRASH_CRASHLYTICS_FORBIDDEN: {
+    zh: 'Crashlytics 拒绝访问：{detail}',
+    en: 'Crashlytics access denied: {detail}',
+  },
+  ERR_CRASH_CRASHLYTICS_HTTP: {
+    zh: 'Crashlytics API 请求失败：{detail}',
+    en: 'Crashlytics API request failed: {detail}',
+  },
+  ERR_CRASH_CRASHLYTICS_NETWORK: {
+    zh: '无法连接 Google（Crashlytics / OAuth）。请确认本机代理可用，或设置 HTTPS_PROXY。详情：{detail}',
+    en: 'Cannot reach Google (Crashlytics / OAuth). Ensure a system proxy or HTTPS_PROXY is set. Detail: {detail}',
+  },
+  ERR_CRASH_CRASHLYTICS_BAD_RESPONSE: {
+    zh: 'Crashlytics 返回数据无法解析：{detail}',
+    en: 'Crashlytics response could not be parsed: {detail}',
+  },
   ERR_CRASH_MISSING_INCIDENT: {
     zh: '缺少有效的 incident（需 id 与 stackText）',
     en: 'Missing a valid incident (id and stackText required)',
