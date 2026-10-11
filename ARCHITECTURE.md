@@ -30,7 +30,7 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 | Publish rematch picks | `tracescope_publish_page_rematch` | tool |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
 | Self-update (npm check / install) | — | Host `/tracescope/v1/self-update/check` + client seats (detail Update / sidebar); no MCP |
-| Crash analysis (Umeng / Crashlytics) | — (list APIs not in MCP yet); Host tool `tracescope_publish_crash_analysis` | Sidebar + `/tracescope/v1/crash-*`; providers in `@rebornace/tracescope-core` |
+| Crash analysis (Umeng / Crashlytics) | MCP crash tools via `agent-api` (probe / list / detail / analyze / job / publish) | Sidebar + `/tracescope/v1/crash-*` + Host tool `tracescope_publish_crash_analysis`; providers in `@rebornace/tracescope-core` |
 | Crash USB / browser extension | future MCP tools | future Host/Client surfaces |
 
 ## Crash providers

@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.3.1`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.3.2`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -17,7 +17,7 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
-Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. **Impact analysis** and **design diff** are also exposed via `@rebornace/tracescope-mcp` ([§9 MCP tools](#9-mcp-tools)). **Crash analysis** list/detail/analyze uses the Host sidebar and `/tracescope/v1/crash-*`; Desktop chat can auto-write conclusions via Host tool `tracescope_publish_crash_analysis` (MCP package does not yet expose crash list APIs).
+Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. All three pillars are also reachable via `@rebornace/tracescope-mcp` for common agents ([§9 MCP tools](#9-mcp-tools)); the sidebar is a richer shell, not an exclusive business surface. Crash analysis shares `agent-api` between MCP and Host (list / detail / analyze / job / publish).
 
 ### UI language
 
@@ -258,18 +258,29 @@ The Host does not auto-draw Update for third-party bundles; TraceScope registers
 
 These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
-**Crash analysis:** list / detail / local analyze stay on the Desktop sidebar Host routes (`/tracescope/v1/crash-*`) and are **not** in the MCP package yet. Session write-back uses the Host-registered `tracescope_publish_crash_analysis` tool (same publish pattern as hand-test / visual findings; see [§4](#4-crash-analysis)).
+**Crash analysis** uses the same execute layer as the sidebar: MCP can run probe → list → detail → analyze → create job → publish (credentials from tool args or saved `~/.tracescope` config). Desktop Host routes `/tracescope/v1/crash-*` remain for the sidebar UI; publish tool name matches MCP: `tracescope_publish_crash_analysis` (see [§4](#4-crash-analysis)).
 
 | Tool | Notes |
 |------|--------|
 | `tracescope_open_panel` | Open local visual panel |
 | `tracescope_list_commits` | List commits / refs |
-| `tracescope_get_diff` | Paginated unified diff |
+| `tracescope_get_diff` | Page unified diff |
 | `tracescope_analyze_impact` | Deterministic impact analysis |
-| `tracescope_create_handtest_job` / `tracescope_publish_handtest` | Hand-test chat job |
-| `tracescope_start_visual_review` / `tracescope_get_design_snapshot` / `tracescope_publish_visual_findings` | UI review |
-| `tracescope_start_page_rematch` / `tracescope_publish_page_rematch` | Page ↔ file match |
-| `tracescope_publish_crash_analysis` | (DSH Host) publish crash AI conclusion; not exported by MCP package yet |
+| `tracescope_create_handtest_job` | Hand-test job + starter prompt |
+| `tracescope_publish_handtest` | Publish hand-test checklist |
+| `tracescope_start_visual_review` | Design-diff job + starter prompt |
+| `tracescope_get_design_snapshot` | Design tree snapshot |
+| `tracescope_publish_visual_findings` | Publish UI findings |
+| `tracescope_start_page_rematch` | Page↔file rematch job |
+| `tracescope_publish_page_rematch` | Publish rematch picks |
+| `tracescope_crash_probe` | Verify crash credentials; optional `remember` |
+| `tracescope_crash_filter_options` | Version / OS / device filter options |
+| `tracescope_crash_list` | Crash / ANR list |
+| `tracescope_crash_detail` | Incident detail + stack |
+| `tracescope_crash_analyze` | Local stack parse + repo file match (no model) |
+| `tracescope_create_crash_analysis_job` | AI job + prompt with jobId |
+| `tracescope_publish_crash_analysis` | Publish crash AI conclusion (MCP + DSH Host) |
+| `tracescope_get_crash_job` | Poll job status / published analysis |
 
 ---
 
@@ -300,7 +311,7 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 - No **symbolication**; filename-level repo search may mis-match in large monorepos  
 - Umeng: version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
 - Auto AI write-back requires the agent to call `tracescope_publish_crash_analysis`; otherwise use **Apply AI reply** or paste  
-- MCP package does not expose crash list/analyze tools yet — use the Desktop sidebar  
+- Without saved credentials, pass Cookie / Token in MCP tool args; or save once in the sidebar then use MCP  
 
 **Install**
 

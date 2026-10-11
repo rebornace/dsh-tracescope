@@ -7,6 +7,12 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.2 — 2026-10-11
+
+- **崩溃分析 MCP 对齐**：`@rebornace/tracescope-mcp` 暴露 probe / filter-options / list / detail / analyze / create-job / publish / get-job；执行层与侧栏共用 `agent-api`（Host 路由薄封装）。
+- **架构**：Agents 经 MCP 可达完整崩溃工作流；DSH 侧栏仍为可视化壳。凭证可用工具参数或 `~/.tracescope` 已存配置。
+- **Crash MCP parity**: Full crash tool surface on `@rebornace/tracescope-mcp` via shared `agent-api`; Host routes are thin wrappers. Sidebar remains the richer UX shell.
+
 ## 0.3.1 — 2026-10-11
 
 - **Crashlytics 数据源**：崩溃分析新增 Firebase Crashlytics（海外）；侧栏可切换友盟 / Crashlytics；凭证为 `projectId` + `appId` + Access Token 或服务账号 JSON；列表 `reports/topIssues`，详情 issue + event 堆栈；「拉取列表」固定在配置区外。
