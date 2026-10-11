@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.3.0`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.3.1`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -19,7 +19,7 @@
 8. [更新本插件](#8-更新本插件)
 9. [MCP 工具一览](#9-mcp-工具一览)
 10. [已知限制](#10-已知限制)
-11. [路线图（非本版交付）](#11-路线图非本版交付)
+11. [路线图与扩展计划](#11-路线图与扩展计划)
 
 ---
 
@@ -29,7 +29,7 @@
 |------|------|------|
 | **功能影响分析** | 稳定版 ↔ 待测版（本地 Git 或云效代码接口） | 直接变更 + 静态波及清单；可标注、截图、导出、提单 |
 | **设计差异分析** | Figma / 蓝湖设计稿 + 代码仓页面 | 静态差异清单 + 设计对照图高亮；可 AI 协助写回、导出、提单 |
-| **崩溃分析** | 友盟 U-APM 控制台（Cookie）或粘贴堆栈 + 代码目录 | 堆栈解析、仓库文件命中、双语报告；AI 工具写回结论；开发写会话、测试提交缺陷 |
+| **崩溃分析** | 友盟 U-APM（Cookie）/ Firebase Crashlytics（Token）或粘贴堆栈 + 代码目录 | 堆栈解析、仓库文件命中、双语报告；AI 工具写回结论；开发写会话、测试提交缺陷 |
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
@@ -121,7 +121,9 @@
 
 ### 4.1 做什么
 
-从友盟 U-APM 控制台拉取崩溃 / ANR 列表与详情，或在没有 Cookie 时**粘贴堆栈**降级；对照当前代码目录生成摘要、命中文件与修复提示；支持本地分析、将提示词写入会话并由 Agent **工具写回** AI 结论，以及向协作平台提交专用缺陷正文。
+从**友盟 U-APM**（国内）或 **Firebase Crashlytics**（海外）拉取崩溃 / ANR 列表与详情，或在凭证不可用时**粘贴堆栈**降级；对照当前代码目录生成摘要、命中文件与修复提示；支持本地分析、将提示词写入会话并由 Agent **工具写回** AI 结论，以及向协作平台提交专用缺陷正文。侧栏「数据源」可切换。
+
+数据源按 **`CrashProvider` 插件化横向扩展**（见 [§11 路线图与扩展计划](#11-路线图与扩展计划)）：后续会逐步增加更多崩溃 / APM 平台；若你急需某一平台，欢迎 [提 Issue 反馈](https://github.com/rebornace/dsh-tracescope/issues)，可优先适配。
 
 ### 4.2 友盟凭证（Console Cookie）
 
@@ -134,11 +136,66 @@
 
 凭证与 AppKey 会同时写入**全局**与当前仓库键（远程 Git URL 用规范化 URL）；切换代码目录时仍会带出已保存的 AppKey / Cookie。友盟配置区可折叠；点开某条崩溃详情时会自动收起，以便下方分析区露出来。
 
+### 4.2b Crashlytics 凭证（Access Token / 服务账号）
+
+面向海外 Firebase 项目；国内环境需能访问 Google API（见下方代理）。
+
+#### 准备项目与权限
+
+1. 在 [Firebase Console](https://console.firebase.google.com/) → 项目设置，复制 **项目 ID**（可填项目编号）与目标应用 **App ID**（形如 `1:1234567890:ios:abcdef`）。  
+   - 请求路径会**优先使用 App ID 中的项目编号**（第二段数字），避免只填项目 ID 字符串时出现 `NOT_FOUND`。  
+2. 在 [Google Cloud](https://console.cloud.google.com/apis/library/firebasecrashlytics.googleapis.com) **启用 Firebase Crashlytics API**（未启用会报 API disabled / 403）。  
+3. 若用服务账号：在 [IAM](https://console.cloud.google.com/iam-admin/iam) 为 JSON 里的 `client_email` 授予 **Firebase Crashlytics Viewer**（`roles/firebasecrashlytics.viewer`）或 **Firebase Viewer**；仅有 Admin SDK 默认角色常不够（`PERMISSION_DENIED`）。
+
+#### 鉴权（推荐 Access Token）
+
+| 方式 | 说明 |
+|------|------|
+| **Access Token（推荐）** | `gcloud auth login` 后执行 `gcloud auth print-access-token`，粘贴到侧栏。`ya29.` Token 约 **1 小时**过期。 |
+| **本机 gcloud 自动刷新** | 若 PATH 上已有 `gcloud` 且已登录，插件会**优先**调用 `gcloud auth print-access-token` 取新 Token（约缓存 50 分钟），不必每小时重贴。 |
+| **服务账号 JSON** | 粘贴具备 Crashlytics Viewer 的密钥 JSON（可长期存本机）。可做连通校验，但对 `topIssues` **完整报告**支持不完整（常 404）；控制台有崩溃数据时请改用 Access Token。 |
+
+用户 Token 请求会自动带 `x-goog-user-project`（侧栏项目 ID）以满足 Google **配额项目**要求；缺少时会出现 “requires a quota project”。
+
+#### 安装 gcloud（国内）
+
+官方小安装器常因直连 Google 失败（`Download failed: SendRequest Error`）。请开代理后下载**完整 zip**：
+
+```powershell
+$env:HTTPS_PROXY = 'http://127.0.0.1:7890'   # Clash 等
+$zip = "$env:USERPROFILE\Downloads\google-cloud-cli-windows-x86_64.zip"
+Invoke-WebRequest -Uri 'https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-windows-x86_64.zip' -OutFile $zip -Proxy $env:HTTPS_PROXY
+Expand-Archive $zip -DestinationPath "$env:LOCALAPPDATA" -Force
+& "$env:LOCALAPPDATA\google-cloud-sdk\install.bat"
+# 将 %LOCALAPPDATA%\google-cloud-sdk\bin 加入用户 PATH 后新开终端
+gcloud auth login
+gcloud auth print-access-token
+```
+
+#### 侧栏操作与代理
+
+1. 数据源选 **Firebase Crashlytics**，填项目 ID / App ID 与凭证，勾选 **记住凭证** → **保存凭证**。  
+2. 点配置区外始终可见的 **拉取列表**（不埋在筛选折叠里）。  
+3. 国内访问 Google：自动使用 **系统代理** 或环境变量 `HTTPS_PROXY` / `HTTP_PROXY`（如 Clash `http://127.0.0.1:7890`）。OAuth / Crashlytics 请求与 `gcloud` 刷新均走同一套代理探测。
+
+#### 常见报错
+
+| 现象 | 处理 |
+|------|------|
+| API 未启用 / Enable it by visiting… | 打开报错中的链接或 API Library，启用 Firebase Crashlytics API |
+| `PERMISSION_DENIED` | IAM 授予 Crashlytics Viewer；确认 gcloud 登录账号能打开该 Firebase 项目 |
+| 缺少配额项目 / quota project | 侧栏填好项目 ID；或 `gcloud auth application-default set-quota-project <项目ID>` |
+| Access Token 已失效 | `gcloud auth print-access-token` 重贴，或依赖本机 gcloud 自动刷新 |
+| `topIssues` 404 但 App 存在 | 多为该 App **尚无崩溃事件**，或服务账号读不到完整报告 → 查控制台 / 改用用户 Token |
+| 安装 gcloud Download failed | 走上方 zip + 代理，勿用无代理的官方 exe 安装器 |
+
 ### 4.3 列表与筛选（默认可折叠）
 
-凭证就绪后可拉列表。侧栏**过滤**区默认折叠（一行摘要当前条件），需要时再展开；修改后须点 **应用筛选并查询** 才会请求（避免误触频繁打友盟）。应用成功后过滤区会再次收起。
+凭证就绪后可拉列表。侧栏**过滤**区默认折叠（一行摘要当前条件），需要时再展开；修改后须点 **应用筛选并查询** 才会请求（避免误触频繁打接口）。应用成功后过滤区会再次收起。
 
-筛选项与 U-APM Console 同源：版本 / 系统 / 机型来自元数据接口（`getVersionsList` / `getMetaosList` / `getDevices`），**仅可勾选**，勿手输；请求体字段为 `version` / `os` / `device` 数组。
+**友盟**：筛选项与 U-APM Console 同源：版本 / 系统 / 机型来自元数据接口（`getVersionsList` / `getMetaosList` / `getDevices`），**仅可勾选**，勿手输；请求体字段为 `version` / `os` / `device` 数组。
+
+**Crashlytics**：列表走官方 REST `reports/topIssues`；筛选映射为报告 `filter.*`（时间窗、版本、错误类型、状态、关键字等）。iOS 机型维度使用 `topAppleDevices`（不是 Android 的 `topDevices`）。无崩溃数据时列表为空（属预期）。
 
 | 过滤 | 说明 |
 |------|------|
@@ -318,8 +375,11 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ### 10.3 崩溃分析
 
 - 友盟 **Console Cookie** 取数，无 OpenAPI；Console 变更或 Cookie 过期会导致列表 / 详情失败，可粘贴堆栈继续分析  
+- Crashlytics：**用户 Access Token** 约 1 小时过期；本机已 `gcloud auth login` 时可自动刷新。服务账号对 `topIssues` 完整报告支持不完整（Firebase 已知限制）  
+- Crashlytics 需启用 API、可读 IAM，以及用户 Token 的**配额项目**（侧栏项目 ID → `x-goog-user-project`）  
+- 国内访问 Google 依赖系统代理 / `HTTPS_PROXY`；无代理时 OAuth 与 Crashlytics 请求会失败  
 - 不做 ProGuard / dSYM **符号化**；仓库命中为文件名级静态搜索，复杂 monorepo 可能误匹配  
-- 版本 / 系统 / 机型为跨维度**并且**；勾选过多时控制台也会返回空列表（属预期）  
+- 友盟：版本 / 系统 / 机型为跨维度**并且**；勾选过多时控制台也会返回空列表（属预期）  
 - AI 自动回写依赖会话里 Agent 调用 `tracescope_publish_crash_analysis`；未调用时可手动「回写 AI 结论」或粘贴回复  
 - MCP 尚未提供崩溃列表 / 分析工具；请用桌面端侧栏  
 
@@ -331,11 +391,17 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ---
 
-## 11. 路线图（非本版交付）
+## 11. 路线图与扩展计划
+
+崩溃分析在架构上按 **`CrashProvider` 横向扩展**：侧栏「数据源」可切换，核心只依赖统一的列表 / 详情 / 筛选契约。当前已接入 **友盟 U-APM**、**Firebase Crashlytics** 与粘贴堆栈降级；**更多平台会陆续支持**（例如 Sentry、Bugly、各厂商 APM 等），不绑死单一厂商。
+
+**欢迎反馈优先顺序。** 若你工作中很需要某个崩溃 / APM 平台，请到仓库提 [GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues)（写清平台名、鉴权方式、是否有公开 API、典型使用场景）。需求明确时我会尽快适配接入。
+
+其它规划（非本版 npm 必交付）：
 
 - Android USB、浏览器扩展录制等  
 - 仓库内 `browser-extension` 等脚手架：**未纳入当前 npm 交付**  
-- 友盟 OpenAPI / 更多 CrashProvider；堆栈符号化与更准的仓库命中  
+- 友盟 OpenAPI；Crashlytics 服务账号完整报告支持跟进上游；堆栈符号化与更准的仓库命中  
 - 更多栈的 enrichment（在能力齐平前提下按需扩展，而非主路径特化）  
 
 ---
@@ -345,4 +411,5 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 - [README.md](../README.md) — 核心介绍与安装  
 - [CHANGELOG.md](../CHANGELOG.md) — 版本里程碑  
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — 包边界与设计对比架构  
-- [English guide](./GUIDE.en.md)
+- [English guide](./GUIDE.en.md)  
+- [Issues 反馈](https://github.com/rebornace/dsh-tracescope/issues) — 平台适配与功能建议

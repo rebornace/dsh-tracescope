@@ -891,12 +891,30 @@ var init_zh = __esm({
       "crash.pasteFallback": "粘贴堆栈（Cookie 失效降级）",
       "crash.pasteLabel": "粘贴崩溃堆栈",
       "crash.pasteRequired": "请先粘贴崩溃堆栈",
-      "crash.probe": "自检",
-      "crash.probeFail": "连通性自检失败",
-      "crash.probeOk": "连通性自检通过",
+      "crash.probe": "拉取列表",
+      "crash.probeFail": "拉取失败：请检查凭证、网络，以及是否已启用 Crashlytics API",
+      "crash.probeOk": "已拉取崩溃列表",
+      "crash.probeHint": "使用当前凭证拉取崩溃列表（只读；需已启用 Firebase Crashlytics API）",
+      "crash.fetchList": "拉取列表",
+      "crash.fetchListHint": "凭证保存后可随时点此拉取；展开上方「配置」可改凭证，展开「过滤」可改条件后再拉",
       "crash.promptPreview": "会话提示词预览",
       "crash.provider": "数据源",
       "crash.providerUmeng": "友盟 U-APM",
+      "crash.providerCrashlytics": "Firebase Crashlytics",
+      "crash.crashlyticsConfig": "Crashlytics 配置",
+      "crash.crashlyticsHint": "填写 Firebase 项目 ID（或项目编号）与 App ID。推荐粘贴 Access Token（gcloud auth print-access-token）；服务账号常无法读取 topIssues 完整报告。若用服务账号：① 启用 Firebase Crashlytics API；② IAM 授予「Firebase Crashlytics Viewer」。国内需代理（自动读系统代理 / HTTPS_PROXY）。勾选「记住凭证」可持久化到本机。",
+      "crash.projectId": "Firebase 项目 ID / 编号",
+      "crash.projectIdPlaceholder": "例如 my-firebase-project 或 1234567890",
+      "crash.appId": "Firebase App ID",
+      "crash.appIdPlaceholder": "例如 1:1234567890:android:abcdef",
+      "crash.accessToken": "Access Token",
+      "crash.accessTokenPlaceholder": "粘贴 gcloud / OAuth access token",
+      "crash.serviceAccountJson": "服务账号 JSON（可选）",
+      "crash.serviceAccountJsonPlaceholder": "粘贴完整 service account JSON；与 Token 二选一即可",
+      "crash.serviceAccountSaved": "本机已保存服务账号（显示为掩码；无需重复粘贴）",
+      "crash.tokenExpired": "Access Token 已失效（约 1 小时）。请执行 gcloud auth print-access-token 获取新 token 并保存；若本机已 gcloud login，重新加载插件后会自动刷新。也可改用下方粘贴堆栈分析",
+      "crash.tokenCleared": "已清除本地保存的 Crashlytics 凭证",
+      "crash.clearToken": "清除已保存凭证",
       "crash.refreshList": "刷新列表",
       "crash.rememberCredentials": "记住凭证（按仓库或全局）",
       "crash.saveCredentials": "保存凭证",
@@ -2260,12 +2278,30 @@ var init_en = __esm({
       "crash.pasteFallback": "Paste stack (fallback)",
       "crash.pasteLabel": "Paste crash stack trace",
       "crash.pasteRequired": "Paste a crash stack trace first",
-      "crash.probe": "Probe",
-      "crash.probeFail": "Connectivity probe failed",
-      "crash.probeOk": "Connectivity probe OK",
+      "crash.probe": "Fetch list",
+      "crash.probeFail": "Fetch failed — check credentials, network, and that Crashlytics API is enabled",
+      "crash.probeOk": "Crash list loaded",
+      "crash.probeHint": "Fetch crashes with the current credentials (read-only; Crashlytics API must be enabled)",
+      "crash.fetchList": "Fetch list",
+      "crash.fetchListHint": "Fetch anytime after credentials are saved. Expand Settings to edit credentials; expand Filters to change query options",
       "crash.promptPreview": "Session prompt preview",
       "crash.provider": "Provider",
       "crash.providerUmeng": "Umeng U-APM",
+      "crash.providerCrashlytics": "Firebase Crashlytics",
+      "crash.crashlyticsConfig": "Crashlytics settings",
+      "crash.crashlyticsHint": "Enter the Firebase project ID (or project number) and App ID. Prefer an access token (gcloud auth print-access-token); service accounts often cannot read full topIssues reports. If using a service account: (1) enable Firebase Crashlytics API; (2) grant Firebase Crashlytics Viewer in IAM. System proxy / HTTPS_PROXY is used automatically. Enable “Remember credentials” to persist on this machine.",
+      "crash.projectId": "Firebase project ID / number",
+      "crash.projectIdPlaceholder": "e.g. my-firebase-project or 1234567890",
+      "crash.appId": "Firebase App ID",
+      "crash.appIdPlaceholder": "e.g. 1:1234567890:android:abcdef",
+      "crash.accessToken": "Access token",
+      "crash.accessTokenPlaceholder": "Paste a gcloud / OAuth access token",
+      "crash.serviceAccountJson": "Service account JSON (optional)",
+      "crash.serviceAccountJsonPlaceholder": "Paste the full service-account JSON; use this or an access token",
+      "crash.serviceAccountSaved": "Service account saved on this device (shown masked; no need to paste again)",
+      "crash.tokenExpired": "Access token expired (~1h). Run gcloud auth print-access-token, paste the new token, and save. If gcloud is already logged in, reload the plugin to auto-refresh. Or analyze with a pasted stack below",
+      "crash.tokenCleared": "Cleared saved Crashlytics credentials",
+      "crash.clearToken": "Clear saved credentials",
       "crash.refreshList": "Refresh list",
       "crash.rememberCredentials": "Remember credentials (per repo or global)",
       "crash.saveCredentials": "Save credentials",
@@ -7566,7 +7602,7 @@ function parseUmengIncident(inc, fallbackId) {
   return {
     id: typeof inc.id === "string" ? inc.id : fallbackId,
     title: typeof inc.title === "string" ? inc.title : fallbackId,
-    provider: "umeng",
+    provider: parseProviderId(inc.provider),
     stackText: typeof inc.stackText === "string" ? inc.stackText : "",
     exceptionName: typeof inc.exceptionName === "string" ? inc.exceptionName : void 0,
     appVersion: typeof inc.appVersion === "string" ? inc.appVersion : void 0,
@@ -7588,7 +7624,7 @@ function umengIncidentForAnalyze(selected, stack, titleText) {
   return {
     id: selected.id,
     title: defaultTitle(stack, titleText || selected.title),
-    provider: "umeng",
+    provider: selected.provider === "local" ? "umeng" : selected.provider,
     stackText: stack,
     exceptionName: selected.exceptionName,
     appVersion: selected.appVersion,
@@ -7660,7 +7696,7 @@ function parseListItems(raw) {
     return {
       id: typeof o.id === "string" ? o.id : "",
       title: typeof o.title === "string" ? o.title : "",
-      provider: o.provider === "umeng" ? "umeng" : "local",
+      provider: parseProviderId(o.provider),
       appVersion: typeof o.appVersion === "string" ? o.appVersion : void 0,
       errorKind: typeof o.errorKind === "string" ? o.errorKind : void 0,
       status: typeof o.status === "string" ? o.status : void 0,
@@ -7811,9 +7847,16 @@ function FilterOptionPicker(props) {
   ] });
 }
 function isAuthFailure(errorCode, message) {
-  if (errorCode === "UMENG_AUTH") return true;
+  if (errorCode === "UMENG_AUTH" || errorCode === "CRASHLYTICS_AUTH") return true;
+  if (errorCode === "CRASHLYTICS_FORBIDDEN" || errorCode === "CRASHLYTICS_HTTP" || errorCode === "CRASHLYTICS_NOT_FOUND" || errorCode === "CRASHLYTICS_NETWORK" || errorCode === "CRASHLYTICS_BAD_RESPONSE" || errorCode === "CRASHLYTICS_CONFIG") {
+    return false;
+  }
   const m = message.toLowerCase();
-  return m.includes("401") || m.includes("auth") || m.includes("cookie") || m.includes("登录");
+  return m.includes("401") || m.includes("unauthenticated") || m.includes("invalid_token") || m.includes("cookie") || m.includes("已失效") || m.includes("登录");
+}
+function parseProviderId(raw) {
+  if (raw === "umeng" || raw === "crashlytics" || raw === "local") return raw;
+  return "umeng";
 }
 function CrashBoard({
   repoPath,
@@ -7834,11 +7877,17 @@ function CrashBoard({
   const [umengOpen, setUmengOpen] = (0, import_react5.useState)(true);
   const [filtersOpen, setFiltersOpen] = (0, import_react5.useState)(false);
   const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
-  const [provider] = (0, import_react5.useState)("umeng");
+  const [provider, setProvider] = (0, import_react5.useState)("umeng");
   const [appKey, setAppKey] = (0, import_react5.useState)("");
   const [appDisplayName, setAppDisplayName] = (0, import_react5.useState)("");
   const [cookie, setCookie] = (0, import_react5.useState)("");
   const [hasStoredCookie, setHasStoredCookie] = (0, import_react5.useState)(false);
+  const [projectId, setProjectId] = (0, import_react5.useState)("");
+  const [appId, setAppId] = (0, import_react5.useState)("");
+  const [accessToken, setAccessToken] = (0, import_react5.useState)("");
+  const [hasStoredAccessToken, setHasStoredAccessToken] = (0, import_react5.useState)(false);
+  const [serviceAccountJson, setServiceAccountJson] = (0, import_react5.useState)("");
+  const [hasStoredServiceAccount, setHasStoredServiceAccount] = (0, import_react5.useState)(false);
   const [remember, setRemember] = (0, import_react5.useState)(true);
   const [configBusy, setConfigBusy] = (0, import_react5.useState)(false);
   const [filters, setFilters] = (0, import_react5.useState)(() => defaultFilters());
@@ -7865,19 +7914,67 @@ function CrashBoard({
   const reportRef = (0, import_react5.useRef)(null);
   reportRef.current = report;
   const repo = repoPath.trim();
+  const remoteReady = (0, import_react5.useCallback)(() => {
+    if (provider === "crashlytics") {
+      return Boolean(projectId.trim() && appId.trim()) && (cookieReady(hasStoredAccessToken, accessToken) || cookieReady(hasStoredServiceAccount, serviceAccountJson));
+    }
+    return Boolean(appKey.trim()) && cookieReady(hasStoredCookie, cookie);
+  }, [
+    accessToken,
+    appId,
+    appKey,
+    cookie,
+    hasStoredAccessToken,
+    hasStoredCookie,
+    hasStoredServiceAccount,
+    projectId,
+    provider,
+    serviceAccountJson
+  ]);
+  const authExpiredMessage = (0, import_react5.useCallback)(() => {
+    return provider === "crashlytics" ? t2("crash.tokenExpired") : t2("crash.cookieExpired");
+  }, [provider, t2]);
   const configBody = (0, import_react5.useCallback)(() => {
     const body2 = {
       repoPath: repo || void 0,
-      provider: "umeng",
-      appKey: appKey.trim(),
+      provider,
       appDisplayName: appDisplayName.trim(),
       remember
     };
-    const cookieTrim = cookie.trim();
-    if (cookieTrim && cookieTrim !== MASKED_COOKIE) body2.cookie = cookieTrim;
-    else if (hasStoredCookie) body2.cookie = MASKED_COOKIE;
+    if (provider === "crashlytics") {
+      body2.projectId = projectId.trim();
+      body2.appId = appId.trim();
+      const tokenTrim = accessToken.trim();
+      if (tokenTrim && tokenTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(tokenTrim)) {
+        body2.accessToken = tokenTrim;
+      }
+      const saTrim = serviceAccountJson.trim();
+      if (saTrim && saTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(saTrim)) {
+        body2.serviceAccountJson = saTrim;
+      }
+    } else {
+      body2.appKey = appKey.trim();
+      const cookieTrim = cookie.trim();
+      if (cookieTrim && cookieTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(cookieTrim)) {
+        body2.cookie = cookieTrim;
+      }
+    }
     return body2;
-  }, [appDisplayName, appKey, cookie, hasStoredCookie, remember, repo]);
+  }, [
+    accessToken,
+    appDisplayName,
+    appId,
+    appKey,
+    cookie,
+    hasStoredAccessToken,
+    hasStoredCookie,
+    hasStoredServiceAccount,
+    projectId,
+    provider,
+    remember,
+    repo,
+    serviceAccountJson
+  ]);
   const loadConfig = (0, import_react5.useCallback)(async () => {
     try {
       const params = {};
@@ -7885,12 +7982,20 @@ function CrashBoard({
       const data = await apiGet2("/tracescope/v1/crash-config", params);
       const cfg = data.config;
       if (!cfg) return;
-      if (typeof cfg.appKey === "string") setAppKey(cfg.appKey);
-      if (typeof cfg.appDisplayName === "string") setAppDisplayName(cfg.appDisplayName);
-      else setAppDisplayName("");
+      setProvider(parseProviderId(cfg.provider));
+      setAppKey(typeof cfg.appKey === "string" ? cfg.appKey : "");
+      setAppDisplayName(typeof cfg.appDisplayName === "string" ? cfg.appDisplayName : "");
+      setProjectId(typeof cfg.projectId === "string" ? cfg.projectId : "");
+      setAppId(typeof cfg.appId === "string" ? cfg.appId : "");
       setHasStoredCookie(cfg.hasCookie === true);
       if (cfg.hasCookie === true) setCookie(MASKED_COOKIE);
       else setCookie("");
+      setHasStoredAccessToken(cfg.hasAccessToken === true);
+      if (cfg.hasAccessToken === true) setAccessToken(MASKED_COOKIE);
+      else setAccessToken("");
+      setHasStoredServiceAccount(cfg.hasServiceAccount === true);
+      if (cfg.hasServiceAccount === true) setServiceAccountJson(MASKED_COOKIE);
+      else setServiceAccountJson("");
     } catch (err2) {
       setError(err2.message || String(err2));
     }
@@ -7900,11 +8005,11 @@ function CrashBoard({
   }, [loadConfig]);
   const handleAuthFailure = (0, import_react5.useCallback)(
     (message) => {
-      setError(message || t2("crash.cookieExpired"));
+      setError(message || authExpiredMessage());
       setPasteOpen(true);
       setUmengOpen(true);
     },
-    [t2]
+    [authExpiredMessage]
   );
   const saveCredentials = (0, import_react5.useCallback)(async () => {
     setConfigBusy(true);
@@ -7915,6 +8020,14 @@ function CrashBoard({
       if (cfg?.hasCookie === true) {
         setHasStoredCookie(true);
         setCookie(MASKED_COOKIE);
+      }
+      if (cfg?.hasAccessToken === true) {
+        setHasStoredAccessToken(true);
+        setAccessToken(MASKED_COOKIE);
+      }
+      if (cfg?.hasServiceAccount === true) {
+        setHasStoredServiceAccount(true);
+        setServiceAccountJson(MASKED_COOKIE);
       }
       setHint(t2("crash.credentialsSaved"));
     } catch (err2) {
@@ -7928,18 +8041,20 @@ function CrashBoard({
     setError("");
     try {
       const data = await apiPost2("/tracescope/v1/crash-config-save", {
-        repoPath: repo || void 0,
-        provider: "umeng",
-        appKey: appKey.trim(),
-        appDisplayName: appDisplayName.trim(),
+        ...configBody(),
         cookie: "",
-        clearCookie: true,
-        remember
+        accessToken: "",
+        serviceAccountJson: "",
+        clearCookie: true
       });
       const cfg = data.config;
-      const cleared = cfg?.hasCookie !== true;
+      const cleared = cfg?.hasCookie !== true && cfg?.hasAccessToken !== true && cfg?.hasServiceAccount !== true;
       setCookie("");
-      setHasStoredCookie(!cleared);
+      setHasStoredCookie(false);
+      setAccessToken("");
+      setHasStoredAccessToken(false);
+      setServiceAccountJson("");
+      setHasStoredServiceAccount(false);
       if (!cleared) {
         setError(t2("crash.probeFail"));
         return;
@@ -7947,17 +8062,17 @@ function CrashBoard({
       setListItems([]);
       setSelectedId("");
       setSelectedIncident(null);
-      setHint(t2("crash.cookieCleared"));
+      setHint(provider === "crashlytics" ? t2("crash.tokenCleared") : t2("crash.cookieCleared"));
     } catch (err2) {
       setError(err2.message || String(err2));
     } finally {
       setConfigBusy(false);
     }
-  }, [apiPost2, appDisplayName, appKey, remember, repo, t2]);
+  }, [apiPost2, configBody, provider, t2]);
   const fetchList = (0, import_react5.useCallback)(
     async (opts) => {
       if (!repo) return;
-      if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
+      if (!remoteReady()) return;
       const page = opts?.page ?? listPage;
       const queryFilters = opts?.filters ?? appliedFilters;
       const gen = ++listGen.current;
@@ -7976,7 +8091,7 @@ function CrashBoard({
         const errMsg = typeof data.error === "string" ? data.error : "";
         const errCode = data.errorCode;
         if (errMsg && isAuthFailure(errCode, errMsg)) {
-          handleAuthFailure(t2("crash.cookieExpired"));
+          handleAuthFailure(authExpiredMessage());
           setListItems([]);
           setListTotal(0);
           setListHasMore(false);
@@ -7991,7 +8106,7 @@ function CrashBoard({
         );
       } catch (err2) {
         const msg = err2.message || String(err2);
-        if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
         else setError(msg);
       } finally {
         if (gen === listGen.current) setListBusy(false);
@@ -7999,13 +8114,12 @@ function CrashBoard({
     },
     [
       apiPost2,
-      appKey,
       appliedFilters,
+      authExpiredMessage,
       configBody,
-      cookie,
       handleAuthFailure,
-      hasStoredCookie,
       listPage,
+      remoteReady,
       repo,
       t2
     ]
@@ -8015,7 +8129,7 @@ function CrashBoard({
       setError(t2("选择仓库 / 先在配置中添加"));
       return;
     }
-    if (!appKey.trim() || !cookieReady(hasStoredCookie, cookie)) {
+    if (!remoteReady()) {
       setError(t2("crash.probeFail"));
       setUmengOpen(true);
       return;
@@ -8026,7 +8140,7 @@ function CrashBoard({
     setFiltersOpen(false);
     setHint(t2("crash.filtersApplied"));
     void fetchList({ page: 1, filters: next });
-  }, [appKey, cookie, fetchList, filters, hasStoredCookie, repo, t2]);
+  }, [fetchList, filters, remoteReady, repo, t2]);
   const goListPage = (0, import_react5.useCallback)(
     (page) => {
       const next = Math.max(1, page);
@@ -8051,23 +8165,31 @@ function CrashBoard({
           setHasStoredCookie(true);
           setCookie(MASKED_COOKIE);
         }
+        if (cfg?.hasAccessToken === true) {
+          setHasStoredAccessToken(true);
+          setAccessToken(MASKED_COOKIE);
+        }
+        if (cfg?.hasServiceAccount === true) {
+          setHasStoredServiceAccount(true);
+          setServiceAccountJson(MASKED_COOKIE);
+        }
         const next = { ...filters };
         setAppliedFilters(next);
         setListPage(1);
         void fetchList({ page: 1, filters: next });
       } else {
         const msg = typeof data.error === "string" ? data.error : t2("crash.probeFail");
-        if (!data.ok && isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        if (!data.ok && isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
         else setError(msg);
       }
     } catch (err2) {
       const msg = err2.message || String(err2);
-      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+      if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
       else setError(msg);
     } finally {
       setConfigBusy(false);
     }
-  }, [apiPost2, configBody, fetchList, filters, handleAuthFailure, remember, t2]);
+  }, [apiPost2, authExpiredMessage, configBody, fetchList, filters, handleAuthFailure, remember, t2]);
   const filtersDirty = (0, import_react5.useMemo)(
     () => JSON.stringify(filters) !== JSON.stringify(appliedFilters),
     [appliedFilters, filters]
@@ -8113,7 +8235,7 @@ function CrashBoard({
         setTitle(full.title);
       } catch (err2) {
         const msg = err2.message || String(err2);
-        if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+        if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
         else setError(msg);
         setSelectedIncident(null);
       } finally {
@@ -8360,7 +8482,7 @@ function CrashBoard({
   const filterMetaType = (0, import_react5.useMemo)(() => metaTypeFromFilters(filters), [filters]);
   const fetchFilterOptions = (0, import_react5.useCallback)(async () => {
     if (!repo) return;
-    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return;
+    if (!remoteReady()) return;
     setFilterOptionsBusy(true);
     setFilterOptionsError("");
     try {
@@ -8370,7 +8492,7 @@ function CrashBoard({
       });
       const errMsg = typeof data.error === "string" ? data.error : "";
       if (errMsg && isAuthFailure(data.errorCode, errMsg)) {
-        handleAuthFailure(t2("crash.cookieExpired"));
+        handleAuthFailure(authExpiredMessage());
         return;
       }
       if (errMsg) {
@@ -8406,21 +8528,19 @@ function CrashBoard({
       }));
     } catch (err2) {
       const msg = err2.message || String(err2);
-      if (isAuthFailure(void 0, msg)) handleAuthFailure(t2("crash.cookieExpired"));
+      if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
       else setFilterOptionsError(msg);
     } finally {
       setFilterOptionsBusy(false);
     }
   }, [
     apiPost2,
-    appKey,
+    authExpiredMessage,
     configBody,
-    cookie,
     filterMetaType,
     handleAuthFailure,
-    hasStoredCookie,
-    repo,
-    t2
+    remoteReady,
+    repo
   ]);
   (0, import_react5.useEffect)(() => {
     void fetchFilterOptions();
@@ -8478,8 +8598,10 @@ function CrashBoard({
     return parts.join(" · ");
   }, [appliedFilters, t2]);
   const configDisabled = busy || configBusy || listBusy || detailBusy;
-  const appLabel = appDisplayName.trim() || appKey.trim();
-  const umengHeader = appLabel ? `${t2("crash.umengConfig")} · ${appLabel}` : t2("crash.umengConfig");
+  const appLabel = appDisplayName.trim() || (provider === "crashlytics" ? projectId.trim() || appId.trim() : appKey.trim());
+  const configHeaderLabel = provider === "crashlytics" ? t2("crash.crashlyticsConfig") : t2("crash.umengConfig");
+  const umengHeader = appLabel ? `${configHeaderLabel} · ${appLabel}` : configHeaderLabel;
+  const configTitle = provider === "crashlytics" ? appId.trim() ? `${t2("crash.appId")}: ${appId.trim()}` : void 0 : appKey.trim() ? `${t2("crash.appKey")}: ${appKey.trim()}` : void 0;
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { style: card, children: [
     /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 700, marginBottom: 8 }, children: t2("crash.mode") }),
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
@@ -8489,7 +8611,7 @@ function CrashBoard({
           type: "button",
           style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
           onClick: () => setUmengOpen((v) => !v),
-          title: appKey.trim() ? `${t2("crash.appKey")}: ${appKey.trim()}` : void 0,
+          title: configTitle,
           children: [
             umengOpen ? "▾ " : "▸ ",
             umengHeader
@@ -8497,10 +8619,28 @@ function CrashBoard({
         }
       ),
       umengOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 8 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.cookieHint") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: provider === "crashlytics" ? t2("crash.crashlyticsHint") : t2("crash.cookieHint") }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
           t2("crash.provider"),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("select", { style: input, value: provider, disabled: configDisabled, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }) })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+            "select",
+            {
+              style: input,
+              value: provider,
+              disabled: configDisabled,
+              onChange: (e) => {
+                const next = parseProviderId(e.target.value);
+                setProvider(next);
+                setListItems([]);
+                setSelectedId("");
+                setSelectedIncident(null);
+              },
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "crashlytics", children: t2("crash.providerCrashlytics") })
+              ]
+            }
+          )
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
           t2("crash.appDisplayName"),
@@ -8515,31 +8655,102 @@ function CrashBoard({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-          t2("crash.appKey"),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "input",
-            {
-              style: input,
-              value: appKey,
-              disabled: configDisabled,
-              placeholder: t2("crash.appKeyPlaceholder"),
-              onChange: (e) => setAppKey(e.target.value)
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-          t2("crash.cookie"),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "textarea",
-            {
-              style: { ...input, minHeight: 72, resize: "vertical", fontFamily: "ui-monospace, monospace" },
-              value: cookie,
-              disabled: configDisabled,
-              placeholder: hasStoredCookie ? MASKED_COOKIE : t2("crash.cookiePlaceholder"),
-              onChange: (e) => setCookie(e.target.value)
-            }
-          )
+        provider === "crashlytics" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.projectId"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "input",
+              {
+                style: input,
+                value: projectId,
+                disabled: configDisabled,
+                placeholder: t2("crash.projectIdPlaceholder"),
+                onChange: (e) => setProjectId(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.appId"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "input",
+              {
+                style: input,
+                value: appId,
+                disabled: configDisabled,
+                placeholder: t2("crash.appIdPlaceholder"),
+                onChange: (e) => setAppId(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.accessToken"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "textarea",
+              {
+                style: {
+                  ...input,
+                  minHeight: 56,
+                  resize: "vertical",
+                  fontFamily: "ui-monospace, monospace"
+                },
+                value: accessToken,
+                disabled: configDisabled,
+                placeholder: hasStoredAccessToken ? MASKED_COOKIE : t2("crash.accessTokenPlaceholder"),
+                onChange: (e) => setAccessToken(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.serviceAccountJson"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "textarea",
+              {
+                style: {
+                  ...input,
+                  minHeight: 72,
+                  resize: "vertical",
+                  fontFamily: "ui-monospace, monospace"
+                },
+                value: serviceAccountJson,
+                disabled: configDisabled,
+                placeholder: hasStoredServiceAccount ? MASKED_COOKIE : t2("crash.serviceAccountJsonPlaceholder"),
+                onChange: (e) => setServiceAccountJson(e.target.value)
+              }
+            )
+          ] }),
+          hasStoredServiceAccount ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#3d6b4f", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.serviceAccountSaved") }) : null
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.appKey"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "input",
+              {
+                style: input,
+                value: appKey,
+                disabled: configDisabled,
+                placeholder: t2("crash.appKeyPlaceholder"),
+                onChange: (e) => setAppKey(e.target.value)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+            t2("crash.cookie"),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "textarea",
+              {
+                style: {
+                  ...input,
+                  minHeight: 72,
+                  resize: "vertical",
+                  fontFamily: "ui-monospace, monospace"
+                },
+                value: cookie,
+                disabled: configDisabled,
+                placeholder: hasStoredCookie ? MASKED_COOKIE : t2("crash.cookiePlaceholder"),
+                onChange: (e) => setCookie(e.target.value)
+              }
+            )
+          ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...row, marginBottom: 8, fontWeight: 600, cursor: "pointer" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
@@ -8555,21 +8766,36 @@ function CrashBoard({
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 4 }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void saveCredentials(), children: t2("crash.saveCredentials") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: configDisabled, onClick: () => void runProbe(), children: configBusy ? t2("common.loading") : t2("crash.probe") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: t2("crash.clearCookie") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: provider === "crashlytics" ? t2("crash.clearToken") : t2("crash.clearCookie") })
+        ] })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      "div",
+      {
+        style: {
+          marginBottom: 10,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "center"
+        },
+        children: [
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
             "button",
             {
               type: "button",
-              style: btn,
+              style: primary,
               disabled: configDisabled || listBusy,
-              onClick: () => void fetchList({ page: listPage }),
-              children: listBusy ? t2("common.loading") : t2("crash.refreshList")
+              onClick: () => void runProbe(),
+              title: t2("crash.probeHint"),
+              children: configBusy || listBusy ? t2("common.loading") : t2("crash.fetchList")
             }
-          )
-        ] })
-      ] }) : null
-    ] }),
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.fetchListHint") })
+        ]
+      }
+    ),
     activeFilters.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
       "div",
       {

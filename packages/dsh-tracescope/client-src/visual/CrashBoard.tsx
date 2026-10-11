@@ -131,7 +131,7 @@ export interface SendToChatResult {
   error?: string
 }
 
-type CrashProviderId = 'local' | 'umeng'
+type CrashProviderId = 'local' | 'umeng' | 'crashlytics'
 
 type CrashListItem = {
   id: string
@@ -162,7 +162,7 @@ function parseUmengIncident(inc: Record<string, unknown>, fallbackId: string): U
   return {
     id: typeof inc.id === 'string' ? inc.id : fallbackId,
     title: typeof inc.title === 'string' ? inc.title : fallbackId,
-    provider: 'umeng',
+    provider: parseProviderId(inc.provider),
     stackText: typeof inc.stackText === 'string' ? inc.stackText : '',
     exceptionName: typeof inc.exceptionName === 'string' ? inc.exceptionName : undefined,
     appVersion: typeof inc.appVersion === 'string' ? inc.appVersion : undefined,
@@ -199,7 +199,7 @@ function umengIncidentForAnalyze(
   return {
     id: selected.id,
     title: defaultTitle(stack, titleText || selected.title),
-    provider: 'umeng' as const,
+    provider: selected.provider === 'local' ? 'umeng' : selected.provider,
     stackText: stack,
     exceptionName: selected.exceptionName,
     appVersion: selected.appVersion,
@@ -373,7 +373,7 @@ function parseListItems(raw: unknown): CrashListItem[] {
       return {
         id: typeof o.id === 'string' ? o.id : '',
         title: typeof o.title === 'string' ? o.title : '',
-        provider: o.provider === 'umeng' ? 'umeng' : 'local',
+        provider: parseProviderId(o.provider),
         appVersion: typeof o.appVersion === 'string' ? o.appVersion : undefined,
         errorKind: typeof o.errorKind === 'string' ? o.errorKind : undefined,
         status: typeof o.status === 'string' ? o.status : undefined,
@@ -555,9 +555,33 @@ function FilterOptionPicker(props: {
 }
 
 function isAuthFailure(errorCode: unknown, message: string): boolean {
-  if (errorCode === 'UMENG_AUTH') return true
+  if (errorCode === 'UMENG_AUTH' || errorCode === 'CRASHLYTICS_AUTH') return true
+  // Do not treat FORBIDDEN / NOT_FOUND / generic HTTP as "token expired"
+  // (those messages often mention Access Token / quota project).
+  if (
+    errorCode === 'CRASHLYTICS_FORBIDDEN' ||
+    errorCode === 'CRASHLYTICS_HTTP' ||
+    errorCode === 'CRASHLYTICS_NOT_FOUND' ||
+    errorCode === 'CRASHLYTICS_NETWORK' ||
+    errorCode === 'CRASHLYTICS_BAD_RESPONSE' ||
+    errorCode === 'CRASHLYTICS_CONFIG'
+  ) {
+    return false
+  }
   const m = message.toLowerCase()
-  return m.includes('401') || m.includes('auth') || m.includes('cookie') || m.includes('登录')
+  return (
+    m.includes('401') ||
+    m.includes('unauthenticated') ||
+    m.includes('invalid_token') ||
+    m.includes('cookie') ||
+    m.includes('已失效') ||
+    m.includes('登录')
+  )
+}
+
+function parseProviderId(raw: unknown): CrashProviderId {
+  if (raw === 'umeng' || raw === 'crashlytics' || raw === 'local') return raw
+  return 'umeng'
 }
 
 export function CrashBoard({
@@ -590,11 +614,17 @@ export function CrashBoard({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [pasteOpen, setPasteOpen] = useState(false)
 
-  const [provider] = useState<CrashProviderId>('umeng')
+  const [provider, setProvider] = useState<CrashProviderId>('umeng')
   const [appKey, setAppKey] = useState('')
   const [appDisplayName, setAppDisplayName] = useState('')
   const [cookie, setCookie] = useState('')
   const [hasStoredCookie, setHasStoredCookie] = useState(false)
+  const [projectId, setProjectId] = useState('')
+  const [appId, setAppId] = useState('')
+  const [accessToken, setAccessToken] = useState('')
+  const [hasStoredAccessToken, setHasStoredAccessToken] = useState(false)
+  const [serviceAccountJson, setServiceAccountJson] = useState('')
+  const [hasStoredServiceAccount, setHasStoredServiceAccount] = useState(false)
   const [remember, setRemember] = useState(true)
   const [configBusy, setConfigBusy] = useState(false)
 
@@ -632,19 +662,75 @@ export function CrashBoard({
 
   const repo = repoPath.trim()
 
+  const remoteReady = useCallback(() => {
+    if (provider === 'crashlytics') {
+      return (
+        Boolean(projectId.trim() && appId.trim()) &&
+        (cookieReady(hasStoredAccessToken, accessToken) ||
+          cookieReady(hasStoredServiceAccount, serviceAccountJson))
+      )
+    }
+    return Boolean(appKey.trim()) && cookieReady(hasStoredCookie, cookie)
+  }, [
+    accessToken,
+    appId,
+    appKey,
+    cookie,
+    hasStoredAccessToken,
+    hasStoredCookie,
+    hasStoredServiceAccount,
+    projectId,
+    provider,
+    serviceAccountJson,
+  ])
+
+  const authExpiredMessage = useCallback(() => {
+    return provider === 'crashlytics' ? t('crash.tokenExpired') : t('crash.cookieExpired')
+  }, [provider, t])
+
   const configBody = useCallback(() => {
     const body: Record<string, unknown> = {
       repoPath: repo || undefined,
-      provider: 'umeng',
-      appKey: appKey.trim(),
+      provider,
       appDisplayName: appDisplayName.trim(),
       remember,
     }
-    const cookieTrim = cookie.trim()
-    if (cookieTrim && cookieTrim !== MASKED_COOKIE) body.cookie = cookieTrim
-    else if (hasStoredCookie) body.cookie = MASKED_COOKIE
+    if (provider === 'crashlytics') {
+      body.projectId = projectId.trim()
+      body.appId = appId.trim()
+      // Only send freshly pasted secrets. Masked / empty fields are omitted so the
+      // server keeps the previously stored service-account JSON / token.
+      const tokenTrim = accessToken.trim()
+      if (tokenTrim && tokenTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(tokenTrim)) {
+        body.accessToken = tokenTrim
+      }
+      const saTrim = serviceAccountJson.trim()
+      if (saTrim && saTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(saTrim)) {
+        body.serviceAccountJson = saTrim
+      }
+    } else {
+      body.appKey = appKey.trim()
+      const cookieTrim = cookie.trim()
+      if (cookieTrim && cookieTrim !== MASKED_COOKIE && !/^\?{4,}$/.test(cookieTrim)) {
+        body.cookie = cookieTrim
+      }
+    }
     return body
-  }, [appDisplayName, appKey, cookie, hasStoredCookie, remember, repo])
+  }, [
+    accessToken,
+    appDisplayName,
+    appId,
+    appKey,
+    cookie,
+    hasStoredAccessToken,
+    hasStoredCookie,
+    hasStoredServiceAccount,
+    projectId,
+    provider,
+    remember,
+    repo,
+    serviceAccountJson,
+  ])
 
   const loadConfig = useCallback(async () => {
     try {
@@ -653,12 +739,20 @@ export function CrashBoard({
       const data = await apiGet('/tracescope/v1/crash-config', params)
       const cfg = data.config as Record<string, unknown> | undefined
       if (!cfg) return
-      if (typeof cfg.appKey === 'string') setAppKey(cfg.appKey)
-      if (typeof cfg.appDisplayName === 'string') setAppDisplayName(cfg.appDisplayName)
-      else setAppDisplayName('')
+      setProvider(parseProviderId(cfg.provider))
+      setAppKey(typeof cfg.appKey === 'string' ? cfg.appKey : '')
+      setAppDisplayName(typeof cfg.appDisplayName === 'string' ? cfg.appDisplayName : '')
+      setProjectId(typeof cfg.projectId === 'string' ? cfg.projectId : '')
+      setAppId(typeof cfg.appId === 'string' ? cfg.appId : '')
       setHasStoredCookie(cfg.hasCookie === true)
       if (cfg.hasCookie === true) setCookie(MASKED_COOKIE)
       else setCookie('')
+      setHasStoredAccessToken(cfg.hasAccessToken === true)
+      if (cfg.hasAccessToken === true) setAccessToken(MASKED_COOKIE)
+      else setAccessToken('')
+      setHasStoredServiceAccount(cfg.hasServiceAccount === true)
+      if (cfg.hasServiceAccount === true) setServiceAccountJson(MASKED_COOKIE)
+      else setServiceAccountJson('')
     } catch (err) {
       setError((err as Error).message || String(err))
     }
@@ -670,11 +764,11 @@ export function CrashBoard({
 
   const handleAuthFailure = useCallback(
     (message: string) => {
-      setError(message || t('crash.cookieExpired'))
+      setError(message || authExpiredMessage())
       setPasteOpen(true)
       setUmengOpen(true)
     },
-    [t],
+    [authExpiredMessage],
   )
 
   const saveCredentials = useCallback(async () => {
@@ -686,6 +780,14 @@ export function CrashBoard({
       if (cfg?.hasCookie === true) {
         setHasStoredCookie(true)
         setCookie(MASKED_COOKIE)
+      }
+      if (cfg?.hasAccessToken === true) {
+        setHasStoredAccessToken(true)
+        setAccessToken(MASKED_COOKIE)
+      }
+      if (cfg?.hasServiceAccount === true) {
+        setHasStoredServiceAccount(true)
+        setServiceAccountJson(MASKED_COOKIE)
       }
       setHint(t('crash.credentialsSaved'))
     } catch (err) {
@@ -700,18 +802,23 @@ export function CrashBoard({
     setError('')
     try {
       const data = await apiPost('/tracescope/v1/crash-config-save', {
-        repoPath: repo || undefined,
-        provider: 'umeng',
-        appKey: appKey.trim(),
-        appDisplayName: appDisplayName.trim(),
+        ...configBody(),
         cookie: '',
+        accessToken: '',
+        serviceAccountJson: '',
         clearCookie: true,
-        remember,
       })
       const cfg = data.config as Record<string, unknown> | undefined
-      const cleared = cfg?.hasCookie !== true
+      const cleared =
+        cfg?.hasCookie !== true &&
+        cfg?.hasAccessToken !== true &&
+        cfg?.hasServiceAccount !== true
       setCookie('')
-      setHasStoredCookie(!cleared)
+      setHasStoredCookie(false)
+      setAccessToken('')
+      setHasStoredAccessToken(false)
+      setServiceAccountJson('')
+      setHasStoredServiceAccount(false)
       if (!cleared) {
         setError(t('crash.probeFail'))
         return
@@ -719,18 +826,18 @@ export function CrashBoard({
       setListItems([])
       setSelectedId('')
       setSelectedIncident(null)
-      setHint(t('crash.cookieCleared'))
+      setHint(provider === 'crashlytics' ? t('crash.tokenCleared') : t('crash.cookieCleared'))
     } catch (err) {
       setError((err as Error).message || String(err))
     } finally {
       setConfigBusy(false)
     }
-  }, [apiPost, appDisplayName, appKey, remember, repo, t])
+  }, [apiPost, configBody, provider, t])
 
   const fetchList = useCallback(
     async (opts?: { page?: number; filters?: FilterState }) => {
       if (!repo) return
-      if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return
+      if (!remoteReady()) return
 
       const page = opts?.page ?? listPage
       const queryFilters = opts?.filters ?? appliedFilters
@@ -752,7 +859,7 @@ export function CrashBoard({
         const errMsg = typeof data.error === 'string' ? data.error : ''
         const errCode = data.errorCode
         if (errMsg && isAuthFailure(errCode, errMsg)) {
-          handleAuthFailure(t('crash.cookieExpired'))
+          handleAuthFailure(authExpiredMessage())
           setListItems([])
           setListTotal(0)
           setListHasMore(false)
@@ -770,7 +877,7 @@ export function CrashBoard({
         )
       } catch (err) {
         const msg = (err as Error).message || String(err)
-        if (isAuthFailure(undefined, msg)) handleAuthFailure(t('crash.cookieExpired'))
+        if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
         else setError(msg)
       } finally {
         if (gen === listGen.current) setListBusy(false)
@@ -778,13 +885,12 @@ export function CrashBoard({
     },
     [
       apiPost,
-      appKey,
       appliedFilters,
+      authExpiredMessage,
       configBody,
-      cookie,
       handleAuthFailure,
-      hasStoredCookie,
       listPage,
+      remoteReady,
       repo,
       t,
     ],
@@ -795,7 +901,7 @@ export function CrashBoard({
       setError(t('选择仓库 / 先在配置中添加'))
       return
     }
-    if (!appKey.trim() || !cookieReady(hasStoredCookie, cookie)) {
+    if (!remoteReady()) {
       setError(t('crash.probeFail'))
       setUmengOpen(true)
       return
@@ -806,7 +912,7 @@ export function CrashBoard({
     setFiltersOpen(false)
     setHint(t('crash.filtersApplied'))
     void fetchList({ page: 1, filters: next })
-  }, [appKey, cookie, fetchList, filters, hasStoredCookie, repo, t])
+  }, [fetchList, filters, remoteReady, repo, t])
 
   const goListPage = useCallback(
     (page: number) => {
@@ -833,23 +939,31 @@ export function CrashBoard({
           setHasStoredCookie(true)
           setCookie(MASKED_COOKIE)
         }
+        if (cfg?.hasAccessToken === true) {
+          setHasStoredAccessToken(true)
+          setAccessToken(MASKED_COOKIE)
+        }
+        if (cfg?.hasServiceAccount === true) {
+          setHasStoredServiceAccount(true)
+          setServiceAccountJson(MASKED_COOKIE)
+        }
         const next = { ...filters }
         setAppliedFilters(next)
         setListPage(1)
         void fetchList({ page: 1, filters: next })
       } else {
         const msg = typeof data.error === 'string' ? data.error : t('crash.probeFail')
-        if (!data.ok && isAuthFailure(undefined, msg)) handleAuthFailure(t('crash.cookieExpired'))
+        if (!data.ok && isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
         else setError(msg)
       }
     } catch (err) {
       const msg = (err as Error).message || String(err)
-      if (isAuthFailure(undefined, msg)) handleAuthFailure(t('crash.cookieExpired'))
+      if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
       else setError(msg)
     } finally {
       setConfigBusy(false)
     }
-  }, [apiPost, configBody, fetchList, filters, handleAuthFailure, remember, t])
+  }, [apiPost, authExpiredMessage, configBody, fetchList, filters, handleAuthFailure, remember, t])
 
   const filtersDirty = useMemo(
     () => JSON.stringify(filters) !== JSON.stringify(appliedFilters),
@@ -904,7 +1018,7 @@ export function CrashBoard({
         setTitle(full.title)
       } catch (err) {
         const msg = (err as Error).message || String(err)
-        if (isAuthFailure(undefined, msg)) handleAuthFailure(t('crash.cookieExpired'))
+        if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
         else setError(msg)
         setSelectedIncident(null)
       } finally {
@@ -1181,7 +1295,7 @@ export function CrashBoard({
 
   const fetchFilterOptions = useCallback(async () => {
     if (!repo) return
-    if (!Boolean(appKey.trim()) || !cookieReady(hasStoredCookie, cookie)) return
+    if (!remoteReady()) return
     setFilterOptionsBusy(true)
     setFilterOptionsError('')
     try {
@@ -1191,7 +1305,7 @@ export function CrashBoard({
       })
       const errMsg = typeof data.error === 'string' ? data.error : ''
       if (errMsg && isAuthFailure(data.errorCode, errMsg)) {
-        handleAuthFailure(t('crash.cookieExpired'))
+        handleAuthFailure(authExpiredMessage())
         return
       }
       if (errMsg) {
@@ -1229,21 +1343,19 @@ export function CrashBoard({
       }))
     } catch (err) {
       const msg = (err as Error).message || String(err)
-      if (isAuthFailure(undefined, msg)) handleAuthFailure(t('crash.cookieExpired'))
+      if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
       else setFilterOptionsError(msg)
     } finally {
       setFilterOptionsBusy(false)
     }
   }, [
     apiPost,
-    appKey,
+    authExpiredMessage,
     configBody,
-    cookie,
     filterMetaType,
     handleAuthFailure,
-    hasStoredCookie,
+    remoteReady,
     repo,
-    t,
   ])
 
   useEffect(() => {
@@ -1308,10 +1420,20 @@ export function CrashBoard({
   }, [appliedFilters, t])
 
   const configDisabled = busy || configBusy || listBusy || detailBusy
-  const appLabel = appDisplayName.trim() || appKey.trim()
-  const umengHeader = appLabel
-    ? `${t('crash.umengConfig')} · ${appLabel}`
-    : t('crash.umengConfig')
+  const appLabel =
+    appDisplayName.trim() ||
+    (provider === 'crashlytics' ? projectId.trim() || appId.trim() : appKey.trim())
+  const configHeaderLabel =
+    provider === 'crashlytics' ? t('crash.crashlyticsConfig') : t('crash.umengConfig')
+  const umengHeader = appLabel ? `${configHeaderLabel} · ${appLabel}` : configHeaderLabel
+  const configTitle =
+    provider === 'crashlytics'
+      ? appId.trim()
+        ? `${t('crash.appId')}: ${appId.trim()}`
+        : undefined
+      : appKey.trim()
+        ? `${t('crash.appKey')}: ${appKey.trim()}`
+        : undefined
 
   return (
     <section style={card}>
@@ -1322,7 +1444,7 @@ export function CrashBoard({
           type="button"
           style={{ ...btn, width: '100%', textAlign: 'left', fontWeight: 600 }}
           onClick={() => setUmengOpen((v) => !v)}
-          title={appKey.trim() ? `${t('crash.appKey')}: ${appKey.trim()}` : undefined}
+          title={configTitle}
         >
           {umengOpen ? '▾ ' : '▸ '}
           {umengHeader}
@@ -1330,12 +1452,24 @@ export function CrashBoard({
         {umengOpen ? (
           <div style={{ marginTop: 8 }}>
             <p style={{ margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
-              {t('crash.cookieHint')}
+              {provider === 'crashlytics' ? t('crash.crashlyticsHint') : t('crash.cookieHint')}
             </p>
             <label style={label}>
               {t('crash.provider')}
-              <select style={input} value={provider} disabled={configDisabled}>
+              <select
+                style={input}
+                value={provider}
+                disabled={configDisabled}
+                onChange={(e) => {
+                  const next = parseProviderId(e.target.value)
+                  setProvider(next)
+                  setListItems([])
+                  setSelectedId('')
+                  setSelectedIncident(null)
+                }}
+              >
                 <option value="umeng">{t('crash.providerUmeng')}</option>
+                <option value="crashlytics">{t('crash.providerCrashlytics')}</option>
               </select>
             </label>
             <label style={label}>
@@ -1348,26 +1482,99 @@ export function CrashBoard({
                 onChange={(e) => setAppDisplayName(e.target.value)}
               />
             </label>
-            <label style={label}>
-              {t('crash.appKey')}
-              <input
-                style={input}
-                value={appKey}
-                disabled={configDisabled}
-                placeholder={t('crash.appKeyPlaceholder')}
-                onChange={(e) => setAppKey(e.target.value)}
-              />
-            </label>
-            <label style={label}>
-              {t('crash.cookie')}
-              <textarea
-                style={{ ...input, minHeight: 72, resize: 'vertical', fontFamily: 'ui-monospace, monospace' }}
-                value={cookie}
-                disabled={configDisabled}
-                placeholder={hasStoredCookie ? MASKED_COOKIE : t('crash.cookiePlaceholder')}
-                onChange={(e) => setCookie(e.target.value)}
-              />
-            </label>
+            {provider === 'crashlytics' ? (
+              <>
+                <label style={label}>
+                  {t('crash.projectId')}
+                  <input
+                    style={input}
+                    value={projectId}
+                    disabled={configDisabled}
+                    placeholder={t('crash.projectIdPlaceholder')}
+                    onChange={(e) => setProjectId(e.target.value)}
+                  />
+                </label>
+                <label style={label}>
+                  {t('crash.appId')}
+                  <input
+                    style={input}
+                    value={appId}
+                    disabled={configDisabled}
+                    placeholder={t('crash.appIdPlaceholder')}
+                    onChange={(e) => setAppId(e.target.value)}
+                  />
+                </label>
+                <label style={label}>
+                  {t('crash.accessToken')}
+                  <textarea
+                    style={{
+                      ...input,
+                      minHeight: 56,
+                      resize: 'vertical',
+                      fontFamily: 'ui-monospace, monospace',
+                    }}
+                    value={accessToken}
+                    disabled={configDisabled}
+                    placeholder={
+                      hasStoredAccessToken ? MASKED_COOKIE : t('crash.accessTokenPlaceholder')
+                    }
+                    onChange={(e) => setAccessToken(e.target.value)}
+                  />
+                </label>
+                <label style={label}>
+                  {t('crash.serviceAccountJson')}
+                  <textarea
+                    style={{
+                      ...input,
+                      minHeight: 72,
+                      resize: 'vertical',
+                      fontFamily: 'ui-monospace, monospace',
+                    }}
+                    value={serviceAccountJson}
+                    disabled={configDisabled}
+                    placeholder={
+                      hasStoredServiceAccount
+                        ? MASKED_COOKIE
+                        : t('crash.serviceAccountJsonPlaceholder')
+                    }
+                    onChange={(e) => setServiceAccountJson(e.target.value)}
+                  />
+                </label>
+                {hasStoredServiceAccount ? (
+                  <p style={{ margin: '0 0 8px', color: '#3d6b4f', fontSize: 12, lineHeight: 1.45 }}>
+                    {t('crash.serviceAccountSaved')}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <label style={label}>
+                  {t('crash.appKey')}
+                  <input
+                    style={input}
+                    value={appKey}
+                    disabled={configDisabled}
+                    placeholder={t('crash.appKeyPlaceholder')}
+                    onChange={(e) => setAppKey(e.target.value)}
+                  />
+                </label>
+                <label style={label}>
+                  {t('crash.cookie')}
+                  <textarea
+                    style={{
+                      ...input,
+                      minHeight: 72,
+                      resize: 'vertical',
+                      fontFamily: 'ui-monospace, monospace',
+                    }}
+                    value={cookie}
+                    disabled={configDisabled}
+                    placeholder={hasStoredCookie ? MASKED_COOKIE : t('crash.cookiePlaceholder')}
+                    onChange={(e) => setCookie(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
             <label style={{ ...row, marginBottom: 8, fontWeight: 600, cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -1381,23 +1588,35 @@ export function CrashBoard({
               <button type="button" style={btn} disabled={configDisabled} onClick={() => void saveCredentials()}>
                 {t('crash.saveCredentials')}
               </button>
-              <button type="button" style={primary} disabled={configDisabled} onClick={() => void runProbe()}>
-                {configBusy ? t('common.loading') : t('crash.probe')}
-              </button>
               <button type="button" style={btn} disabled={configDisabled} onClick={() => void clearCookieClick()}>
-                {t('crash.clearCookie')}
-              </button>
-              <button
-                type="button"
-                style={btn}
-                disabled={configDisabled || listBusy}
-                onClick={() => void fetchList({ page: listPage })}
-              >
-                {listBusy ? t('common.loading') : t('crash.refreshList')}
+                {provider === 'crashlytics' ? t('crash.clearToken') : t('crash.clearCookie')}
               </button>
             </div>
           </div>
         ) : null}
+      </div>
+
+      <div
+        style={{
+          marginBottom: 10,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <button
+          type="button"
+          style={primary}
+          disabled={configDisabled || listBusy}
+          onClick={() => void runProbe()}
+          title={t('crash.probeHint')}
+        >
+          {configBusy || listBusy ? t('common.loading') : t('crash.fetchList')}
+        </button>
+        <span style={{ color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
+          {t('crash.fetchListHint')}
+        </span>
       </div>
 
       {activeFilters.length ? (

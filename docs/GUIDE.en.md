@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.3.0`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.3.1`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -13,7 +13,7 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 |------------|-------|--------|
 | **Impact analysis** | Stable ↔ under-test (local git or Codeup API) | Direct + static ripple checklist; mark, attach, export, file defects |
 | **Design diff** | Figma / Lanhu + code pages | Static diffs + design raster highlights; optional AI write-back |
-| **Crash analysis** | Umeng U-APM Console (cookie) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; AI tool write-back; composer draft or tracker filing |
+| **Crash analysis** | Umeng U-APM (cookie) / Firebase Crashlytics (token) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; AI tool write-back; composer draft or tracker filing |
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
@@ -65,7 +65,9 @@ Sidebar mode switch: **Impact analysis** / **Design diff** / **Crash analysis**.
 
 ### What it does
 
-Pull crash/ANR list and detail from **Umeng U-APM Console** via browser cookie, or **paste a stack trace** when cookie auth fails; match frames to files under the code directory; run local analysis; write a bilingual prompt into the session and let the agent **publish** the AI conclusion back; file a dedicated tracker defect body.
+Pull crash/ANR list and detail from **Umeng U-APM** (China) or **Firebase Crashlytics** (global), or **paste a stack trace** when credentials fail; match frames to files under the code directory; run local analysis; write a bilingual prompt into the session and let the agent **publish** the AI conclusion back; file a dedicated tracker defect body. Switch providers in the sidebar **Provider** field.
+
+Crash sources are **horizontally extensible** via the `CrashProvider` registry (see [§11 Roadmap & extension plans](#11-roadmap--extension-plans)): more crash / APM platforms will land over time. If you urgently need a specific platform, please [open a GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues) — high-priority requests can be adapted sooner.
 
 ### Umeng cookie (Console)
 
@@ -78,11 +80,66 @@ Sidebar compliance note (`crash.cookieHint`): reads only data your logged-in ses
 
 Credentials/AppKey are mirrored to **global** and the current repo key (normalized remote Git URL). The Umeng block is collapsible; opening a crash detail collapses it so the analysis panel stays visible.
 
+### Crashlytics credentials (access token / service account)
+
+For overseas Firebase projects. Environments in China need reachability to Google APIs (see proxy below).
+
+#### Project & IAM
+
+1. In [Firebase Console](https://console.firebase.google.com/) → Project settings, copy the **project ID** (project number also works) and the app **App ID** (e.g. `1:1234567890:ios:abcdef`).  
+   - Request paths **prefer the project number** embedded in the App ID (second segment) to avoid `NOT_FOUND` from project-ID strings alone.  
+2. **Enable the Firebase Crashlytics API** in [Google Cloud](https://console.cloud.google.com/apis/library/firebasecrashlytics.googleapis.com) (otherwise API-disabled / 403).  
+3. For a service account: in [IAM](https://console.cloud.google.com/iam-admin/iam) grant **Firebase Crashlytics Viewer** (`roles/firebasecrashlytics.viewer`) or **Firebase Viewer** on the JSON `client_email`. Admin SDK default roles are often insufficient (`PERMISSION_DENIED`).
+
+#### Auth (prefer access token)
+
+| Mode | Notes |
+|------|--------|
+| **Access token (recommended)** | After `gcloud auth login`, run `gcloud auth print-access-token` and paste it. `ya29.` tokens expire in about **1 hour**. |
+| **Local gcloud auto-refresh** | If `gcloud` is on `PATH` and logged in, TraceScope **prefers** `gcloud auth print-access-token` (~50 min cache) so you need not re-paste hourly. |
+| **Service account JSON** | Paste a key with Crashlytics Viewer (long-lived, local only). Connectivity checks may pass, but full `topIssues` reports are often incomplete (404). If the Firebase console shows crashes, use a user access token. |
+
+User-token requests send `x-goog-user-project` (sidebar project ID) for Google’s **quota project** requirement; without it you see “requires a quota project”.
+
+#### Installing gcloud (restricted networks)
+
+The small official installer often fails with `Download failed: SendRequest Error` when Google is blocked. With a proxy, download the **full zip** instead:
+
+```powershell
+$env:HTTPS_PROXY = 'http://127.0.0.1:7890'   # e.g. Clash
+$zip = "$env:USERPROFILE\Downloads\google-cloud-cli-windows-x86_64.zip"
+Invoke-WebRequest -Uri 'https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-windows-x86_64.zip' -OutFile $zip -Proxy $env:HTTPS_PROXY
+Expand-Archive $zip -DestinationPath "$env:LOCALAPPDATA" -Force
+& "$env:LOCALAPPDATA\google-cloud-sdk\install.bat"
+# Add %LOCALAPPDATA%\google-cloud-sdk\bin to the user PATH, open a new terminal
+gcloud auth login
+gcloud auth print-access-token
+```
+
+#### Sidebar & proxy
+
+1. Set Provider to **Firebase Crashlytics**, fill project ID / App ID / credentials, enable **Remember credentials** → **Save credentials**.  
+2. Use the always-visible **Fetch list** button (not buried under Filters).  
+3. Google reachability: system proxy or `HTTPS_PROXY` / `HTTP_PROXY` (e.g. Clash `http://127.0.0.1:7890`). OAuth, Crashlytics, and gcloud refresh share the same proxy detection.
+
+#### Common errors
+
+| Symptom | What to do |
+|---------|------------|
+| API not enabled / Enable it by visiting… | Open the link or API Library and enable Firebase Crashlytics API |
+| `PERMISSION_DENIED` | Grant Crashlytics Viewer; ensure the gcloud Google account can open the Firebase project |
+| Missing quota project | Fill the sidebar project ID, or `gcloud auth application-default set-quota-project <PROJECT_ID>` |
+| Access token expired | `gcloud auth print-access-token` again, or rely on local gcloud auto-refresh |
+| `topIssues` 404 while the app exists | Often **no crash events yet**, or SA cannot read full reports → check Console / switch to a user token |
+| gcloud installer Download failed | Use the zip + proxy steps above |
+
 ### List and filters (collapsed by default)
 
-After credentials are ready you can load the list. The **Filters** block is **collapsed by default** (one-line summary of applied conditions). Expand when needed; click **Apply filters & search** to fetch (edits alone do not hit Umeng). After a successful apply the block collapses again.
+After credentials are ready you can load the list. The **Filters** block is **collapsed by default** (one-line summary of applied conditions). Expand when needed; click **Apply filters & search** to fetch (edits alone do not hit the API). After a successful apply the block collapses again.
 
-Version / OS / device options come from the same Console meta APIs (`getVersionsList` / `getMetaosList` / `getDevices`) — **pick only**, do not type free text. Request fields are `version` / `os` / `device` arrays.
+**Umeng:** Version / OS / device options come from the same Console meta APIs (`getVersionsList` / `getMetaosList` / `getDevices`) — **pick only**, do not type free text. Request fields are `version` / `os` / `device` arrays.
+
+**Crashlytics:** List uses official REST `reports/topIssues`; filters map to report `filter.*` (time window, version, error type, state, keyword, …). iOS device dimension uses `topAppleDevices` (not Android `topDevices`). An empty list is expected when the app has no Crashlytics events yet.
 
 | Filter | Notes |
 |--------|--------|
@@ -233,9 +290,12 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
 **Crash analysis**
 
-- Umeng **Console cookie** only; cookie expiry or Console changes break list/detail — paste stack fallback  
+- Umeng **Console cookie** (no OpenAPI); cookie expiry or Console changes break list/detail — paste-stack fallback  
+- Crashlytics: **user access tokens** expire ~1h; auto-refresh when local `gcloud auth login` is available. Service accounts have incomplete support for full `topIssues` reports (Firebase limitation)  
+- Crashlytics needs the API enabled, read IAM, and a **quota project** on user tokens (sidebar project ID → `x-goog-user-project`)  
+- Reaching Google from restricted networks needs system proxy / `HTTPS_PROXY`  
 - No **symbolication**; filename-level repo search may mis-match in large monorepos  
-- Version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
+- Umeng: version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
 - Auto AI write-back requires the agent to call `tracescope_publish_crash_analysis`; otherwise use **Apply AI reply** or paste  
 - MCP package does not expose crash list/analyze tools yet — use the Desktop sidebar  
 
@@ -247,10 +307,18 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
 ---
 
-## 11. Roadmap (not in current npm)
+## 11. Roadmap & extension plans
 
-Android USB, browser recording; `browser-extension` scaffolds. Umeng OpenAPI / more `CrashProvider`s; symbolication and sharper repo matching.
+Crash analysis is built for **horizontal extension** through the `CrashProvider` contract: the sidebar **Provider** switch and Host routes stay the same while new backends plug in. Today: **Umeng U-APM**, **Firebase Crashlytics**, and paste-stack fallback. **More platforms will be added gradually** (e.g. Sentry, Bugly, other vendor APMs) — TraceScope is not locked to one vendor.
+
+**Feedback welcome for prioritization.** If your team urgently needs a crash / APM platform, please [open a GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues) (platform name, auth model, public API if any, typical workflow). Clear requests can be adapted as soon as practical.
+
+Other items (not required for the current npm cut):
+
+- Android USB, browser recording; in-repo `browser-extension` scaffolds (not in current npm delivery)  
+- Umeng OpenAPI; fuller Crashlytics service-account report support as upstream allows; symbolication and sharper repo matching  
+- More enrichment stacks when capability is on par (opt-in extras, not main-path forks)
 
 ---
 
-[中文功能说明](./GUIDE.md) · [README.en.md](../README.en.md) · [CHANGELOG](../CHANGELOG.md)
+[中文功能说明](./GUIDE.md) · [README.en.md](../README.en.md) · [CHANGELOG](../CHANGELOG.md) · [Issues](https://github.com/rebornace/dsh-tracescope/issues)

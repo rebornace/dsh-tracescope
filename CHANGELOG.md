@@ -7,6 +7,17 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.1 — 2026-10-11
+
+- **Crashlytics 数据源**：崩溃分析新增 Firebase Crashlytics（海外）；侧栏可切换友盟 / Crashlytics；凭证为 `projectId` + `appId` + Access Token 或服务账号 JSON；列表 `reports/topIssues`，详情 issue + event 堆栈；「拉取列表」固定在配置区外。
+- **Crashlytics 鉴权与网络**：优先本机 `gcloud auth print-access-token` 自动刷新（约 50 分钟缓存）；用户 Token 自动带 `x-goog-user-project` 配额项目；过期 Token 可回退 gcloud / 服务账号；Windows 系统代理与 `HTTPS_PROXY` 代理感知 fetch；API 未启用 / IAM / 配额项目 / 空崩溃等错误文案可读。
+- **Crashlytics 路径与筛选**：请求优先使用 App ID 内嵌项目编号；iOS 机型筛选用 `topAppleDevices`；`topIssues` 在 App 存在但无事件时按空列表处理。
+- **文档**：补充 Crashlytics 鉴权 / 代理 / 排错；路线图写明 `CrashProvider` 横向扩展与 [Issues](https://github.com/rebornace/dsh-tracescope/issues) 反馈优先适配。
+- **Crashlytics provider**: Umeng / Crashlytics switch; access token or service-account JSON; official REST list/detail; always-visible Fetch list.
+- **Crashlytics auth & network**: Prefer live `gcloud auth print-access-token` (~50m cache); quota-project header on user tokens; 401 fallback to gcloud / SA; system proxy / `HTTPS_PROXY`; clearer API / IAM / quota / empty-data errors.
+- **Crashlytics paths & filters**: Prefer project number from App ID; iOS devices via `topAppleDevices`; treat entity-not-found `topIssues` as empty when the app exists.
+- **Docs**: Crashlytics auth/proxy/troubleshooting; roadmap states horizontal `CrashProvider` extension and Issue-driven prioritization.
+
 ## 0.3.0 — 2026-10-10
 
 - **崩溃分析（第三条主能力）**：侧栏三档；友盟 Console Cookie 拉列表 / 详情；筛选区**默认折叠**；版本 / 系统 / 机型与 U-APM 元数据同源勾选（跨维并且、每维最多 10 项；机型 ID 如 `iPhone17,4` 保留逗号）；**分析并写入会话**创建 AI 任务，Agent 调用 `tracescope_publish_crash_analysis` 后侧栏自动回写结论（也可手动回写 / 粘贴）；粘贴堆栈降级；专用缺陷正文。Host：`crash-*`（含 `crash-filter-options` / `crash-ai-job` / `crash-job`）。

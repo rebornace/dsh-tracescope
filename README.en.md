@@ -1,6 +1,6 @@
 # TraceScope
 
-**Version: `0.3.0`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
+**Version: `0.3.1`** | [CHANGELOG](./CHANGELOG.md) | [Chinese](./README.md) | [English](./README.en.md)
 
 TraceScope (`dsh-tracescope`) helps developers and testers with three core capabilities:
 
@@ -8,7 +8,7 @@ TraceScope (`dsh-tracescope`) helps developers and testers with three core capab
 |------------|-------------|
 | **Impact analysis** | What does this change affect? Build a verification checklist. |
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
-| **Crash analysis** | Umeng U-APM or pasted stack → repo report, AI write-back, composer draft, or tracker filing. |
+| **Crash analysis** | Umeng U-APM / Firebase Crashlytics or pasted stack → repo report, AI write-back, composer draft, or tracker filing. |
 
 Primary UX: **official DeepSeek Harness Desktop** sidebar. Impact analysis and design diff are available over MCP; **crash analysis** list/analyze uses the Host sidebar (`/tracescope/v1/crash-*`), with session write-back via `tracescope_publish_crash_analysis` (MCP package does not yet expose crash list APIs).
 
@@ -31,7 +31,7 @@ UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle
 
 **Design diff** - Figma / Lanhu as source of truth, **static** compare (not device render); major mobile / web / miniprogram stacks; layered match + property compare, optional AI write-back. Sidebar: raster, hotspot diffs, pick file, export defects.
 
-**Crash analysis** - Umeng U-APM Console Cookie list/detail (filters collapsed by default; version/OS/device pickers match Console) or paste-stack fallback; stack parse + repo file match; **Analyze & write to session** with agent tool write-back; **Submit defect** with dedicated crash body.
+**Crash analysis** - Umeng U-APM (cookie) or Firebase Crashlytics (access token / service account; local gcloud can auto-refresh tokens; system proxy / `HTTPS_PROXY` for Google) list/detail (filters collapsed by default) or paste-stack fallback; stack parse + repo file match; **Analyze & write to session** with agent tool write-back; **Submit defect** with dedicated crash body.
 
 Details (adapter deep enrichment, credential memory, limitations): [User Guide](./docs/GUIDE.en.md).
 
@@ -77,6 +77,10 @@ pnpm install && pnpm build && pnpm test
 ```
 
 MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#9-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
+
+## Roadmap
+
+Crash sources are **horizontally extensible** via `CrashProvider`. Today: Umeng U-APM, Firebase Crashlytics, and paste-stack; **more platforms will land over time**. If you urgently need a specific platform, please [open an Issue](https://github.com/rebornace/dsh-tracescope/issues) — clear requests can be prioritized. Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).
 
 ## License
 

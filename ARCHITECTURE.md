@@ -30,7 +30,22 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 | Publish rematch picks | `tracescope_publish_page_rematch` | tool |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
 | Self-update (npm check / install) | — | Host `/tracescope/v1/self-update/check` + client seats (detail Update / sidebar); no MCP |
-| Crash adapters / USB / extension | future MCP tools | future Host/Client surfaces |
+| Crash analysis (Umeng / Crashlytics) | — (list APIs not in MCP yet); Host tool `tracescope_publish_crash_analysis` | Sidebar + `/tracescope/v1/crash-*`; providers in `@rebornace/tracescope-core` |
+| Crash USB / browser extension | future MCP tools | future Host/Client surfaces |
+
+## Crash providers
+
+Crash list/detail/analyze runs on the DSH Host (`/tracescope/v1/crash-*`) and the embedded sidebar. Providers live in `@rebornace/tracescope-core` (`CrashProvider` registry):
+
+| Provider | Auth | List | Notes |
+|----------|------|------|--------|
+| `umeng` | Console cookie | U-APM Console XHR | China; cookie expiry → paste-stack |
+| `crashlytics` | User access token (prefer live `gcloud auth print-access-token`) or service-account JWT | Firebase Crashlytics REST `v1alpha` `reports/topIssues` | User tokens need `x-goog-user-project`; proxy-aware fetch; SA support for full reports is incomplete upstream |
+| `local` | Pasted `stackText` | — | Fallback when remote credentials fail |
+
+New backends plug in by implementing `CrashProvider` and registering in the crash registry — **horizontal extension**, not a single-vendor fork. More platforms are planned; product roadmap and feedback channel: [docs/GUIDE.md §11](./docs/GUIDE.md#11-路线图与扩展计划).
+
+Credentials persist under the TraceScope cache root (`crash-credentials.json`, global + per-repo). Product steps and limits: [docs/GUIDE.md §4](./docs/GUIDE.md#4-崩溃分析) / [GUIDE.en.md §4](./docs/GUIDE.en.md#4-crash-analysis).
 
 ## Design UI review (design-only)
 
