@@ -3,10 +3,14 @@
  */
 import {
   analyzeCrash,
+  applyAiAnalysisToReport,
+  clearCrashAiAnalysis,
   getCrashProvider,
+  loadCrashAiAnalysis,
   parseCrashListQuery,
   publicCrashConfig,
   resolveCrashConfigFromBody,
+  saveCrashAiAnalysis,
   saveCrashConfig,
   type CrashFeedbackMeta,
   type CrashIncident,
@@ -332,13 +336,34 @@ export async function analyzeCrashTool(args: Record<string, unknown>) {
   if (!incident) throw new I18nError('ERR_CRASH_MISSING_INCIDENT', lang)
   const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
   if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
-  const report = await analyzeCrash({
+  const baseReport = await analyzeCrash({
     incident,
     repoPath,
     lang: typeof b.lang === 'string' ? b.lang : lang,
   })
+  // Restore persisted AI conclusion when present (avoids re-calling the model).
+  const skipCache = b.skipAiCache === true || b.skipAiCache === 'true'
+  let aiFromCache = false
+  let aiCachedAt: string | undefined
+  let report = baseReport
+  if (!skipCache) {
+    const cached = await loadCrashAiAnalysis(repoPath, incident.id)
+    const text = cached?.payload.aiAnalysis?.trim()
+    if (text) {
+      const merged = applyAiAnalysisToReport(baseReport, text, { repoPath, lang })
+      report = {
+        ...baseReport,
+        ...merged,
+        fixHints: merged.fixHints ?? baseReport.fixHints,
+      }
+      aiFromCache = true
+      aiCachedAt = cached?.savedAt
+    }
+  }
   return {
     report,
+    aiFromCache,
+    aiCachedAt,
     summary:
       typeof report.summary === 'string' && report.summary.trim()
         ? report.summary
@@ -346,6 +371,56 @@ export async function analyzeCrashTool(args: Record<string, unknown>) {
           ? 'Crash local analysis complete'
           : '崩溃本地分析完成',
   }
+}
+
+/** Persist AI conclusion for repo + incident (tool publish / sidebar paste). */
+export async function saveCrashAiCache(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  const incidentId = String(b.incidentId ?? b.id ?? '').trim()
+  const aiAnalysis = String(b.aiAnalysis ?? b.analysis ?? '').trim()
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  if (!incidentId) throw new I18nError('ERR_MISSING_ID', lang)
+  if (!aiAnalysis) {
+    throw new Error(lang === 'en' ? 'Missing analysis' : '缺少 analysis')
+  }
+  const entry = await saveCrashAiAnalysis(repoPath, incidentId, aiAnalysis, {
+    summary: typeof b.summary === 'string' ? b.summary : undefined,
+  })
+  return {
+    ok: Boolean(entry),
+    savedAt: entry?.savedAt,
+    incidentId,
+  }
+}
+
+export async function loadCrashAiCache(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  const incidentId = String(b.incidentId ?? b.id ?? '').trim()
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  if (!incidentId) throw new I18nError('ERR_MISSING_ID', lang)
+  const entry = await loadCrashAiAnalysis(repoPath, incidentId)
+  if (!entry) return { ok: false as const, aiAnalysis: undefined as string | undefined }
+  return {
+    ok: true as const,
+    aiAnalysis: entry.payload.aiAnalysis,
+    savedAt: entry.savedAt,
+    incidentId: entry.payload.incidentId,
+  }
+}
+
+export async function clearCrashAiCache(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  const incidentId = String(b.incidentId ?? b.id ?? '').trim()
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  if (!incidentId) throw new I18nError('ERR_MISSING_ID', lang)
+  const cleared = await clearCrashAiAnalysis(repoPath, incidentId)
+  return { ok: cleared, incidentId }
 }
 
 export function getCrashJobStatus(args: Record<string, unknown>) {

@@ -435,7 +435,7 @@ server.tool(
     lang: z.enum(['zh', 'en']).optional(),
   },
   async (args) => {
-    const result = publishCrashAnalysis(args as Record<string, unknown>)
+    const result = await publishCrashAnalysis(args as Record<string, unknown>)
     return textResult(summaryOf(result, '已写回崩溃 AI 结论'))
   },
 )

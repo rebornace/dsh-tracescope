@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.3.2`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.3.3`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
@@ -233,6 +233,7 @@ Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`cra
 - **筛选交集**：多维度同时勾选时很容易得到 0 条（并且关系）；请先少选维度，或清空系统 / 机型只留版本试查。  
 - **无符号化**：不做 dSYM / mapping 还原；仓库命中按堆栈**文件名**搜索，可能误匹配或漏匹配。  
 - **协作附件**：GitLab / Webhook 不上传二进制（与 §10 一致）。  
+- **AI 结论缓存**：写回后按仓库 + 崩溃 id 存本机；再次本地分析会自动带出（不调模型）。侧栏可清除缓存后重新「分析并写入会话」。  
 - **MCP**：崩溃工具已进 `@rebornace/tracescope-mcp`（与侧栏共用 agent-api）；无侧栏时也可在任意 MCP 客户端完成列表 → 分析 → 写回。  
 
 更完整限制见 [§10 已知限制](#10-已知限制)。

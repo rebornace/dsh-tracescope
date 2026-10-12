@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.3.2`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.3.3`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 
@@ -311,6 +311,7 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 - No **symbolication**; filename-level repo search may mis-match in large monorepos  
 - Umeng: version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
 - Auto AI write-back requires the agent to call `tracescope_publish_crash_analysis`; otherwise use **Apply AI reply** or paste  
+- **AI conclusion cache**: After write-back, stored under repo + incident id; local analyze restores it (no model). Clear AI cache in the sidebar to re-run.  
 - Without saved credentials, pass Cookie / Token in MCP tool args; or save once in the sidebar then use MCP  
 
 **Install**

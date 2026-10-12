@@ -1,6 +1,6 @@
 {
   "name": "@rebornace/tracescope-adapter-crashlytics",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Firebase Crashlytics adapter for TraceScope crash analysis",
   "license": "MIT",
   "type": "module",
@@ -21,7 +21,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@rebornace/tracescope-core": "workspace:*"
+    "@rebornace/tracescope-core": "workspace:0.3.3"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

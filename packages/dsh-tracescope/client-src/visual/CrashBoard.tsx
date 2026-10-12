@@ -1069,7 +1069,9 @@ export function CrashBoard({
   async function onAnalyzeClick() {
     const r = await runAnalyze()
     if (r) {
-      setHint(t('crash.analyzeLocalHint'))
+      setHint(
+        r.aiAnalysis?.trim() ? t('crash.aiRestoredFromCache') : t('crash.analyzeLocalHint'),
+      )
       requestAnimationFrame(() => {
         reportPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       })
@@ -1080,6 +1082,9 @@ export function CrashBoard({
     let r = report
     if (!r) r = await runAnalyze()
     if (!r) return
+    if (r.aiAnalysis?.trim()) {
+      setHint(t('crash.writeSessionCachedHint'))
+    }
     const send = onSendToChat
     if (!send) {
       setHint(t('找不到会话输入框服务'))
@@ -1120,7 +1125,7 @@ export function CrashBoard({
     }
   }
 
-  function applyAiText(raw: string): boolean {
+  async function applyAiText(raw: string): Promise<boolean> {
     const text = raw.trim()
     if (!text) {
       setError(t('crash.aiPasteRequired'))
@@ -1139,6 +1144,16 @@ export function CrashBoard({
     setPendingCrashJobId('')
     setHint(t('crash.aiApplied'))
     setError('')
+    try {
+      await apiPost('/tracescope/v1/crash-ai-cache-save', {
+        repoPath: repo,
+        incidentId: current.incident.id,
+        aiAnalysis: text,
+        summary: current.summary,
+      })
+    } catch {
+      /* panel still has the conclusion; persistence is best-effort */
+    }
     requestAnimationFrame(() => {
       reportPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     })
@@ -1153,7 +1168,7 @@ export function CrashBoard({
       const status = typeof res.status === 'string' ? res.status : ''
       if (status === 'published') {
         const analysis = typeof res.aiAnalysis === 'string' ? res.aiAnalysis : ''
-        if (analysis.trim() && applyAiText(analysis)) return 'applied'
+        if (analysis.trim() && (await applyAiText(analysis))) return 'applied'
         return 'error'
       }
       if (status === 'error') return 'error'
@@ -1166,7 +1181,7 @@ export function CrashBoard({
   async function onApplyAiClick() {
     const draft = aiDraft.trim()
     if (draft) {
-      applyAiText(draft)
+      await applyAiText(draft)
       return
     }
     if (pendingCrashJobId) {
@@ -1180,6 +1195,32 @@ export function CrashBoard({
       return
     }
     setError(t('crash.aiPasteRequired'))
+  }
+
+  async function onClearAiCacheClick() {
+    const current = reportRef.current
+    if (!current?.incident?.id) return
+    setBusy(true)
+    setError('')
+    try {
+      await apiPost('/tracescope/v1/crash-ai-cache-clear', {
+        repoPath: repo,
+        incidentId: current.incident.id,
+      })
+      const next: CrashAnalysisReport = {
+        ...current,
+        aiAnalysis: undefined,
+        defectBody: stripAiSection(current.defectBody || ''),
+      }
+      setReport(next)
+      reportRef.current = next
+      setAiDraft('')
+      setHint(t('crash.aiCacheCleared'))
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   // Auto write-back when the agent publishes tracescope_publish_crash_analysis.
@@ -1226,7 +1267,7 @@ export function CrashBoard({
       }
       setAiDraft(text)
       // Clipboard action should complete write-back, not only fill the textarea.
-      applyAiText(text)
+      await applyAiText(text)
     } catch {
       setError(t('crash.aiClipboardFail'))
     }
@@ -2120,7 +2161,37 @@ export function CrashBoard({
                 marginBottom: 8,
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('crash.aiSummary')}</div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>
+                  {t('crash.aiSummary')}
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontWeight: 500,
+                      fontSize: 11,
+                      color: '#0f6e56',
+                    }}
+                  >
+                    {t('crash.aiCachedBadge')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  style={{ ...btn, fontSize: 11, padding: '4px 8px' }}
+                  disabled={busy}
+                  onClick={() => void onClearAiCacheClick()}
+                >
+                  {t('crash.clearAiCache')}
+                </button>
+              </div>
               <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {report.aiAnalysis}
               </p>

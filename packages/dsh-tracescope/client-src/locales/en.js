@@ -765,7 +765,14 @@ export default {
   'crash.analyzeVsAiHint':
     'Local analyze only parses the stack and matches repo files. Analyze & write to session sends a job prompt to AI; the agent should call tracescope_publish_crash_analysis so the sidebar auto-writes back.',
   'crash.aiApply': 'Apply AI reply',
-  'crash.aiApplied': 'AI reply saved into this crash report',
+  'crash.aiApplied': 'AI reply saved into this crash report (persisted locally for reuse)',
+  'crash.aiCachedBadge': 'Cached locally',
+  'crash.aiCacheCleared': 'Cleared local AI cache; Analyze & write to session will call the model again',
+  'crash.aiRestoredFromCache':
+    'Restored the previous AI conclusion from local cache (no model call). Use Analyze & write to session to re-run; or Clear AI cache first.',
+  'crash.clearAiCache': 'Clear AI cache',
+  'crash.writeSessionCachedHint':
+    'This issue already has a cached AI conclusion. Continue Analyze & write to session to call the model again and overwrite the cache.',
   'crash.aiJobFail': 'Could not create the crash analysis job — retry Analyze & write to session',
   'crash.aiJobNotReady':
     'AI has not published via the tool yet. Confirm tracescope_publish_crash_analysis was called, or paste the reply and apply.',
