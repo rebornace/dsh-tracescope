@@ -800,7 +800,12 @@ var init_zh = __esm({
       "crash.analyzeLocalHint": "已完成本地堆栈匹配（未调用 AI）。需要模型结论请点「分析并写入会话」，再把 AI 回复粘贴回写。",
       "crash.analyzeVsAiHint": "「本地分析」只做堆栈解析与仓库文件匹配；「分析并写入会话」会创建任务并把提示词交给 AI。Agent 应调用 tracescope_publish_crash_analysis，侧栏自动回写结论。",
       "crash.aiApply": "回写 AI 结论",
-      "crash.aiApplied": "已将 AI 结论写入本条崩溃报告",
+      "crash.aiApplied": "已将 AI 结论写入本条崩溃报告（并已保存到本机，下次分析可复用）",
+      "crash.aiCachedBadge": "本机缓存",
+      "crash.aiCacheCleared": "已清除本机 AI 结论缓存；再次「分析并写入会话」将重新调用模型",
+      "crash.aiRestoredFromCache": "已从本机恢复上次 AI 结论（未调用模型）。若要重新分析请点「分析并写入会话」；可点「清除 AI 缓存」后重来。",
+      "crash.clearAiCache": "清除 AI 缓存",
+      "crash.writeSessionCachedHint": "本条已有缓存的 AI 结论。继续「分析并写入会话」会再次调用模型并覆盖缓存。",
       "crash.aiJobFail": "创建崩溃分析任务失败，请重试「分析并写入会话」",
       "crash.aiJobNotReady": "AI 尚未通过工具写回结论。请确认会话中已调用 tracescope_publish_crash_analysis，或粘贴回复后再点回写。",
       "crash.aiJobPending": "AI 仍在分析中，写回任务尚未完成。完成后会自动回写；也可稍后再点「回写 AI 结论」。",
@@ -2187,7 +2192,12 @@ var init_en = __esm({
       "crash.analyzeLocalHint": "Local stack matching done (no AI call). For model conclusions, use Analyze & write to session, then paste the reply back.",
       "crash.analyzeVsAiHint": "Local analyze only parses the stack and matches repo files. Analyze & write to session sends a job prompt to AI; the agent should call tracescope_publish_crash_analysis so the sidebar auto-writes back.",
       "crash.aiApply": "Apply AI reply",
-      "crash.aiApplied": "AI reply saved into this crash report",
+      "crash.aiApplied": "AI reply saved into this crash report (persisted locally for reuse)",
+      "crash.aiCachedBadge": "Cached locally",
+      "crash.aiCacheCleared": "Cleared local AI cache; Analyze & write to session will call the model again",
+      "crash.aiRestoredFromCache": "Restored the previous AI conclusion from local cache (no model call). Use Analyze & write to session to re-run; or Clear AI cache first.",
+      "crash.clearAiCache": "Clear AI cache",
+      "crash.writeSessionCachedHint": "This issue already has a cached AI conclusion. Continue Analyze & write to session to call the model again and overwrite the cache.",
       "crash.aiJobFail": "Could not create the crash analysis job — retry Analyze & write to session",
       "crash.aiJobNotReady": "AI has not published via the tool yet. Confirm tracescope_publish_crash_analysis was called, or paste the reply and apply.",
       "crash.aiJobPending": "AI is still analyzing; write-back is pending. It will apply automatically, or click Apply AI reply again later.",
@@ -8282,7 +8292,9 @@ function CrashBoard({
   async function onAnalyzeClick() {
     const r = await runAnalyze();
     if (r) {
-      setHint(t2("crash.analyzeLocalHint"));
+      setHint(
+        r.aiAnalysis?.trim() ? t2("crash.aiRestoredFromCache") : t2("crash.analyzeLocalHint")
+      );
       requestAnimationFrame(() => {
         reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
@@ -8292,6 +8304,9 @@ function CrashBoard({
     let r = report;
     if (!r) r = await runAnalyze();
     if (!r) return;
+    if (r.aiAnalysis?.trim()) {
+      setHint(t2("crash.writeSessionCachedHint"));
+    }
     const send = onSendToChat;
     if (!send) {
       setHint(t2("找不到会话输入框服务"));
@@ -8330,7 +8345,7 @@ function CrashBoard({
       setBusy(false);
     }
   }
-  function applyAiText(raw) {
+  async function applyAiText(raw) {
     const text = raw.trim();
     if (!text) {
       setError(t2("crash.aiPasteRequired"));
@@ -8349,6 +8364,15 @@ function CrashBoard({
     setPendingCrashJobId("");
     setHint(t2("crash.aiApplied"));
     setError("");
+    try {
+      await apiPost2("/tracescope/v1/crash-ai-cache-save", {
+        repoPath: repo,
+        incidentId: current.incident.id,
+        aiAnalysis: text,
+        summary: current.summary
+      });
+    } catch {
+    }
     requestAnimationFrame(() => {
       reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -8362,7 +8386,7 @@ function CrashBoard({
       const status = typeof res.status === "string" ? res.status : "";
       if (status === "published") {
         const analysis = typeof res.aiAnalysis === "string" ? res.aiAnalysis : "";
-        if (analysis.trim() && applyAiText(analysis)) return "applied";
+        if (analysis.trim() && await applyAiText(analysis)) return "applied";
         return "error";
       }
       if (status === "error") return "error";
@@ -8374,7 +8398,7 @@ function CrashBoard({
   async function onApplyAiClick() {
     const draft = aiDraft.trim();
     if (draft) {
-      applyAiText(draft);
+      await applyAiText(draft);
       return;
     }
     if (pendingCrashJobId) {
@@ -8388,6 +8412,31 @@ function CrashBoard({
       return;
     }
     setError(t2("crash.aiPasteRequired"));
+  }
+  async function onClearAiCacheClick() {
+    const current = reportRef.current;
+    if (!current?.incident?.id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiPost2("/tracescope/v1/crash-ai-cache-clear", {
+        repoPath: repo,
+        incidentId: current.incident.id
+      });
+      const next = {
+        ...current,
+        aiAnalysis: void 0,
+        defectBody: stripAiSection(current.defectBody || "")
+      };
+      setReport(next);
+      reportRef.current = next;
+      setAiDraft("");
+      setHint(t2("crash.aiCacheCleared"));
+    } catch (err2) {
+      setError(err2.message || String(err2));
+    } finally {
+      setBusy(false);
+    }
   }
   (0, import_react5.useEffect)(() => {
     if (!pendingCrashJobId) return;
@@ -8429,7 +8478,7 @@ function CrashBoard({
         return;
       }
       setAiDraft(text);
-      applyAiText(text);
+      await applyAiText(text);
     } catch {
       setError(t2("crash.aiClipboardFail"));
     }
@@ -9281,7 +9330,45 @@ function CrashBoard({
             marginBottom: 8
           },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("crash.aiSummary") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 6
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { fontWeight: 600 }, children: [
+                    t2("crash.aiSummary"),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                      "span",
+                      {
+                        style: {
+                          marginLeft: 8,
+                          fontWeight: 500,
+                          fontSize: 11,
+                          color: "#0f6e56"
+                        },
+                        children: t2("crash.aiCachedBadge")
+                      }
+                    )
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      style: { ...btn, fontSize: 11, padding: "4px 8px" },
+                      disabled: busy,
+                      onClick: () => void onClearAiCacheClick(),
+                      children: t2("crash.clearAiCache")
+                    }
+                  )
+                ]
+              }
+            ),
             /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }, children: report.aiAnalysis })
           ]
         }

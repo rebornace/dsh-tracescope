@@ -764,7 +764,12 @@ export default {
   'crash.analyzeVsAiHint':
     '「本地分析」只做堆栈解析与仓库文件匹配；「分析并写入会话」会创建任务并把提示词交给 AI。Agent 应调用 tracescope_publish_crash_analysis，侧栏自动回写结论。',
   'crash.aiApply': '回写 AI 结论',
-  'crash.aiApplied': '已将 AI 结论写入本条崩溃报告',
+  'crash.aiApplied': '已将 AI 结论写入本条崩溃报告（并已保存到本机，下次分析可复用）',
+  'crash.aiCachedBadge': '本机缓存',
+  'crash.aiCacheCleared': '已清除本机 AI 结论缓存；再次「分析并写入会话」将重新调用模型',
+  'crash.aiRestoredFromCache': '已从本机恢复上次 AI 结论（未调用模型）。若要重新分析请点「分析并写入会话」；可点「清除 AI 缓存」后重来。',
+  'crash.clearAiCache': '清除 AI 缓存',
+  'crash.writeSessionCachedHint': '本条已有缓存的 AI 结论。继续「分析并写入会话」会再次调用模型并覆盖缓存。',
   'crash.aiJobFail': '创建崩溃分析任务失败，请重试「分析并写入会话」',
   'crash.aiJobNotReady': 'AI 尚未通过工具写回结论。请确认会话中已调用 tracescope_publish_crash_analysis，或粘贴回复后再点回写。',
   'crash.aiJobPending': 'AI 仍在分析中，写回任务尚未完成。完成后会自动回写；也可稍后再点「回写 AI 结论」。',

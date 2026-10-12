@@ -15,12 +15,15 @@ import { I18nError } from '../i18n/messages.js'
 import { createCrashAnalysisJob } from '../agent-api.js'
 import {
   analyzeCrashTool,
+  clearCrashAiCache,
   getCrashIncident,
   getCrashJobStatus,
   listCrashFilterOptions,
   listCrashIncidents,
+  loadCrashAiCache,
   parseCrashMeta,
   probeCrash,
+  saveCrashAiCache,
 } from '../services/crash-flow.js'
 
 function parseProviderId(raw: unknown, fallback: CrashProviderConfig['provider']): CrashProviderConfig['provider'] {
@@ -152,8 +155,30 @@ export function registerCrashRoutes(ctx: Context) {
     method: 'POST',
     run: async (body, { lang }) => {
       const result = await analyzeCrashTool({ ...asRecord(body), lang })
-      return { report: result.report }
+      return {
+        report: result.report,
+        aiFromCache: result.aiFromCache,
+        aiCachedAt: result.aiCachedAt,
+      }
     },
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-ai-cache',
+    method: 'POST',
+    run: async (body, { lang }) => loadCrashAiCache({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-ai-cache-save',
+    method: 'POST',
+    run: async (body, { lang }) => saveCrashAiCache({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-ai-cache-clear',
+    method: 'POST',
+    run: async (body, { lang }) => clearCrashAiCache({ ...asRecord(body), lang }),
   })
 
   registerRoute(ctx, {

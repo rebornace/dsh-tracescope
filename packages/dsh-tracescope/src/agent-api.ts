@@ -22,6 +22,7 @@ import {
   parseVisualRenderPatches,
   resolveCodeupTarget,
   resolveGitRepo,
+  saveCrashAiAnalysis,
   saveHandtestReport,
   saveVisualFindings,
   saveVisualRematch,
@@ -43,13 +44,16 @@ import {
 import { createCrashJob, getCrashJob, publishCrashJobAnalysis } from './crash-jobs.js'
 import {
   analyzeCrashTool,
+  clearCrashAiCache,
   getCrashIncident,
   getCrashJobStatus,
   listCrashFilterOptions,
   listCrashIncidents,
+  loadCrashAiCache,
   parseCrashIncident,
   parseCrashMeta,
   probeCrash,
+  saveCrashAiCache,
 } from './services/crash-flow.js'
 import { getDiffChunk } from './services/diff-chunk.js'
 import { runAnalyze } from './services/run-analyze.js'
@@ -72,13 +76,16 @@ import type { Context } from './dsh-shims.js'
 export { parseAuthFromToolArgs }
 export {
   analyzeCrashTool,
+  clearCrashAiCache,
   getCrashIncident,
   getCrashJobStatus,
   listCrashFilterOptions,
   listCrashIncidents,
+  loadCrashAiCache,
   parseCrashIncident,
   parseCrashMeta,
   probeCrash,
+  saveCrashAiCache,
 }
 
 /** Prefer explicit args.locale, else Host locale. */
@@ -631,8 +638,8 @@ export function createCrashAnalysisJob(args: Record<string, unknown>) {
   }
 }
 
-/** Agent write-back: publish crash AI conclusion for a pending job. */
-export function publishCrashAnalysis(args: Record<string, unknown>) {
+/** Agent write-back: publish crash AI conclusion for a pending job (+ disk cache). */
+export async function publishCrashAnalysis(args: Record<string, unknown>) {
   const jobId = String(args.jobId ?? '').trim()
   if (!jobId) throw new Error('缺少 jobId')
   const job = getCrashJob(jobId)
@@ -640,10 +647,14 @@ export function publishCrashAnalysis(args: Record<string, unknown>) {
   const analysis = String(args.analysis ?? args.aiAnalysis ?? '').trim()
   if (!analysis) throw new Error('缺少 analysis')
   const updated = publishCrashJobAnalysis(jobId, analysis)
+  if (job.repoPath && job.incidentId) {
+    await saveCrashAiAnalysis(job.repoPath, job.incidentId, analysis)
+  }
   const lang = agentLang(args)
   return {
     jobId,
     status: updated.status,
+    persisted: Boolean(job.repoPath && job.incidentId),
     summary: ui('AGENT_CRASH_PUBLISHED', lang, { id: jobId }),
   }
 }

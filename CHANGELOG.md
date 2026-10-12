@@ -7,6 +7,11 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.3 — 2026-10-12
+
+- **崩溃 AI 结论本机缓存**：按仓库 + incidentId 落盘（`~/.tracescope/crash-ai-cache`）；工具写回 / 侧栏粘贴回写后持久保存；再次「本地分析」自动恢复，避免重复调模型。侧栏可「清除 AI 缓存」后重新分析。
+- **Crash AI conclusion cache**: Persist by repo + incidentId under `crash-ai-cache`; restore on local analyze; Clear AI cache to force a fresh model run.
+
 ## 0.3.2 — 2026-10-11
 
 - **崩溃分析 MCP 对齐**：`@rebornace/tracescope-mcp` 暴露 probe / filter-options / list / detail / analyze / create-job / publish / get-job；执行层与侧栏共用 `agent-api`（Host 路由薄封装）。

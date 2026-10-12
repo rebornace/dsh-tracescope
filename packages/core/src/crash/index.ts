@@ -106,3 +106,11 @@ export {
   saveCrashConfig,
   type StoredCrashCredentialsFile,
 } from './store.js'
+export {
+  clearCrashAiAnalysis,
+  crashAiAnalysisKey,
+  loadCrashAiAnalysis,
+  saveCrashAiAnalysis,
+  type CrashAiAnalysisEntry,
+  type CrashAiAnalysisPayload,
+} from './ai-cache.js'
