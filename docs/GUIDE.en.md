@@ -3,7 +3,7 @@
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-**Version: `0.3.3`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
+**Version: `0.3.4`** (trust [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) and the sidebar)
 
 ---
 

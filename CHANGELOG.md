@@ -7,6 +7,12 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.4 — 2026-10-17
+
+- **MCP 可视化与 DSH 侧栏等价**：`tracescope_open_panel` 打开本地工作台（`127.0.0.1:3927`），挂载与 Host 相同的 `/tracescope/v1/*` 路由与三模式 SPA；无 Harness 时 AI 提示词复制到剪贴板，`publish_*` 写回面板。
+- **MCP HTTP 入口**：`@rebornace/tracescope-mcp` 支持 Streamable HTTP（`start:http`）与 stdio；工具实现抽到 `create-server`。
+- **MCP panel parity**: Same three-mode workbench as the DSH sidebar via panel-server + `/tracescope/v1/*`; clipboard bridge for AI prompts; Streamable HTTP + stdio entrypoints.
+
 ## 0.3.3 — 2026-10-12
 
 - **崩溃 AI 结论本机缓存**：按仓库 + incidentId 落盘（`~/.tracescope/crash-ai-cache`）；工具写回 / 侧栏粘贴回写后持久保存；再次「本地分析」自动恢复，避免重复调模型。侧栏可「清除 AI 缓存」后重新分析。
