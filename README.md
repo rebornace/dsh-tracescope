@@ -78,7 +78,8 @@ pnpm install && pnpm build && pnpm test
 
 MCP 配置与工具列表见 [docs/GUIDE.md § MCP](./docs/GUIDE.md#9-mcp-工具一览)。模块映射示例：[examples/tracescope.modules.yml](./examples/tracescope.modules.yml)。
 
-Agent 编排 Skill（何时调用哪条 MCP 流程，可打包上架）：[skills/tracescope-agent-playbook](./skills/tracescope-agent-playbook/)。
+Agent 编排 Skill（何时调用哪条 MCP 流程，可打包上架）：[skills/tracescope-agent-playbook](./skills/tracescope-agent-playbook/)。  
+MCP 可视化：调用 `tracescope_open_panel` 打开与 DSH 侧栏同款三模式工作台（`127.0.0.1:3927`）。
 
 ## 后续计划
 

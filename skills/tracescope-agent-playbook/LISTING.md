@@ -8,7 +8,7 @@ TraceScope — Impact Checklists, Figma Diff & Crash Triage for Coding Agents
 
 ## Short description
 
-Teach your agent when to run TraceScope MCP to turn git diffs, Figma/Lanhu designs, and crash stacks into actionable test checklists and conclusions.
+Teach your agent when to run TraceScope MCP — and when to open the full local workbench (impact / Figma-Lanhu diff / crash) that matches the DSH plugin UI.
 
 ## Price
 
@@ -21,8 +21,9 @@ TraceScope is an open-source toolkit for frontend and QA agents:
 - **Impact** — stable vs under-test commits → manual-test checklist  
 - **Visual** — static Figma / Lanhu vs code findings (not device render)  
 - **Crash** — Umeng / Crashlytics / pasted stack → local match + AI write-back  
+- **Workbench** — `tracescope_open_panel` opens the same three-mode UI as the DeepSeek Harness sidebar (`http://127.0.0.1:3927/`); AI prompts copy to clipboard, `publish_*` writes back  
 
-This skill is a **playbook only**. Install `@rebornace/tracescope-mcp` separately (Node ≥ 20). Optional richer UI: DeepSeek Harness Desktop plugin `@rebornace/dsh-tracescope`.
+This skill is a **playbook only**. Install `@rebornace/tracescope-mcp` separately (Node ≥ 20). DeepSeek Harness plugin `@rebornace/dsh-tracescope` embeds the same workbench in-product (composer fill); not required for MCP clients.
 
 Links:
 

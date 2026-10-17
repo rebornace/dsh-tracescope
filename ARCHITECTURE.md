@@ -5,19 +5,19 @@
 | Surface | Role |
 |---------|------|
 | `@rebornace/tracescope-core` | Shared analysis engine (agent-agnostic) |
-| Local panel `127.0.0.1:3927` | Visual UI for testers (agent-agnostic) |
-| `@rebornace/tracescope-mcp` | **All agent capabilities** via MCP (Cursor / Claude / any MCP client) |
-| `@rebornace/dsh-tracescope` | **DSH-native shell**: Host panel server + slash command + **embedded right-sidebar UI** |
+| Local panel `127.0.0.1:3927` | **Full workbench SPA** (same three modes as DSH sidebar): impact / design / crash; serves `/tracescope/v1/*` |
+| `@rebornace/tracescope-mcp` | **All agent capabilities** via MCP + `tracescope_open_panel` → local panel |
+| `@rebornace/dsh-tracescope` | **DSH-native shell**: Host embeds the same workbench in the right sidebar + slash command + self-update |
 | `@rebornace/dsh-tracescope/agent-api` | Shared execute layer used by both DSH tools and MCP |
 
 Rule: every analysis / panel capability that Agents need must be reachable through MCP.  
-DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**, not exclusive business logic.
+DSH plugin’s unique value is **embedding inside DeepSeek Harness** (composer fill, plugin update UI), not exclusive business logic. MCP users get the same workbench via `tracescope_open_panel` (AI prompts copy to clipboard for Claude/Cursor).
 
 ## Capability map
 
 | Capability | MCP | DSH plugin |
 |------------|-----|------------|
-| Open visual panel | `tracescope_open_panel` | `/tracescope` / auto-start Host server |
+| Open visual panel (full workbench) | `tracescope_open_panel` → SPA + `/tracescope/v1/*` | Right sidebar tab (same SPA logic / same v1 routes) |
 | List commits | `tracescope_list_commits` | tool + panel UI |
 | Page git diff | `tracescope_get_diff` | tool |
 | Analyze git impact | `tracescope_analyze_impact` | tool + `/tracescope` CLI mode |
@@ -35,7 +35,7 @@ DSH plugin’s unique value is **embedded UI inside DeepSeek Harness / Desktop**
 
 ## Crash providers
 
-Crash list/detail/analyze runs on the DSH Host (`/tracescope/v1/crash-*`) and the embedded sidebar. Providers live in `@rebornace/tracescope-core` (`CrashProvider` registry):
+Crash list/detail/analyze runs on `/tracescope/v1/crash-*` (DSH Host and MCP standalone panel) plus MCP crash tools. Providers live in `@rebornace/tracescope-core` (`CrashProvider` registry):
 
 | Provider | Auth | List | Notes |
 |----------|------|------|--------|
@@ -86,10 +86,16 @@ Legacy route `/tracescope/v1/hifi-compare` and `Hifi*` type aliases remain as co
 
 The Host does **not** auto-draw Update for third-party bundles; TraceScope registers the seats itself. Product-facing steps: [docs/GUIDE.md §7](./docs/GUIDE.md#7-更新本插件).
 
+## Standalone panel (MCP)
+
+- `startPanelServer` mounts the same `registerPanelHttpRoutes` stack as the DSH Host (`/tracescope/v1/*`) via a fake Cordis `webServer` context ([`src/http/standalone-host.ts`](packages/dsh-tracescope/src/http/standalone-host.ts)).
+- Static UI: `panel/standalone.js` built from `client-src/entry.js` (`pnpm --filter @rebornace/dsh-tracescope run build:standalone`).
+- Legacy `/api/*` handlers remain briefly for old bookmarks; prefer the SPA + v1 routes.
+
 ## Intentional non-goals (for now)
 
 - Splitting remaining mega-files (design adapters) — high churn / risk; do in dedicated refactors.
-- Deleting `panel-server.ts` legacy `/api/*` — still used by standalone MCP panel open.
+- Harness composer injection / plugin self-update inside the MCP standalone panel (clipboard bridge instead).
 - Scaffold packages `adapters/*` and `browser-extension` — out of 0.2.x delivery scope.
 
 Product-facing limits and enrichment status: [docs/GUIDE.md](./docs/GUIDE.md) / [docs/GUIDE.en.md](./docs/GUIDE.en.md).

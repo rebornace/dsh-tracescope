@@ -13,6 +13,7 @@ coverage/
 
 # One-off local scratch (scripts, dumps, reverse-engineering caches)
 .tmp*
+packages/mcp/.http-dev-token
 
 # Skill packaging / marketplace private bits (keep playbook source tracked)
 skills/**/*.zip

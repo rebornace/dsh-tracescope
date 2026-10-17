@@ -17,6 +17,8 @@ import {
   type ImpactReport,
 } from '@rebornace/tracescope-core'
 import { parseFetchFlag } from './http/route-helpers.js'
+import { createStandaloneHost, type StandaloneHost } from './http/standalone-host.js'
+import { registerPanelHttpRoutes } from './http/register-panel-routes.js'
 import { langFromBody, langFromRequest } from './i18n/lang.js'
 import { localizeError, msg } from './i18n/messages.js'
 import { loadCodeupHistory, loadRepoHistory } from './services/repo-history.js'
@@ -416,17 +418,31 @@ function panelStaticRoot(): string {
 }
 
 let sharedPanel: PanelServerHandle | null = null
+let sharedHost: StandaloneHost | null = null
 
 export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServerHandle> {
   if (sharedPanel) return sharedPanel
 
   const staticRoot = panelStaticRoot()
+  const hostApi = createStandaloneHost()
+  registerPanelHttpRoutes(hostApi.ctx)
+  sharedHost = hostApi
 
   const server: Server = createServer(async (req, res) => {
     try {
       const host = req.headers.host ?? `127.0.0.1:${port}`
       const url = new URL(req.url ?? '/', `http://${host}`)
 
+      // Full workbench APIs (same handlers as DSH sidebar).
+      if (url.pathname.startsWith('/tracescope/v1/')) {
+        if (await hostApi.dispatch(req, res)) return
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' }).end(
+          JSON.stringify({ error: 'not found', path: url.pathname }),
+        )
+        return
+      }
+
+      // Legacy /api/* kept briefly for old bookmarks; prefer the SPA + v1 routes.
       if (await handleApi(req, res, url)) return
 
       let rel = url.pathname === '/' ? '/index.html' : url.pathname
@@ -436,8 +452,20 @@ export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServer
         res.writeHead(403).end('Forbidden')
         return
       }
-      const data = await readFile(filePath)
-      res.writeHead(200, { 'Content-Type': contentType(filePath) })
+      // SPA fallback: unknown extensionless paths → index.html
+      let servePath = filePath
+      let data: Buffer
+      try {
+        data = await readFile(filePath)
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException)?.code === 'ENOENT' && !path.basename(rel).includes('.')) {
+          servePath = path.join(staticRoot, 'index.html')
+          data = await readFile(servePath)
+        } else {
+          throw err
+        }
+      }
+      res.writeHead(200, { 'Content-Type': contentType(servePath) })
       res.end(data)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
@@ -458,6 +486,8 @@ export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServer
   } catch (error: unknown) {
     const code = (error as NodeJS.ErrnoException)?.code
     if (code === 'EADDRINUSE') {
+      hostApi.dispose()
+      if (sharedHost === hostApi) sharedHost = null
       // Another TraceScope host (DSH plugin or MCP) already owns the panel port.
       // Prefer the IPv4 loopback URL so it matches the listen address (avoids ::1 mismatch).
       return {
@@ -476,6 +506,8 @@ export async function startPanelServer(port = DEFAULT_PORT): Promise<PanelServer
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((err) => {
+          hostApi.dispose()
+          if (sharedHost === hostApi) sharedHost = null
           if (sharedPanel?.port === port) sharedPanel = null
           err ? reject(err) : resolve()
         })

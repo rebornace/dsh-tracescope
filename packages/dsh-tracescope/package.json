@@ -46,9 +46,10 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json --emitDeclarationOnly && node scripts/build-server.mjs && node scripts/build-client.mjs",
+    "build": "tsc -p tsconfig.json --emitDeclarationOnly && node scripts/build-server.mjs && node scripts/build-client.mjs && node scripts/build-standalone-client.mjs",
     "build:server": "node scripts/build-server.mjs",
     "build:client": "node scripts/build-client.mjs",
+    "build:standalone": "node scripts/build-standalone-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "tsc -p tsconfig.json --emitDeclarationOnly && node scripts/build-server.mjs",
     "prepublishOnly": "pnpm run build"
@@ -59,6 +60,8 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "esbuild": "0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "^5.8.2"
   },
   "engines": {

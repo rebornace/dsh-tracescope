@@ -3,131 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TraceScope 验证助手</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <title>TraceScope</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f7f2e8; }
+      #root { height: 100%; min-height: 0; }
+    </style>
   </head>
   <body>
-    <header class="top">
-      <div>
-        <p class="eyebrow">TraceScope</p>
-        <h1 data-i18n="header.title">验证助手</h1>
-        <p class="sub" data-i18n="header.sub">选仓库、选两个版本，一键生成需要验证的功能清单。不用敲命令。</p>
-      </div>
-      <div class="status-pill" id="serverStatus" data-i18n="status.connecting">连接中…</div>
-    </header>
-
-    <main class="layout">
-      <section class="card">
-        <h2 data-i18n="s1.title">1. 选择要对比的版本</h2>
-
-        <label class="field">
-          <span data-i18n="s1.repo">项目文件夹路径（git 仓库）</span>
-          <div class="row">
-            <input id="repoPath" type="text" data-i18n-placeholder="ph.repo" placeholder="例如 C:\work\my-app" />
-            <button type="button" id="btnLoadCommits" class="secondary" data-i18n="s1.load">加载版本列表</button>
-          </div>
-          <p class="hint" data-i18n="s1.repoHint">向同事要「项目在电脑上的文件夹路径」，粘贴到这里即可。</p>
-        </label>
-
-        <div class="grid-2">
-          <label class="field">
-            <span data-i18n="s1.base">稳定版本（对照用）</span>
-            <select id="baseCommit" disabled>
-              <option value="" data-i18n="s1.loadFirst">先加载版本列表</option>
-            </select>
-          </label>
-          <label class="field">
-            <span data-i18n="s1.head">待测版本（这次要验的）</span>
-            <select id="headCommit" disabled>
-              <option value="" data-i18n="s1.loadFirst">先加载版本列表</option>
-            </select>
-          </label>
-        </div>
-
-        <details class="advanced">
-          <summary data-i18n="s1.advanced">高级选项（一般不用改）</summary>
-          <label class="field">
-            <span data-i18n="s1.modules">模块映射文件（可选）</span>
-            <input id="modulesConfigPath" type="text" data-i18n-placeholder="ph.modules" placeholder="tracescope.modules.yml 路径" />
-          </label>
-          <label class="field">
-            <span data-i18n="s1.export">导出目录（可选）</span>
-            <input id="exportDir" type="text" data-i18n-placeholder="ph.export" placeholder="例如 C:\tmp\tracescope-out" />
-          </label>
-          <label class="field">
-            <span data-i18n="s1.ripple">波及层级</span>
-            <input id="rippleDepth" type="number" min="1" max="5" value="2" />
-          </label>
-        </details>
-
-        <div class="actions">
-          <button type="button" id="btnAnalyze" class="primary" disabled data-i18n="s1.analyze">生成验证清单</button>
-          <p class="error" id="formError" hidden></p>
-        </div>
-      </section>
-
-      <section class="card" id="reportSection" hidden>
-        <div class="report-head">
-          <div>
-            <h2 data-i18n="s2.title">2. 验证清单</h2>
-            <p class="meta" id="reportMeta"></p>
-          </div>
-          <div class="row">
-            <button type="button" id="btnExportMd" class="secondary" data-i18n="s2.md">下载 Markdown</button>
-            <button type="button" id="btnExportCsv" class="secondary" data-i18n="s2.csv">下载 CSV</button>
-            <button type="button" id="btnSaveDisk" class="secondary" data-i18n="s2.save">保存到导出目录</button>
-          </div>
-        </div>
-
-        <div class="tabs">
-          <button type="button" class="tab active" data-tab="direct" data-i18n="s2.direct">直接项</button>
-          <button type="button" class="tab" data-tab="ripple" data-i18n="s2.ripple">可能波及</button>
-        </div>
-
-        <div id="listDirect" class="item-list"></div>
-        <div id="listRipple" class="item-list" hidden></div>
-
-        <p class="hint" data-i18n="s2.hint">点选「通过 / 失败 / 跳过」记录验证结果。证据可展开查看，给开发看也不怕。</p>
-      </section>
-
-      <section class="card" id="visualSection">
-        <h2 data-i18n="s3.title">3. UI 走查：设计稿 ↔ 代码</h2>
-        <p class="meta" data-i18n="s3.meta">
-          从 Figma 拉取设计标注，和 Android XML / iOS xib 里的实现做规则对比，
-          自动列出尺寸、间距、颜色、字号等差异。无需把 App 跑起来，也不依赖 AI。
-        </p>
-
-        <label class="field">
-          <span data-i18n="s3.figmaUrl">Figma 画板链接</span>
-          <input id="figmaUrl" type="text" placeholder="https://www.figma.com/design/...?node-id=0-3046" />
-        </label>
-
-        <div class="grid-2">
-          <label class="field">
-            <span>Figma Token</span>
-            <input id="figmaToken" type="password" placeholder="figd_..." />
-          </label>
-          <label class="field">
-            <span data-i18n="s3.codePath">代码布局文件路径</span>
-            <input id="visualCodePath" type="text" data-i18n-placeholder="ph.code" placeholder="例如 ...\res\layout\activity_detail.xml" />
-          </label>
-        </div>
-        <p class="hint" data-i18n="s3.codeHint">代码文件支持 Android 布局 XML（自动发现 dimens/colors）与 iOS .xib/.storyboard。</p>
-
-        <div class="actions">
-          <button type="button" id="btnVisualCompare" class="primary" data-i18n="s3.compare">开始 UI 对比</button>
-          <p class="error" id="visualError" hidden></p>
-        </div>
-
-        <div id="visualResult" hidden>
-          <div class="report-head" style="margin-top:1rem">
-            <p class="meta" id="visualMeta"></p>
-          </div>
-          <div id="visualDiffs" class="visual-diffs"></div>
-        </div>
-      </section>
-    </main>
-
-    <script src="./app.js" type="module"></script>
+    <div id="root"></div>
+    <script src="./standalone.js"></script>
   </body>
 </html>
