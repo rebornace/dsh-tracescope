@@ -7,6 +7,11 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.5 — 2026-10-17
+
+- **发布**：因 npm staged 阻塞，在 0.3.4 内容上重新发版（`@rebornace/tracescope-mcp@0.3.4` 已上线；core / dsh-tracescope 的 0.3.4 未出 staged）。
+- **Republish**: Same MCP panel-parity release as 0.3.4 after npm staging blocked core / dsh-tracescope.
+
 ## 0.3.4 — 2026-10-17
 
 - **MCP 可视化与 DSH 侧栏等价**：`tracescope_open_panel` 打开本地工作台（`127.0.0.1:3927`），挂载与 Host 相同的 `/tracescope/v1/*` 路由与三模式 SPA；无 Harness 时 AI 提示词复制到剪贴板，`publish_*` 写回面板。

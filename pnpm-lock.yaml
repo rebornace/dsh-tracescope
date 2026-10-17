@@ -11,7 +11,7 @@ importers:
   packages/adapters/crashlytics:
     dependencies:
       '@rebornace/tracescope-core':
-        specifier: workspace:0.3.4
+        specifier: workspace:0.3.5
         version: link:../../core
     devDependencies:
       typescript:
@@ -64,7 +64,7 @@ importers:
   packages/dsh-tracescope:
     dependencies:
       '@rebornace/tracescope-core':
-        specifier: workspace:0.3.4
+        specifier: workspace:0.3.5
         version: link:../core
     devDependencies:
       '@types/node':
@@ -89,7 +89,7 @@ importers:
         specifier: ^1.30.0
         version: 1.30.0(zod@3.25.76)
       '@rebornace/dsh-tracescope':
-        specifier: workspace:0.3.4
+        specifier: workspace:0.3.5
         version: link:../dsh-tracescope
       express:
         specifier: ^5.2.1
