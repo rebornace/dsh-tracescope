@@ -3,7 +3,7 @@
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 
-**当前版本：`0.3.3`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
+**当前版本：`0.3.4`**（以 [npm `latest`](https://www.npmjs.com/package/@rebornace/dsh-tracescope) 与侧栏显示为准）
 
 ---
 
