@@ -78,6 +78,8 @@ pnpm install && pnpm build && pnpm test
 
 MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#9-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 
+Agent playbook skill (when to call which MCP flow; marketplace-ready): [skills/tracescope-agent-playbook](./skills/tracescope-agent-playbook/).
+
 ## Roadmap
 
 Crash sources (`CrashProvider`), collaboration trackers (`TrackerAdapter`), and design sources (normalize to `DesignDoc`) are all **horizontally extensible**. Today: Umeng / Crashlytics / paste-stack; Yunxiao / GitHub / GitLab / Webhook; Figma / Lanhu. **More platforms will land over time**. Request prioritization via [Issues](https://github.com/rebornace/dsh-tracescope/issues). Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).

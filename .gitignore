@@ -11,6 +11,14 @@ coverage/
 .vscode/
 *.tgz
 
+# One-off local scratch (scripts, dumps, reverse-engineering caches)
+.tmp*
+
+# Skill packaging / marketplace private bits (keep playbook source tracked)
+skills/**/*.zip
+skills/**/logo.png
+skills/**/outreach/
+
 # Local brainstorming / design specs / implementation plans (do not commit)
 docs/superpowers/
 
