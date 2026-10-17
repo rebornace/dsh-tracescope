@@ -17,7 +17,12 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
-Primary UX: **official DeepSeek Harness Desktop** TraceScope sidebar. All three pillars are also reachable via `@rebornace/tracescope-mcp` for common agents ([§9 MCP tools](#9-mcp-tools)); the sidebar is a richer shell, not an exclusive business surface. Crash analysis shares `agent-api` between MCP and Host (list / detail / analyze / job / publish).
+Recommended paths:
+
+1. **DeepSeek Harness Desktop** TraceScope right sidebar (embedded workbench + fill current-session AI prompts)  
+2. **Any MCP client** (Cursor / Claude Desktop, …): configure `@rebornace/tracescope-mcp`, then call `tracescope_open_panel` for the **same three-mode workbench** as the sidebar (`127.0.0.1:3927`, APIs under `/tracescope/v1/*`). AI prompts are copied to the clipboard for paste into the agent; `publish_*` writes results back to the panel  
+
+Execute layer and crash tools are shared via `agent-api` ([§9 MCP tools](#9-mcp-tools)).
 
 ### UI language
 

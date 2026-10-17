@@ -9,16 +9,7 @@
  */
 import type { Context } from './dsh-shims.js'
 
-import { registerRepoRoutes } from './routes/repo.js'
-import { registerAnalyzeRoutes } from './routes/analyze.js'
-import { registerReportRoutes } from './routes/report.js'
-import { registerTrackerRoutes } from './routes/tracker.js'
-import { registerAuthRoutes } from './routes/auth.js'
-import { registerDataDirRoutes } from './routes/data-dir.js'
-import { registerYunxiaoCatalogRoutes } from './routes/yunxiao-catalog.js'
-import { registerJobsRoutes } from './routes/jobs.js'
-import { registerVisualRoutes } from './routes/visual.js'
-import { registerCrashRoutes } from './routes/crash.js'
+import { registerPanelHttpRoutes } from './http/register-panel-routes.js'
 import { registerSelfUpdateRoutes } from './routes/self-update.js'
 
 import { registerListCommitsTool } from './tools/list-commits-tool.js'
@@ -40,17 +31,8 @@ export const name = 'tracescope'
 export const inject = ['tools', 'commands', 'webServer']
 
 export function apply(ctx: Context) {
-  // HTTP routes (same-origin JSON APIs used by the sidebar).
-  registerVisualRoutes(ctx)
-  registerRepoRoutes(ctx)
-  registerAnalyzeRoutes(ctx)
-  registerReportRoutes(ctx)
-  registerTrackerRoutes(ctx)
-  registerCrashRoutes(ctx)
-  registerAuthRoutes(ctx)
-  registerDataDirRoutes(ctx)
-  registerYunxiaoCatalogRoutes(ctx)
-  registerJobsRoutes(ctx)
+  // HTTP routes (same-origin JSON APIs used by the sidebar + MCP standalone panel).
+  registerPanelHttpRoutes(ctx)
   registerSelfUpdateRoutes(ctx)
 
   // Agent-facing tools (parity with @rebornace/tracescope-mcp).

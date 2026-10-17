@@ -33,7 +33,12 @@
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
-推荐使用路径：**官方 DeepSeek Harness 桌面端**右侧栏 TraceScope 插件。三条主能力的执行层均可通过 `@rebornace/tracescope-mcp` 在常见 Agent（Cursor / Claude 等）调用（见 [§9 MCP 工具一览](#9-mcp-工具一览)）；桌面端侧栏是更好的可视化壳，不是业务独占面。崩溃分析在 MCP 与 Host 共用 `agent-api`（list / detail / analyze / job / publish）。
+推荐使用路径：
+
+1. **DeepSeek Harness 桌面端**右侧栏 TraceScope 插件（内嵌工作台 + 可灌当前会话 AI 提示词）  
+2. **任意 MCP 客户端**（Cursor / Claude Desktop 等）：配置 `@rebornace/tracescope-mcp` 后调用 `tracescope_open_panel`，打开与侧栏**同款三模式工作台**（`127.0.0.1:3927`，API 同为 `/tracescope/v1/*`）；AI 提示词会复制到剪贴板，粘贴回 Agent，再用 `publish_*` 写回面板  
+
+执行层与崩溃工具在 MCP 与 Host 共用 `agent-api`（见 [§9 MCP 工具一览](#9-mcp-工具一览)）。
 
 ### 界面语言
 

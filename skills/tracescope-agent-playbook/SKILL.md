@@ -40,6 +40,7 @@ If intent spans pillars, finish one publish cycle before starting the next.
 - Design compare is **static** (not device/browser screenshot QA).
 - Page `tracescope_get_diff` with `offset` / `limit`; never pull an entire large tree in one call.
 - Prefer the user's language (zh/en) for chat summaries; keep tool JSON fields as specified by each flow.
+- For point-and-click UX, call `tracescope_open_panel` first — it opens the **same three-mode workbench** as the DSH sidebar (`/tracescope/v1/*`). AI prompts from the panel are copied for paste into the agent; then `publish_*` writes back.
 
 ## Example prompts
 
@@ -50,4 +51,4 @@ See [examples/prompts.md](examples/prompts.md).
 - Repo: https://github.com/rebornace/dsh-tracescope
 - npm MCP: https://www.npmjs.com/package/@rebornace/tracescope-mcp
 - Full product guide: `docs/GUIDE.en.md` / `docs/GUIDE.md` in the repo
-- DeepSeek Harness Desktop sidebar remains the richer UX; MCP is the agent-facing surface.
+- Visual shell: MCP `open_panel` SPA ≡ DSH right sidebar (Harness additionally fills the composer).

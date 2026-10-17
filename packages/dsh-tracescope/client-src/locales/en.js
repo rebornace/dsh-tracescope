@@ -651,6 +651,9 @@ export default {
   '粘贴 PAT / 个人访问令牌即可': 'Paste PAT / personal access token',
   '展开': 'Expand',
   '找不到会话列表服务，请确认已打开会话页': 'Chat list service not found; open the chats page',
+  '提示词已复制到剪贴板，请粘贴到 Claude / Cursor 继续 AI 分析（MCP 会写回本面板）':
+    'Prompt copied — paste into Claude / Cursor to continue AI analysis (MCP will write back to this panel)',
+  '请复制以下提示词到 Claude / Cursor': 'Copy this prompt into Claude / Cursor',
   '找不到会话输入框服务': 'Chat input service not found',
   '这一类没有条目': 'No items in this category',
   '整屏': 'Full screen',

@@ -467,8 +467,54 @@
       return null
     }
 
+    function showStandaloneToast(message) {
+      try {
+        var el = document.getElementById('tracescope-standalone-toast')
+        if (!el) {
+          el = document.createElement('div')
+          el.id = 'tracescope-standalone-toast'
+          el.setAttribute(
+            'style',
+            'position:fixed;z-index:99999;left:50%;bottom:24px;transform:translateX(-50%);' +
+              'max-width:min(520px,92vw);padding:10px 14px;border-radius:10px;' +
+              'background:#1c1915;color:#fff;font-size:13px;line-height:1.45;' +
+              'box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .2s',
+          )
+          document.body.appendChild(el)
+        }
+        el.textContent = message
+        el.style.opacity = '1'
+        clearTimeout(showStandaloneToast._timer)
+        showStandaloneToast._timer = setTimeout(function () {
+          el.style.opacity = '0'
+        }, 4200)
+      } catch (_e) {}
+    }
+
     function fillComposerDraft(prompt) {
       try {
+        // MCP / browser standalone panel: no Harness composer — copy for Claude/Cursor.
+        if (typeof window !== 'undefined' && window.__TRACESCOPE_STANDALONE__) {
+          var text = String(prompt || '')
+          var copy = function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              return navigator.clipboard.writeText(text)
+            }
+            return Promise.reject(new Error('clipboard unavailable'))
+          }
+          copy()
+            .then(function () {
+              showStandaloneToast(
+                t('提示词已复制到剪贴板，请粘贴到 Claude / Cursor 继续 AI 分析（MCP 会写回本面板）'),
+              )
+            })
+            .catch(function () {
+              try {
+                window.prompt(t('请复制以下提示词到 Claude / Cursor'), text)
+              } catch (_e2) {}
+            })
+          return { ok: true, standalone: true }
+        }
         var sessions =
           hostCtx && (hostCtx.sessions || (hostCtx.get && hostCtx.get('sessions')))
         var conversation =
@@ -6789,6 +6835,74 @@
       }, 'tracescope sidebar title')
     }
 
+    /**
+     * Mount the full TraceScope workbench in a browser page (MCP panel-server).
+     * Same UI as the DSH sidebar; AI prompts copy to clipboard instead of Harness composer.
+     */
+    function mountStandalone(rootEl) {
+      if (typeof window !== 'undefined') {
+        window.__TRACESCOPE_STANDALONE__ = true
+      }
+      hostCtx = {
+        get: function () {
+          return undefined
+        },
+      }
+      try {
+        i18n.setModuleTranslator(i18n.createTranslator(null))
+      } catch (_e) {}
+      var ReactDOM = require('react-dom/client')
+      var root = ReactDOM.createRoot(rootEl)
+      // jsx() second arg must be an object — `null` throws in react/jsx-runtime
+      // ("Cannot read properties of null (reading 'children')").
+      root.render(
+        jsx('div', {
+          style: {
+            height: '100vh',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--dsh-bg, #f7f2e8)',
+          },
+          children: jsx(TraceScopePanelBody, {}),
+        }),
+      )
+      return {
+        unmount: function () {
+          try {
+            root.unmount()
+          } catch (_e2) {}
+        },
+      }
+    }
+
     __tracescopeExports.name = name
     __tracescopeExports.inject = inject
     __tracescopeExports.apply = apply
+    __tracescopeExports.mountStandalone = mountStandalone
+    __tracescopeExports.TraceScopePanelBody = TraceScopePanelBody
+
+    // MCP / local panel SPA: esbuild wraps this file in an IIFE, so a separate
+    // footer cannot see `__tracescopeExports`. Boot from inside the same scope.
+    if (typeof window !== 'undefined' && window.__TRACESCOPE_STANDALONE__) {
+      window.__tracescopeExports = __tracescopeExports
+      ;(function bootStandalonePanel() {
+        function go() {
+          var el = document.getElementById('root')
+          if (!el) {
+            console.error('[tracescope] #root missing')
+            return
+          }
+          try {
+            mountStandalone(el)
+          } catch (err) {
+            console.error('[tracescope] mountStandalone failed', err)
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', go)
+        } else {
+          go()
+        }
+      })()
+    }

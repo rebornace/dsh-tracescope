@@ -78,7 +78,8 @@ pnpm install && pnpm build && pnpm test
 
 MCP tools: [docs/GUIDE.en.md section MCP](./docs/GUIDE.en.md#9-mcp-tools). Module map example: [examples/tracescope.modules.yml](./examples/tracescope.modules.yml).
 
-Agent playbook skill (when to call which MCP flow; marketplace-ready): [skills/tracescope-agent-playbook](./skills/tracescope-agent-playbook/).
+Agent playbook skill (when to call which MCP flow; marketplace-ready): [skills/tracescope-agent-playbook](./skills/tracescope-agent-playbook/).  
+MCP UI: call `tracescope_open_panel` for the same three-mode workbench as the DSH sidebar (`127.0.0.1:3927`).
 
 ## Roadmap
 
