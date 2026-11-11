@@ -93,6 +93,16 @@ export {
   type StartIosCaptureOptions,
 } from './capture/ios-macos.js'
 export {
+  clearEnsureIosCacheForTests,
+  ensureIosTools,
+  getIosPrepProgress,
+  type EnsureIosDeps,
+  type EnsureIosResult,
+  type IosPrepPhase,
+  type IosPrepProgress,
+  type IosPrepReasonCode,
+} from './capture/ensure-ios.js'
+export {
   getCaptureSessionStatus,
   listCaptureDevices,
   startCaptureSession,
