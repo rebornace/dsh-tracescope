@@ -10567,7 +10567,7 @@ ${text}
                 }
               )
             ] }),
-            capturePlatform === "ios" && !iosCaptureSupported && !iosPrep ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#b54708", lineHeight: 1.45 }, children: iosCaptureReason || t2("crash.inboxIosUnsupported") }) : null,
+            capturePlatform === "ios" && !iosCaptureSupported && iosPrep?.phase !== "checking" && iosPrep?.phase !== "error" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#b54708", lineHeight: 1.45 }, children: iosCaptureReason || t2("crash.inboxIosUnsupported") }) : null,
             /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, alignItems: "flex-end" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
                 t2("crash.inboxDevice"),

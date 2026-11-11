@@ -2080,7 +2080,10 @@ export function CrashBoard({
                     <option value="ios">{t('crash.inboxPlatformIos')}</option>
                   </select>
                 </label>
-                {capturePlatform === 'ios' && !iosCaptureSupported && !iosPrep ? (
+                {capturePlatform === 'ios' &&
+                !iosCaptureSupported &&
+                iosPrep?.phase !== 'checking' &&
+                iosPrep?.phase !== 'error' ? (
                   <p style={{ margin: 0, fontSize: 12, color: '#b54708', lineHeight: 1.45 }}>
                     {iosCaptureReason || t('crash.inboxIosUnsupported')}
                   </p>
