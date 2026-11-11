@@ -8,7 +8,9 @@ import {
   deleteInboxIncident,
   connectCaptureAdbTarget,
   ensureAdb,
+  ensureIosTools,
   getAdbPrepProgress,
+  getIosPrepProgress,
   getCaptureSessionStatus,
   getCrashProvider,
   getIosCaptureSupport,
@@ -514,6 +516,54 @@ export async function ensureCrashAdb(args: Record<string, unknown>): Promise<{
   })
   const status = crashAdbPrepStatus()
   return { ...result, progress: status.progress }
+}
+
+/** Poll iOS capture-tool prep progress (detect only — never installs). */
+export function crashIosPrepStatus(_args?: Record<string, unknown>): {
+  progress: {
+    phase: string
+    percent: number | null
+    message: string
+    detail?: string
+    error?: string
+    installCommand?: string
+    reasonCode?: string
+    updatedAt: string
+  }
+} {
+  const progress = getIosPrepProgress()
+  return {
+    progress: {
+      phase: progress.phase,
+      percent: progress.percent,
+      message: progress.message,
+      detail: progress.detail,
+      error: progress.error,
+      installCommand: progress.installCommand,
+      reasonCode: progress.reasonCode,
+      updatedAt: progress.updatedAt,
+    },
+  }
+}
+
+/** Probe libimobiledevice tools; optional force recheck after user installs. */
+export async function ensureCrashIos(args: Record<string, unknown>): Promise<{
+  ok: boolean
+  reasonCode?: string
+  installCommand?: string
+  error?: string
+  progress: ReturnType<typeof crashIosPrepStatus>['progress']
+}> {
+  const force = args.force === true
+  const result = await ensureIosTools({ force })
+  const status = crashIosPrepStatus()
+  return {
+    ok: result.ok,
+    reasonCode: result.reasonCode,
+    installCommand: result.installCommand,
+    error: result.error,
+    progress: status.progress,
+  }
 }
 
 /** Wireless adb connect (`host:port`) for HarmonyOS / firewall-friendly capture. */

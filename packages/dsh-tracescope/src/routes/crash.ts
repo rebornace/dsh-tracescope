@@ -19,8 +19,10 @@ import {
   connectCrashAdbTarget,
   crashAdbPrepStatus,
   crashCaptureStatus,
+  crashIosPrepStatus,
   deleteCrashInboxItem,
   ensureCrashAdb,
+  ensureCrashIos,
   getCrashIncident,
   getCrashJobStatus,
   importCrashInboxStack,
@@ -221,6 +223,18 @@ export function registerCrashRoutes(ctx: Context) {
     path: '/tracescope/v1/crash-inbox-adb-ensure',
     method: 'POST',
     run: async (body, { lang }) => ensureCrashAdb({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-ios-status',
+    method: 'POST',
+    run: async (body, { lang }) => crashIosPrepStatus({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-ios-ensure',
+    method: 'POST',
+    run: async (body, { lang }) => ensureCrashIos({ ...asRecord(body), lang }),
   })
 
   registerRoute(ctx, {
