@@ -6,6 +6,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { appendInboxIncident } from '../inbox-store.js'
+import { ensureIosTools, type EnsureIosDeps } from './ensure-ios.js'
 
 export interface IosDevice {
   udid: string
@@ -25,10 +26,6 @@ export interface IosCaptureHandle {
   repoPath: string
   startedAt: string
   stop: () => Promise<void>
-}
-
-function isDarwin(): boolean {
-  return process.platform === 'darwin'
 }
 
 async function runCmd(
@@ -72,31 +69,24 @@ async function runCmd(
   })
 }
 
-async function commandExists(command: string): Promise<boolean> {
-  const probe = process.platform === 'win32' ? await runCmd('where', [command]) : await runCmd('which', [command])
-  return probe.code === 0 && Boolean(probe.stdout.trim())
-}
-
-export async function getIosCaptureSupport(): Promise<IosCaptureSupport> {
-  if (!isDarwin()) {
+export async function getIosCaptureSupport(options?: {
+  force?: boolean
+  deps?: EnsureIosDeps
+}): Promise<IosCaptureSupport> {
+  const ensured = await ensureIosTools({ force: options?.force, deps: options?.deps })
+  if (!ensured.ok) {
     return {
       supported: false,
-      reason:
-        'iOS USB capture is available only on macOS. On Windows you can still browse the inbox and import .crash files.',
+      reason: ensured.error,
+      hasIdeviceCrashReport: ensured.hasIdeviceCrashReport,
+      hasIdeviceId: ensured.hasIdeviceId,
     }
   }
-  const hasIdeviceCrashReport = await commandExists('idevicecrashreport')
-  const hasIdeviceId = await commandExists('idevice_id')
-  if (!hasIdeviceCrashReport) {
-    return {
-      supported: false,
-      hasIdeviceCrashReport,
-      hasIdeviceId,
-      reason:
-        'idevicecrashreport not found — install libimobiledevice (e.g. brew install libimobiledevice)',
-    }
+  return {
+    supported: true,
+    hasIdeviceCrashReport: true,
+    hasIdeviceId: true,
   }
-  return { supported: true, hasIdeviceCrashReport, hasIdeviceId }
 }
 
 /** List connected iOS devices (empty on non-macOS or when tools missing). */
