@@ -2235,6 +2235,13 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxAdbDownloaded": "已下载 Android platform-tools 到本机缓存",
         "crash.inboxAdbPrepareFail": "自动准备 Android 采集工具失败。可开系统代理后重试，或改用下方「已有堆栈？直接分析」。",
         "crash.inboxAdbProgressTitle": "Android 采集工具",
+        "crash.inboxPreparingIos": "正在检测 iOS 采集工具（libimobiledevice）…",
+        "crash.inboxIosReady": "iOS 采集工具已就绪",
+        "crash.inboxIosPrepareFail": "iOS 采集工具不可用。可按下方命令安装后点「重新检测」，或改用「已有堆栈？直接分析」。",
+        "crash.inboxIosProgressTitle": "iOS 采集工具",
+        "crash.inboxIosCopyInstall": "复制安装命令",
+        "crash.inboxIosCopied": "已复制到剪贴板",
+        "crash.inboxIosRecheck": "我已安装，重新检测",
         "crash.inboxWireless": "无线调试（HarmonyOS / 华为 USB 经常卡 HDB 时可用）",
         "crash.inboxWirelessPlaceholder": "例如 192.168.1.8:5555",
         "crash.inboxWirelessConnect": "连接",
@@ -3674,6 +3681,13 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxAdbDownloaded": "Downloaded Android platform-tools into local cache",
         "crash.inboxAdbPrepareFail": "Could not prepare Android capture tools. Retry with a system proxy, or use “Paste stack → analyze” below.",
         "crash.inboxAdbProgressTitle": "Android capture tools",
+        "crash.inboxPreparingIos": "Checking iOS capture tools (libimobiledevice)…",
+        "crash.inboxIosReady": "iOS capture tools ready",
+        "crash.inboxIosPrepareFail": "iOS capture tools unavailable. Install with the command below, then Recheck — or use Paste stack → analyze.",
+        "crash.inboxIosProgressTitle": "iOS capture tools",
+        "crash.inboxIosCopyInstall": "Copy install command",
+        "crash.inboxIosCopied": "Copied to clipboard",
+        "crash.inboxIosRecheck": "I’ve installed — recheck",
         "crash.inboxWireless": "Wireless debugging (use when Huawei USB stays on HDB)",
         "crash.inboxWirelessPlaceholder": "e.g. 192.168.1.8:5555",
         "crash.inboxWirelessConnect": "Connect",
@@ -9325,6 +9339,7 @@ ${text}
     const [pasteStackText, setPasteStackText] = (0, import_react5.useState)("");
     const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
     const [adbPrep, setAdbPrep] = (0, import_react5.useState)(null);
+    const [iosPrep, setIosPrep] = (0, import_react5.useState)(null);
     const [wirelessTarget, setWirelessTarget] = (0, import_react5.useState)("");
     const listGen = (0, import_react5.useRef)(0);
     const lastCaptureHitRef = (0, import_react5.useRef)(0);
@@ -9640,7 +9655,7 @@ ${text}
       remember,
       t2
     ]);
-    const refreshCaptureDevices = (0, import_react5.useCallback)(async () => {
+    const refreshCaptureDevices = (0, import_react5.useCallback)(async (options) => {
       if (!repo || provider !== "local") return;
       setCaptureBusy(true);
       setError("");
@@ -9666,8 +9681,25 @@ ${text}
         } catch {
         }
       };
+      const readIosPrep = async () => {
+        try {
+          const st = await apiPost2("/tracescope/v1/crash-inbox-ios-status", { repoPath: repo });
+          const progress = st.progress;
+          if (!progress || typeof progress !== "object") return;
+          const phase = typeof progress.phase === "string" ? progress.phase : "idle";
+          const message = typeof progress.message === "string" ? progress.message : "";
+          const percent = typeof progress.percent === "number" ? progress.percent : null;
+          const installCommand = typeof progress.installCommand === "string" ? progress.installCommand : void 0;
+          if (phase !== "idle" && message) {
+            setIosPrep({ phase, percent, message, installCommand });
+            setHint(message);
+          }
+        } catch {
+        }
+      };
       try {
         if (capturePlatform === "android") {
+          setIosPrep(null);
           setAdbPrep({ phase: "checking", percent: null, message: t2("crash.inboxPreparingAdb") });
           setHint(t2("crash.inboxPreparingAdb"));
           pollTimer = setInterval(() => {
@@ -9691,6 +9723,44 @@ ${text}
           }
         } else {
           setAdbPrep(null);
+          setIosPrep({ phase: "checking", percent: null, message: t2("crash.inboxPreparingIos") });
+          setHint(t2("crash.inboxPreparingIos"));
+          pollTimer = setInterval(() => {
+            void readIosPrep();
+          }, 400);
+          void readIosPrep();
+          const ensured = await apiPost2("/tracescope/v1/crash-inbox-ios-ensure", {
+            repoPath: repo,
+            force: Boolean(options?.force)
+          });
+          const ensuredProgress = ensured.progress;
+          if (ensuredProgress && typeof ensuredProgress.message === "string") {
+            setIosPrep({
+              phase: typeof ensuredProgress.phase === "string" ? ensuredProgress.phase : "ready",
+              percent: typeof ensuredProgress.percent === "number" ? ensuredProgress.percent : 100,
+              message: ensuredProgress.message,
+              installCommand: typeof ensuredProgress.installCommand === "string" ? ensuredProgress.installCommand : typeof ensured.installCommand === "string" ? ensured.installCommand : void 0
+            });
+            setHint(ensuredProgress.message);
+          }
+          if (ensured.ok === false) {
+            const installCommand = typeof ensured.installCommand === "string" ? ensured.installCommand : typeof ensuredProgress?.installCommand === "string" ? ensuredProgress.installCommand : void 0;
+            const msg = typeof ensured.error === "string" ? ensured.error : typeof ensuredProgress?.error === "string" ? ensuredProgress.error : t2("crash.inboxIosPrepareFail");
+            setIosCaptureSupported(false);
+            setIosCaptureReason(msg);
+            setIosPrep({
+              phase: "error",
+              percent: null,
+              message: typeof ensuredProgress?.message === "string" ? ensuredProgress.message : t2("crash.inboxIosPrepareFail"),
+              installCommand
+            });
+            setError(msg);
+            return;
+          }
+          setIosCaptureSupported(true);
+          setIosCaptureReason("");
+          setHint(t2("crash.inboxIosReady"));
+          setIosPrep({ phase: "ready", percent: 100, message: t2("crash.inboxIosReady") });
         }
         const data = await apiPost2("/tracescope/v1/crash-inbox-devices", {
           repoPath: repo,
@@ -9732,6 +9802,19 @@ ${text}
         setCaptureBusy(false);
       }
     }, [apiPost2, captureDeviceId, capturePlatform, provider, repo, t2]);
+    const recheckIosTools = (0, import_react5.useCallback)(() => {
+      void refreshCaptureDevices({ force: true });
+    }, [refreshCaptureDevices]);
+    const copyIosInstallCommand = (0, import_react5.useCallback)(async () => {
+      const cmd = iosPrep?.installCommand?.trim();
+      if (!cmd) return;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        setHint(t2("crash.inboxIosCopied"));
+      } catch {
+        setError(cmd);
+      }
+    }, [iosPrep?.installCommand, t2]);
     const syncCaptureStatus = (0, import_react5.useCallback)(async () => {
       try {
         const data = await apiPost2("/tracescope/v1/crash-inbox-capture-status", { repoPath: repo });
@@ -9793,6 +9876,27 @@ ${text}
       setCaptureBusy(true);
       setError("");
       try {
+        if (capturePlatform === "ios") {
+          const ensured = await apiPost2("/tracescope/v1/crash-inbox-ios-ensure", {
+            repoPath: repo,
+            force: false
+          });
+          if (ensured.ok === false) {
+            const ensuredProgress = ensured.progress;
+            setIosCaptureSupported(false);
+            setIosCaptureReason(typeof ensured.error === "string" ? ensured.error : "");
+            setIosPrep({
+              phase: "error",
+              percent: null,
+              message: typeof ensuredProgress?.message === "string" ? ensuredProgress.message : t2("crash.inboxIosPrepareFail"),
+              installCommand: typeof ensured.installCommand === "string" ? ensured.installCommand : typeof ensuredProgress?.installCommand === "string" ? ensuredProgress.installCommand : void 0
+            });
+            setError(
+              typeof ensured.error === "string" ? ensured.error : t2("crash.inboxIosPrepareFail")
+            );
+            return;
+          }
+        }
         const data = await apiPost2("/tracescope/v1/crash-inbox-capture-start", {
           repoPath: repo,
           platform: capturePlatform,
@@ -10449,9 +10553,12 @@ ${text}
                   value: capturePlatform,
                   disabled: configDisabled || captureActive,
                   onChange: (e) => {
-                    setCapturePlatform(e.target.value === "ios" ? "ios" : "android");
+                    const next = e.target.value === "ios" ? "ios" : "android";
+                    setCapturePlatform(next);
                     setCaptureDeviceId("");
                     setCaptureDevices([]);
+                    if (next === "android") setIosPrep(null);
+                    else setAdbPrep(null);
                   },
                   children: [
                     /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "android", children: t2("crash.inboxPlatformAndroid") }),
@@ -10460,7 +10567,7 @@ ${text}
                 }
               )
             ] }),
-            capturePlatform === "ios" && !iosCaptureSupported ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#b54708", lineHeight: 1.45 }, children: iosCaptureReason || t2("crash.inboxIosUnsupported") }) : null,
+            capturePlatform === "ios" && !iosCaptureSupported && !iosPrep ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#b54708", lineHeight: 1.45 }, children: iosCaptureReason || t2("crash.inboxIosUnsupported") }) : null,
             /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, alignItems: "flex-end" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
                 t2("crash.inboxDevice"),
@@ -10488,10 +10595,78 @@ ${text}
                   style: btn,
                   disabled: configDisabled || captureBusy,
                   onClick: () => void refreshCaptureDevices(),
-                  children: captureBusy && capturePlatform === "android" ? t2("common.loading") : t2("crash.inboxRefreshDevices")
+                  children: captureBusy ? t2("common.loading") : t2("crash.inboxRefreshDevices")
                 }
               )
             ] }),
+            capturePlatform === "ios" && iosPrep ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+              "div",
+              {
+                style: {
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--dsh-border, #ddd4c5)",
+                  background: "#fff"
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, fontSize: 12, marginBottom: 6 }, children: t2("crash.inboxIosProgressTitle") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontSize: 12, color: "#6b645a", lineHeight: 1.45, marginBottom: 8 }, children: iosPrep.message }),
+                  iosPrep.phase === "checking" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "div",
+                    {
+                      style: {
+                        height: 8,
+                        borderRadius: 999,
+                        background: "#eee6da",
+                        overflow: "hidden"
+                      },
+                      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                        "div",
+                        {
+                          style: {
+                            height: "100%",
+                            width: iosPrep.percent != null ? `${Math.max(4, Math.min(100, iosPrep.percent))}%` : captureBusy ? "40%" : "100%",
+                            background: "var(--dsh-accent, #0f6e56)",
+                            borderRadius: 999,
+                            transition: "width 0.25s ease"
+                          }
+                        }
+                      )
+                    }
+                  ) : null,
+                  iosPrep.phase === "error" && iosPrep.installCommand ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 8, marginTop: 8 }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                      "pre",
+                      {
+                        style: {
+                          margin: 0,
+                          padding: "8px 10px",
+                          fontSize: 11,
+                          lineHeight: 1.45,
+                          borderRadius: 6,
+                          background: "#f5f0e8",
+                          overflowX: "auto",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word"
+                        },
+                        children: iosPrep.installCommand
+                      }
+                    ),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, onClick: () => void copyIosInstallCommand(), children: t2("crash.inboxIosCopyInstall") })
+                  ] }) : null,
+                  iosPrep.phase === "error" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      style: { ...btn, marginTop: iosPrep.installCommand ? 8 : 0 },
+                      disabled: captureBusy,
+                      onClick: recheckIosTools,
+                      children: t2("crash.inboxIosRecheck")
+                    }
+                  ) : null
+                ]
+              }
+            ) : null,
             capturePlatform === "android" && adbPrep && (adbPrep.phase === "checking" || adbPrep.phase === "downloading" || adbPrep.phase === "extracting" || captureBusy) ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
               "div",
               {
@@ -10583,7 +10758,7 @@ ${text}
                 {
                   type: "button",
                   style: primary,
-                  disabled: captureBusy || capturePlatform === "ios" && !iosCaptureSupported || capturePlatform === "android" && !captureDeviceId,
+                  disabled: captureBusy || capturePlatform === "ios" && (!iosCaptureSupported || iosPrep?.phase === "checking") || capturePlatform === "android" && !captureDeviceId,
                   onClick: () => void startInboxCapture(),
                   children: t2("crash.inboxStartCapture")
                 }
