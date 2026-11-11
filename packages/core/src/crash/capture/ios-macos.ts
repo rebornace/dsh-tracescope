@@ -5,6 +5,11 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import {
+  appleIpsIdentity,
+  parseAppleIpsText,
+  titleFromAppleIps,
+} from '../apple-ips.js'
 import { appendInboxIncident } from '../inbox-store.js'
 import { ensureIosTools, type EnsureIosDeps } from './ensure-ios.js'
 
@@ -126,11 +131,57 @@ export async function listIosDevices(): Promise<{
 }
 
 function titleFromCrashText(text: string, fileName: string): string {
+  const ips = parseAppleIpsText(text)
+  if (ips) return titleFromAppleIps(ips, fileName)
   const exc = text.match(/Exception Type:\s*([^\r\n]+)/i)?.[1]?.trim()
   if (exc) return exc.slice(0, 200)
   const name = text.match(/Exception Subtype:\s*([^\r\n]+)/i)?.[1]?.trim()
   if (name) return name.slice(0, 200)
   return fileName.replace(/\.ips$/i, '').replace(/\.crash$/i, '').slice(0, 200) || 'iOS crash'
+}
+
+function seenKeyForCrashFile(full: string, text: string): string {
+  const base = path.basename(full)
+  const ips = parseAppleIpsText(text)
+  return appleIpsIdentity(ips, base)
+}
+
+async function listCrashFilesInDir(dir: string): Promise<string[]> {
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch {
+    return []
+  }
+  return names
+    .filter((name) => /\.(crash|ips|panic)$/i.test(name))
+    .map((name) => path.join(dir, name))
+}
+
+/**
+ * Mark crash files already present as seen without writing the inbox.
+ * Used as a session baseline so historical device reports are not treated as
+ * new hits (Android clears logcat for the same reason).
+ */
+export async function seedSeenCrashFiles(
+  dir: string,
+  seenFiles: Set<string>,
+): Promise<number> {
+  const files = await listCrashFilesInDir(dir)
+  let n = 0
+  for (const full of files) {
+    let text = ''
+    try {
+      text = await readFile(full, 'utf8')
+    } catch {
+      continue
+    }
+    const key = seenKeyForCrashFile(full, text)
+    if (seenFiles.has(key)) continue
+    seenFiles.add(key)
+    n += 1
+  }
+  return n
 }
 
 async function ingestCrashDir(
@@ -139,16 +190,8 @@ async function ingestCrashDir(
   options: { cacheRoot?: string; deviceModel?: string; seenFiles: Set<string> },
 ): Promise<string[]> {
   const ids: string[] = []
-  let names: string[]
-  try {
-    names = await readdir(dir)
-  } catch {
-    return ids
-  }
-  for (const name of names) {
-    if (!/\.(crash|ips|panic)$/i.test(name)) continue
-    const full = path.join(dir, name)
-    if (options.seenFiles.has(full)) continue
+  const files = await listCrashFilesInDir(dir)
+  for (const full of files) {
     let text = ''
     try {
       text = await readFile(full, 'utf8')
@@ -156,12 +199,21 @@ async function ingestCrashDir(
       continue
     }
     if (!text.trim()) continue
-    options.seenFiles.add(full)
+    const key = seenKeyForCrashFile(full, text)
+    if (options.seenFiles.has(key)) continue
+    options.seenFiles.add(key)
+    const name = path.basename(full)
+    const ips = parseAppleIpsText(text)
+    const exceptionName = ips
+      ? [ips.body.exception?.type, ips.body.exception?.signal].filter(Boolean).join(' / ') ||
+        undefined
+      : undefined
     const entry = await appendInboxIncident(
       repoPath,
       {
         stackText: text,
         title: titleFromCrashText(text, name),
+        exceptionName,
         platform: 'ios',
         errorKind: 'crash',
         deviceModel: options.deviceModel,
@@ -185,7 +237,9 @@ export interface StartIosCaptureOptions {
 }
 
 /**
- * Poll idevicecrashreport into a temp dir and append new reports to the inbox.
+ * Poll idevicecrashreport into a temp dir and append **new** reports to the inbox.
+ * The first pull only baselines existing device reports (no inbox write), matching
+ * Android's logcat -c so starting capture does not dump historical crashes.
  */
 export async function startIosMacosCapture(
   options: StartIosCaptureOptions,
@@ -202,13 +256,20 @@ export async function startIosMacosCapture(
   let stopping = false
   let timer: ReturnType<typeof setInterval> | null = null
 
-  const pullOnce = async () => {
-    if (stopping) return
+  const pullDeviceReports = async () => {
     const args = ['-e', '-k', workDir]
     if (options.udid?.trim()) {
       args.unshift('-u', options.udid.trim())
     }
     await runCmd('idevicecrashreport', args, 60_000)
+  }
+
+  const pullOnce = async (mode: 'baseline' | 'ingest') => {
+    await pullDeviceReports()
+    if (mode === 'baseline') {
+      await seedSeenCrashFiles(workDir, seenFiles)
+      return
+    }
     const ids = await ingestCrashDir(repoPath, workDir, {
       cacheRoot: options.cacheRoot,
       deviceModel: options.deviceModel,
@@ -217,10 +278,13 @@ export async function startIosMacosCapture(
     for (const id of ids) options.onHit?.(id)
   }
 
-  await pullOnce()
-  const pollMs = Math.max(5_000, options.pollMs ?? 15_000)
+  // Baseline historical reports first — do not count them as session hits.
+  await pullOnce('baseline')
+  // iOS crash reports can appear a few seconds after the process dies — poll often.
+  const pollMs = Math.max(3_000, options.pollMs ?? 5_000)
   timer = setInterval(() => {
-    void pullOnce()
+    if (stopping) return
+    void pullOnce('ingest')
   }, pollMs)
 
   const startedAt = new Date().toISOString()
@@ -235,7 +299,7 @@ export async function startIosMacosCapture(
       if (timer) clearInterval(timer)
       timer = null
       try {
-        await pullOnce()
+        await pullOnce('ingest')
       } catch {
         /* ignore */
       }

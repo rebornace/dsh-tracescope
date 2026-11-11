@@ -40,6 +40,15 @@ export {
   type CrashFeedbackMeta,
   type CrashReportParts,
 } from './feedback.js'
+export {
+  appleIpsIdentity,
+  parseAppleIpsText,
+  renderAppleIpsAsClassicStack,
+  titleFromAppleIps,
+  type AppleIpsBody,
+  type AppleIpsMeta,
+  type ParsedAppleIps,
+} from './apple-ips.js'
 export { parseStackText, type ParsedStack, type StackFrame } from './parse-stack.js'
 export { matchStackToRepo, type RepoStackHit } from './match-repo.js'
 export type { CrashProvider, CrashProviderCapabilities } from './provider-types.js'
@@ -86,6 +95,7 @@ export {
 export {
   getIosCaptureSupport,
   listIosDevices,
+  seedSeenCrashFiles,
   startIosMacosCapture,
   type IosCaptureHandle,
   type IosCaptureSupport,

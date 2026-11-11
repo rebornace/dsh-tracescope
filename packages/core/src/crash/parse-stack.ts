@@ -1,8 +1,12 @@
 /**
  * Parse pasted crash stacks into structured frames.
  * Covers Android/JVM, Crashlytics `at symbol (file:line)`, iOS crash reports,
- * Android native `pc` frames, and JavaScript / React Native stacks.
+ * Apple .ips JSON, Android native `pc` frames, and JavaScript / React Native stacks.
  */
+import {
+  parseAppleIpsText,
+  renderAppleIpsAsClassicStack,
+} from './apple-ips.js'
 export type StackFrameKind = 'jvm' | 'ios' | 'native' | 'js'
 
 export interface StackFrame {
@@ -259,6 +263,12 @@ function isIgnorableStackLine(line: string): boolean {
 export function parseStackText(text: string): ParsedStack {
   const trimmed = text.trim()
   if (!trimmed) return { frames: [] }
+
+  const ips = parseAppleIpsText(trimmed)
+  if (ips) {
+    // Normalize to classic iOS lines, then reuse the line parsers below.
+    return parseStackText(renderAppleIpsAsClassicStack(ips))
+  }
 
   const frames: StackFrame[] = []
   let exceptionName: string | undefined
