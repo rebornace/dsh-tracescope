@@ -9,7 +9,7 @@ export interface CrashAnalysisReport {
     stackText: string
     exceptionName?: string
   }
-  matchedFiles: Array<{ path: string; reason: string; symbol?: string }>
+  matchedFiles: Array<{ path: string; reason: string; symbol?: string; line?: number }>
   summary: string
   fixHints?: string[]
   prompt: string
@@ -45,8 +45,19 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   return false
 }
 
-const AI_SECTION_HEADERS = ['### AI 分析结论', '### AI analysis'] as const
+const AI_SECTION_HEADERS = [
+  '### AI 分析结论',
+  '### AI analysis',
+  '### 复现方式',
+  '### Reproduction steps',
+] as const
 const STACK_SECTION_HEADERS = ['### 堆栈', '### Stack trace'] as const
+
+type CrashAnalysisKind = 'reproduce' | 'fix'
+
+function aiSectionHeader(kind: CrashAnalysisKind): string {
+  return kind === 'reproduce' ? '### 复现方式' : '### AI 分析结论'
+}
 
 /** Remove a previous AI section from defect markdown (header → next ###/---). */
 function stripAiSection(defectBody: string): string {
@@ -85,10 +96,14 @@ function insertBeforeStackOrFooter(defectBody: string, block: string): string {
  * Write AI reply into the in-panel report.
  * Uses indexOf/slice (not String.replace) so `$` / `$1` in model output cannot corrupt the body.
  */
-function mergeAiIntoReport(report: CrashAnalysisReport, aiAnalysis: string): CrashAnalysisReport {
+function mergeAiIntoReport(
+  report: CrashAnalysisReport,
+  aiAnalysis: string,
+  kind: CrashAnalysisKind = 'fix',
+): CrashAnalysisReport {
   const text = aiAnalysis.trim()
   if (!text) return { ...report, aiAnalysis: undefined }
-  const block = `### AI 分析结论\n\n${text}\n\n`
+  const block = `${aiSectionHeader(kind)}\n\n${text}\n\n`
   const body = insertBeforeStackOrFooter(stripAiSection(report.defectBody || ''), block)
   return { ...report, aiAnalysis: text, defectBody: body }
 }
@@ -107,7 +122,8 @@ function buildCrashExportMarkdown(report: CrashAnalysisReport, repoPath: string)
   ]
   if (report.matchedFiles?.length) {
     for (const m of report.matchedFiles) {
-      lines.push(`- \`${m.path}\`${m.symbol ? ` (${m.symbol})` : ''}${m.reason ? ` — ${m.reason}` : ''}`)
+      const line = m.line != null ? `:${m.line}` : ''
+      lines.push(`- \`${m.path}${line}\`${m.symbol ? ` (${m.symbol})` : ''}${m.reason ? ` — ${m.reason}` : ''}`)
     }
   } else {
     lines.push('_None_')
@@ -191,16 +207,12 @@ function parseUmengIncident(inc: Record<string, unknown>, fallbackId: string): U
   }
 }
 
-function umengIncidentForAnalyze(
-  selected: UmengIncident,
-  stack: string,
-  titleText: string,
-): Record<string, unknown> {
+function umengIncidentForAnalyze(selected: UmengIncident): Record<string, unknown> {
   return {
     id: selected.id,
-    title: defaultTitle(stack, titleText || selected.title),
-    provider: selected.provider === 'local' ? 'umeng' : selected.provider,
-    stackText: stack,
+    title: selected.title,
+    provider: selected.provider,
+    stackText: selected.stackText,
     exceptionName: selected.exceptionName,
     appVersion: selected.appVersion,
     buildNumber: selected.buildNumber,
@@ -348,20 +360,6 @@ const primary: CSSProperties = {
   background: 'var(--dsh-accent, #0f6e56)',
   color: '#fff',
   fontWeight: 700,
-}
-
-function localIncidentId(): string {
-  return 'local-' + Date.now().toString(36)
-}
-
-function defaultTitle(stack: string, custom: string): string {
-  const t = custom.trim()
-  if (t) return t.slice(0, 200)
-  const first = stack
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find(Boolean)
-  return (first || 'Crash').slice(0, 200)
 }
 
 function parseListItems(raw: unknown): CrashListItem[] {
@@ -603,8 +601,6 @@ export function CrashBoard({
   onOpenTrackerSettings?: () => void
 }) {
   const t = useLocaleT()
-  const [stackText, setStackText] = useState('')
-  const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
@@ -612,7 +608,6 @@ export function CrashBoard({
   const [umengOpen, setUmengOpen] = useState(true)
   /** Filters are uncommon — collapse by default so analysis stays above the fold. */
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [pasteOpen, setPasteOpen] = useState(false)
 
   const [provider, setProvider] = useState<CrashProviderId>('umeng')
   const [appKey, setAppKey] = useState('')
@@ -652,8 +647,34 @@ export function CrashBoard({
   const [awaitingAiPaste, setAwaitingAiPaste] = useState(false)
   /** Crash AI chat job — panel polls until agent publishes analysis. */
   const [pendingCrashJobId, setPendingCrashJobId] = useState('')
+  /** Active write-session mode: reproduce (primary) or fix. */
+  const [analysisKind, setAnalysisKind] = useState<CrashAnalysisKind>('reproduce')
+  const analysisKindRef = useRef<CrashAnalysisKind>('reproduce')
+  /** Kind that the in-memory report / AI cache was prepared for. */
+  const reportKindRef = useRef<CrashAnalysisKind | null>(null)
+
+  /** Local inbox USB capture */
+  const [capturePlatform, setCapturePlatform] = useState<'android' | 'ios'>('android')
+  const [captureDevices, setCaptureDevices] = useState<Array<{ id: string; label: string; state?: string }>>(
+    [],
+  )
+  const [captureDeviceId, setCaptureDeviceId] = useState('')
+  const [captureActive, setCaptureActive] = useState(false)
+  const [captureHitCount, setCaptureHitCount] = useState(0)
+  const [captureBusy, setCaptureBusy] = useState(false)
+  const [iosCaptureSupported, setIosCaptureSupported] = useState(true)
+  const [iosCaptureReason, setIosCaptureReason] = useState('')
+  const [pasteStackText, setPasteStackText] = useState('')
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [adbPrep, setAdbPrep] = useState<{
+    phase: string
+    percent: number | null
+    message: string
+  } | null>(null)
+  const [wirelessTarget, setWirelessTarget] = useState('')
 
   const listGen = useRef(0)
+  const lastCaptureHitRef = useRef(0)
   const detailPanelRef = useRef<HTMLDivElement | null>(null)
   const reportPanelRef = useRef<HTMLDivElement | null>(null)
   const aiPasteRef = useRef<HTMLDivElement | null>(null)
@@ -663,6 +684,7 @@ export function CrashBoard({
   const repo = repoPath.trim()
 
   const remoteReady = useCallback(() => {
+    if (provider === 'local') return Boolean(repo)
     if (provider === 'crashlytics') {
       return (
         Boolean(projectId.trim() && appId.trim()) &&
@@ -681,6 +703,7 @@ export function CrashBoard({
     hasStoredServiceAccount,
     projectId,
     provider,
+    repo,
     serviceAccountJson,
   ])
 
@@ -694,6 +717,9 @@ export function CrashBoard({
       provider,
       appDisplayName: appDisplayName.trim(),
       remember,
+    }
+    if (provider === 'local') {
+      return body
     }
     if (provider === 'crashlytics') {
       body.projectId = projectId.trim()
@@ -722,9 +748,6 @@ export function CrashBoard({
     appId,
     appKey,
     cookie,
-    hasStoredAccessToken,
-    hasStoredCookie,
-    hasStoredServiceAccount,
     projectId,
     provider,
     remember,
@@ -765,7 +788,6 @@ export function CrashBoard({
   const handleAuthFailure = useCallback(
     (message: string) => {
       setError(message || authExpiredMessage())
-      setPasteOpen(true)
       setUmengOpen(true)
     },
     [authExpiredMessage],
@@ -845,9 +867,21 @@ export function CrashBoard({
       setListBusy(true)
       setError('')
       try {
+        const listQuery =
+          provider === 'local'
+            ? (() => {
+                const kw = queryFilters.keyword.trim()
+                return {
+                  ...(kw ? { keyword: kw } : {}),
+                  ...(queryFilters.errorKinds.length
+                    ? { errorKinds: queryFilters.errorKinds }
+                    : {}),
+                }
+              })()
+            : buildListQueryBody(queryFilters)
         const data = await apiPost('/tracescope/v1/crash-list', {
           ...configBody(),
-          ...buildListQueryBody(queryFilters),
+          ...listQuery,
           page,
           pageSize: CRASH_LIST_PAGE_SIZE,
         })
@@ -890,6 +924,7 @@ export function CrashBoard({
       configBody,
       handleAuthFailure,
       listPage,
+      provider,
       remoteReady,
       repo,
       t,
@@ -928,6 +963,17 @@ export function CrashBoard({
     setError('')
     setHint('')
     try {
+      if (provider === 'local') {
+        if (remember) {
+          await apiPost('/tracescope/v1/crash-config-save', configBody())
+        }
+        setHint(t('crash.inboxListRefreshed'))
+        const next = { ...filters }
+        setAppliedFilters(next)
+        setListPage(1)
+        void fetchList({ page: 1, filters: next })
+        return
+      }
       if (remember) {
         await apiPost('/tracescope/v1/crash-config-save', configBody())
       }
@@ -963,7 +1009,273 @@ export function CrashBoard({
     } finally {
       setConfigBusy(false)
     }
-  }, [apiPost, authExpiredMessage, configBody, fetchList, filters, handleAuthFailure, remember, t])
+  }, [
+    apiPost,
+    authExpiredMessage,
+    configBody,
+    fetchList,
+    filters,
+    handleAuthFailure,
+    provider,
+    remember,
+    t,
+  ])
+
+  const refreshCaptureDevices = useCallback(async () => {
+    if (!repo || provider !== 'local') return
+    setCaptureBusy(true)
+    setError('')
+    let pollTimer: ReturnType<typeof setInterval> | null = null
+    const stopPoll = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+    const readPrep = async () => {
+      try {
+        const st = await apiPost('/tracescope/v1/crash-inbox-adb-status', { repoPath: repo })
+        const progress = st.progress as Record<string, unknown> | undefined
+        if (!progress || typeof progress !== 'object') return
+        const phase = typeof progress.phase === 'string' ? progress.phase : 'idle'
+        const message = typeof progress.message === 'string' ? progress.message : ''
+        const percent = typeof progress.percent === 'number' ? progress.percent : null
+        if (phase !== 'idle' && message) {
+          setAdbPrep({ phase, percent, message })
+          setHint(message)
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    }
+    try {
+      if (capturePlatform === 'android') {
+        setAdbPrep({ phase: 'checking', percent: null, message: t('crash.inboxPreparingAdb') })
+        setHint(t('crash.inboxPreparingAdb'))
+        pollTimer = setInterval(() => {
+          void readPrep()
+        }, 400)
+        void readPrep()
+        // Ensure runs with live progress; devices list follows.
+        const ensured = await apiPost('/tracescope/v1/crash-inbox-adb-ensure', { repoPath: repo })
+        const ensuredProgress = ensured.progress as Record<string, unknown> | undefined
+        if (ensuredProgress && typeof ensuredProgress.message === 'string') {
+          setAdbPrep({
+            phase: typeof ensuredProgress.phase === 'string' ? ensuredProgress.phase : 'ready',
+            percent: typeof ensuredProgress.percent === 'number' ? ensuredProgress.percent : 100,
+            message: ensuredProgress.message,
+          })
+          setHint(ensuredProgress.message)
+        }
+        if (ensured.ok === false) {
+          const msg =
+            typeof ensured.error === 'string'
+              ? ensured.error
+              : typeof ensuredProgress?.error === 'string'
+                ? ensuredProgress.error
+                : t('crash.inboxAdbPrepareFail')
+          setError(msg)
+          return
+        }
+      } else {
+        setAdbPrep(null)
+      }
+      const data = await apiPost('/tracescope/v1/crash-inbox-devices', {
+        repoPath: repo,
+        platform: capturePlatform,
+      })
+      const devices = Array.isArray(data.devices)
+        ? data.devices
+            .filter((d): d is Record<string, unknown> => Boolean(d) && typeof d === 'object')
+            .map((d) => ({
+              id: typeof d.id === 'string' ? d.id : '',
+              label: typeof d.label === 'string' ? d.label : String(d.id ?? ''),
+              state: typeof d.state === 'string' ? d.state : undefined,
+            }))
+            .filter((d) => d.id)
+        : []
+      setCaptureDevices(devices)
+      if (capturePlatform === 'ios') {
+        setIosCaptureSupported(data.iosSupported !== false)
+        setIosCaptureReason(
+          typeof data.iosSupportReason === 'string'
+            ? data.iosSupportReason
+            : typeof data.error === 'string'
+              ? data.error
+              : '',
+        )
+      } else {
+        setIosCaptureSupported(true)
+        setIosCaptureReason('')
+        if (data.adbDownloaded === true) {
+          setHint(t('crash.inboxAdbDownloaded'))
+          setAdbPrep({ phase: 'ready', percent: 100, message: t('crash.inboxAdbDownloaded') })
+        } else if (data.adbPath) {
+          setHint(t('crash.inboxAdbReady'))
+          setAdbPrep({ phase: 'ready', percent: 100, message: t('crash.inboxAdbReady') })
+        }
+      }
+      if (typeof data.error === 'string' && data.error && !devices.length) {
+        setError(data.error)
+      }
+      if (!captureDeviceId && devices[0]) setCaptureDeviceId(devices[0].id)
+      else if (captureDeviceId && !devices.some((d) => d.id === captureDeviceId)) {
+        setCaptureDeviceId(devices[0]?.id || '')
+      }
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      stopPoll()
+      setCaptureBusy(false)
+    }
+  }, [apiPost, captureDeviceId, capturePlatform, provider, repo, t])
+
+  const syncCaptureStatus = useCallback(async () => {
+    try {
+      const data = await apiPost('/tracescope/v1/crash-inbox-capture-status', { repoPath: repo })
+      const status = data.status as Record<string, unknown> | undefined
+      const active = status?.active === true
+      const hits = typeof status?.hitCount === 'number' ? status.hitCount : 0
+      setCaptureActive(active)
+      setCaptureHitCount(hits)
+      if (hits > lastCaptureHitRef.current) {
+        lastCaptureHitRef.current = hits
+        void fetchList({ page: 1 })
+      }
+    } catch {
+      /* ignore status poll errors */
+    }
+  }, [apiPost, fetchList, repo])
+
+  const connectWirelessAdb = useCallback(async () => {
+    if (!repo) {
+      setError(t('选择仓库 / 先在配置中添加'))
+      return
+    }
+    const target = wirelessTarget.trim()
+    if (!target) {
+      setError(t('crash.inboxWirelessPlaceholder'))
+      return
+    }
+    setCaptureBusy(true)
+    setError('')
+    try {
+      const data = await apiPost('/tracescope/v1/crash-inbox-adb-connect', {
+        repoPath: repo,
+        target,
+      })
+      const message = typeof data.message === 'string' ? data.message : ''
+      if (data.ok) {
+        setHint(message || t('crash.inboxAdbReady'))
+        await refreshCaptureDevices()
+      } else {
+        setError(message || t('crash.inboxCaptureFail'))
+      }
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setCaptureBusy(false)
+    }
+  }, [apiPost, refreshCaptureDevices, repo, t, wirelessTarget])
+
+  const startInboxCapture = useCallback(async () => {
+    if (!repo) {
+      setError(t('选择仓库 / 先在配置中添加'))
+      return
+    }
+    if (capturePlatform === 'ios' && !iosCaptureSupported) {
+      setError(iosCaptureReason || t('crash.inboxIosUnsupported'))
+      return
+    }
+    if (capturePlatform === 'android' && !captureDeviceId.trim()) {
+      setError(t('crash.inboxNeedDevice'))
+      return
+    }
+    setCaptureBusy(true)
+    setError('')
+    try {
+      const data = await apiPost('/tracescope/v1/crash-inbox-capture-start', {
+        repoPath: repo,
+        platform: capturePlatform,
+        deviceId: captureDeviceId.trim() || undefined,
+      })
+      if (data.ok === false) {
+        setError(typeof data.error === 'string' ? data.error : t('crash.inboxCaptureFail'))
+        return
+      }
+      setCaptureActive(true)
+      setHint(t('crash.inboxCaptureStarted'))
+      void syncCaptureStatus()
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setCaptureBusy(false)
+    }
+  }, [
+    apiPost,
+    captureDeviceId,
+    capturePlatform,
+    iosCaptureReason,
+    iosCaptureSupported,
+    repo,
+    syncCaptureStatus,
+    t,
+  ])
+
+  const stopInboxCapture = useCallback(async () => {
+    setCaptureBusy(true)
+    try {
+      await apiPost('/tracescope/v1/crash-inbox-capture-stop', { repoPath: repo })
+      setCaptureActive(false)
+      setHint(t('crash.inboxCaptureStopped'))
+      void fetchList({ page: 1 })
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setCaptureBusy(false)
+    }
+  }, [apiPost, fetchList, repo, t])
+
+  const deleteInboxItem = useCallback(
+    async (id: string) => {
+      if (!repo || !id) return
+      setBusy(true)
+      try {
+        await apiPost('/tracescope/v1/crash-inbox-delete', { repoPath: repo, id })
+        if (selectedId === id) {
+          setSelectedId('')
+          setSelectedIncident(null)
+          setReport(null)
+        }
+        void fetchList({ page: listPage })
+      } catch (err) {
+        setError((err as Error).message || String(err))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [apiPost, fetchList, listPage, repo, selectedId],
+  )
+
+  useEffect(() => {
+    if (provider !== 'local' || !repo) return
+    void refreshCaptureDevices()
+    void syncCaptureStatus()
+  }, [provider, repo, capturePlatform]) // eslint-disable-line react-hooks/exhaustive-deps -- refresh on provider/platform only
+
+  /** Local inbox: auto-load history so users see items without clicking refresh. */
+  useEffect(() => {
+    if (provider !== 'local' || !repo) return
+    void fetchList({ page: 1 })
+  }, [provider, repo]) // eslint-disable-line react-hooks/exhaustive-deps -- hydrate when entering local inbox
+
+  useEffect(() => {
+    if (provider !== 'local' || !captureActive) return
+    const timer = setInterval(() => {
+      void syncCaptureStatus()
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [captureActive, provider, syncCaptureStatus])
 
   const filtersDirty = useMemo(
     () => JSON.stringify(filters) !== JSON.stringify(appliedFilters),
@@ -997,6 +1309,8 @@ export function CrashBoard({
       setError('')
       setSelectedId(id)
       setReport(null)
+      reportRef.current = null
+      reportKindRef.current = null
       setAiDraft('')
       setAwaitingAiPaste(false)
       setUmengOpen(false)
@@ -1014,8 +1328,6 @@ export function CrashBoard({
           throw new Error(t('crash.detailMissing'))
         }
         setSelectedIncident(full)
-        setStackText(full.stackText)
-        setTitle(full.title)
       } catch (err) {
         const msg = (err as Error).message || String(err)
         if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
@@ -1028,102 +1340,153 @@ export function CrashBoard({
     [apiPost, configBody, handleAuthFailure, repo, t],
   )
 
-  const runAnalyze = useCallback(async (): Promise<CrashAnalysisReport | null> => {
-    const fromUmeng = selectedIncident?.stackText?.trim()
-    const stack = (fromUmeng || stackText).trim()
-    if (!stack) {
-      setError(t('crash.pasteRequired'))
-      return null
-    }
-    if (!repo) {
-      setError(t('选择仓库 / 先在配置中添加'))
-      return null
-    }
-    setBusy(true)
-    setError('')
-    setHint('')
-    try {
-      const incident = selectedIncident
-        ? umengIncidentForAnalyze(selectedIncident, stack, title)
-        : {
-            id: localIncidentId(),
-            title: defaultTitle(stack, title),
-            provider: 'local' as const,
-            stackText: stack,
-          }
-      const data = await apiPost('/tracescope/v1/crash-analyze', { repoPath: repo, incident })
+  /** Quiet local prep used by write-session / copy / export / submit. Not a user-facing analyze step. */
+  const ensureReport = useCallback(
+    async (
+      override?: UmengIncident,
+      kind: CrashAnalysisKind = analysisKindRef.current,
+    ): Promise<CrashAnalysisReport | null> => {
+      const selected = override ?? selectedIncident
+      if (!selected?.stackText?.trim()) {
+        setError(t('crash.selectDetailFirst'))
+        return null
+      }
+      if (!repo) {
+        setError(t('选择仓库 / 先在配置中添加'))
+        return null
+      }
+      const current = reportRef.current
+      if (
+        current &&
+        current.incident.id === selected.id &&
+        current.incident.stackText === selected.stackText &&
+        reportKindRef.current === kind
+      ) {
+        // Reuse only when same incident + same analysis kind; AI cache differs by kind.
+        return current
+      }
+      const incident = umengIncidentForAnalyze(selected)
+      const data = await apiPost('/tracescope/v1/crash-analyze', {
+        repoPath: repo,
+        incident,
+        analysisKind: kind,
+      })
       const next = data.report as CrashAnalysisReport | undefined
       if (!next || typeof next.prompt !== 'string') {
         throw new Error(t('请求失败'))
       }
       setReport(next)
+      reportRef.current = next
+      reportKindRef.current = kind
       return next
-    } catch (err) {
-      setError((err as Error).message || String(err))
-      return null
-    } finally {
-      setBusy(false)
-    }
-  }, [apiPost, repo, selectedIncident, stackText, t, title])
+    },
+    [apiPost, repo, selectedIncident, t],
+  )
 
-  async function onAnalyzeClick() {
-    const r = await runAnalyze()
-    if (r) {
-      setHint(
-        r.aiAnalysis?.trim() ? t('crash.aiRestoredFromCache') : t('crash.analyzeLocalHint'),
-      )
-      requestAnimationFrame(() => {
-        reportPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      })
-    }
-  }
+  const writeSessionFor = useCallback(
+    async (override?: UmengIncident, kind: CrashAnalysisKind = 'reproduce') => {
+      setAnalysisKind(kind)
+      analysisKindRef.current = kind
+      setBusy(true)
+      setError('')
+      setHint('')
+      try {
+        const r = await ensureReport(override, kind)
+        if (!r) return
+        if (r.aiAnalysis?.trim()) {
+          setHint(
+            kind === 'reproduce'
+              ? t('crash.writeReproduceCachedHint')
+              : t('crash.writeFixCachedHint'),
+          )
+        }
+        requestAnimationFrame(() => {
+          reportPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        })
+        const send = onSendToChat
+        if (!send) {
+          setHint(t('crash.writeSessionNoComposer'))
+          return
+        }
+        // Create chat job so the agent can publish via tracescope_publish_crash_analysis.
+        const jobRes = await apiPost('/tracescope/v1/crash-ai-job', {
+          repoPath: repo,
+          summary: r.summary,
+          stackText: r.incident.stackText,
+          incident: r.incident,
+          matchedFiles: r.matchedFiles,
+          fixHints: r.fixHints,
+          analysisKind: kind,
+        })
+        const jobId = typeof jobRes.jobId === 'string' ? jobRes.jobId.trim() : ''
+        const prompt = typeof jobRes.prompt === 'string' ? jobRes.prompt : r.prompt
+        if (!jobId || !prompt.trim()) {
+          throw new Error(t('crash.aiJobFail'))
+        }
+        const result = send(prompt)
+        if (result.ok) {
+          setPendingCrashJobId(jobId)
+          setAwaitingAiPaste(true)
+          setHint(
+            r.aiAnalysis?.trim()
+              ? kind === 'reproduce'
+                ? t('crash.writeReproduceCachedHint')
+                : t('crash.writeFixCachedHint')
+              : kind === 'reproduce'
+                ? t('crash.writeReproduceHint')
+                : t('crash.writeFixHint'),
+          )
+          requestAnimationFrame(() => {
+            aiPasteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          })
+        } else {
+          setError(result.error || t('无法写入当前会话输入框'))
+        }
+      } catch (err) {
+        setError((err as Error).message || String(err))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [apiPost, ensureReport, onSendToChat, repo, t],
+  )
 
-  async function onWriteSessionClick() {
-    let r = report
-    if (!r) r = await runAnalyze()
-    if (!r) return
-    if (r.aiAnalysis?.trim()) {
-      setHint(t('crash.writeSessionCachedHint'))
-    }
-    const send = onSendToChat
-    if (!send) {
-      setHint(t('找不到会话输入框服务'))
+  /** Paste stack / .crash text → select as current incident → write reproduce session (no inbox hop). */
+  const analyzePastedStack = useCallback(async () => {
+    if (!repo) {
+      setError(t('选择仓库 / 先在配置中添加'))
       return
     }
-    setBusy(true)
-    setError('')
-    try {
-      // Create chat job so the agent can publish via tracescope_publish_crash_analysis.
-      const jobRes = await apiPost('/tracescope/v1/crash-ai-job', {
-        repoPath: repo,
-        summary: r.summary,
-        stackText: r.incident.stackText,
-        incident: r.incident,
-        matchedFiles: r.matchedFiles,
-        fixHints: r.fixHints,
-      })
-      const jobId = typeof jobRes.jobId === 'string' ? jobRes.jobId.trim() : ''
-      const prompt = typeof jobRes.prompt === 'string' ? jobRes.prompt : r.prompt
-      if (!jobId || !prompt.trim()) {
-        throw new Error(t('crash.aiJobFail'))
-      }
-      const result = send(prompt)
-      if (result.ok) {
-        setPendingCrashJobId(jobId)
-        setAwaitingAiPaste(true)
-        setHint(t('crash.writeSessionHint'))
-        requestAnimationFrame(() => {
-          aiPasteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        })
-      } else {
-        setError(result.error || t('无法写入当前会话输入框'))
-      }
-    } catch (err) {
-      setError((err as Error).message || String(err))
-    } finally {
-      setBusy(false)
+    const text = pasteStackText.trim()
+    if (!text) {
+      setError(t('crash.pasteStackRequired'))
+      return
     }
-  }
+    const firstLine = text.split(/\r?\n/, 1)[0]?.trim() || 'pasted-crash'
+    const now = new Date().toISOString()
+    const incident: UmengIncident = {
+      id: `paste-${Date.now().toString(36)}`,
+      title: firstLine.slice(0, 200),
+      provider: 'local',
+      stackText: text,
+      platform: capturePlatform === 'ios' ? 'ios' : 'android',
+      errorKind: 'crash',
+      status: 'open',
+      occurredAt: now,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      count: 1,
+    }
+    setSelectedId(incident.id)
+    setSelectedIncident(incident)
+    setReport(null)
+    reportRef.current = null
+    reportKindRef.current = null
+    setPasteStackText('')
+    setPasteOpen(false)
+    setHint(t('crash.pasteStackReady'))
+    await writeSessionFor(incident, 'reproduce')
+  }, [capturePlatform, pasteStackText, repo, t, writeSessionFor])
 
   async function applyAiText(raw: string): Promise<boolean> {
     const text = raw.trim()
@@ -1136,13 +1499,14 @@ export function CrashBoard({
       setError(t('crash.needAnalyzeFirst'))
       return false
     }
-    const next = mergeAiIntoReport(current, text)
+    const kind = analysisKindRef.current
+    const next = mergeAiIntoReport(current, text, kind)
     setReport(next)
     reportRef.current = next
     setAiDraft(text)
     setAwaitingAiPaste(false)
     setPendingCrashJobId('')
-    setHint(t('crash.aiApplied'))
+    setHint(kind === 'reproduce' ? t('crash.aiReproduceApplied') : t('crash.aiApplied'))
     setError('')
     try {
       await apiPost('/tracescope/v1/crash-ai-cache-save', {
@@ -1150,6 +1514,7 @@ export function CrashBoard({
         incidentId: current.incident.id,
         aiAnalysis: text,
         summary: current.summary,
+        analysisKind: kind,
       })
     } catch {
       /* panel still has the conclusion; persistence is best-effort */
@@ -1167,6 +1532,11 @@ export function CrashBoard({
       const res = await apiPost('/tracescope/v1/crash-job', { id })
       const status = typeof res.status === 'string' ? res.status : ''
       if (status === 'published') {
+        const kindRaw = res.analysisKind
+        if (kindRaw === 'reproduce' || kindRaw === 'fix') {
+          setAnalysisKind(kindRaw)
+          analysisKindRef.current = kindRaw
+        }
         const analysis = typeof res.aiAnalysis === 'string' ? res.aiAnalysis : ''
         if (analysis.trim() && (await applyAiText(analysis))) return 'applied'
         return 'error'
@@ -1274,43 +1644,58 @@ export function CrashBoard({
   }
 
   async function onCopyReportClick() {
-    if (!report) {
-      setError(t('crash.needAnalyzeFirst'))
-      return
+    setBusy(true)
+    setError('')
+    try {
+      const r = await ensureReport()
+      if (!r) return
+      const ok = await copyTextToClipboard(r.defectBody || buildCrashExportMarkdown(r, repo))
+      if (ok) setHint(t('crash.copied'))
+      else setError(t('crash.copyFail'))
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setBusy(false)
     }
-    const ok = await copyTextToClipboard(report.defectBody || buildCrashExportMarkdown(report, repo))
-    if (ok) setHint(t('crash.copied'))
-    else setError(t('crash.copyFail'))
   }
 
-  function onExportReportClick() {
-    if (!report) {
-      setError(t('crash.needAnalyzeFirst'))
-      return
+  async function onExportReportClick() {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await ensureReport()
+      if (!r) return
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const idPart = (r.incident.id || 'crash').replace(/[^\w.-]+/g, '_').slice(0, 40)
+      const filename = `tracescope-crash-${idPart}-${stamp}.md`
+      downloadTextFile(filename, buildCrashExportMarkdown(r, repo), 'text/markdown')
+      setHint(t('crash.exported', { name: filename }))
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setBusy(false)
     }
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const idPart = (report.incident.id || 'crash').replace(/[^\w.-]+/g, '_').slice(0, 40)
-    const filename = `tracescope-crash-${idPart}-${stamp}.md`
-    downloadTextFile(filename, buildCrashExportMarkdown(report, repo), 'text/markdown')
-    setHint(t('crash.exported', { name: filename }))
   }
 
-  function onSubmitClick() {
-    if (!report) {
-      setError(t('crash.needAnalyzeFirst'))
-      return
+  async function onSubmitClick() {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await ensureReport()
+      if (!r) return
+      if (!trackerReady) {
+        setHint(t('diff.board.hint.finishTrackerConfig'))
+        onOpenTrackerSettings?.()
+        return
+      }
+      if (!onSubmitDefect) return
+      const subject = r.incident.title || t('crash.submitDefect')
+      onSubmitDefect(r, subject)
+    } catch (err) {
+      setError((err as Error).message || String(err))
+    } finally {
+      setBusy(false)
     }
-    if (!trackerReady) {
-      setHint(t('diff.board.hint.finishTrackerConfig'))
-      onOpenTrackerSettings?.()
-      return
-    }
-    if (!onSubmitDefect) return
-    const subject =
-      report.incident.title ||
-      defaultTitle(stackText, title) ||
-      t('crash.submitDefect')
-    onSubmitDefect(report, subject)
   }
 
   const totalPages =
@@ -1462,23 +1847,63 @@ export function CrashBoard({
 
   const configDisabled = busy || configBusy || listBusy || detailBusy
   const appLabel =
-    appDisplayName.trim() ||
-    (provider === 'crashlytics' ? projectId.trim() || appId.trim() : appKey.trim())
+    provider === 'local'
+      ? capturePlatform === 'ios'
+        ? t('crash.inboxPlatformIos')
+        : t('crash.inboxPlatformAndroid')
+      : appDisplayName.trim() ||
+        (provider === 'crashlytics' ? projectId.trim() || appId.trim() : appKey.trim())
   const configHeaderLabel =
-    provider === 'crashlytics' ? t('crash.crashlyticsConfig') : t('crash.umengConfig')
+    provider === 'local'
+      ? t('crash.inboxConfig')
+      : provider === 'crashlytics'
+        ? t('crash.crashlyticsConfig')
+        : t('crash.umengConfig')
   const umengHeader = appLabel ? `${configHeaderLabel} · ${appLabel}` : configHeaderLabel
   const configTitle =
-    provider === 'crashlytics'
-      ? appId.trim()
-        ? `${t('crash.appId')}: ${appId.trim()}`
-        : undefined
-      : appKey.trim()
-        ? `${t('crash.appKey')}: ${appKey.trim()}`
-        : undefined
+    provider === 'local'
+      ? t('crash.inboxHint')
+      : provider === 'crashlytics'
+        ? appId.trim()
+          ? `${t('crash.appId')}: ${appId.trim()}`
+          : undefined
+        : appKey.trim()
+          ? `${t('crash.appKey')}: ${appKey.trim()}`
+          : undefined
 
   return (
     <section style={card}>
       <div style={{ fontWeight: 700, marginBottom: 8 }}>{t('crash.mode')}</div>
+
+      <label style={{ ...label, marginBottom: 10 }}>
+        {t('crash.provider')}
+        <select
+          style={input}
+          value={provider}
+          disabled={configDisabled}
+          onChange={(e) => {
+            const next = parseProviderId(e.target.value)
+            setProvider(next)
+            setListItems([])
+            setListTotal(undefined)
+            setSelectedId('')
+            setSelectedIncident(null)
+            setReport(null)
+            reportRef.current = null
+            reportKindRef.current = null
+            setUmengOpen(true)
+          }}
+        >
+          <option value="local">{t('crash.providerLocal')}</option>
+          <option value="umeng">{t('crash.providerUmeng')}</option>
+          <option value="crashlytics">{t('crash.providerCrashlytics')}</option>
+        </select>
+      </label>
+      {provider === 'local' ? (
+        <p style={{ margin: '0 0 10px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
+          {t('crash.inboxHint')}
+        </p>
+      ) : null}
 
       <div style={{ marginBottom: 10 }}>
         <button
@@ -1492,27 +1917,12 @@ export function CrashBoard({
         </button>
         {umengOpen ? (
           <div style={{ marginTop: 8 }}>
-            <p style={{ margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
-              {provider === 'crashlytics' ? t('crash.crashlyticsHint') : t('crash.cookieHint')}
-            </p>
-            <label style={label}>
-              {t('crash.provider')}
-              <select
-                style={input}
-                value={provider}
-                disabled={configDisabled}
-                onChange={(e) => {
-                  const next = parseProviderId(e.target.value)
-                  setProvider(next)
-                  setListItems([])
-                  setSelectedId('')
-                  setSelectedIncident(null)
-                }}
-              >
-                <option value="umeng">{t('crash.providerUmeng')}</option>
-                <option value="crashlytics">{t('crash.providerCrashlytics')}</option>
-              </select>
-            </label>
+            {provider !== 'local' ? (
+              <p style={{ margin: '0 0 8px', color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
+                {provider === 'crashlytics' ? t('crash.crashlyticsHint') : t('crash.cookieHint')}
+              </p>
+            ) : null}
+            {provider !== 'local' ? (
             <label style={label}>
               {t('crash.appDisplayName')}
               <input
@@ -1523,7 +1933,219 @@ export function CrashBoard({
                 onChange={(e) => setAppDisplayName(e.target.value)}
               />
             </label>
-            {provider === 'crashlytics' ? (
+            ) : null}
+            {provider === 'local' ? (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 8 }}>
+                <label style={label}>
+                  {t('crash.inboxCapturePlatform')}
+                  <select
+                    style={input}
+                    value={capturePlatform}
+                    disabled={configDisabled || captureActive}
+                    onChange={(e) => {
+                      setCapturePlatform(e.target.value === 'ios' ? 'ios' : 'android')
+                      setCaptureDeviceId('')
+                      setCaptureDevices([])
+                    }}
+                  >
+                    <option value="android">{t('crash.inboxPlatformAndroid')}</option>
+                    <option value="ios">{t('crash.inboxPlatformIos')}</option>
+                  </select>
+                </label>
+                {capturePlatform === 'ios' && !iosCaptureSupported ? (
+                  <p style={{ margin: 0, fontSize: 12, color: '#b54708', lineHeight: 1.45 }}>
+                    {iosCaptureReason || t('crash.inboxIosUnsupported')}
+                  </p>
+                ) : null}
+                <div style={{ ...row, alignItems: 'flex-end' }}>
+                  <label style={{ ...label, marginBottom: 0, flex: 1 }}>
+                    {t('crash.inboxDevice')}
+                    <select
+                      style={input}
+                      value={captureDeviceId}
+                      disabled={configDisabled || captureActive || captureBusy}
+                      onChange={(e) => setCaptureDeviceId(e.target.value)}
+                    >
+                      <option value="">{t('crash.inboxDeviceNone')}</option>
+                      {captureDevices.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.label}
+                          {d.state ? ` · ${d.state}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    style={btn}
+                    disabled={configDisabled || captureBusy}
+                    onClick={() => void refreshCaptureDevices()}
+                  >
+                    {captureBusy && capturePlatform === 'android'
+                      ? t('common.loading')
+                      : t('crash.inboxRefreshDevices')}
+                  </button>
+                </div>
+                {capturePlatform === 'android' &&
+                adbPrep &&
+                (adbPrep.phase === 'checking' ||
+                  adbPrep.phase === 'downloading' ||
+                  adbPrep.phase === 'extracting' ||
+                  captureBusy) ? (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--dsh-border, #ddd4c5)',
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
+                      {t('crash.inboxAdbProgressTitle')}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6b645a', lineHeight: 1.45, marginBottom: 8 }}>
+                      {adbPrep.message || t('crash.inboxPreparingAdb')}
+                    </div>
+                    <div
+                      style={{
+                        height: 8,
+                        borderRadius: 999,
+                        background: '#eee6da',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width:
+                            adbPrep.percent != null
+                              ? `${Math.max(4, Math.min(100, adbPrep.percent))}%`
+                              : captureBusy
+                                ? '40%'
+                                : '100%',
+                          background: 'var(--dsh-accent, #0f6e56)',
+                          borderRadius: 999,
+                          transition: 'width 0.25s ease',
+                        }}
+                      />
+                    </div>
+                    {adbPrep.percent != null ? (
+                      <div style={{ marginTop: 6, fontSize: 11, color: '#6b645a' }}>
+                        {adbPrep.percent}%
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {capturePlatform === 'android' ? (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <label style={{ ...label, marginBottom: 0 }}>
+                      {t('crash.inboxWireless')}
+                      <div style={{ ...row, marginTop: 4, alignItems: 'flex-end' }}>
+                        <input
+                          style={{ ...input, flex: 1, marginBottom: 0 }}
+                          value={wirelessTarget}
+                          disabled={configDisabled || captureBusy}
+                          placeholder={t('crash.inboxWirelessPlaceholder')}
+                          onChange={(e) => setWirelessTarget(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              void connectWirelessAdb()
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          style={btn}
+                          disabled={configDisabled || captureBusy || !wirelessTarget.trim()}
+                          onClick={() => void connectWirelessAdb()}
+                        >
+                          {t('crash.inboxWirelessConnect')}
+                        </button>
+                      </div>
+                    </label>
+                    <p style={{ margin: 0, fontSize: 11, color: '#6b645a', lineHeight: 1.45 }}>
+                      {t('crash.inboxWirelessHint')}
+                    </p>
+                  </div>
+                ) : null}
+                <div style={row}>
+                  {captureActive ? (
+                    <button
+                      type="button"
+                      style={primary}
+                      disabled={captureBusy}
+                      onClick={() => void stopInboxCapture()}
+                    >
+                      {t('crash.inboxStopCapture')}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      style={primary}
+                      disabled={
+                        captureBusy ||
+                        (capturePlatform === 'ios' && !iosCaptureSupported) ||
+                        (capturePlatform === 'android' && !captureDeviceId)
+                      }
+                      onClick={() => void startInboxCapture()}
+                    >
+                      {t('crash.inboxStartCapture')}
+                    </button>
+                  )}
+                  {captureActive ? (
+                    <span style={{ fontSize: 12, color: '#3d6b4f' }}>
+                      {t('crash.inboxCapturing', { count: String(captureHitCount) })}
+                    </span>
+                  ) : null}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <button
+                    type="button"
+                    style={{ ...btn, width: '100%', textAlign: 'left', fontWeight: 600 }}
+                    onClick={() => setPasteOpen((v) => !v)}
+                  >
+                    {pasteOpen ? '▾ ' : '▸ '}
+                    {t('crash.pasteStackTitle')}
+                  </button>
+                  {pasteOpen ? (
+                    <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 12, color: '#6b645a', lineHeight: 1.45 }}>
+                        {t('crash.pasteStackHint')}
+                      </p>
+                      <textarea
+                        style={{
+                          ...input,
+                          minHeight: 72,
+                          resize: 'vertical',
+                          fontFamily: 'ui-monospace, monospace',
+                        }}
+                        value={pasteStackText}
+                        disabled={configDisabled || busy}
+                        placeholder={t('crash.pasteStackPlaceholder')}
+                        onChange={(e) => setPasteStackText(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        style={primary}
+                        disabled={configDisabled || busy || !pasteStackText.trim()}
+                        onClick={() => void analyzePastedStack()}
+                      >
+                        {busy ? t('common.loading') : t('crash.writeReproduce')}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  style={btn}
+                  disabled={configDisabled}
+                  onClick={() => void apiPost('/tracescope/v1/crash-config-save', configBody()).then(() => setHint(t('crash.credentialsSaved')))}
+                >
+                  {t('crash.saveCredentials')}
+                </button>
+              </div>
+            ) : provider === 'crashlytics' ? (
               <>
                 <label style={label}>
                   {t('crash.projectId')}
@@ -1616,6 +2238,8 @@ export function CrashBoard({
                 </label>
               </>
             )}
+            {provider !== 'local' ? (
+              <>
             <label style={{ ...row, marginBottom: 8, fontWeight: 600, cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -1633,6 +2257,8 @@ export function CrashBoard({
                 {provider === 'crashlytics' ? t('crash.clearToken') : t('crash.clearCookie')}
               </button>
             </div>
+              </>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1651,16 +2277,20 @@ export function CrashBoard({
           style={primary}
           disabled={configDisabled || listBusy}
           onClick={() => void runProbe()}
-          title={t('crash.probeHint')}
+          title={provider === 'local' ? t('crash.inboxRefreshList') : t('crash.probeHint')}
         >
-          {configBusy || listBusy ? t('common.loading') : t('crash.fetchList')}
+          {configBusy || listBusy
+            ? t('common.loading')
+            : provider === 'local'
+              ? t('crash.inboxRefreshList')
+              : t('crash.fetchList')}
         </button>
         <span style={{ color: '#6b645a', fontSize: 12, lineHeight: 1.45 }}>
-          {t('crash.fetchListHint')}
+          {provider === 'local' ? t('crash.inboxFetchHint') : t('crash.fetchListHint')}
         </span>
       </div>
 
-      {activeFilters.length ? (
+      {provider !== 'local' && activeFilters.length ? (
         <div
           style={{
             marginBottom: 10,
@@ -1978,7 +2608,12 @@ export function CrashBoard({
 
       <div style={{ marginBottom: 10 }}>
         <div style={{ ...row, justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontWeight: 600, fontSize: 12 }}>{t('crash.listTitle')}</div>
+          <div style={{ fontWeight: 600, fontSize: 12 }}>
+            {provider === 'local' ? t('crash.inboxListTitle') : t('crash.listTitle')}
+            {provider === 'local' && typeof listTotal === 'number' && !listBusy
+              ? t('crash.inboxListCount', { count: String(listTotal) })
+              : null}
+          </div>
           {listItems.length || listBusy ? (
             <div style={{ fontSize: 11, color: '#6b645a' }}>
               {typeof listTotal === 'number'
@@ -1996,7 +2631,11 @@ export function CrashBoard({
         ) : null}
         {!listBusy && !listItems.length ? (
           <p style={{ margin: 0, fontSize: 12, color: '#6b645a' }}>
-            {hasDimensionFilters ? t('crash.listEmptyFiltered') : t('crash.listEmptyHint')}
+            {provider === 'local'
+              ? t('crash.inboxListEmpty')
+              : hasDimensionFilters
+                ? t('crash.listEmptyFiltered')
+                : t('crash.listEmptyHint')}
           </p>
         ) : null}
         {listItems.length ? (
@@ -2014,13 +2653,13 @@ export function CrashBoard({
             {listItems.map((item) => {
               const active = item.id === selectedId
               return (
-                <li key={item.id}>
+                <li key={item.id} style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
                   <button
                     type="button"
                     disabled={detailBusy}
                     onClick={() => void loadDetail(item.id)}
                     style={{
-                      width: '100%',
+                      flex: 1,
                       textAlign: 'left',
                       padding: '8px 10px',
                       borderRadius: 8,
@@ -2040,6 +2679,17 @@ export function CrashBoard({
                       {t('crash.col.status')}: {statusLabel(item.status)}
                     </div>
                   </button>
+                  {provider === 'local' ? (
+                    <button
+                      type="button"
+                      style={{ ...btn, alignSelf: 'center' }}
+                      disabled={busy || detailBusy}
+                      title={t('crash.inboxDelete')}
+                      onClick={() => void deleteInboxItem(item.id)}
+                    >
+                      {t('crash.inboxDelete')}
+                    </button>
+                  ) : null}
                 </li>
               )
             })}
@@ -2094,24 +2744,36 @@ export function CrashBoard({
       ) : null}
 
       <div style={{ ...row, marginBottom: 10 }}>
-        <button type="button" style={primary} disabled={busy || detailBusy} onClick={() => void onAnalyzeClick()}>
-          {busy ? t('common.loading') : t('crash.analyze')}
+        <button
+          type="button"
+          style={primary}
+          disabled={busy || detailBusy}
+          title={t('crash.writeReproduceTitle')}
+          onClick={() => void writeSessionFor(undefined, 'reproduce')}
+        >
+          {busy && analysisKind === 'reproduce' ? t('common.loading') : t('crash.writeReproduce')}
         </button>
-        <button type="button" style={btn} disabled={busy || detailBusy} onClick={() => void onWriteSessionClick()}>
-          {t('crash.writeSession')}
+        <button
+          type="button"
+          style={btn}
+          disabled={busy || detailBusy}
+          title={t('crash.writeFixTitle')}
+          onClick={() => void writeSessionFor(undefined, 'fix')}
+        >
+          {busy && analysisKind === 'fix' ? t('common.loading') : t('crash.writeFix')}
         </button>
-        <button type="button" style={btn} disabled={busy || !report} onClick={() => void onCopyReportClick()}>
+        <button type="button" style={btn} disabled={busy || detailBusy} onClick={() => void onCopyReportClick()}>
           {t('crash.copyReport')}
         </button>
-        <button type="button" style={btn} disabled={busy || !report} onClick={onExportReportClick}>
+        <button type="button" style={btn} disabled={busy || detailBusy} onClick={() => void onExportReportClick()}>
           {t('crash.exportReport')}
         </button>
-        <button type="button" style={btn} disabled={busy || !report} onClick={onSubmitClick}>
+        <button type="button" style={btn} disabled={busy || detailBusy} onClick={() => void onSubmitClick()}>
           {t('crash.submitDefect')}
         </button>
       </div>
       <p style={{ margin: '0 0 8px', fontSize: 11, color: '#6b645a', lineHeight: 1.45 }}>
-        {t('crash.analyzeVsAiHint')}
+        {t('crash.writeSessionHintShort')}
       </p>
 
       {error ? (
@@ -2131,10 +2793,10 @@ export function CrashBoard({
               marginBottom: 8,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('crash.localSummary')}</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('crash.prepSummary')}</div>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{report.summary}</p>
             {noMatch ? (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#b54708' }}>{t('crash.noRepoMatch')}</p>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b645a' }}>{t('crash.noRepoMatch')}</p>
             ) : null}
           </div>
           {report.matchedFiles?.length ? (
@@ -2142,8 +2804,8 @@ export function CrashBoard({
               <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>{t('crash.matchedFiles')}</div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.45 }}>
                 {report.matchedFiles.map((m) => (
-                  <li key={m.path + (m.symbol || '')}>
-                    <code>{m.path}</code>
+                  <li key={m.path + (m.symbol || '') + String(m.line ?? '')}>
+                    <code>{`${m.path}${m.line != null ? `:${m.line}` : ''}`}</code>
                     {m.symbol ? ` · ${m.symbol}` : ''}
                     {m.reason ? ` — ${m.reason}` : ''}
                   </li>
@@ -2171,7 +2833,7 @@ export function CrashBoard({
                 }}
               >
                 <div style={{ fontWeight: 600 }}>
-                  {t('crash.aiSummary')}
+                  {analysisKind === 'reproduce' ? t('crash.aiReproduceSummary') : t('crash.aiSummary')}
                   <span
                     style={{
                       marginLeft: 8,
@@ -2263,45 +2925,6 @@ export function CrashBoard({
           </details>
         </div>
       ) : null}
-
-      <div style={{ borderTop: '1px solid var(--dsh-border, #ddd4c5)', paddingTop: 10 }}>
-        <button
-          type="button"
-          style={{ ...btn, width: '100%', textAlign: 'left', fontWeight: 600 }}
-          onClick={() => setPasteOpen((v) => !v)}
-        >
-          {pasteOpen ? '▾ ' : '▸ '}
-          {t('crash.pasteFallback')}
-        </button>
-        {pasteOpen ? (
-          <>
-            <label style={{ ...label, marginTop: 8 }}>
-              {t('crash.pasteLabel')}
-              <textarea
-                style={{ ...input, minHeight: 120, resize: 'vertical', fontFamily: 'ui-monospace, monospace' }}
-                value={stackText}
-                disabled={busy}
-                placeholder={t('crash.pasteLabel')}
-                onChange={(e) => {
-                  setStackText(e.target.value)
-                  setSelectedIncident(null)
-                  setSelectedId('')
-                }}
-              />
-            </label>
-            <label style={label}>
-              {t('缺陷标题')}
-              <input
-                style={input}
-                value={title}
-                disabled={busy}
-                placeholder={t('（未填写）')}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </label>
-          </>
-        ) : null}
-      </div>
     </section>
   )
 }

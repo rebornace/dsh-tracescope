@@ -2,6 +2,7 @@
  * Crash analysis subsystem public surface.
  */
 export type {
+  CrashAnalysisKind,
   CrashAnalysisReport,
   CrashFilterOption,
   CrashFilterOptions,
@@ -15,6 +16,7 @@ export type {
   CrashProviderId,
   CrashTimeRangePreset,
 } from './types.js'
+export { normalizeCrashAnalysisKind } from './types.js'
 export {
   DEFAULT_CRASH_LIST_PAGE_SIZE,
   MAX_CRASH_LIST_PAGE_SIZE,
@@ -34,6 +36,7 @@ export {
   buildCrashDefectBody,
   buildCrashDefectSubject,
   buildCrashPrompt,
+  crashAiSectionTitle,
   type CrashFeedbackMeta,
   type CrashReportParts,
 } from './feedback.js'
@@ -46,6 +49,57 @@ export {
   registerCrashProvider,
 } from './registry.js'
 export { localCrashProvider, LOCAL_CRASH_INCIDENT_ID } from './providers/local.js'
+export {
+  appendInboxIncident,
+  crashInboxDir,
+  deleteInboxIncident,
+  getInboxIncident,
+  importInboxStack,
+  listInboxIncidents,
+  type AppendInboxOptions,
+  type CrashInboxEntry,
+  type CrashInboxSource,
+} from './inbox-store.js'
+export {
+  extractAndroidLogcatHits,
+  type AndroidLogcatHit,
+  type AndroidLogcatHitKind,
+} from './capture/android-logcat-parse.js'
+export {
+  connectAdbTarget,
+  listAdbDevices,
+  startAndroidAdbCapture,
+  type AdbDevice,
+  type AndroidCaptureHandle,
+  type StartAndroidCaptureOptions,
+} from './capture/android-adb.js'
+export { connectCaptureAdbTarget } from './capture/session-manager.js'
+export {
+  clearEnsureAdbCacheForTests,
+  ensureAdb,
+  getAdbPrepProgress,
+  platformToolsDownloadUrls,
+  type AdbPrepPhase,
+  type AdbPrepProgress,
+  type EnsureAdbResult,
+} from './capture/ensure-adb.js'
+export {
+  getIosCaptureSupport,
+  listIosDevices,
+  startIosMacosCapture,
+  type IosCaptureHandle,
+  type IosCaptureSupport,
+  type IosDevice,
+  type StartIosCaptureOptions,
+} from './capture/ios-macos.js'
+export {
+  getCaptureSessionStatus,
+  listCaptureDevices,
+  startCaptureSession,
+  stopCaptureSession,
+  type CapturePlatform,
+  type CaptureSessionStatus,
+} from './capture/session-manager.js'
 export {
   UmengCrashError,
   assertUmengEnvelopeCode,

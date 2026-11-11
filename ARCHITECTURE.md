@@ -30,8 +30,8 @@ DSH plugin’s unique value is **embedding inside DeepSeek Harness** (composer f
 | Publish rematch picks | `tracescope_publish_page_rematch` | tool |
 | Embedded in product chrome | — | Right sidebar tab (`dsh.client`) |
 | Self-update (npm check / install) | — | Host `/tracescope/v1/self-update/check` + client seats (detail Update / sidebar); no MCP |
-| Crash analysis (Umeng / Crashlytics) | MCP crash tools via `agent-api` (probe / list / detail / analyze / job / publish) | Sidebar + `/tracescope/v1/crash-*` + Host tool `tracescope_publish_crash_analysis`; providers in `@rebornace/tracescope-core` |
-| Crash USB / browser extension | future MCP tools | future Host/Client surfaces |
+| Crash analysis (local crash capture / Umeng / Crashlytics) | MCP crash + capture tools via `agent-api` | Sidebar + `/tracescope/v1/crash-*` (+ `crash-inbox-*`) + Host tool `tracescope_publish_crash_analysis`; providers in `@rebornace/tracescope-core` |
+| Browser extension recording | future | scaffold only (`packages/browser-extension`) |
 
 ## Crash providers
 
@@ -39,9 +39,9 @@ Crash list/detail/analyze runs on `/tracescope/v1/crash-*` (DSH Host and MCP sta
 
 | Provider | Auth | List | Notes |
 |----------|------|------|--------|
-| `umeng` | Console cookie | U-APM Console XHR | China; cookie expiry → paste-stack |
+| `local` | None (local capture store) | `~/.tracescope/crash-inbox/shared/` (+ legacy per-repo hash dirs read for compat) | Test-time USB capture (Android adb; iOS macOS-only) + paste stack; never uploads to APM |
+| `umeng` | Console cookie | U-APM Console XHR | China; cookie expiry → refresh credentials |
 | `crashlytics` | User access token (prefer live `gcloud auth print-access-token`) or service-account JWT | Firebase Crashlytics REST `v1alpha` `reports/topIssues` | User tokens need `x-goog-user-project`; proxy-aware fetch; SA support for full reports is incomplete upstream |
-| `local` | Pasted `stackText` | — | Fallback when remote credentials fail |
 
 New backends plug in by implementing `CrashProvider` and registering in the crash registry — **horizontal extension**, not a single-vendor fork. The same pattern applies to collaboration trackers (`TrackerAdapter` in `packages/core/src/tracker/`) and design sources (`design/sources/*` → `DesignDoc`). Product roadmap and feedback: [docs/GUIDE.md §11](./docs/GUIDE.md#11-路线图与扩展计划).
 
@@ -96,6 +96,6 @@ The Host does **not** auto-draw Update for third-party bundles; TraceScope regis
 
 - Splitting remaining mega-files (design adapters) — high churn / risk; do in dedicated refactors.
 - Harness composer injection / plugin self-update inside the MCP standalone panel (clipboard bridge instead).
-- Scaffold packages `adapters/*` and `browser-extension` — out of 0.2.x delivery scope.
+- Scaffold package `browser-extension` — not in current npm delivery (local USB inbox is shipped instead for test-time crashes).
 
 Product-facing limits and enrichment status: [docs/GUIDE.md](./docs/GUIDE.md) / [docs/GUIDE.en.md](./docs/GUIDE.en.md).

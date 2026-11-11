@@ -16,14 +16,23 @@ import { createCrashAnalysisJob } from '../agent-api.js'
 import {
   analyzeCrashTool,
   clearCrashAiCache,
+  connectCrashAdbTarget,
+  crashAdbPrepStatus,
+  crashCaptureStatus,
+  deleteCrashInboxItem,
+  ensureCrashAdb,
   getCrashIncident,
   getCrashJobStatus,
+  importCrashInboxStack,
+  listCrashCaptureDevices,
   listCrashFilterOptions,
   listCrashIncidents,
   loadCrashAiCache,
   parseCrashMeta,
   probeCrash,
   saveCrashAiCache,
+  startCrashCapture,
+  stopCrashCapture,
 } from '../services/crash-flow.js'
 
 function parseProviderId(raw: unknown, fallback: CrashProviderConfig['provider']): CrashProviderConfig['provider'] {
@@ -200,6 +209,60 @@ export function registerCrashRoutes(ctx: Context) {
     path: '/tracescope/v1/crash-job',
     method: 'POST',
     run: async (body, { lang }) => getCrashJobStatus({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-adb-status',
+    method: 'POST',
+    run: async (body, { lang }) => crashAdbPrepStatus({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-adb-ensure',
+    method: 'POST',
+    run: async (body, { lang }) => ensureCrashAdb({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-adb-connect',
+    method: 'POST',
+    run: async (body, { lang }) => connectCrashAdbTarget({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-devices',
+    method: 'POST',
+    run: async (body, { lang }) => listCrashCaptureDevices({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-capture-start',
+    method: 'POST',
+    run: async (body, { lang }) => startCrashCapture({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-capture-stop',
+    method: 'POST',
+    run: async (body, { lang }) => stopCrashCapture({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-capture-status',
+    method: 'POST',
+    run: async (body, { lang }) => crashCaptureStatus({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-import',
+    method: 'POST',
+    run: async (body, { lang }) => importCrashInboxStack({ ...asRecord(body), lang }),
+  })
+
+  registerRoute(ctx, {
+    path: '/tracescope/v1/crash-inbox-delete',
+    method: 'POST',
+    run: async (body, { lang }) => deleteCrashInboxItem({ ...asRecord(body), lang }),
   })
 }
 

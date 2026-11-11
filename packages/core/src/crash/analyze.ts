@@ -7,7 +7,13 @@ import {
 import { matchStackToRepo } from './match-repo.js'
 import { parseStackText } from './parse-stack.js'
 import { resolveExceptionName } from './resolve-exception.js'
-import type { CrashAnalysisReport, CrashIncident, CrashMatchedFile } from './types.js'
+import {
+  normalizeCrashAnalysisKind,
+  type CrashAnalysisKind,
+  type CrashAnalysisReport,
+  type CrashIncident,
+  type CrashMatchedFile,
+} from './types.js'
 
 const DEFAULT_MATCH_LIMIT = 10
 
@@ -16,6 +22,7 @@ export interface AnalyzeCrashOptions {
   repoPath: string
   lang?: FeedbackLang | string
   matchLimit?: number
+  analysisKind?: CrashAnalysisKind
 }
 
 function buildSummary(
@@ -43,10 +50,11 @@ function buildSummary(
   const topFrame = matchedFiles[0]
   if (topFrame) {
     const hint = topFrame.symbol ? ` (${topFrame.symbol})` : ''
+    const line = topFrame.line != null ? `:${topFrame.line}` : ''
     parts.push(
       t === 'zh'
-        ? `\u9996\u5e27\u547d\u4e2d ${topFrame.path}${hint}`
-        : `top frame matched ${topFrame.path}${hint}`,
+        ? `\u9996\u5e27\u547d\u4e2d ${topFrame.path}${line}${hint}`
+        : `top frame matched ${topFrame.path}${line}${hint}`,
     )
   } else {
     parts.push(noMatch)
@@ -61,20 +69,21 @@ function buildFixHints(
   if (!matchedFiles.length) {
     return lang === 'zh'
       ? [
-          '\u68c0\u67e5\u5806\u6808\u9876\u90e8\u5e27\u5bf9\u5e94\u7684\u6e90\u7801\u6587\u4ef6\u662f\u5426\u5728\u5f53\u524d\u4ed3\u5e93\u4e2d',
+          '\u4ee5\u5b8c\u6574\u5806\u6808\u4e3a\u51c6\uff0c\u5728\u4ed3\u5e93\u4e2d\u641c\u7d22\u76f8\u5173\u7c7b\u540d/\u65b9\u6cd5\u540d',
           '\u786e\u8ba4\u7248\u672c/\u6784\u5efa\u53f7\u4e0e\u672c\u5730\u4ee3\u7801\u4e00\u81f4',
         ]
       : [
-          'Verify the source files for the top stack frames exist in this repository',
+          'Use the full stack to search the repo for related class/method names',
           'Confirm the app version/build matches the checked-out code',
         ]
   }
   const hints: string[] = []
   for (const hit of matchedFiles.slice(0, 3)) {
+    const line = hit.line != null ? `:${hit.line}` : ''
     hints.push(
       lang === 'zh'
-        ? `\u9605\u8bfb \`${hit.path}\`${hit.symbol ? ` \u4e2d\u7684 ${hit.symbol}` : ''}`
-        : `Review \`${hit.path}\`${hit.symbol ? ` around ${hit.symbol}` : ''}`,
+        ? `\u9605\u8bfb \`${hit.path}${line}\`${hit.symbol ? ` \u4e2d\u7684 ${hit.symbol}` : ''}`
+        : `Review \`${hit.path}${line}\`${hit.symbol ? ` around ${hit.symbol}` : ''}`,
     )
   }
   hints.push(
@@ -85,7 +94,7 @@ function buildFixHints(
   return hints
 }
 
-/** Parse stack, match repo files, and build bilingual prompt/defect body. */
+/** Parse stack, soft-match repo files when possible, and build bilingual prompt/defect body. */
 export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashAnalysisReport> {
   const lang = normalizeFeedbackLang(options.lang)
   const stackText = options.incident.stackText
@@ -96,6 +105,7 @@ export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashA
     path: h.path,
     reason: h.reason,
     symbol: h.symbol,
+    line: h.line,
   }))
   const exceptionName = resolveExceptionName(options.incident, {
     parsedExceptionName: parsed.exceptionName,
@@ -103,6 +113,7 @@ export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashA
   })
   const summary = buildSummary(options.incident, exceptionName, matchedFiles, lang)
   const fixHints = buildFixHints(matchedFiles, lang)
+  const analysisKind = normalizeCrashAnalysisKind(options.analysisKind ?? 'fix')
   const reportParts = {
     repoPath: options.repoPath,
     summary,
@@ -110,6 +121,7 @@ export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashA
     fixHints,
     stackText,
     incident: options.incident,
+    analysisKind,
   }
   return {
     incident: options.incident,
@@ -124,6 +136,7 @@ export async function analyzeCrash(options: AnalyzeCrashOptions): Promise<CrashA
       fixHints,
       repoPath: options.repoPath,
       lang,
+      analysisKind,
     }),
   }
 }

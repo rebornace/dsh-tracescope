@@ -2104,29 +2104,38 @@ window.__TRACESCOPE_STANDALONE__=true;
         "common.confirm": "确认",
         "common.copy": "复制",
         "common.loading": "加载中…",
-        "crash.analyze": "本地分析",
-        "crash.analyzeLocalHint": "已完成本地堆栈匹配（未调用 AI）。需要模型结论请点「分析并写入会话」，再把 AI 回复粘贴回写。",
-        "crash.analyzeVsAiHint": "「本地分析」只做堆栈解析与仓库文件匹配；「分析并写入会话」会创建任务并把提示词交给 AI。Agent 应调用 tracescope_publish_crash_analysis，侧栏自动回写结论。",
+        "crash.writeSessionHintShort": "点开崩溃后：优先「输出复现方式」（给开发沟通用）；需要改代码时再点「定位并修复」。都会静默整理堆栈并写入会话；Agent 调用 tracescope_publish_crash_analysis 后侧栏回写。",
+        "crash.writeSessionNoComposer": "已完成本地整理，但当前没有可写入的会话输入框。可复制报告，或在 DeepSeek Harness 会话里再试。",
+        "crash.writeReproduce": "输出复现方式",
+        "crash.writeReproduceTitle": "整理可复现步骤，便于与开发沟通（不写根因/修复）",
+        "crash.writeReproduceHint": "复现方式提示词已写入会话。请发送；Agent 写回后侧栏显示「复现方式」。",
+        "crash.writeReproduceCachedHint": "本条已有缓存的复现方式。继续将再次调用模型并覆盖该缓存。",
+        "crash.writeFix": "定位并修复",
+        "crash.writeFixTitle": "定位根因并给出最小修复建议",
+        "crash.writeFixHint": "定位修复提示词已写入会话。请发送；Agent 写回后侧栏显示根因/影响/修复建议。",
+        "crash.writeFixCachedHint": "本条已有缓存的修复结论。继续将再次调用模型并覆盖该缓存。",
         "crash.aiApply": "回写 AI 结论",
         "crash.aiApplied": "已将 AI 结论写入本条崩溃报告（并已保存到本机，下次分析可复用）",
+        "crash.aiReproduceApplied": "已将复现方式写入本条报告（并已保存到本机）",
         "crash.aiCachedBadge": "本机缓存",
-        "crash.aiCacheCleared": "已清除本机 AI 结论缓存；再次「分析并写入会话」将重新调用模型",
-        "crash.aiRestoredFromCache": "已从本机恢复上次 AI 结论（未调用模型）。若要重新分析请点「分析并写入会话」；可点「清除 AI 缓存」后重来。",
+        "crash.aiCacheCleared": "已清除本机 AI 结论缓存；再次写入会话将重新调用模型",
+        "crash.aiRestoredFromCache": "已从本机恢复上次 AI 结论（未调用模型）。若要重新分析请再点对应写入按钮；可点「清除 AI 缓存」后重来。",
         "crash.clearAiCache": "清除 AI 缓存",
-        "crash.writeSessionCachedHint": "本条已有缓存的 AI 结论。继续「分析并写入会话」会再次调用模型并覆盖缓存。",
-        "crash.aiJobFail": "创建崩溃分析任务失败，请重试「分析并写入会话」",
+        "crash.writeSessionCachedHint": "本条已有缓存的 AI 结论。继续写入会话会再次调用模型并覆盖缓存。",
+        "crash.aiJobFail": "创建崩溃分析任务失败，请重试",
         "crash.aiJobNotReady": "AI 尚未通过工具写回结论。请确认会话中已调用 tracescope_publish_crash_analysis，或粘贴回复后再点回写。",
         "crash.aiJobPending": "AI 仍在分析中，写回任务尚未完成。完成后会自动回写；也可稍后再点「回写 AI 结论」。",
-        "crash.aiJobTimeout": "等待 AI 写回超时。可粘贴会话回复后点「回写 AI 结论」，或重新「分析并写入会话」。",
+        "crash.aiJobTimeout": "等待 AI 写回超时。可粘贴会话回复后点「回写 AI 结论」，或重新写入会话。",
         "crash.aiJobWaiting": "等待 AI 工具写回…",
         "crash.aiClipboardFail": "无法读取剪贴板，请手动粘贴 AI 回复",
         "crash.aiEdit": "编辑 AI 结论",
         "crash.aiFromClipboard": "从剪贴板粘贴并回写",
-        "crash.aiPasteHint": "点「分析并写入会话」后，请在会话中发送提示词；AI 应调用 tracescope_publish_crash_analysis，侧栏会自动回写。若未自动回写：点「回写 AI 结论」拉取，或粘贴回复后再点回写。",
-        "crash.aiPastePlaceholder": "粘贴 AI 回复（根因、影响、修复建议…）",
+        "crash.aiPasteHint": "写入会话并发送后，AI 应调用 tracescope_publish_crash_analysis，侧栏会自动回写。若未自动回写：点「回写 AI 结论」拉取，或粘贴回复后再点回写。",
+        "crash.aiPastePlaceholder": "粘贴 AI 回复（复现步骤，或根因/影响/修复…）",
         "crash.aiPasteRequired": "请先粘贴 AI 回复内容",
         "crash.aiPasteTitle": "回写 AI 结论",
         "crash.aiSummary": "AI 分析结论",
+        "crash.aiReproduceSummary": "复现方式",
         "crash.applyFilters": "应用筛选并查询",
         "crash.appDisplayName": "应用名称",
         "crash.appDisplayNamePlaceholder": "例如：CPP iOS / 线上 Android",
@@ -2144,7 +2153,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.col.version": "版本",
         "crash.cookie": "控制台 Cookie",
         "crash.cookieCleared": "已清除已保存的 Cookie",
-        "crash.cookieExpired": "Cookie 已失效，请更新凭证或使用下方粘贴堆栈降级",
+        "crash.cookieExpired": "Cookie 已失效，请更新凭证后重新拉取列表",
         "crash.cookieHint": "请在 apm.umeng.com 崩溃列表页复制 Cookie（需含 EGG_SESS）；仅读取您已登录后可查看的数据，凭证存本机并镜像到全局。",
         "crash.cookiePlaceholder": "从 apm.umeng.com DevTools 复制 Cookie",
         "crash.credentialsSaved": "凭证已保存",
@@ -2187,23 +2196,21 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.filtersCollapsedHint": "点击展开筛选（默认折叠，少占空间）",
         "crash.filtersDirty": "筛选条件已修改，点击右侧按钮后才会重新查询",
         "crash.filtersIdle": "修改条件后需点击「应用筛选并查询」才会请求数据",
-        "crash.listEmpty": "暂无列表数据（请先保存凭证并自检，或 Cookie 失效时使用粘贴降级）",
+        "crash.listEmpty": "暂无列表数据（请先保存凭证并拉取列表）",
         "crash.listEmptyFiltered": "当前筛选无匹配（友盟按「版本∩系统∩机型」并且关系过滤）。请先去掉系统/机型只留版本，或每维少选几项后再查；不选维度=全部。",
-        "crash.listEmptyHint": "暂无列表数据。请先保存凭证，再点「应用筛选并查询」或「刷新列表」；也可点「自检」拉取。Cookie 失效时可用下方粘贴堆栈。",
+        "crash.listEmptyHint": "暂无列表数据。请先保存凭证，再点「应用筛选并查询」或「刷新列表」；也可点「拉取列表」。",
         "crash.listLoading": "正在加载崩溃列表…",
         "crash.listTitle": "崩溃列表",
-        "crash.localSummary": "本地分析摘要",
-        "crash.matchedFiles": "相关文件",
+        "crash.prepSummary": "准备摘要（仅供参考）",
+        "crash.matchedFiles": "可能相关的文件（仅供参考）",
         "crash.mode": "崩溃分析",
-        "crash.needAnalyzeFirst": "请先点击「本地分析」",
+        "crash.needAnalyzeFirst": "请先点开崩溃并「分析并写入会话」",
         "crash.nextPage": "下一页",
-        "crash.noRepoMatch": "未在仓库中匹配到堆栈引用的源文件（常见于系统库/符号化不全的 iOS 堆栈）；仍可写入会话让 AI 分析，或粘贴完整业务堆栈。",
+        "crash.noRepoMatch": "未自动命中仓库文件（不影响继续）。可直接「分析并写入会话」，让 AI 按完整堆栈排查。",
         "crash.pageStatus": "第 {page} 页",
         "crash.pageStatusTotal": "第 {page}/{totalPages} 页 · 共 {total} 条",
         "crash.prevPage": "上一页",
-        "crash.pasteFallback": "粘贴堆栈（Cookie 失效降级）",
-        "crash.pasteLabel": "粘贴崩溃堆栈",
-        "crash.pasteRequired": "请先粘贴崩溃堆栈",
+        "crash.selectDetailFirst": "请先在列表中点开一条崩溃，再分析",
         "crash.probe": "拉取列表",
         "crash.probeFail": "拉取失败：请检查凭证、网络，以及是否已启用 Crashlytics API",
         "crash.probeOk": "已拉取崩溃列表",
@@ -2212,8 +2219,46 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.fetchListHint": "凭证保存后可随时点此拉取；展开上方「配置」可改凭证，展开「过滤」可改条件后再拉",
         "crash.promptPreview": "会话提示词预览",
         "crash.provider": "数据源",
+        "crash.providerLocal": "本机崩溃采集",
         "crash.providerUmeng": "友盟 U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
+        "crash.inboxConfig": "本机崩溃采集",
+        "crash.inboxHint": "测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。",
+        "crash.inboxCapturePlatform": "采集平台",
+        "crash.inboxPlatformAndroid": "Android（adb）",
+        "crash.inboxPlatformIos": "iOS（仅 macOS）",
+        "crash.inboxDevice": "设备",
+        "crash.inboxDeviceNone": "未选择设备",
+        "crash.inboxRefreshDevices": "刷新设备",
+        "crash.inboxPreparingAdb": "正在准备 Android 采集工具（首次可能自动下载，约 10–30 秒）…",
+        "crash.inboxAdbReady": "已自动准备 adb，可刷新设备",
+        "crash.inboxAdbDownloaded": "已下载 Android platform-tools 到本机缓存",
+        "crash.inboxAdbPrepareFail": "自动准备 Android 采集工具失败。可开系统代理后重试，或改用下方「已有堆栈？直接分析」。",
+        "crash.inboxAdbProgressTitle": "Android 采集工具",
+        "crash.inboxWireless": "无线调试（HarmonyOS / 华为 USB 经常卡 HDB 时可用）",
+        "crash.inboxWirelessPlaceholder": "例如 192.168.1.8:5555",
+        "crash.inboxWirelessConnect": "连接",
+        "crash.inboxWirelessHint": "手机与电脑同一 Wi‑Fi。开发者选项打开「无线调试」后查看 IP:端口；或先用 USB 执行过 adb tcpip 5555。",
+        "crash.inboxStartCapture": "开始录制",
+        "crash.inboxStopCapture": "停止录制",
+        "crash.inboxCapturing": "录制中 · 已捕获 {count} 条",
+        "crash.inboxCaptureStarted": "已开始本机崩溃录制",
+        "crash.inboxCaptureStopped": "已停止录制；列表已刷新",
+        "crash.inboxCaptureFail": "启动录制失败",
+        "crash.inboxNeedDevice": "请先选择一台 Android 设备",
+        "crash.inboxIosUnsupported": "当前系统不支持 iOS USB 采集（需 macOS + libimobiledevice）",
+        "crash.pasteStackTitle": "已有堆栈？直接分析",
+        "crash.pasteStackHint": "粘贴堆栈或 .crash / .ips 后直接「输出复现方式」写入会话，不必先录制。",
+        "crash.pasteStackPlaceholder": "粘贴堆栈或 .crash / .ips 文本内容",
+        "crash.pasteStackRequired": "请先粘贴堆栈文本",
+        "crash.pasteStackReady": "已载入粘贴堆栈，正在输出复现方式…",
+        "crash.inboxRefreshList": "刷新列表",
+        "crash.inboxFetchHint": "进入本机崩溃采集会自动加载已捕获记录；也可手动刷新。录制中会自动追加。",
+        "crash.inboxListRefreshed": "已刷新本机崩溃列表",
+        "crash.inboxListTitle": "已捕获崩溃",
+        "crash.inboxListCount": " · {count} 条",
+        "crash.inboxListEmpty": "还没有捕获记录。开始 USB 录制，或用上方「已有堆栈？直接分析」。",
+        "crash.inboxDelete": "删除",
         "crash.crashlyticsConfig": "Crashlytics 配置",
         "crash.crashlyticsHint": "填写 Firebase 项目 ID（或项目编号）与 App ID。推荐粘贴 Access Token（gcloud auth print-access-token）；服务账号常无法读取 topIssues 完整报告。若用服务账号：① 启用 Firebase Crashlytics API；② IAM 授予「Firebase Crashlytics Viewer」。国内需代理（自动读系统代理 / HTTPS_PROXY）。勾选「记住凭证」可持久化到本机。",
         "crash.projectId": "Firebase 项目 ID / 编号",
@@ -2225,7 +2270,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.serviceAccountJson": "服务账号 JSON（可选）",
         "crash.serviceAccountJsonPlaceholder": "粘贴完整 service account JSON；与 Token 二选一即可",
         "crash.serviceAccountSaved": "本机已保存服务账号（显示为掩码；无需重复粘贴）",
-        "crash.tokenExpired": "Access Token 已失效（约 1 小时）。请执行 gcloud auth print-access-token 获取新 token 并保存；若本机已 gcloud login，重新加载插件后会自动刷新。也可改用下方粘贴堆栈分析",
+        "crash.tokenExpired": "Access Token 已失效（约 1 小时）。请执行 gcloud auth print-access-token 获取新 token 并保存；若本机已 gcloud login，重新加载插件后会自动刷新。",
         "crash.tokenCleared": "已清除本地保存的 Crashlytics 凭证",
         "crash.clearToken": "清除已保存凭证",
         "crash.refreshList": "刷新列表",
@@ -2247,8 +2292,8 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.timeRange.all": "近 7 天（默认）",
         "crash.timeRange.custom": "自定义",
         "crash.umengConfig": "友盟配置",
-        "crash.writeSession": "分析并写入会话",
-        "crash.writeSessionHint": "提示词（含任务 ID）已写入会话输入框。请发送给 AI；完成后 Agent 调用 tracescope_publish_crash_analysis，侧栏会自动回写结论。若未自动回写可点「回写 AI 结论」或粘贴回复。",
+        "crash.writeSession": "输出复现方式",
+        "crash.writeSessionHint": "提示词（含任务 ID）已写入会话输入框。请发送给 AI；完成后 Agent 调用 tracescope_publish_crash_analysis，侧栏会自动回写。若未自动回写可点「回写 AI 结论」或粘贴回复。",
         "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。",
         "diff.board.aiAnalyze": "AI 协助分析",
         "diff.board.badge.ai": "AI 确权",
@@ -3498,29 +3543,38 @@ window.__TRACESCOPE_STANDALONE__=true;
         "common.confirm": "Confirm",
         "common.copy": "Copy",
         "common.loading": "Loading…",
-        "crash.analyze": "Local analyze",
-        "crash.analyzeLocalHint": "Local stack matching done (no AI call). For model conclusions, use Analyze & write to session, then paste the reply back.",
-        "crash.analyzeVsAiHint": "Local analyze only parses the stack and matches repo files. Analyze & write to session sends a job prompt to AI; the agent should call tracescope_publish_crash_analysis so the sidebar auto-writes back.",
+        "crash.writeSessionHintShort": "Open a crash, then prefer Write reproduce steps (for teammates). Use Locate & fix when you need a code change. Both prep the stack and fill the composer; the agent should call tracescope_publish_crash_analysis for write-back.",
+        "crash.writeSessionNoComposer": "Local prep is ready, but there is no session composer to fill. Copy the report, or retry inside a DeepSeek Harness session.",
+        "crash.writeReproduce": "Write reproduce steps",
+        "crash.writeReproduceTitle": "Reproduction steps for teammates — no root cause / fix",
+        "crash.writeReproduceHint": "Reproduce-steps prompt filled. Send it; after the agent publishes, the sidebar shows Reproduction steps.",
+        "crash.writeReproduceCachedHint": "This issue already has cached reproduce steps. Continue to call the model again and overwrite that cache.",
+        "crash.writeFix": "Locate & fix",
+        "crash.writeFixTitle": "Root cause and minimal fix suggestions",
+        "crash.writeFixHint": "Locate & fix prompt filled. Send it; after the agent publishes, the sidebar shows root cause / impact / fix.",
+        "crash.writeFixCachedHint": "This issue already has a cached fix conclusion. Continue to call the model again and overwrite that cache.",
         "crash.aiApply": "Apply AI reply",
         "crash.aiApplied": "AI reply saved into this crash report (persisted locally for reuse)",
+        "crash.aiReproduceApplied": "Reproduction steps saved into this report (persisted locally)",
         "crash.aiCachedBadge": "Cached locally",
-        "crash.aiCacheCleared": "Cleared local AI cache; Analyze & write to session will call the model again",
-        "crash.aiRestoredFromCache": "Restored the previous AI conclusion from local cache (no model call). Use Analyze & write to session to re-run; or Clear AI cache first.",
+        "crash.aiCacheCleared": "Cleared local AI cache; writing to session will call the model again",
+        "crash.aiRestoredFromCache": "Restored the previous AI conclusion from local cache (no model call). Re-run the matching write button, or Clear AI cache first.",
         "crash.clearAiCache": "Clear AI cache",
-        "crash.writeSessionCachedHint": "This issue already has a cached AI conclusion. Continue Analyze & write to session to call the model again and overwrite the cache.",
-        "crash.aiJobFail": "Could not create the crash analysis job — retry Analyze & write to session",
+        "crash.writeSessionCachedHint": "This issue already has a cached AI conclusion. Continue writing to session to call the model again and overwrite the cache.",
+        "crash.aiJobFail": "Could not create the crash analysis job — retry",
         "crash.aiJobNotReady": "AI has not published via the tool yet. Confirm tracescope_publish_crash_analysis was called, or paste the reply and apply.",
         "crash.aiJobPending": "AI is still analyzing; write-back is pending. It will apply automatically, or click Apply AI reply again later.",
-        "crash.aiJobTimeout": "Timed out waiting for AI write-back. Paste the session reply and click Apply AI reply, or restart Analyze & write to session.",
+        "crash.aiJobTimeout": "Timed out waiting for AI write-back. Paste the session reply and click Apply AI reply, or write to session again.",
         "crash.aiJobWaiting": "Waiting for AI tool write-back…",
         "crash.aiClipboardFail": "Could not read clipboard — paste the AI reply manually",
         "crash.aiEdit": "Edit AI reply",
         "crash.aiFromClipboard": "Paste clipboard & apply",
-        "crash.aiPasteHint": "After Analyze & write to session, send the prompt in chat. The agent should call tracescope_publish_crash_analysis for auto write-back. If not: click Apply AI reply to pull, or paste the reply first.",
-        "crash.aiPastePlaceholder": "Paste AI reply (root cause, impact, fix…)",
+        "crash.aiPasteHint": "After writing to session and sending, the agent should call tracescope_publish_crash_analysis for auto write-back. If not: click Apply AI reply to pull, or paste the reply first.",
+        "crash.aiPastePlaceholder": "Paste AI reply (reproduce steps, or root cause / impact / fix…)",
         "crash.aiPasteRequired": "Paste the AI reply first",
         "crash.aiPasteTitle": "Write back AI reply",
         "crash.aiSummary": "AI analysis",
+        "crash.aiReproduceSummary": "Reproduction steps",
         "crash.applyFilters": "Apply filters & search",
         "crash.appDisplayName": "App name",
         "crash.appDisplayNamePlaceholder": "e.g. CPP iOS / Prod Android",
@@ -3538,7 +3592,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.col.version": "Version",
         "crash.cookie": "Console cookie",
         "crash.cookieCleared": "Saved cookie cleared",
-        "crash.cookieExpired": "Cookie expired — update credentials or paste a stack below",
+        "crash.cookieExpired": "Cookie expired — update credentials and fetch the list again",
         "crash.cookieHint": "Copy Cookie from the crash list on apm.umeng.com (needs EGG_SESS). Credentials stay on this machine and are mirrored globally.",
         "crash.cookiePlaceholder": "Paste Cookie from apm.umeng.com DevTools",
         "crash.credentialsSaved": "Credentials saved",
@@ -3581,23 +3635,21 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.filtersCollapsedHint": "Click to expand filters (collapsed by default)",
         "crash.filtersDirty": "Filters changed — click the button to search again",
         "crash.filtersIdle": "Edit filters, then click Apply filters & search to fetch",
-        "crash.listEmpty": "No crashes listed (save credentials and run probe, or paste a stack if cookie failed)",
+        "crash.listEmpty": "No crashes listed (save credentials and fetch the list)",
         "crash.listEmptyFiltered": "No matches for this filter (Umeng ANDs version ∩ OS ∩ device). Try version only, or fewer values per dimension; leave a dimension empty for “all”.",
-        "crash.listEmptyHint": "No list data yet. Save credentials, then Apply filters & search or Refresh list (or Probe). If the cookie failed, paste a stack below.",
+        "crash.listEmptyHint": "No list data yet. Save credentials, then Apply filters & search or Refresh list (or Fetch list).",
         "crash.listLoading": "Loading crash list…",
         "crash.listTitle": "Crash list",
-        "crash.localSummary": "Local analysis summary",
-        "crash.matchedFiles": "Matched files",
+        "crash.prepSummary": "Prep summary (hints only)",
+        "crash.matchedFiles": "Possible related files (hints only)",
         "crash.mode": "Crash analysis",
-        "crash.needAnalyzeFirst": "Run Local analyze first",
+        "crash.needAnalyzeFirst": "Open a crash and use Analyze & write to session first",
         "crash.nextPage": "Next",
-        "crash.noRepoMatch": "No stack-referenced source files matched in the repo (common for system frames / incomplete iOS symbolication). You can still write to session for AI, or paste a fuller app stack.",
+        "crash.noRepoMatch": "No automatic file match (that is fine). Use Analyze & write to session and let the AI work from the full stack.",
         "crash.pageStatus": "Page {page}",
         "crash.pageStatusTotal": "Page {page}/{totalPages} · {total} total",
         "crash.prevPage": "Previous",
-        "crash.pasteFallback": "Paste stack (fallback)",
-        "crash.pasteLabel": "Paste crash stack trace",
-        "crash.pasteRequired": "Paste a crash stack trace first",
+        "crash.selectDetailFirst": "Open a crash from the list before analyzing",
         "crash.probe": "Fetch list",
         "crash.probeFail": "Fetch failed — check credentials, network, and that Crashlytics API is enabled",
         "crash.probeOk": "Crash list loaded",
@@ -3606,8 +3658,46 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.fetchListHint": "Fetch anytime after credentials are saved. Expand Settings to edit credentials; expand Filters to change query options",
         "crash.promptPreview": "Session prompt preview",
         "crash.provider": "Provider",
+        "crash.providerLocal": "Local crash capture",
         "crash.providerUmeng": "Umeng U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
+        "crash.inboxConfig": "Local crash capture",
+        "crash.inboxHint": "Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh.",
+        "crash.inboxCapturePlatform": "Capture platform",
+        "crash.inboxPlatformAndroid": "Android (adb)",
+        "crash.inboxPlatformIos": "iOS (macOS only)",
+        "crash.inboxDevice": "Device",
+        "crash.inboxDeviceNone": "No device selected",
+        "crash.inboxRefreshDevices": "Refresh devices",
+        "crash.inboxPreparingAdb": "Preparing Android capture tools (first download may take 10–30s)…",
+        "crash.inboxAdbReady": "adb is ready — refresh devices",
+        "crash.inboxAdbDownloaded": "Downloaded Android platform-tools into local cache",
+        "crash.inboxAdbPrepareFail": "Could not prepare Android capture tools. Retry with a system proxy, or use “Paste stack → analyze” below.",
+        "crash.inboxAdbProgressTitle": "Android capture tools",
+        "crash.inboxWireless": "Wireless debugging (use when Huawei USB stays on HDB)",
+        "crash.inboxWirelessPlaceholder": "e.g. 192.168.1.8:5555",
+        "crash.inboxWirelessConnect": "Connect",
+        "crash.inboxWirelessHint": "Phone and PC on the same Wi‑Fi. Enable Wireless debugging and copy IP:port, or run adb tcpip 5555 once over USB.",
+        "crash.inboxStartCapture": "Start capture",
+        "crash.inboxStopCapture": "Stop capture",
+        "crash.inboxCapturing": "Capturing · {count} hit(s)",
+        "crash.inboxCaptureStarted": "Local crash capture started",
+        "crash.inboxCaptureStopped": "Capture stopped; list refreshed",
+        "crash.inboxCaptureFail": "Failed to start capture",
+        "crash.inboxNeedDevice": "Select an Android device first",
+        "crash.inboxIosUnsupported": "iOS USB capture needs macOS + libimobiledevice",
+        "crash.pasteStackTitle": "Paste stack → analyze",
+        "crash.pasteStackHint": "Paste a stack or .crash / .ips and Write reproduce steps directly — no need to record first.",
+        "crash.pasteStackPlaceholder": "Paste stack or .crash / .ips file contents",
+        "crash.pasteStackRequired": "Paste stack text first",
+        "crash.pasteStackReady": "Pasted stack loaded — writing reproduce steps…",
+        "crash.inboxRefreshList": "Refresh list",
+        "crash.inboxFetchHint": "Captured crashes load automatically when you open this source; you can still refresh manually. New hits append while recording.",
+        "crash.inboxListRefreshed": "Local crash list refreshed",
+        "crash.inboxListTitle": "Captured crashes",
+        "crash.inboxListCount": " · {count}",
+        "crash.inboxListEmpty": "No captures yet. Start USB recording, or use “Paste stack → analyze” above for text you already have.",
+        "crash.inboxDelete": "Delete",
         "crash.crashlyticsConfig": "Crashlytics settings",
         "crash.crashlyticsHint": "Enter the Firebase project ID (or project number) and App ID. Prefer an access token (gcloud auth print-access-token); service accounts often cannot read full topIssues reports. If using a service account: (1) enable Firebase Crashlytics API; (2) grant Firebase Crashlytics Viewer in IAM. System proxy / HTTPS_PROXY is used automatically. Enable “Remember credentials” to persist on this machine.",
         "crash.projectId": "Firebase project ID / number",
@@ -3619,7 +3709,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.serviceAccountJson": "Service account JSON (optional)",
         "crash.serviceAccountJsonPlaceholder": "Paste the full service-account JSON; use this or an access token",
         "crash.serviceAccountSaved": "Service account saved on this device (shown masked; no need to paste again)",
-        "crash.tokenExpired": "Access token expired (~1h). Run gcloud auth print-access-token, paste the new token, and save. If gcloud is already logged in, reload the plugin to auto-refresh. Or analyze with a pasted stack below",
+        "crash.tokenExpired": "Access token expired (~1h). Run gcloud auth print-access-token, paste the new token, and save. If gcloud is already logged in, reload the plugin to auto-refresh.",
         "crash.tokenCleared": "Cleared saved Crashlytics credentials",
         "crash.clearToken": "Clear saved credentials",
         "crash.refreshList": "Refresh list",
@@ -3641,7 +3731,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.timeRange.all": "Last 7 days (default)",
         "crash.timeRange.custom": "Custom",
         "crash.umengConfig": "Umeng (U-APM)",
-        "crash.writeSession": "Analyze & write to session",
+        "crash.writeSession": "Write reproduce steps",
         "crash.writeSessionHint": "Prompt (with job id) filled into the session composer. Send it; when the agent calls tracescope_publish_crash_analysis, the sidebar writes back automatically. If not, click Apply AI reply or paste the reply.",
         "崩溃分析会在该代码目录内匹配堆栈中的文件路径；普通文件夹即可，无需 git。": "Crash analysis matches stack paths under this code folder; a plain directory is enough (no git required).",
         "diff.board.aiAnalyze": "AI assist",
@@ -8845,6 +8935,9 @@ window.__TRACESCOPE_STANDALONE__=true;
     }
     return false;
   }
+  function aiSectionHeader(kind) {
+    return kind === "reproduce" ? "### 复现方式" : "### AI 分析结论";
+  }
   function stripAiSection(defectBody) {
     let body2 = defectBody;
     for (const header of AI_SECTION_HEADERS) {
@@ -8877,10 +8970,10 @@ window.__TRACESCOPE_STANDALONE__=true;
 
 ${block}`;
   }
-  function mergeAiIntoReport(report, aiAnalysis) {
+  function mergeAiIntoReport(report, aiAnalysis, kind = "fix") {
     const text = aiAnalysis.trim();
     if (!text) return { ...report, aiAnalysis: void 0 };
-    const block = `### AI 分析结论
+    const block = `${aiSectionHeader(kind)}
 
 ${text}
 
@@ -8902,7 +8995,8 @@ ${text}
     ];
     if (report.matchedFiles?.length) {
       for (const m of report.matchedFiles) {
-        lines.push(`- \`${m.path}\`${m.symbol ? ` (${m.symbol})` : ""}${m.reason ? ` — ${m.reason}` : ""}`);
+        const line = m.line != null ? `:${m.line}` : "";
+        lines.push(`- \`${m.path}${line}\`${m.symbol ? ` (${m.symbol})` : ""}${m.reason ? ` — ${m.reason}` : ""}`);
       }
     } else {
       lines.push("_None_");
@@ -8940,12 +9034,12 @@ ${text}
       rawRef: typeof inc.rawRef === "string" ? inc.rawRef : void 0
     };
   }
-  function umengIncidentForAnalyze(selected, stack, titleText) {
+  function umengIncidentForAnalyze(selected) {
     return {
       id: selected.id,
-      title: defaultTitle(stack, titleText || selected.title),
-      provider: selected.provider === "local" ? "umeng" : selected.provider,
-      stackText: stack,
+      title: selected.title,
+      provider: selected.provider,
+      stackText: selected.stackText,
       exceptionName: selected.exceptionName,
       appVersion: selected.appVersion,
       buildNumber: selected.buildNumber,
@@ -8999,15 +9093,6 @@ ${text}
   }
   function toggleSelectedValue(selected, value) {
     return selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value];
-  }
-  function localIncidentId() {
-    return "local-" + Date.now().toString(36);
-  }
-  function defaultTitle(stack, custom) {
-    const t2 = custom.trim();
-    if (t2) return t2.slice(0, 200);
-    const first = stack.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
-    return (first || "Crash").slice(0, 200);
   }
   function parseListItems(raw) {
     if (!Array.isArray(raw)) return [];
@@ -9188,15 +9273,12 @@ ${text}
     onOpenTrackerSettings
   }) {
     const t2 = useLocaleT();
-    const [stackText, setStackText] = (0, import_react5.useState)("");
-    const [title2, setTitle] = (0, import_react5.useState)("");
     const [busy, setBusy] = (0, import_react5.useState)(false);
     const [error, setError] = (0, import_react5.useState)("");
     const [hint2, setHint] = (0, import_react5.useState)("");
     const [report, setReport] = (0, import_react5.useState)(null);
     const [umengOpen, setUmengOpen] = (0, import_react5.useState)(true);
     const [filtersOpen, setFiltersOpen] = (0, import_react5.useState)(false);
-    const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
     const [provider, setProvider] = (0, import_react5.useState)("umeng");
     const [appKey, setAppKey] = (0, import_react5.useState)("");
     const [appDisplayName, setAppDisplayName] = (0, import_react5.useState)("");
@@ -9227,7 +9309,25 @@ ${text}
     const [aiDraft, setAiDraft] = (0, import_react5.useState)("");
     const [awaitingAiPaste, setAwaitingAiPaste] = (0, import_react5.useState)(false);
     const [pendingCrashJobId, setPendingCrashJobId] = (0, import_react5.useState)("");
+    const [analysisKind, setAnalysisKind] = (0, import_react5.useState)("reproduce");
+    const analysisKindRef = (0, import_react5.useRef)("reproduce");
+    const reportKindRef = (0, import_react5.useRef)(null);
+    const [capturePlatform, setCapturePlatform] = (0, import_react5.useState)("android");
+    const [captureDevices, setCaptureDevices] = (0, import_react5.useState)(
+      []
+    );
+    const [captureDeviceId, setCaptureDeviceId] = (0, import_react5.useState)("");
+    const [captureActive, setCaptureActive] = (0, import_react5.useState)(false);
+    const [captureHitCount, setCaptureHitCount] = (0, import_react5.useState)(0);
+    const [captureBusy, setCaptureBusy] = (0, import_react5.useState)(false);
+    const [iosCaptureSupported, setIosCaptureSupported] = (0, import_react5.useState)(true);
+    const [iosCaptureReason, setIosCaptureReason] = (0, import_react5.useState)("");
+    const [pasteStackText, setPasteStackText] = (0, import_react5.useState)("");
+    const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
+    const [adbPrep, setAdbPrep] = (0, import_react5.useState)(null);
+    const [wirelessTarget, setWirelessTarget] = (0, import_react5.useState)("");
     const listGen = (0, import_react5.useRef)(0);
+    const lastCaptureHitRef = (0, import_react5.useRef)(0);
     const detailPanelRef = (0, import_react5.useRef)(null);
     const reportPanelRef = (0, import_react5.useRef)(null);
     const aiPasteRef = (0, import_react5.useRef)(null);
@@ -9235,6 +9335,7 @@ ${text}
     reportRef.current = report;
     const repo = repoPath.trim();
     const remoteReady = (0, import_react5.useCallback)(() => {
+      if (provider === "local") return Boolean(repo);
       if (provider === "crashlytics") {
         return Boolean(projectId.trim() && appId.trim()) && (cookieReady(hasStoredAccessToken, accessToken) || cookieReady(hasStoredServiceAccount, serviceAccountJson));
       }
@@ -9249,6 +9350,7 @@ ${text}
       hasStoredServiceAccount,
       projectId,
       provider,
+      repo,
       serviceAccountJson
     ]);
     const authExpiredMessage = (0, import_react5.useCallback)(() => {
@@ -9261,6 +9363,9 @@ ${text}
         appDisplayName: appDisplayName.trim(),
         remember
       };
+      if (provider === "local") {
+        return body2;
+      }
       if (provider === "crashlytics") {
         body2.projectId = projectId.trim();
         body2.appId = appId.trim();
@@ -9286,9 +9391,6 @@ ${text}
       appId,
       appKey,
       cookie,
-      hasStoredAccessToken,
-      hasStoredCookie,
-      hasStoredServiceAccount,
       projectId,
       provider,
       remember,
@@ -9326,7 +9428,6 @@ ${text}
     const handleAuthFailure = (0, import_react5.useCallback)(
       (message) => {
         setError(message || authExpiredMessage());
-        setPasteOpen(true);
         setUmengOpen(true);
       },
       [authExpiredMessage]
@@ -9399,9 +9500,16 @@ ${text}
         setListBusy(true);
         setError("");
         try {
+          const listQuery = provider === "local" ? (() => {
+            const kw = queryFilters.keyword.trim();
+            return {
+              ...kw ? { keyword: kw } : {},
+              ...queryFilters.errorKinds.length ? { errorKinds: queryFilters.errorKinds } : {}
+            };
+          })() : buildListQueryBody(queryFilters);
           const data = await apiPost2("/tracescope/v1/crash-list", {
             ...configBody(),
-            ...buildListQueryBody(queryFilters),
+            ...listQuery,
             page,
             pageSize: CRASH_LIST_PAGE_SIZE
           });
@@ -9439,6 +9547,7 @@ ${text}
         configBody,
         handleAuthFailure,
         listPage,
+        provider,
         remoteReady,
         repo,
         t2
@@ -9474,6 +9583,17 @@ ${text}
       setError("");
       setHint("");
       try {
+        if (provider === "local") {
+          if (remember) {
+            await apiPost2("/tracescope/v1/crash-config-save", configBody());
+          }
+          setHint(t2("crash.inboxListRefreshed"));
+          const next = { ...filters };
+          setAppliedFilters(next);
+          setListPage(1);
+          void fetchList({ page: 1, filters: next });
+          return;
+        }
         if (remember) {
           await apiPost2("/tracescope/v1/crash-config-save", configBody());
         }
@@ -9509,7 +9629,246 @@ ${text}
       } finally {
         setConfigBusy(false);
       }
-    }, [apiPost2, authExpiredMessage, configBody, fetchList, filters, handleAuthFailure, remember, t2]);
+    }, [
+      apiPost2,
+      authExpiredMessage,
+      configBody,
+      fetchList,
+      filters,
+      handleAuthFailure,
+      provider,
+      remember,
+      t2
+    ]);
+    const refreshCaptureDevices = (0, import_react5.useCallback)(async () => {
+      if (!repo || provider !== "local") return;
+      setCaptureBusy(true);
+      setError("");
+      let pollTimer = null;
+      const stopPoll = () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      };
+      const readPrep = async () => {
+        try {
+          const st = await apiPost2("/tracescope/v1/crash-inbox-adb-status", { repoPath: repo });
+          const progress = st.progress;
+          if (!progress || typeof progress !== "object") return;
+          const phase = typeof progress.phase === "string" ? progress.phase : "idle";
+          const message = typeof progress.message === "string" ? progress.message : "";
+          const percent = typeof progress.percent === "number" ? progress.percent : null;
+          if (phase !== "idle" && message) {
+            setAdbPrep({ phase, percent, message });
+            setHint(message);
+          }
+        } catch {
+        }
+      };
+      try {
+        if (capturePlatform === "android") {
+          setAdbPrep({ phase: "checking", percent: null, message: t2("crash.inboxPreparingAdb") });
+          setHint(t2("crash.inboxPreparingAdb"));
+          pollTimer = setInterval(() => {
+            void readPrep();
+          }, 400);
+          void readPrep();
+          const ensured = await apiPost2("/tracescope/v1/crash-inbox-adb-ensure", { repoPath: repo });
+          const ensuredProgress = ensured.progress;
+          if (ensuredProgress && typeof ensuredProgress.message === "string") {
+            setAdbPrep({
+              phase: typeof ensuredProgress.phase === "string" ? ensuredProgress.phase : "ready",
+              percent: typeof ensuredProgress.percent === "number" ? ensuredProgress.percent : 100,
+              message: ensuredProgress.message
+            });
+            setHint(ensuredProgress.message);
+          }
+          if (ensured.ok === false) {
+            const msg = typeof ensured.error === "string" ? ensured.error : typeof ensuredProgress?.error === "string" ? ensuredProgress.error : t2("crash.inboxAdbPrepareFail");
+            setError(msg);
+            return;
+          }
+        } else {
+          setAdbPrep(null);
+        }
+        const data = await apiPost2("/tracescope/v1/crash-inbox-devices", {
+          repoPath: repo,
+          platform: capturePlatform
+        });
+        const devices = Array.isArray(data.devices) ? data.devices.filter((d) => Boolean(d) && typeof d === "object").map((d) => ({
+          id: typeof d.id === "string" ? d.id : "",
+          label: typeof d.label === "string" ? d.label : String(d.id ?? ""),
+          state: typeof d.state === "string" ? d.state : void 0
+        })).filter((d) => d.id) : [];
+        setCaptureDevices(devices);
+        if (capturePlatform === "ios") {
+          setIosCaptureSupported(data.iosSupported !== false);
+          setIosCaptureReason(
+            typeof data.iosSupportReason === "string" ? data.iosSupportReason : typeof data.error === "string" ? data.error : ""
+          );
+        } else {
+          setIosCaptureSupported(true);
+          setIosCaptureReason("");
+          if (data.adbDownloaded === true) {
+            setHint(t2("crash.inboxAdbDownloaded"));
+            setAdbPrep({ phase: "ready", percent: 100, message: t2("crash.inboxAdbDownloaded") });
+          } else if (data.adbPath) {
+            setHint(t2("crash.inboxAdbReady"));
+            setAdbPrep({ phase: "ready", percent: 100, message: t2("crash.inboxAdbReady") });
+          }
+        }
+        if (typeof data.error === "string" && data.error && !devices.length) {
+          setError(data.error);
+        }
+        if (!captureDeviceId && devices[0]) setCaptureDeviceId(devices[0].id);
+        else if (captureDeviceId && !devices.some((d) => d.id === captureDeviceId)) {
+          setCaptureDeviceId(devices[0]?.id || "");
+        }
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        stopPoll();
+        setCaptureBusy(false);
+      }
+    }, [apiPost2, captureDeviceId, capturePlatform, provider, repo, t2]);
+    const syncCaptureStatus = (0, import_react5.useCallback)(async () => {
+      try {
+        const data = await apiPost2("/tracescope/v1/crash-inbox-capture-status", { repoPath: repo });
+        const status = data.status;
+        const active2 = status?.active === true;
+        const hits = typeof status?.hitCount === "number" ? status.hitCount : 0;
+        setCaptureActive(active2);
+        setCaptureHitCount(hits);
+        if (hits > lastCaptureHitRef.current) {
+          lastCaptureHitRef.current = hits;
+          void fetchList({ page: 1 });
+        }
+      } catch {
+      }
+    }, [apiPost2, fetchList, repo]);
+    const connectWirelessAdb = (0, import_react5.useCallback)(async () => {
+      if (!repo) {
+        setError(t2("选择仓库 / 先在配置中添加"));
+        return;
+      }
+      const target = wirelessTarget.trim();
+      if (!target) {
+        setError(t2("crash.inboxWirelessPlaceholder"));
+        return;
+      }
+      setCaptureBusy(true);
+      setError("");
+      try {
+        const data = await apiPost2("/tracescope/v1/crash-inbox-adb-connect", {
+          repoPath: repo,
+          target
+        });
+        const message = typeof data.message === "string" ? data.message : "";
+        if (data.ok) {
+          setHint(message || t2("crash.inboxAdbReady"));
+          await refreshCaptureDevices();
+        } else {
+          setError(message || t2("crash.inboxCaptureFail"));
+        }
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setCaptureBusy(false);
+      }
+    }, [apiPost2, refreshCaptureDevices, repo, t2, wirelessTarget]);
+    const startInboxCapture = (0, import_react5.useCallback)(async () => {
+      if (!repo) {
+        setError(t2("选择仓库 / 先在配置中添加"));
+        return;
+      }
+      if (capturePlatform === "ios" && !iosCaptureSupported) {
+        setError(iosCaptureReason || t2("crash.inboxIosUnsupported"));
+        return;
+      }
+      if (capturePlatform === "android" && !captureDeviceId.trim()) {
+        setError(t2("crash.inboxNeedDevice"));
+        return;
+      }
+      setCaptureBusy(true);
+      setError("");
+      try {
+        const data = await apiPost2("/tracescope/v1/crash-inbox-capture-start", {
+          repoPath: repo,
+          platform: capturePlatform,
+          deviceId: captureDeviceId.trim() || void 0
+        });
+        if (data.ok === false) {
+          setError(typeof data.error === "string" ? data.error : t2("crash.inboxCaptureFail"));
+          return;
+        }
+        setCaptureActive(true);
+        setHint(t2("crash.inboxCaptureStarted"));
+        void syncCaptureStatus();
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setCaptureBusy(false);
+      }
+    }, [
+      apiPost2,
+      captureDeviceId,
+      capturePlatform,
+      iosCaptureReason,
+      iosCaptureSupported,
+      repo,
+      syncCaptureStatus,
+      t2
+    ]);
+    const stopInboxCapture = (0, import_react5.useCallback)(async () => {
+      setCaptureBusy(true);
+      try {
+        await apiPost2("/tracescope/v1/crash-inbox-capture-stop", { repoPath: repo });
+        setCaptureActive(false);
+        setHint(t2("crash.inboxCaptureStopped"));
+        void fetchList({ page: 1 });
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setCaptureBusy(false);
+      }
+    }, [apiPost2, fetchList, repo, t2]);
+    const deleteInboxItem = (0, import_react5.useCallback)(
+      async (id) => {
+        if (!repo || !id) return;
+        setBusy(true);
+        try {
+          await apiPost2("/tracescope/v1/crash-inbox-delete", { repoPath: repo, id });
+          if (selectedId === id) {
+            setSelectedId("");
+            setSelectedIncident(null);
+            setReport(null);
+          }
+          void fetchList({ page: listPage });
+        } catch (err2) {
+          setError(err2.message || String(err2));
+        } finally {
+          setBusy(false);
+        }
+      },
+      [apiPost2, fetchList, listPage, repo, selectedId]
+    );
+    (0, import_react5.useEffect)(() => {
+      if (provider !== "local" || !repo) return;
+      void refreshCaptureDevices();
+      void syncCaptureStatus();
+    }, [provider, repo, capturePlatform]);
+    (0, import_react5.useEffect)(() => {
+      if (provider !== "local" || !repo) return;
+      void fetchList({ page: 1 });
+    }, [provider, repo]);
+    (0, import_react5.useEffect)(() => {
+      if (provider !== "local" || !captureActive) return;
+      const timer = setInterval(() => {
+        void syncCaptureStatus();
+      }, 4e3);
+      return () => clearInterval(timer);
+    }, [captureActive, provider, syncCaptureStatus]);
     const filtersDirty = (0, import_react5.useMemo)(
       () => JSON.stringify(filters) !== JSON.stringify(appliedFilters),
       [appliedFilters, filters]
@@ -9534,6 +9893,8 @@ ${text}
         setError("");
         setSelectedId(id);
         setReport(null);
+        reportRef.current = null;
+        reportKindRef.current = null;
         setAiDraft("");
         setAwaitingAiPaste(false);
         setUmengOpen(false);
@@ -9551,8 +9912,6 @@ ${text}
             throw new Error(t2("crash.detailMissing"));
           }
           setSelectedIncident(full);
-          setStackText(full.stackText);
-          setTitle(full.title);
         } catch (err2) {
           const msg = err2.message || String(err2);
           if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
@@ -9564,97 +9923,131 @@ ${text}
       },
       [apiPost2, configBody, handleAuthFailure, repo, t2]
     );
-    const runAnalyze = (0, import_react5.useCallback)(async () => {
-      const fromUmeng = selectedIncident?.stackText?.trim();
-      const stack = (fromUmeng || stackText).trim();
-      if (!stack) {
-        setError(t2("crash.pasteRequired"));
-        return null;
-      }
-      if (!repo) {
-        setError(t2("选择仓库 / 先在配置中添加"));
-        return null;
-      }
-      setBusy(true);
-      setError("");
-      setHint("");
-      try {
-        const incident = selectedIncident ? umengIncidentForAnalyze(selectedIncident, stack, title2) : {
-          id: localIncidentId(),
-          title: defaultTitle(stack, title2),
-          provider: "local",
-          stackText: stack
-        };
-        const data = await apiPost2("/tracescope/v1/crash-analyze", { repoPath: repo, incident });
+    const ensureReport = (0, import_react5.useCallback)(
+      async (override, kind = analysisKindRef.current) => {
+        const selected = override ?? selectedIncident;
+        if (!selected?.stackText?.trim()) {
+          setError(t2("crash.selectDetailFirst"));
+          return null;
+        }
+        if (!repo) {
+          setError(t2("选择仓库 / 先在配置中添加"));
+          return null;
+        }
+        const current = reportRef.current;
+        if (current && current.incident.id === selected.id && current.incident.stackText === selected.stackText && reportKindRef.current === kind) {
+          return current;
+        }
+        const incident = umengIncidentForAnalyze(selected);
+        const data = await apiPost2("/tracescope/v1/crash-analyze", {
+          repoPath: repo,
+          incident,
+          analysisKind: kind
+        });
         const next = data.report;
         if (!next || typeof next.prompt !== "string") {
           throw new Error(t2("请求失败"));
         }
         setReport(next);
+        reportRef.current = next;
+        reportKindRef.current = kind;
         return next;
-      } catch (err2) {
-        setError(err2.message || String(err2));
-        return null;
-      } finally {
-        setBusy(false);
-      }
-    }, [apiPost2, repo, selectedIncident, stackText, t2, title2]);
-    async function onAnalyzeClick() {
-      const r = await runAnalyze();
-      if (r) {
-        setHint(
-          r.aiAnalysis?.trim() ? t2("crash.aiRestoredFromCache") : t2("crash.analyzeLocalHint")
-        );
-        requestAnimationFrame(() => {
-          reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        });
-      }
-    }
-    async function onWriteSessionClick() {
-      let r = report;
-      if (!r) r = await runAnalyze();
-      if (!r) return;
-      if (r.aiAnalysis?.trim()) {
-        setHint(t2("crash.writeSessionCachedHint"));
-      }
-      const send = onSendToChat;
-      if (!send) {
-        setHint(t2("找不到会话输入框服务"));
+      },
+      [apiPost2, repo, selectedIncident, t2]
+    );
+    const writeSessionFor = (0, import_react5.useCallback)(
+      async (override, kind = "reproduce") => {
+        setAnalysisKind(kind);
+        analysisKindRef.current = kind;
+        setBusy(true);
+        setError("");
+        setHint("");
+        try {
+          const r = await ensureReport(override, kind);
+          if (!r) return;
+          if (r.aiAnalysis?.trim()) {
+            setHint(
+              kind === "reproduce" ? t2("crash.writeReproduceCachedHint") : t2("crash.writeFixCachedHint")
+            );
+          }
+          requestAnimationFrame(() => {
+            reportPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          });
+          const send = onSendToChat;
+          if (!send) {
+            setHint(t2("crash.writeSessionNoComposer"));
+            return;
+          }
+          const jobRes = await apiPost2("/tracescope/v1/crash-ai-job", {
+            repoPath: repo,
+            summary: r.summary,
+            stackText: r.incident.stackText,
+            incident: r.incident,
+            matchedFiles: r.matchedFiles,
+            fixHints: r.fixHints,
+            analysisKind: kind
+          });
+          const jobId = typeof jobRes.jobId === "string" ? jobRes.jobId.trim() : "";
+          const prompt = typeof jobRes.prompt === "string" ? jobRes.prompt : r.prompt;
+          if (!jobId || !prompt.trim()) {
+            throw new Error(t2("crash.aiJobFail"));
+          }
+          const result = send(prompt);
+          if (result.ok) {
+            setPendingCrashJobId(jobId);
+            setAwaitingAiPaste(true);
+            setHint(
+              r.aiAnalysis?.trim() ? kind === "reproduce" ? t2("crash.writeReproduceCachedHint") : t2("crash.writeFixCachedHint") : kind === "reproduce" ? t2("crash.writeReproduceHint") : t2("crash.writeFixHint")
+            );
+            requestAnimationFrame(() => {
+              aiPasteRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+          } else {
+            setError(result.error || t2("无法写入当前会话输入框"));
+          }
+        } catch (err2) {
+          setError(err2.message || String(err2));
+        } finally {
+          setBusy(false);
+        }
+      },
+      [apiPost2, ensureReport, onSendToChat, repo, t2]
+    );
+    const analyzePastedStack = (0, import_react5.useCallback)(async () => {
+      if (!repo) {
+        setError(t2("选择仓库 / 先在配置中添加"));
         return;
       }
-      setBusy(true);
-      setError("");
-      try {
-        const jobRes = await apiPost2("/tracescope/v1/crash-ai-job", {
-          repoPath: repo,
-          summary: r.summary,
-          stackText: r.incident.stackText,
-          incident: r.incident,
-          matchedFiles: r.matchedFiles,
-          fixHints: r.fixHints
-        });
-        const jobId = typeof jobRes.jobId === "string" ? jobRes.jobId.trim() : "";
-        const prompt = typeof jobRes.prompt === "string" ? jobRes.prompt : r.prompt;
-        if (!jobId || !prompt.trim()) {
-          throw new Error(t2("crash.aiJobFail"));
-        }
-        const result = send(prompt);
-        if (result.ok) {
-          setPendingCrashJobId(jobId);
-          setAwaitingAiPaste(true);
-          setHint(t2("crash.writeSessionHint"));
-          requestAnimationFrame(() => {
-            aiPasteRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-          });
-        } else {
-          setError(result.error || t2("无法写入当前会话输入框"));
-        }
-      } catch (err2) {
-        setError(err2.message || String(err2));
-      } finally {
-        setBusy(false);
+      const text = pasteStackText.trim();
+      if (!text) {
+        setError(t2("crash.pasteStackRequired"));
+        return;
       }
-    }
+      const firstLine = text.split(/\r?\n/, 1)[0]?.trim() || "pasted-crash";
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const incident = {
+        id: `paste-${Date.now().toString(36)}`,
+        title: firstLine.slice(0, 200),
+        provider: "local",
+        stackText: text,
+        platform: capturePlatform === "ios" ? "ios" : "android",
+        errorKind: "crash",
+        status: "open",
+        occurredAt: now,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        count: 1
+      };
+      setSelectedId(incident.id);
+      setSelectedIncident(incident);
+      setReport(null);
+      reportRef.current = null;
+      reportKindRef.current = null;
+      setPasteStackText("");
+      setPasteOpen(false);
+      setHint(t2("crash.pasteStackReady"));
+      await writeSessionFor(incident, "reproduce");
+    }, [capturePlatform, pasteStackText, repo, t2, writeSessionFor]);
     async function applyAiText(raw) {
       const text = raw.trim();
       if (!text) {
@@ -9666,20 +10059,22 @@ ${text}
         setError(t2("crash.needAnalyzeFirst"));
         return false;
       }
-      const next = mergeAiIntoReport(current, text);
+      const kind = analysisKindRef.current;
+      const next = mergeAiIntoReport(current, text, kind);
       setReport(next);
       reportRef.current = next;
       setAiDraft(text);
       setAwaitingAiPaste(false);
       setPendingCrashJobId("");
-      setHint(t2("crash.aiApplied"));
+      setHint(kind === "reproduce" ? t2("crash.aiReproduceApplied") : t2("crash.aiApplied"));
       setError("");
       try {
         await apiPost2("/tracescope/v1/crash-ai-cache-save", {
           repoPath: repo,
           incidentId: current.incident.id,
           aiAnalysis: text,
-          summary: current.summary
+          summary: current.summary,
+          analysisKind: kind
         });
       } catch {
       }
@@ -9695,6 +10090,11 @@ ${text}
         const res = await apiPost2("/tracescope/v1/crash-job", { id });
         const status = typeof res.status === "string" ? res.status : "";
         if (status === "published") {
+          const kindRaw = res.analysisKind;
+          if (kindRaw === "reproduce" || kindRaw === "fix") {
+            setAnalysisKind(kindRaw);
+            analysisKindRef.current = kindRaw;
+          }
           const analysis = typeof res.aiAnalysis === "string" ? res.aiAnalysis : "";
           if (analysis.trim() && await applyAiText(analysis)) return "applied";
           return "error";
@@ -9794,38 +10194,56 @@ ${text}
       }
     }
     async function onCopyReportClick() {
-      if (!report) {
-        setError(t2("crash.needAnalyzeFirst"));
-        return;
+      setBusy(true);
+      setError("");
+      try {
+        const r = await ensureReport();
+        if (!r) return;
+        const ok = await copyTextToClipboard2(r.defectBody || buildCrashExportMarkdown(r, repo));
+        if (ok) setHint(t2("crash.copied"));
+        else setError(t2("crash.copyFail"));
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setBusy(false);
       }
-      const ok = await copyTextToClipboard2(report.defectBody || buildCrashExportMarkdown(report, repo));
-      if (ok) setHint(t2("crash.copied"));
-      else setError(t2("crash.copyFail"));
     }
-    function onExportReportClick() {
-      if (!report) {
-        setError(t2("crash.needAnalyzeFirst"));
-        return;
+    async function onExportReportClick() {
+      setBusy(true);
+      setError("");
+      try {
+        const r = await ensureReport();
+        if (!r) return;
+        const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const idPart = (r.incident.id || "crash").replace(/[^\w.-]+/g, "_").slice(0, 40);
+        const filename = `tracescope-crash-${idPart}-${stamp}.md`;
+        downloadTextFile2(filename, buildCrashExportMarkdown(r, repo), "text/markdown");
+        setHint(t2("crash.exported", { name: filename }));
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setBusy(false);
       }
-      const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const idPart = (report.incident.id || "crash").replace(/[^\w.-]+/g, "_").slice(0, 40);
-      const filename = `tracescope-crash-${idPart}-${stamp}.md`;
-      downloadTextFile2(filename, buildCrashExportMarkdown(report, repo), "text/markdown");
-      setHint(t2("crash.exported", { name: filename }));
     }
-    function onSubmitClick() {
-      if (!report) {
-        setError(t2("crash.needAnalyzeFirst"));
-        return;
+    async function onSubmitClick() {
+      setBusy(true);
+      setError("");
+      try {
+        const r = await ensureReport();
+        if (!r) return;
+        if (!trackerReady) {
+          setHint(t2("diff.board.hint.finishTrackerConfig"));
+          onOpenTrackerSettings?.();
+          return;
+        }
+        if (!onSubmitDefect) return;
+        const subject = r.incident.title || t2("crash.submitDefect");
+        onSubmitDefect(r, subject);
+      } catch (err2) {
+        setError(err2.message || String(err2));
+      } finally {
+        setBusy(false);
       }
-      if (!trackerReady) {
-        setHint(t2("diff.board.hint.finishTrackerConfig"));
-        onOpenTrackerSettings?.();
-        return;
-      }
-      if (!onSubmitDefect) return;
-      const subject = report.incident.title || defaultTitle(stackText, title2) || t2("crash.submitDefect");
-      onSubmitDefect(report, subject);
     }
     const totalPages = typeof listTotal === "number" && listTotal > 0 ? Math.max(1, Math.ceil(listTotal / CRASH_LIST_PAGE_SIZE)) : void 0;
     const noMatch = report && (!report.matchedFiles || !report.matchedFiles.length);
@@ -9957,12 +10375,41 @@ ${text}
       return parts.join(" · ");
     }, [appliedFilters, t2]);
     const configDisabled = busy || configBusy || listBusy || detailBusy;
-    const appLabel = appDisplayName.trim() || (provider === "crashlytics" ? projectId.trim() || appId.trim() : appKey.trim());
-    const configHeaderLabel = provider === "crashlytics" ? t2("crash.crashlyticsConfig") : t2("crash.umengConfig");
+    const appLabel = provider === "local" ? capturePlatform === "ios" ? t2("crash.inboxPlatformIos") : t2("crash.inboxPlatformAndroid") : appDisplayName.trim() || (provider === "crashlytics" ? projectId.trim() || appId.trim() : appKey.trim());
+    const configHeaderLabel = provider === "local" ? t2("crash.inboxConfig") : provider === "crashlytics" ? t2("crash.crashlyticsConfig") : t2("crash.umengConfig");
     const umengHeader = appLabel ? `${configHeaderLabel} · ${appLabel}` : configHeaderLabel;
-    const configTitle = provider === "crashlytics" ? appId.trim() ? `${t2("crash.appId")}: ${appId.trim()}` : void 0 : appKey.trim() ? `${t2("crash.appKey")}: ${appKey.trim()}` : void 0;
+    const configTitle = provider === "local" ? t2("crash.inboxHint") : provider === "crashlytics" ? appId.trim() ? `${t2("crash.appId")}: ${appId.trim()}` : void 0 : appKey.trim() ? `${t2("crash.appKey")}: ${appKey.trim()}` : void 0;
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { style: card, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 700, marginBottom: 8 }, children: t2("crash.mode") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 10 }, children: [
+        t2("crash.provider"),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+          "select",
+          {
+            style: input,
+            value: provider,
+            disabled: configDisabled,
+            onChange: (e) => {
+              const next = parseProviderId(e.target.value);
+              setProvider(next);
+              setListItems([]);
+              setListTotal(void 0);
+              setSelectedId("");
+              setSelectedIncident(null);
+              setReport(null);
+              reportRef.current = null;
+              reportKindRef.current = null;
+              setUmengOpen(true);
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "local", children: t2("crash.providerLocal") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "crashlytics", children: t2("crash.providerCrashlytics") })
+            ]
+          }
+        )
+      ] }),
+      provider === "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 10px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.inboxHint") }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "button",
@@ -9978,30 +10425,8 @@ ${text}
           }
         ),
         umengOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 8 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: provider === "crashlytics" ? t2("crash.crashlyticsHint") : t2("crash.cookieHint") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-            t2("crash.provider"),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-              "select",
-              {
-                style: input,
-                value: provider,
-                disabled: configDisabled,
-                onChange: (e) => {
-                  const next = parseProviderId(e.target.value);
-                  setProvider(next);
-                  setListItems([]);
-                  setSelectedId("");
-                  setSelectedIncident(null);
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "umeng", children: t2("crash.providerUmeng") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "crashlytics", children: t2("crash.providerCrashlytics") })
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+          provider !== "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: provider === "crashlytics" ? t2("crash.crashlyticsHint") : t2("crash.cookieHint") }) : null,
+          provider !== "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
             t2("crash.appDisplayName"),
             /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
               "input",
@@ -10013,8 +10438,211 @@ ${text}
                 onChange: (e) => setAppDisplayName(e.target.value)
               }
             )
-          ] }),
-          provider === "crashlytics" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+          ] }) : null,
+          provider === "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 8, marginBottom: 8 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
+              t2("crash.inboxCapturePlatform"),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                "select",
+                {
+                  style: input,
+                  value: capturePlatform,
+                  disabled: configDisabled || captureActive,
+                  onChange: (e) => {
+                    setCapturePlatform(e.target.value === "ios" ? "ios" : "android");
+                    setCaptureDeviceId("");
+                    setCaptureDevices([]);
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "android", children: t2("crash.inboxPlatformAndroid") }),
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "ios", children: t2("crash.inboxPlatformIos") })
+                  ]
+                }
+              )
+            ] }),
+            capturePlatform === "ios" && !iosCaptureSupported ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#b54708", lineHeight: 1.45 }, children: iosCaptureReason || t2("crash.inboxIosUnsupported") }) : null,
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, alignItems: "flex-end" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0, flex: 1 }, children: [
+                t2("crash.inboxDevice"),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                  "select",
+                  {
+                    style: input,
+                    value: captureDeviceId,
+                    disabled: configDisabled || captureActive || captureBusy,
+                    onChange: (e) => setCaptureDeviceId(e.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", children: t2("crash.inboxDeviceNone") }),
+                      captureDevices.map((d) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("option", { value: d.id, children: [
+                        d.label,
+                        d.state ? ` · ${d.state}` : ""
+                      ] }, d.id))
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: btn,
+                  disabled: configDisabled || captureBusy,
+                  onClick: () => void refreshCaptureDevices(),
+                  children: captureBusy && capturePlatform === "android" ? t2("common.loading") : t2("crash.inboxRefreshDevices")
+                }
+              )
+            ] }),
+            capturePlatform === "android" && adbPrep && (adbPrep.phase === "checking" || adbPrep.phase === "downloading" || adbPrep.phase === "extracting" || captureBusy) ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+              "div",
+              {
+                style: {
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--dsh-border, #ddd4c5)",
+                  background: "#fff"
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, fontSize: 12, marginBottom: 6 }, children: t2("crash.inboxAdbProgressTitle") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontSize: 12, color: "#6b645a", lineHeight: 1.45, marginBottom: 8 }, children: adbPrep.message || t2("crash.inboxPreparingAdb") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "div",
+                    {
+                      style: {
+                        height: 8,
+                        borderRadius: 999,
+                        background: "#eee6da",
+                        overflow: "hidden"
+                      },
+                      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                        "div",
+                        {
+                          style: {
+                            height: "100%",
+                            width: adbPrep.percent != null ? `${Math.max(4, Math.min(100, adbPrep.percent))}%` : captureBusy ? "40%" : "100%",
+                            background: "var(--dsh-accent, #0f6e56)",
+                            borderRadius: 999,
+                            transition: "width 0.25s ease"
+                          }
+                        }
+                      )
+                    }
+                  ),
+                  adbPrep.percent != null ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 6, fontSize: 11, color: "#6b645a" }, children: [
+                    adbPrep.percent,
+                    "%"
+                  ] }) : null
+                ]
+              }
+            ) : null,
+            capturePlatform === "android" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { display: "grid", gap: 6 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginBottom: 0 }, children: [
+                t2("crash.inboxWireless"),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginTop: 4, alignItems: "flex-end" }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "input",
+                    {
+                      style: { ...input, flex: 1, marginBottom: 0 },
+                      value: wirelessTarget,
+                      disabled: configDisabled || captureBusy,
+                      placeholder: t2("crash.inboxWirelessPlaceholder"),
+                      onChange: (e) => setWirelessTarget(e.target.value),
+                      onKeyDown: (e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void connectWirelessAdb();
+                        }
+                      }
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      style: btn,
+                      disabled: configDisabled || captureBusy || !wirelessTarget.trim(),
+                      onClick: () => void connectWirelessAdb(),
+                      children: t2("crash.inboxWirelessConnect")
+                    }
+                  )
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.inboxWirelessHint") })
+            ] }) : null,
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: row, children: [
+              captureActive ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: primary,
+                  disabled: captureBusy,
+                  onClick: () => void stopInboxCapture(),
+                  children: t2("crash.inboxStopCapture")
+                }
+              ) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "button",
+                {
+                  type: "button",
+                  style: primary,
+                  disabled: captureBusy || capturePlatform === "ios" && !iosCaptureSupported || capturePlatform === "android" && !captureDeviceId,
+                  onClick: () => void startInboxCapture(),
+                  children: t2("crash.inboxStartCapture")
+                }
+              ),
+              captureActive ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 12, color: "#3d6b4f" }, children: t2("crash.inboxCapturing", { count: String(captureHitCount) }) }) : null
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 4 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                "button",
+                {
+                  type: "button",
+                  style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
+                  onClick: () => setPasteOpen((v) => !v),
+                  children: [
+                    pasteOpen ? "▾ " : "▸ ",
+                    t2("crash.pasteStackTitle")
+                  ]
+                }
+              ),
+              pasteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 8, display: "grid", gap: 8 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.pasteStackHint") }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "textarea",
+                  {
+                    style: {
+                      ...input,
+                      minHeight: 72,
+                      resize: "vertical",
+                      fontFamily: "ui-monospace, monospace"
+                    },
+                    value: pasteStackText,
+                    disabled: configDisabled || busy,
+                    placeholder: t2("crash.pasteStackPlaceholder"),
+                    onChange: (e) => setPasteStackText(e.target.value)
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    style: primary,
+                    disabled: configDisabled || busy || !pasteStackText.trim(),
+                    onClick: () => void analyzePastedStack(),
+                    children: busy ? t2("common.loading") : t2("crash.writeReproduce")
+                  }
+                )
+              ] }) : null
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              "button",
+              {
+                type: "button",
+                style: btn,
+                disabled: configDisabled,
+                onClick: () => void apiPost2("/tracescope/v1/crash-config-save", configBody()).then(() => setHint(t2("crash.credentialsSaved"))),
+                children: t2("crash.saveCredentials")
+              }
+            )
+          ] }) : provider === "crashlytics" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
             /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
               t2("crash.projectId"),
               /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
@@ -10111,22 +10739,24 @@ ${text}
               )
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...row, marginBottom: 8, fontWeight: 600, cursor: "pointer" }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "input",
-              {
-                type: "checkbox",
-                checked: remember,
-                disabled: configDisabled,
-                onChange: (e) => setRemember(e.target.checked)
-              }
-            ),
-            t2("crash.rememberCredentials")
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 4 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void saveCredentials(), children: t2("crash.saveCredentials") }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: provider === "crashlytics" ? t2("crash.clearToken") : t2("crash.clearCookie") })
-          ] })
+          provider !== "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...row, marginBottom: 8, fontWeight: 600, cursor: "pointer" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                "input",
+                {
+                  type: "checkbox",
+                  checked: remember,
+                  disabled: configDisabled,
+                  onChange: (e) => setRemember(e.target.checked)
+                }
+              ),
+              t2("crash.rememberCredentials")
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 4 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void saveCredentials(), children: t2("crash.saveCredentials") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: configDisabled, onClick: () => void clearCookieClick(), children: provider === "crashlytics" ? t2("crash.clearToken") : t2("crash.clearCookie") })
+            ] })
+          ] }) : null
         ] }) : null
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
@@ -10147,15 +10777,15 @@ ${text}
                 style: primary,
                 disabled: configDisabled || listBusy,
                 onClick: () => void runProbe(),
-                title: t2("crash.probeHint"),
-                children: configBusy || listBusy ? t2("common.loading") : t2("crash.fetchList")
+                title: provider === "local" ? t2("crash.inboxRefreshList") : t2("crash.probeHint"),
+                children: configBusy || listBusy ? t2("common.loading") : provider === "local" ? t2("crash.inboxRefreshList") : t2("crash.fetchList")
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: t2("crash.fetchListHint") })
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: provider === "local" ? t2("crash.inboxFetchHint") : t2("crash.fetchListHint") })
           ]
         }
       ),
-      activeFilters.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      provider !== "local" && activeFilters.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
         "div",
         {
           style: {
@@ -10482,7 +11112,10 @@ ${text}
       ) : null,
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 10 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, justifyContent: "space-between", marginBottom: 6 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, fontSize: 12 }, children: t2("crash.listTitle") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { fontWeight: 600, fontSize: 12 }, children: [
+            provider === "local" ? t2("crash.inboxListTitle") : t2("crash.listTitle"),
+            provider === "local" && typeof listTotal === "number" && !listBusy ? t2("crash.inboxListCount", { count: String(listTotal) }) : null
+          ] }),
           listItems.length || listBusy ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontSize: 11, color: "#6b645a" }, children: typeof listTotal === "number" ? t2("crash.pageStatusTotal", {
             page: String(listPage),
             totalPages: String(totalPages ?? "—"),
@@ -10490,7 +11123,7 @@ ${text}
           }) : t2("crash.pageStatus", { page: String(listPage) }) }) : null
         ] }),
         listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: t2("crash.listLoading") }) : null,
-        !listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: hasDimensionFilters ? t2("crash.listEmptyFiltered") : t2("crash.listEmptyHint") }) : null,
+        !listBusy && !listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a" }, children: provider === "local" ? t2("crash.inboxListEmpty") : hasDimensionFilters ? t2("crash.listEmptyFiltered") : t2("crash.listEmptyHint") }) : null,
         listItems.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
           "ul",
           {
@@ -10505,47 +11138,60 @@ ${text}
             },
             children: listItems.map((item) => {
               const active2 = item.id === selectedId;
-              return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-                "button",
-                {
-                  type: "button",
-                  disabled: detailBusy,
-                  onClick: () => void loadDetail(item.id),
-                  style: {
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: active2 ? "2px solid var(--dsh-accent, #0f6e56)" : "1px solid var(--dsh-border, #ddd4c5)",
-                    background: active2 ? "#eef7f3" : "#fff",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    lineHeight: 1.45
-                  },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600 }, children: item.title }),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { color: "#6b645a", marginTop: 2 }, children: [
-                      t2("crash.col.version"),
-                      ": ",
-                      item.appVersion || "—",
-                      " · ",
-                      t2("crash.col.count"),
-                      ":",
-                      " ",
-                      item.count ?? "—",
-                      " · ",
-                      t2("crash.col.affectedUsers"),
-                      ": ",
-                      item.affectedUsers ?? "—",
-                      " ·",
-                      " ",
-                      t2("crash.col.status"),
-                      ": ",
-                      statusLabel3(item.status)
-                    ] })
-                  ]
-                }
-              ) }, item.id);
+              return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("li", { style: { display: "flex", gap: 6, alignItems: "stretch" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                  "button",
+                  {
+                    type: "button",
+                    disabled: detailBusy,
+                    onClick: () => void loadDetail(item.id),
+                    style: {
+                      flex: 1,
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: active2 ? "2px solid var(--dsh-accent, #0f6e56)" : "1px solid var(--dsh-border, #ddd4c5)",
+                      background: active2 ? "#eef7f3" : "#fff",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      lineHeight: 1.45
+                    },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600 }, children: item.title }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { color: "#6b645a", marginTop: 2 }, children: [
+                        t2("crash.col.version"),
+                        ": ",
+                        item.appVersion || "—",
+                        " · ",
+                        t2("crash.col.count"),
+                        ":",
+                        " ",
+                        item.count ?? "—",
+                        " · ",
+                        t2("crash.col.affectedUsers"),
+                        ": ",
+                        item.affectedUsers ?? "—",
+                        " ·",
+                        " ",
+                        t2("crash.col.status"),
+                        ": ",
+                        statusLabel3(item.status)
+                      ] })
+                    ]
+                  }
+                ),
+                provider === "local" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    style: { ...btn, alignSelf: "center" },
+                    disabled: busy || detailBusy,
+                    title: t2("crash.inboxDelete"),
+                    onClick: () => void deleteInboxItem(item.id),
+                    children: t2("crash.inboxDelete")
+                  }
+                ) : null
+              ] }, item.id);
             })
           }
         ) : null,
@@ -10594,13 +11240,33 @@ ${text}
         )
       ] }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { ...row, marginBottom: 10 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: primary, disabled: busy || detailBusy, onClick: () => void onAnalyzeClick(), children: busy ? t2("common.loading") : t2("crash.analyze") }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onWriteSessionClick(), children: t2("crash.writeSession") }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: () => void onCopyReportClick(), children: t2("crash.copyReport") }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: onExportReportClick, children: t2("crash.exportReport") }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || !report, onClick: onSubmitClick, children: t2("crash.submitDefect") })
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            style: primary,
+            disabled: busy || detailBusy,
+            title: t2("crash.writeReproduceTitle"),
+            onClick: () => void writeSessionFor(void 0, "reproduce"),
+            children: busy && analysisKind === "reproduce" ? t2("common.loading") : t2("crash.writeReproduce")
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            style: btn,
+            disabled: busy || detailBusy,
+            title: t2("crash.writeFixTitle"),
+            onClick: () => void writeSessionFor(void 0, "fix"),
+            children: busy && analysisKind === "fix" ? t2("common.loading") : t2("crash.writeFix")
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onCopyReportClick(), children: t2("crash.copyReport") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onExportReportClick(), children: t2("crash.exportReport") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", style: btn, disabled: busy || detailBusy, onClick: () => void onSubmitClick(), children: t2("crash.submitDefect") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.analyzeVsAiHint") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", fontSize: 11, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.writeSessionHintShort") }),
       error ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#b42318", fontSize: 12, lineHeight: 1.45 }, children: error }) : null,
       hint2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "0 0 8px", color: "#6b645a", fontSize: 12, lineHeight: 1.45 }, children: hint2 }) : null,
       report ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { ref: reportPanelRef, style: { marginTop: 4, marginBottom: 10 }, children: [
@@ -10615,19 +11281,19 @@ ${text}
               marginBottom: 8
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("crash.localSummary") }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 6 }, children: t2("crash.prepSummary") }),
               /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }, children: report.summary }),
-              noMatch ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "8px 0 0", fontSize: 12, color: "#b54708" }, children: t2("crash.noRepoMatch") }) : null
+              noMatch ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: "8px 0 0", fontSize: 12, color: "#6b645a" }, children: t2("crash.noRepoMatch") }) : null
             ]
           }
         ),
         report.matchedFiles?.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginBottom: 8 }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.matchedFiles") }),
           /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("ul", { style: { margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.45 }, children: report.matchedFiles.map((m) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("li", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: m.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: `${m.path}${m.line != null ? `:${m.line}` : ""}` }),
             m.symbol ? ` · ${m.symbol}` : "",
             m.reason ? ` — ${m.reason}` : ""
-          ] }, m.path + (m.symbol || ""))) })
+          ] }, m.path + (m.symbol || "") + String(m.line ?? ""))) })
         ] }) : null,
         report.aiAnalysis?.trim() ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "div",
@@ -10652,7 +11318,7 @@ ${text}
                   },
                   children: [
                     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { fontWeight: 600 }, children: [
-                      t2("crash.aiSummary"),
+                      analysisKind === "reproduce" ? t2("crash.aiReproduceSummary") : t2("crash.aiSummary"),
                       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
                         "span",
                         {
@@ -10748,53 +11414,7 @@ ${text}
             }
           )
         ] })
-      ] }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { borderTop: "1px solid var(--dsh-border, #ddd4c5)", paddingTop: 10 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-          "button",
-          {
-            type: "button",
-            style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
-            onClick: () => setPasteOpen((v) => !v),
-            children: [
-              pasteOpen ? "▾ " : "▸ ",
-              t2("crash.pasteFallback")
-            ]
-          }
-        ),
-        pasteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: { ...label, marginTop: 8 }, children: [
-            t2("crash.pasteLabel"),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "textarea",
-              {
-                style: { ...input, minHeight: 120, resize: "vertical", fontFamily: "ui-monospace, monospace" },
-                value: stackText,
-                disabled: busy,
-                placeholder: t2("crash.pasteLabel"),
-                onChange: (e) => {
-                  setStackText(e.target.value);
-                  setSelectedIncident(null);
-                  setSelectedId("");
-                }
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
-            t2("缺陷标题"),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "input",
-              {
-                style: input,
-                value: title2,
-                disabled: busy,
-                placeholder: t2("（未填写）"),
-                onChange: (e) => setTitle(e.target.value)
-              }
-            )
-          ] })
-        ] }) : null
-      ] })
+      ] }) : null
     ] });
   }
   var import_react5, import_jsx_runtime5, CRASH_LIST_PAGE_SIZE, AI_SECTION_HEADERS, STACK_SECTION_HEADERS, MASKED_COOKIE, defaultFilters, card, label, input, row, btn, primary, UMENG_FILTER_MAX_PER_DIMENSION;
@@ -10805,7 +11425,12 @@ ${text}
       init_use_locale_t();
       import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
       CRASH_LIST_PAGE_SIZE = 20;
-      AI_SECTION_HEADERS = ["### AI 分析结论", "### AI analysis"];
+      AI_SECTION_HEADERS = [
+        "### AI 分析结论",
+        "### AI analysis",
+        "### 复现方式",
+        "### Reproduction steps"
+      ];
       STACK_SECTION_HEADERS = ["### 堆栈", "### Stack trace"];
       MASKED_COOKIE = "••••••••";
       defaultFilters = () => {

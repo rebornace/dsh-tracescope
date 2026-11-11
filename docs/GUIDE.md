@@ -1,4 +1,4 @@
-# TraceScope 功能说明
+﻿# TraceScope 功能说明
 
 本文档说明插件的实际能力、侧栏用法、对比分层、适配器深度增强与已知限制。  
 安装与一句话能力概览见仓库根目录 [README.md](../README.md)；工程结构见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
@@ -29,7 +29,7 @@
 |------|------|------|
 | **功能影响分析** | 稳定版 ↔ 待测版（本地 Git 或云效代码接口） | 直接变更 + 静态波及清单；可标注、截图、导出、提单 |
 | **设计差异分析** | Figma / 蓝湖设计稿 + 代码仓页面 | 静态差异清单 + 设计对照图高亮；可 AI 协助写回、导出、提单 |
-| **崩溃分析** | 友盟 U-APM（Cookie）/ Firebase Crashlytics（Token）或粘贴堆栈 + 代码目录 | 堆栈解析、仓库文件命中、双语报告；AI 工具写回结论；开发写会话、测试提交缺陷 |
+| **崩溃分析** | 本机崩溃采集（USB）/ 友盟 U-APM（Cookie）/ Firebase Crashlytics（Token）+ 代码目录 | 列表详情堆栈解析、可选文件软提示、双语报告；AI 工具写回结论；开发写会话、测试提交缺陷 |
 
 三条能力共用侧栏里的协作平台配置（云效 / GitHub / GitLab / Webhook）。「设计差异分析」与「崩溃分析」的「提交缺陷」各自使用专用正文模板（不再套用功能影响的「验证失败」模板）。
 
@@ -128,7 +128,7 @@
 
 ### 4.1 做什么
 
-从**友盟 U-APM**（国内）或 **Firebase Crashlytics**（海外）拉取崩溃 / ANR 列表与详情，或在凭证不可用时**粘贴堆栈**降级；对照当前代码目录生成摘要、命中文件与修复提示；支持本地分析、将提示词写入会话并由 Agent **工具写回** AI 结论，以及向协作平台提交专用缺陷正文。侧栏「数据源」可切换。
+从**本机崩溃采集**（测试期 USB 采集）、**友盟 U-APM**（国内）或 **Firebase Crashlytics**（海外）拉取崩溃 / ANR 列表与详情；对照当前代码目录生成摘要与可选文件软提示；点「分析并写入会话」时静默整理堆栈并把提示词写入会话，由 Agent **工具写回** AI 结论；也可复制 / 导出 / 提交缺陷。侧栏「数据源」可切换。本机崩溃采集**不上报任何 APM**（与线上池隔离）。
 
 数据源按 **`CrashProvider` 插件化横向扩展**（见 [§11 路线图与扩展计划](#11-路线图与扩展计划)）：后续会逐步增加更多崩溃 / APM 平台；若你急需某一平台，欢迎 [提 Issue 反馈](https://github.com/rebornace/dsh-tracescope/issues)，可优先适配。
 
@@ -215,30 +215,41 @@ gcloud auth print-access-token
 | **status** | open / closed / other（本地软过滤；列表行可能缺状态字段） |
 | **keyword** | 作为友盟 `errorAbstract` 下发 |
 
-点击列表行加载详情堆栈（`crash-detail`）。Cookie 失效（如 `UMENG_AUTH`）时会提示并展开**粘贴堆栈**区，仍可分析与提交。
+点击列表行加载详情堆栈（`crash-detail`）。Cookie 失效时请更新凭证后重新拉取；不要在侧栏粘贴堆栈。
 
 ### 4.4 分析、写会话、AI 回写与提交
 
-详情或粘贴区下方主按钮：
+详情下方主按钮：
 
 | 侧栏按钮 | 典型角色 | 行为 |
 |----------|----------|------|
-| **分析**（本地分析） | 开发 / 测试共用 | `POST /tracescope/v1/crash-analyze`：解析堆栈、在代码目录内按文件名匹配源码，展示摘要与命中文件。**不调模型**。提交缺陷前须先有报告。 |
-| **分析并写入会话** | **开发** | 若尚无报告则先本地分析；再创建崩溃 AI 任务（`crash-ai-job`），把带 **任务 ID** 的提示词填入当前会话输入框（**不自动发送**）。发送后 Agent 应调用 `tracescope_publish_crash_analysis`；侧栏轮询任务并**自动回写**绿色「AI 分析结论」。若未自动回写，可点「回写 AI 结论」拉取，或粘贴回复后再回写。 |
-| **复制 / 导出 / 提交缺陷** | 测试等 | 复制报告、导出 Markdown，或提交到协作平台（`feedbackKind: 'crash'` + 预构建 `defectBody`，可含 AI 结论）。云效 / GitHub 附件规则与另两条主能力相同；GitLab / Webhook 仍不上传二进制。 |
+| **输出复现方式**（主按钮） | **沟通 / 提测** | 静默整理堆栈后写入「仅复现步骤」提示词（`analysisKind=reproduce`）。用于跟开发对齐怎么复现；**不要求根因/修复**。Agent 写回后侧栏显示「复现方式」。 |
+| **定位并修复** | **改代码** | 原有深度分析：根因、影响、最小修复（`analysisKind=fix`）。 |
+| **复制 / 导出 / 提交缺陷** | 测试等 | 若尚无报告会先静默整理；再复制、导出 Markdown，或提交到协作平台（`feedbackKind: 'crash'` + 预构建 `defectBody`，可含 AI 结论）。云效 / GitHub 附件规则与另两条主能力相同；GitLab / Webhook 仍不上传二进制。 |
 
-Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-filter-options`、`crash-list`、`crash-detail`、`crash-analyze`、`crash-ai-job`、`crash-job`。
+**本机崩溃采集（测试期）**
+
+1. 数据源选 **本机崩溃采集**，选择采集平台：**Android（adb）** 或 **iOS（仅 macOS）**。  
+2. 刷新设备 → 开始录制；崩溃 / ANR 写入 `~/.tracescope/crash-inbox/shared/`（与当前代码目录是本地路径还是远程 URL 无关），列表自动刷新。  
+3. **Android**：若本机没有 adb，首次刷新会自动下载 platform-tools 到 `~/.tracescope/tools/`（国内会尝试镜像；仍失败时可开系统代理）。手机需开 USB 调试。  
+4. 进入本机崩溃采集会**自动加载**历史列表（标题旁显示条数）；也可点「刷新列表」。  
+5. 点开已捕获条目后优先「输出复现方式」，需要改代码再「定位并修复」。  
+6. **已有堆栈 / `.crash` / `.ips`**：展开「已有堆栈？直接分析」粘贴后直接「输出复现方式」，不必先录制。  
+7. **Windows 上 iOS USB 录制不可用**（仍可查看已捕获列表、粘贴堆栈直达分析）；Android USB 在 Windows / macOS 均可。  
+8. TraceScope **不会**把本机捕获内容上报到友盟 / Crashlytics / 其它 APM。
+
+Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-filter-options`、`crash-list`、`crash-detail`、`crash-analyze`、`crash-ai-job`、`crash-job`，以及本机崩溃采集 `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`。
 
 桌面端内置 skill：`tracescope-crash-analysis`（引导 Agent 用写回工具）。
 
 ### 4.5 本节已知限制（摘要）
 
-- **Console 依赖**：取数走友盟 Web Console 协议，非官方 OpenAPI；`transport: openapi` 尚未实现。Console 变更可能导致列表 / 详情失败，可改用粘贴堆栈。  
-- **Cookie 生命周期**：会话过期需重新复制 Cookie；自检失败时请更新 Cookie 或粘贴降级。  
+- **Console 依赖**：取数走友盟 Web Console 协议，非官方 OpenAPI；`transport: openapi` 尚未实现。Console 变更可能导致列表 / 详情失败。  
+- **Cookie 生命周期**：会话过期需重新复制 Cookie 并再拉取；侧栏不再提供粘贴堆栈降级。  
 - **筛选交集**：多维度同时勾选时很容易得到 0 条（并且关系）；请先少选维度，或清空系统 / 机型只留版本试查。  
-- **无符号化**：不做 dSYM / mapping 还原；仓库命中按堆栈**文件名**搜索，可能误匹配或漏匹配。  
+- **文件匹配是软提示**：自动命中仓库文件仅供参考；未命中不挡「分析并写入会话」，以完整堆栈为准交给 AI。  
 - **协作附件**：GitLab / Webhook 不上传二进制（与 §10 一致）。  
-- **AI 结论缓存**：写回后按仓库 + 崩溃 id 存本机；再次本地分析会自动带出（不调模型）。侧栏可清除缓存后重新「分析并写入会话」。  
+- **AI 结论缓存**：写回后按仓库 + 崩溃 id 存本机；再次打开同条崩溃并整理时会自动带出（不调模型）。侧栏可清除缓存后重新「分析并写入会话」。  
 - **MCP**：崩溃工具已进 `@rebornace/tracescope-mcp`（与侧栏共用 agent-api）；无侧栏时也可在任意 MCP 客户端完成列表 → 分析 → 写回。  
 
 更完整限制见 [§10 已知限制](#10-已知限制)。
@@ -364,7 +375,7 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 | `tracescope_crash_filter_options` | 版本 / 系统 / 机型筛选选项 |
 | `tracescope_crash_list` | 崩溃 / ANR 列表 |
 | `tracescope_crash_detail` | 按 id 取详情与堆栈 |
-| `tracescope_crash_analyze` | 本地堆栈解析与仓库文件命中（不调模型） |
+| `tracescope_crash_analyze` | 本地堆栈解析（Android / iOS / JS / 原生）+ 可选仓库文件软提示（不调模型；未命中可继续） |
 | `tracescope_create_crash_analysis_job` | 创建 AI 任务并返回带 jobId 的提示词 |
 | `tracescope_publish_crash_analysis` | 写回崩溃 AI 结论（MCP 与 DSH Host 同名） |
 | `tracescope_get_crash_job` | 轮询任务状态 / 已写回结论 |
@@ -390,11 +401,12 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 
 ### 10.3 崩溃分析
 
-- 友盟 **Console Cookie** 取数，无 OpenAPI；Console 变更或 Cookie 过期会导致列表 / 详情失败，可粘贴堆栈继续分析  
+- 本机崩溃采集：Android 需本机 `adb`；iOS USB 仅 macOS + libimobiledevice；不上报 APM  
+- 友盟 **Console Cookie** 取数，无 OpenAPI；Console 变更或 Cookie 过期会导致列表 / 详情失败，需更新凭证  
 - Crashlytics：**用户 Access Token** 约 1 小时过期；本机已 `gcloud auth login` 时可自动刷新。服务账号对 `topIssues` 完整报告支持不完整（Firebase 已知限制）  
 - Crashlytics 需启用 API、可读 IAM，以及用户 Token 的**配额项目**（侧栏项目 ID → `x-goog-user-project`）  
 - 国内访问 Google 依赖系统代理 / `HTTPS_PROXY`；无代理时 OAuth 与 Crashlytics 请求会失败  
-- 不做 ProGuard / dSYM **符号化**；仓库命中为文件名级静态搜索，复杂 monorepo 可能误匹配  
+- 仓库文件匹配为软提示（优先包路径 / 相对路径，系统帧不参与）；未命中时仍以完整堆栈交给 AI。不提供本机 mapping / dSYM 符号化入口。  
 - 友盟：版本 / 系统 / 机型为跨维度**并且**；勾选过多时控制台也会返回空列表（属预期）  
 - AI 自动回写依赖会话里 Agent 调用 `tracescope_publish_crash_analysis`；未调用时可手动「回写 AI 结论」或粘贴回复  
 - 无本机凭证时须在 MCP 工具参数中传入 Cookie / Token；或先在侧栏保存后再用 MCP  
@@ -413,7 +425,7 @@ TraceScope 的三条能力都按**插件化横向扩展**，不绑死单一厂�
 
 | 扩展面 | 契约（摘要） | 当前已接入 | 可继续扩展（示例） |
 |--------|----------------|------------|--------------------|
-| **崩溃数据源** | `CrashProvider`（列表 / 详情 / 筛选） | 友盟 U-APM、Firebase Crashlytics、粘贴堆栈 | Sentry、Bugly、各厂商 APM 等 |
+| **崩溃数据源** | `CrashProvider`（列表 / 详情 / 筛选） | 本机崩溃采集（USB 采集）、友盟 U-APM、Firebase Crashlytics | Sentry、Bugly、各厂商 APM 等 |
 | **协作 / 缺陷平台** | `TrackerAdapter`（提交缺陷、附件策略等） | 云效、GitHub Issues、GitLab Issues、通用 Webhook | Jira、飞书 / Lark、其它工单系统等 |
 | **设计稿来源** | 拉取后归一到 `DesignDoc`，再走统一静态对比 | Figma、蓝湖 | MasterGo、即时设计、其它设计协作平台等 |
 
@@ -423,10 +435,10 @@ TraceScope 的三条能力都按**插件化横向扩展**，不绑死单一厂�
 
 其它规划（非本版 npm 必交付）：
 
-- Android USB、浏览器扩展录制等  
-- 仓库内 `browser-extension` 等脚手架：**未纳入当前 npm 交付**  
-- 友盟 OpenAPI；Crashlytics 服务账号完整报告支持跟进上游；堆栈符号化与更准的仓库命中  
+- 浏览器扩展录制等（仓库内 `browser-extension` 脚手架：**未纳入当前 npm 交付**）  
+- 友盟 OpenAPI（需付费开通，等有用户明确提出再做）；Crashlytics 服务账号完整报告支持跟进上游
 - 更多栈的 enrichment（在能力齐平前提下按需扩展，而非主路径特化）  
+- Windows 上的 iOS USB 实时采集（本机崩溃采集已支持 macOS iOS 采集；Windows 可粘贴堆栈直达分析）  
 
 ---
 

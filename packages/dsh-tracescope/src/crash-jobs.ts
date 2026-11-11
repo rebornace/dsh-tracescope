@@ -6,6 +6,8 @@
  * merges `aiAnalysis` into the in-panel report.
  */
 import { randomUUID } from 'node:crypto'
+import type { CrashAnalysisKind } from '@rebornace/tracescope-core'
+import { normalizeCrashAnalysisKind } from '@rebornace/tracescope-core'
 
 export type CrashJobStatus = 'pending' | 'published' | 'error'
 
@@ -13,6 +15,7 @@ export interface CrashJob {
   id: string
   repoPath: string
   incidentId: string
+  analysisKind: CrashAnalysisKind
   status: CrashJobStatus
   aiAnalysis?: string
   error?: string
@@ -25,12 +28,14 @@ const crashJobs = new Map<string, CrashJob>()
 export function createCrashJob(input: {
   repoPath: string
   incidentId?: string
+  analysisKind?: CrashAnalysisKind | string
 }): CrashJob {
   const now = new Date().toISOString()
   const job: CrashJob = {
     id: randomUUID(),
     repoPath: input.repoPath.trim(),
     incidentId: (input.incidentId || '').trim(),
+    analysisKind: normalizeCrashAnalysisKind(input.analysisKind ?? 'fix'),
     status: 'pending',
     createdAt: now,
     updatedAt: now,

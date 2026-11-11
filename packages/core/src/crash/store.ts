@@ -390,6 +390,8 @@ export async function resolveCrashConfigFromBody(
   const provider = inferCrashProviderId(body, stored)
   return {
     provider,
+    repoPath: repoPath?.trim() || undefined,
+    cacheRoot,
     stackText:
       typeof body.stackText === 'string'
         ? body.stackText

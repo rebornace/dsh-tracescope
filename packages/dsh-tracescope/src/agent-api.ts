@@ -22,6 +22,7 @@ import {
   parseVisualRenderPatches,
   resolveCodeupTarget,
   resolveGitRepo,
+  normalizeCrashAnalysisKind,
   saveCrashAiAnalysis,
   saveHandtestReport,
   saveVisualFindings,
@@ -45,8 +46,15 @@ import { createCrashJob, getCrashJob, publishCrashJobAnalysis } from './crash-jo
 import {
   analyzeCrashTool,
   clearCrashAiCache,
+  connectCrashAdbTarget,
+  crashAdbPrepStatus,
+  crashCaptureStatus,
+  deleteCrashInboxItem,
+  ensureCrashAdb,
   getCrashIncident,
   getCrashJobStatus,
+  importCrashInboxStack,
+  listCrashCaptureDevices,
   listCrashFilterOptions,
   listCrashIncidents,
   loadCrashAiCache,
@@ -54,6 +62,8 @@ import {
   parseCrashMeta,
   probeCrash,
   saveCrashAiCache,
+  startCrashCapture,
+  stopCrashCapture,
 } from './services/crash-flow.js'
 import { getDiffChunk } from './services/diff-chunk.js'
 import { runAnalyze } from './services/run-analyze.js'
@@ -77,8 +87,15 @@ export { parseAuthFromToolArgs }
 export {
   analyzeCrashTool,
   clearCrashAiCache,
+  connectCrashAdbTarget,
+  crashAdbPrepStatus,
+  crashCaptureStatus,
+  deleteCrashInboxItem,
+  ensureCrashAdb,
   getCrashIncident,
   getCrashJobStatus,
+  importCrashInboxStack,
+  listCrashCaptureDevices,
   listCrashFilterOptions,
   listCrashIncidents,
   loadCrashAiCache,
@@ -86,6 +103,8 @@ export {
   parseCrashMeta,
   probeCrash,
   saveCrashAiCache,
+  startCrashCapture,
+  stopCrashCapture,
 }
 
 /** Prefer explicit args.locale, else Host locale. */
@@ -609,7 +628,8 @@ export function createCrashAnalysisJob(args: Record<string, unknown>) {
       ? args.fixHints.filter((h): h is string => typeof h === 'string')
       : []
 
-  const job = createCrashJob({ repoPath, incidentId: incident.id })
+  const analysisKind = normalizeCrashAnalysisKind(args.analysisKind ?? args.kind ?? 'fix')
+  const job = createCrashJob({ repoPath, incidentId: incident.id, analysisKind })
   const promptLang = agentLang(args)
   const prompt = buildCrashPrompt(
     {
@@ -620,12 +640,14 @@ export function createCrashAnalysisJob(args: Record<string, unknown>) {
       stackText,
       incident,
       jobId: job.id,
+      analysisKind,
     },
     promptLang,
   )
   return {
     jobId: job.id,
     status: job.status,
+    analysisKind,
     prompt,
     summary: [
       ui('AGENT_CRASH_CREATED', promptLang, { id: job.id }),
@@ -648,12 +670,15 @@ export async function publishCrashAnalysis(args: Record<string, unknown>) {
   if (!analysis) throw new Error('缺少 analysis')
   const updated = publishCrashJobAnalysis(jobId, analysis)
   if (job.repoPath && job.incidentId) {
-    await saveCrashAiAnalysis(job.repoPath, job.incidentId, analysis)
+    await saveCrashAiAnalysis(job.repoPath, job.incidentId, analysis, {
+      analysisKind: job.analysisKind,
+    })
   }
   const lang = agentLang(args)
   return {
     jobId,
     status: updated.status,
+    analysisKind: job.analysisKind,
     persisted: Boolean(job.repoPath && job.incidentId),
     summary: ui('AGENT_CRASH_PUBLISHED', lang, { id: jobId }),
   }

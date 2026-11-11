@@ -1,4 +1,4 @@
-# TraceScope User Guide
+﻿# TraceScope User Guide
 
 Detailed capabilities, sidebar workflows, compare layers, adapter enrichment, and known limits.  
 For a short overview and install steps see [README.en.md](../README.en.md). Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md).
@@ -13,7 +13,7 @@ For a short overview and install steps see [README.en.md](../README.en.md). Arch
 |------------|-------|--------|
 | **Impact analysis** | Stable ↔ under-test (local git or Codeup API) | Direct + static ripple checklist; mark, attach, export, file defects |
 | **Design diff** | Figma / Lanhu + code pages | Static diffs + design raster highlights; optional AI write-back |
-| **Crash analysis** | Umeng U-APM (cookie) / Firebase Crashlytics (token) or pasted stack + code directory | Stack parse, repo file hits, bilingual report; AI tool write-back; composer draft or tracker filing |
+| **Crash analysis** | Local crash capture (USB) / Umeng U-APM (cookie) / Firebase Crashlytics (token) + code directory | List/detail stack parse, optional soft file hints, bilingual report; AI tool write-back; composer draft or tracker filing |
 
 All three share the same tracker settings (Yunxiao / GitHub / GitLab / Webhook). Design diff and crash analysis use **dedicated defect bodies** (not the impact-analysis verification template).
 
@@ -72,7 +72,7 @@ Sidebar mode switch: **Impact analysis** / **Design diff** / **Crash analysis**.
 
 ### What it does
 
-Pull crash/ANR list and detail from **Umeng U-APM** (China) or **Firebase Crashlytics** (global), or **paste a stack trace** when credentials fail; match frames to files under the code directory; run local analysis; write a bilingual prompt into the session and let the agent **publish** the AI conclusion back; file a dedicated tracker defect body. Switch providers in the sidebar **Provider** field.
+Pull crash/ANR list and detail from the **Local crash capture** (test-time USB capture), **Umeng U-APM** (China), or **Firebase Crashlytics** (global); soft-match frames to files under the code directory. **Analyze & write to session** quietly prepares the stack then fills the composer so the agent can **publish** the AI conclusion back; copy / export / submit also prep quietly. Switch providers in the sidebar **Provider** field. The Local crash capture **never uploads to any APM**.
 
 Crash sources are **horizontally extensible** via the `CrashProvider` registry (see [§11 Roadmap & extension plans](#11-roadmap--extension-plans)): more crash / APM platforms will land over time. If you urgently need a specific platform, please [open a GitHub Issue](https://github.com/rebornace/dsh-tracescope/issues) — high-priority requests can be adapted sooner.
 
@@ -159,26 +159,36 @@ After credentials are ready you can load the list. The **Filters** block is **co
 | **status** | open / closed / other (soft local filter; list rows may omit status) |
 | **keyword** | Sent as Umeng `errorAbstract` |
 
-Row click loads stack detail (`crash-detail`). On auth failure (e.g. `UMENG_AUTH`) the UI expands **paste stack** so analyze/submit still work.
+Row click loads stack detail (`crash-detail`). On auth failure, update credentials and fetch again — the sidebar no longer offers a paste-stack fallback.
 
 ### Analyze, write session, AI write-back, submit
 
 | Button | Typical role | Behavior |
 |--------|--------------|----------|
-| **Analyze** (local) | Dev & QA | `POST /tracescope/v1/crash-analyze` — parse stack, match files, show summary. **No model call**. Required before filing. |
-| **Analyze & write to session** | **Developers** | Analyze if needed; create a crash AI job (`crash-ai-job`); fill the composer with a prompt that includes the **job id** (**does not send**). After send, the agent should call `tracescope_publish_crash_analysis`; the sidebar polls and **auto-writes** the green AI conclusion. If not, click **Apply AI reply** to pull, or paste then apply. |
-| **Copy / Export / Submit defect** | QA etc. | Copy report, export Markdown, or file to the tracker (`feedbackKind: 'crash'` + prebuilt `defectBody`, may include AI text). Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook skip binaries. |
+| **Write reproduce steps** (primary) | **Teammate handoff** | Quiet stack prep, then a reproduce-only prompt (`analysisKind=reproduce`). No root cause / fix required. Sidebar shows **Reproduction steps** after publish. |
+| **Locate & fix** | **Code change** | Former deep path: root cause, impact, minimal fix (`analysisKind=fix`). |
+| **Copy / Export / Submit defect** | QA etc. | Quietly prepares a report if needed, then copy / export Markdown / file to the tracker (`feedbackKind: 'crash'` + prebuilt `defectBody`, may include AI text). Yunxiao/GitHub attachment rules match other pillars; GitLab/Webhook skip binaries. |
 
-Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-filter-options`, `crash-list`, `crash-detail`, `crash-analyze`, `crash-ai-job`, `crash-job`.
+**Local crash capture (test-time)**
+
+1. Provider **Local crash capture** → platform **Android (adb)** or **iOS (macOS only)**.  
+2. Refresh devices → Start capture; crashes/ANRs land under `~/.tracescope/crash-inbox/shared/` (same store whether the code directory is a local path or a remote URL).  
+3. Opening Local crash capture **auto-loads** history (count shown in the list title); Refresh list remains available.  
+4. Open a row → prefer **Write reproduce steps**; use **Locate & fix** when changing code.  
+5. **Already have a stack / `.crash` / `.ips`**: expand “Paste stack → analyze” and Write reproduce steps directly (no need to record first).  
+6. **iOS USB capture is macOS-only** (Windows can still browse captured crashes or paste a stack). Android USB works on Windows and macOS.  
+7. TraceScope does **not** upload locally captured items to Umeng / Crashlytics / other APM.
+
+Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-filter-options`, `crash-list`, `crash-detail`, `crash-analyze`, `crash-ai-job`, `crash-job`, plus inbox `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`.
 
 Bundled skill: `tracescope-crash-analysis` (guides the agent to publish).
 
 ### Crash-specific limits (summary)
 
-- **Console transport** only — no official OpenAPI; Console changes can break list/detail → paste stack.  
-- **Cookie expiry** — re-copy from the browser when probe/list fails.  
+- **Console transport** only — no official OpenAPI; Console changes can break list/detail.  
+- **Cookie expiry** — re-copy from the browser and fetch again; no paste-stack fallback in the sidebar.  
 - **Filter intersection** — heavy multi-dimension picks often return 0 rows (AND semantics). Try fewer dimensions first.  
-- **No symbolication** — filename search heuristics may mis-match.  
+- **Soft file hints** — automatic repo matches are optional; empty matches still allow Analyze & write to session, with the full stack as the source of truth for AI.  
 - **Trackers** — GitLab/Webhook do not upload binaries (see [§10](#10-known-limitations)).  
 - **MCP** — crash list/analyze APIs are not in `@rebornace/tracescope-mcp` yet; publish tool is registered on the DSH Host agent surface.  
 
@@ -282,7 +292,7 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 | `tracescope_crash_filter_options` | Version / OS / device filter options |
 | `tracescope_crash_list` | Crash / ANR list |
 | `tracescope_crash_detail` | Incident detail + stack |
-| `tracescope_crash_analyze` | Local stack parse + repo file match (no model) |
+| `tracescope_crash_analyze` | Parse Android/iOS/JS/native stacks + optional soft repo file hints (no model; empty matches are fine) |
 | `tracescope_create_crash_analysis_job` | AI job + prompt with jobId |
 | `tracescope_publish_crash_analysis` | Publish crash AI conclusion (MCP + DSH Host) |
 | `tracescope_get_crash_job` | Poll job status / published analysis |
@@ -309,14 +319,15 @@ These tools share `@rebornace/dsh-tracescope/agent-api` with DSH Host.
 
 **Crash analysis**
 
-- Umeng **Console cookie** (no OpenAPI); cookie expiry or Console changes break list/detail — paste-stack fallback  
+- Local crash capture: Android needs `adb` on PATH; iOS USB is macOS + libimobiledevice only; never uploads to APM  
+- Umeng **Console cookie** (no OpenAPI); cookie expiry or Console changes break list/detail — refresh credentials  
 - Crashlytics: **user access tokens** expire ~1h; auto-refresh when local `gcloud auth login` is available. Service accounts have incomplete support for full `topIssues` reports (Firebase limitation)  
 - Crashlytics needs the API enabled, read IAM, and a **quota project** on user tokens (sidebar project ID → `x-goog-user-project`)  
 - Reaching Google from restricted networks needs system proxy / `HTTPS_PROXY`  
-- No **symbolication**; filename-level repo search may mis-match in large monorepos  
+- Repo file matches are soft hints (package path / relative path preferred; system frames ignored). Empty matches still go to AI with the full stack. No local mapping / dSYM symbolication UI.  
 - Umeng: version / OS / device filters are **AND across dimensions**; heavy multi-select often returns 0 rows (same as Console)  
 - Auto AI write-back requires the agent to call `tracescope_publish_crash_analysis`; otherwise use **Apply AI reply** or paste  
-- **AI conclusion cache**: After write-back, stored under repo + incident id; local analyze restores it (no model). Clear AI cache in the sidebar to re-run.  
+- **AI conclusion cache**: After write-back, stored under repo + incident id; quiet prep on the same crash restores it (no model). Clear AI cache in the sidebar to re-run.  
 - Without saved credentials, pass Cookie / Token in MCP tool args; or save once in the sidebar then use MCP  
 
 **Install**
@@ -333,7 +344,7 @@ All three pillars are built for **horizontal, pluggable extension** — TraceSco
 
 | Extension surface | Contract (summary) | Today | Can grow (examples) |
 |-------------------|--------------------|-------|---------------------|
-| **Crash sources** | `CrashProvider` (list / detail / filters) | Umeng U-APM, Firebase Crashlytics, paste-stack | Sentry, Bugly, other vendor APMs |
+| **Crash sources** | `CrashProvider` (list / detail / filters) | Local crash capture (USB), Umeng U-APM, Firebase Crashlytics | Sentry, Bugly, other vendor APMs |
 | **Collaboration / trackers** | `TrackerAdapter` (file defects, attachment policy, …) | Yunxiao, GitHub Issues, GitLab Issues, generic Webhook | Jira, Feishu / Lark, other issue systems |
 | **Design sources** | Fetch → normalize to `DesignDoc`, then shared static compare | Figma, Lanhu | MasterGo, js.design, other design tools |
 
@@ -343,9 +354,10 @@ Code-side `PlatformAdapter` stacks and optional **enrichment** plugins remain or
 
 Other items (not required for the current npm cut):
 
-- Android USB, browser recording; in-repo `browser-extension` scaffolds (not in current npm delivery)  
-- Umeng OpenAPI; fuller Crashlytics service-account report support as upstream allows; symbolication and sharper repo matching  
-- More enrichment stacks when capability is on par (opt-in extras, not main-path forks)
+- Browser recording; in-repo `browser-extension` scaffolds (not in current npm delivery)  
+- Umeng OpenAPI (paid; add it when a user asks); fuller Crashlytics service-account report support as upstream allows  
+- More enrichment stacks when capability is on par (opt-in extras, not main-path forks)  
+- iOS USB live capture on Windows (inbox already supports macOS iOS capture; Windows can paste a stack and analyze)
 
 ---
 

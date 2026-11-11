@@ -5,7 +5,14 @@ export type CrashProviderId = 'local' | 'umeng' | 'crashlytics'
 
 export interface CrashProviderConfig {
   provider: CrashProviderId
-  /** Pasted stack trace (local provider). */
+  /**
+   * Runtime scope for the local inbox provider (not a remote credential).
+   * Set by Host/MCP from request `repoPath`; not required in stored credentials.
+   */
+  repoPath?: string
+  /** Optional override of TraceScope data root (tests). */
+  cacheRoot?: string
+  /** Legacy pasted stack trace (local provider fallback when inbox empty). */
   stackText?: string
   /** Optional display title override (local provider). */
   title?: string
@@ -130,6 +137,19 @@ export interface CrashMatchedFile {
   path: string
   reason: string
   symbol?: string
+  /** 1-based source line from the stack frame that selected this file. */
+  line?: number
+}
+
+/**
+ * Crash chat analysis mode:
+ * - `reproduce` — output reproduction steps for teammates (default in UI)
+ * - `fix` — root cause / impact / minimal fix (existing deep path)
+ */
+export type CrashAnalysisKind = 'reproduce' | 'fix'
+
+export function normalizeCrashAnalysisKind(value: unknown): CrashAnalysisKind {
+  return value === 'reproduce' ? 'reproduce' : 'fix'
 }
 
 export interface CrashAnalysisReport {

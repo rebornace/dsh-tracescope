@@ -9,11 +9,15 @@ import {
   analyzeImpactTool,
   createCrashAnalysisJob,
   createHandtestJob,
+  crashCaptureStatus,
+  deleteCrashInboxItem,
   getCrashIncident,
   getCrashJobStatus,
   getDesignSnapshot,
   getDiffTool,
+  importCrashInboxStack,
   listCommits,
+  listCrashCaptureDevices,
   listCrashFilterOptions,
   listCrashIncidents,
   parseAuthFromToolArgs,
@@ -22,8 +26,10 @@ import {
   publishHandtest,
   publishPageRematch,
   publishVisualFindings,
+  startCrashCapture,
   startPageRematch,
   startVisualReview,
+  stopCrashCapture,
 } from '@rebornace/dsh-tracescope/agent-api'
 import { z } from 'zod'
 
@@ -341,7 +347,7 @@ server.tool(
 
 server.tool(
   'tracescope_crash_list',
-  'List crash/ANR issues from Umeng or Firebase Crashlytics (or empty for local). Uses saved credentials when tool credential fields are omitted.',
+  'List crash/ANR issues from Umeng, Firebase Crashlytics, or the local inbox (provider=local). Uses saved credentials when tool credential fields are omitted.',
   {
     ...crashCredentialParams,
     page: z.number().int().min(1).optional(),
@@ -377,10 +383,65 @@ server.tool(
 )
 
 server.tool(
-  'tracescope_crash_analyze',
-  'Local crash analysis: parse stack, match files under repoPath, return summary / matchedFiles / fixHints (no model call).',
+  'tracescope_crash_inbox_devices',
+  'List USB devices for local crash inbox capture (Android adb or iOS on macOS).',
   {
-    repoPath: z.string().describe('Local code directory for filename matching'),
+    platform: z.enum(['android', 'ios']).describe('Capture platform'),
+    repoPath: z.string().optional(),
+  },
+  async (args) => jsonResult(await listCrashCaptureDevices(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_inbox_capture_start',
+  'Start USB crash capture into the local inbox (Android logcat or iOS idevicecrashreport on macOS). Does not upload to any APM.',
+  {
+    repoPath: z.string(),
+    platform: z.enum(['android', 'ios']),
+    deviceId: z.string().optional().describe('adb serial or iOS UDID'),
+    deviceModel: z.string().optional(),
+  },
+  async (args) => jsonResult(await startCrashCapture(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_inbox_capture_stop',
+  'Stop the active local crash USB capture session.',
+  { repoPath: z.string().optional() },
+  async (args) => jsonResult(await stopCrashCapture(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_inbox_capture_status',
+  'Status of the in-process local crash capture session.',
+  { repoPath: z.string().optional() },
+  async (args) => jsonResult(crashCaptureStatus(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_inbox_import',
+  'Import pasted stack / .crash text into the local inbox (no APM upload).',
+  {
+    repoPath: z.string(),
+    stackText: z.string(),
+    title: z.string().optional(),
+    platform: z.enum(['android', 'ios', 'other']).optional(),
+  },
+  async (args) => jsonResult(await importCrashInboxStack(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_inbox_delete',
+  'Delete one incident from the local crash inbox.',
+  { repoPath: z.string(), id: z.string() },
+  async (args) => jsonResult(await deleteCrashInboxItem(args as Record<string, unknown>)),
+)
+
+server.tool(
+  'tracescope_crash_analyze',
+  'Local crash analysis: parse Android/iOS/JS/native stacks, soft-match related files under repoPath when possible, return summary / matchedFiles / fixHints (no model call). File matches are hints only — empty matches still allow AI write-back.',
+  {
+    repoPath: z.string().describe('Local code directory for soft file hints'),
     incident: z
       .string()
       .optional()
@@ -402,7 +463,7 @@ server.tool(
 
 server.tool(
   'tracescope_create_crash_analysis_job',
-  'Create a crash AI analysis job and return a starter prompt with jobId. After reasoning, call tracescope_publish_crash_analysis with the same jobId.',
+  'Create a crash AI analysis job and return a starter prompt with jobId. Prefer analysisKind=reproduce for teammate handoff; use fix for root-cause work. After reasoning, call tracescope_publish_crash_analysis with the same jobId.',
   {
     repoPath: z.string(),
     summary: z.string().describe('Local analysis summary from tracescope_crash_analyze'),
@@ -413,6 +474,10 @@ server.tool(
       .optional()
       .describe('JSON array from analyze report: [{path,reason,symbol?}]'),
     fixHints: z.string().optional().describe('JSON string array of fix hints'),
+    analysisKind: z
+      .enum(['reproduce', 'fix'])
+      .optional()
+      .describe('reproduce = steps only (default in UI); fix = root cause + minimal fix'),
     lang: z.enum(['zh', 'en']).optional(),
   },
   async (args) => {
@@ -423,10 +488,12 @@ server.tool(
 
 server.tool(
   'tracescope_publish_crash_analysis',
-  'Publish the crash/ANR AI conclusion for a TraceScope crash job so panels / clients can write it back.',
+  'Publish the crash/ANR AI conclusion for a TraceScope crash job so panels / clients can write it back. For reproduce jobs, analysis should be reproduction steps only; for fix jobs, root cause / impact / fix.',
   {
     jobId: z.string().describe('Job id from tracescope_create_crash_analysis_job'),
-    analysis: z.string().describe('Full AI conclusion text (root cause / impact / fix)'),
+    analysis: z
+      .string()
+      .describe('AI conclusion text matching the job analysisKind (reproduce steps, or root cause / impact / fix)'),
     lang: z.enum(['zh', 'en']).optional(),
   },
   async (args) => {

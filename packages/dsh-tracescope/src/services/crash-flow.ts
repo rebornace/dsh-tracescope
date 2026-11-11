@@ -5,13 +5,25 @@ import {
   analyzeCrash,
   applyAiAnalysisToReport,
   clearCrashAiAnalysis,
+  deleteInboxIncident,
+  connectCaptureAdbTarget,
+  ensureAdb,
+  getAdbPrepProgress,
+  getCaptureSessionStatus,
   getCrashProvider,
+  getIosCaptureSupport,
+  importInboxStack,
+  listCaptureDevices,
   loadCrashAiAnalysis,
+  normalizeCrashAnalysisKind,
   parseCrashListQuery,
   publicCrashConfig,
   resolveCrashConfigFromBody,
   saveCrashAiAnalysis,
   saveCrashConfig,
+  startCaptureSession,
+  stopCaptureSession,
+  type CapturePlatform,
   type CrashFeedbackMeta,
   type CrashIncident,
   type CrashProviderConfig,
@@ -162,8 +174,8 @@ async function runProbeInner(
           ok: false,
           error:
             lang === 'en'
-              ? 'Local provider needs stackText in config or request body'
-              : 'local 模式需要提供 stackText',
+              ? 'Local inbox needs repoPath (code directory) in the request'
+              : '本机收件箱需要提供 repoPath（代码目录）',
         }
   }
   return { ok: adapter.isReady(config) }
@@ -336,10 +348,12 @@ export async function analyzeCrashTool(args: Record<string, unknown>) {
   if (!incident) throw new I18nError('ERR_CRASH_MISSING_INCIDENT', lang)
   const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
   if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  const analysisKind = normalizeCrashAnalysisKind(b.analysisKind ?? b.kind ?? 'fix')
   const baseReport = await analyzeCrash({
     incident,
     repoPath,
     lang: typeof b.lang === 'string' ? b.lang : lang,
+    analysisKind,
   })
   // Restore persisted AI conclusion when present (avoids re-calling the model).
   const skipCache = b.skipAiCache === true || b.skipAiCache === 'true'
@@ -347,10 +361,10 @@ export async function analyzeCrashTool(args: Record<string, unknown>) {
   let aiCachedAt: string | undefined
   let report = baseReport
   if (!skipCache) {
-    const cached = await loadCrashAiAnalysis(repoPath, incident.id)
+    const cached = await loadCrashAiAnalysis(repoPath, incident.id, undefined, analysisKind)
     const text = cached?.payload.aiAnalysis?.trim()
     if (text) {
-      const merged = applyAiAnalysisToReport(baseReport, text, { repoPath, lang })
+      const merged = applyAiAnalysisToReport(baseReport, text, { repoPath, lang, analysisKind })
       report = {
         ...baseReport,
         ...merged,
@@ -385,13 +399,16 @@ export async function saveCrashAiCache(args: Record<string, unknown>) {
   if (!aiAnalysis) {
     throw new Error(lang === 'en' ? 'Missing analysis' : '缺少 analysis')
   }
+  const analysisKind = normalizeCrashAnalysisKind(b.analysisKind ?? b.kind ?? 'fix')
   const entry = await saveCrashAiAnalysis(repoPath, incidentId, aiAnalysis, {
     summary: typeof b.summary === 'string' ? b.summary : undefined,
+    analysisKind,
   })
   return {
     ok: Boolean(entry),
     savedAt: entry?.savedAt,
     incidentId,
+    analysisKind,
   }
 }
 
@@ -402,13 +419,15 @@ export async function loadCrashAiCache(args: Record<string, unknown>) {
   const incidentId = String(b.incidentId ?? b.id ?? '').trim()
   if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
   if (!incidentId) throw new I18nError('ERR_MISSING_ID', lang)
-  const entry = await loadCrashAiAnalysis(repoPath, incidentId)
+  const analysisKind = normalizeCrashAnalysisKind(b.analysisKind ?? b.kind ?? 'fix')
+  const entry = await loadCrashAiAnalysis(repoPath, incidentId, undefined, analysisKind)
   if (!entry) return { ok: false as const, aiAnalysis: undefined as string | undefined }
   return {
     ok: true as const,
     aiAnalysis: entry.payload.aiAnalysis,
     savedAt: entry.savedAt,
     incidentId: entry.payload.incidentId,
+    analysisKind,
   }
 }
 
@@ -435,9 +454,200 @@ export function getCrashJobStatus(args: Record<string, unknown>) {
   return {
     jobId: job.id,
     status: job.status,
+    analysisKind: job.analysisKind,
     aiAnalysis: job.aiAnalysis,
     error: job.error,
     incidentId: job.incidentId,
     updatedAt: job.updatedAt,
   }
+}
+
+function asCapturePlatform(raw: unknown): CapturePlatform {
+  return raw === 'ios' ? 'ios' : 'android'
+}
+
+/** Poll Android capture-tool prep progress (auto platform-tools download). */
+export function crashAdbPrepStatus(_args?: Record<string, unknown>): {
+  progress: {
+    phase: string
+    percent: number | null
+    message: string
+    detail?: string
+    adbPath?: string
+    error?: string
+    updatedAt: string
+  }
+} {
+  const progress = getAdbPrepProgress()
+  return {
+    progress: {
+      phase: progress.phase,
+      percent: progress.percent,
+      message: progress.message,
+      detail: progress.detail,
+      adbPath: progress.adbPath,
+      error: progress.error,
+      updatedAt: progress.updatedAt,
+    },
+  }
+}
+
+/** Kick off / await ensureAdb so the sidebar can show progress while preparing. */
+export async function ensureCrashAdb(args: Record<string, unknown>): Promise<{
+  ok: boolean
+  adbPath?: string
+  managedInstall?: boolean
+  downloaded?: boolean
+  error?: string
+  progress: {
+    phase: string
+    percent: number | null
+    message: string
+    detail?: string
+    adbPath?: string
+    error?: string
+    updatedAt: string
+  }
+}> {
+  const result = await ensureAdb({
+    cacheRoot: typeof args.cacheRoot === 'string' ? args.cacheRoot : undefined,
+  })
+  const status = crashAdbPrepStatus()
+  return { ...result, progress: status.progress }
+}
+
+/** Wireless adb connect (`host:port`) for HarmonyOS / firewall-friendly capture. */
+export async function connectCrashAdbTarget(args: Record<string, unknown>) {
+  const target =
+    typeof args.target === 'string'
+      ? args.target
+      : typeof args.address === 'string'
+        ? args.address
+        : ''
+  if (!target.trim()) {
+    return { ok: false as const, message: '缺少 target（例如 192.168.1.8:5555）' }
+  }
+  return connectCaptureAdbTarget(target)
+}
+
+/** List USB devices for inbox capture (adb / idevice). */
+export async function listCrashCaptureDevices(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const platform = asCapturePlatform(b.platform)
+  const listed = await listCaptureDevices(platform)
+  if (platform === 'ios') {
+    const support = listed.iosSupport ?? (await getIosCaptureSupport())
+    return {
+      ...listed,
+      iosSupported: support.supported,
+      iosSupportReason:
+        support.reason ||
+        (lang === 'en'
+          ? undefined
+          : support.supported
+            ? undefined
+            : '当前环境不支持 iOS USB 采集'),
+    }
+  }
+  const errorZh =
+    lang === 'zh' && typeof listed.error === 'string'
+      ? listed.error
+          .replace(
+            'Phone is connected but unauthorized — unlock the phone and allow USB debugging',
+            '手机已连接但未授权：请解锁手机并点允许 USB 调试',
+          )
+          .replace(
+            'adb is ready but no device listed — enable USB debugging, set USB mode to File transfer, then replug',
+            'adb 已就绪但未发现设备：请开启 USB 调试，USB 模式选「传输文件」，然后拔插重连',
+          )
+          .replace(
+            'No Android device listed — enable USB debugging and reconnect the USB cable',
+            '未发现 Android 设备：请开启 USB 调试并重新连接数据线',
+          )
+      : listed.error
+  return {
+    ...listed,
+    error: errorZh,
+    iosSupported: undefined as boolean | undefined,
+  }
+}
+
+export async function startCrashCapture(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  const platform = asCapturePlatform(b.platform)
+  const deviceId =
+    typeof b.deviceId === 'string'
+      ? b.deviceId.trim()
+      : typeof b.serial === 'string'
+        ? b.serial.trim()
+        : typeof b.udid === 'string'
+          ? b.udid.trim()
+          : ''
+  try {
+    const status = await startCaptureSession({
+      platform,
+      repoPath,
+      deviceId: deviceId || undefined,
+      deviceModel: typeof b.deviceModel === 'string' ? b.deviceModel.trim() : undefined,
+    })
+    return { ok: true as const, status }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message, status: getCaptureSessionStatus() }
+  }
+}
+
+export async function stopCrashCapture(_args?: Record<string, unknown>) {
+  const status = await stopCaptureSession()
+  return { ok: true as const, status }
+}
+
+export function crashCaptureStatus(_args?: Record<string, unknown>) {
+  return { status: getCaptureSessionStatus() }
+}
+
+export async function importCrashInboxStack(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  const stackText = typeof b.stackText === 'string' ? b.stackText : ''
+  if (!stackText.trim()) {
+    throw new Error(lang === 'en' ? 'Missing stackText' : '缺少 stackText')
+  }
+  const platform =
+    b.platform === 'android' || b.platform === 'ios' || b.platform === 'other'
+      ? b.platform
+      : 'other'
+  const entry = await importInboxStack(repoPath, stackText, {
+    title: typeof b.title === 'string' ? b.title : undefined,
+    platform,
+    errorKind:
+      b.errorKind === 'crash' ||
+      b.errorKind === 'anr' ||
+      b.errorKind === 'error' ||
+      b.errorKind === 'other'
+        ? b.errorKind
+        : 'crash',
+    deviceModel: typeof b.deviceModel === 'string' ? b.deviceModel : undefined,
+  })
+  if (!entry) {
+    throw new Error(lang === 'en' ? 'Import failed' : '导入失败')
+  }
+  return { ok: true as const, incident: entry.incident, source: entry.source }
+}
+
+export async function deleteCrashInboxItem(args: Record<string, unknown>) {
+  const lang = langOf(args)
+  const b = asRecord(args)
+  const repoPath = typeof b.repoPath === 'string' ? b.repoPath.trim() : ''
+  const id = typeof b.id === 'string' ? b.id.trim() : ''
+  if (!repoPath) throw new I18nError('ERR_MISSING_REPO_PATH', lang)
+  if (!id) throw new I18nError('ERR_MISSING_ID', lang)
+  const ok = await deleteInboxIncident(repoPath, id)
+  return { ok, id }
 }

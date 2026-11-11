@@ -4,26 +4,38 @@
  */
 import { normalizeFeedbackLang, type FeedbackLang } from '../tracker/feedback.js'
 import { resolveExceptionName } from './resolve-exception.js'
-import type { CrashIncident, CrashMatchedFile } from './types.js'
+import {
+  normalizeCrashAnalysisKind,
+  type CrashAnalysisKind,
+  type CrashIncident,
+  type CrashMatchedFile,
+} from './types.js'
 
 const COPY = {
   zh: {
     promptTitle: '\u5d29\u6e83\u5206\u6790',
+    promptTitleReproduce: '\u5d29\u6e83\u590d\u73b0\u65b9\u5f0f',
+    promptTitleFix: '\u5d29\u6e83\u5b9a\u4f4d\u4e0e\u4fee\u590d',
     repo: '\u4ed3\u5e93',
     summary: '\u6458\u8981',
-    matchedFiles: '\u547d\u4e2d\u6587\u4ef6',
-    noMatch: '\uff08\u672a\u547d\u4e2d\u4ed3\u5e93\u6587\u4ef6\uff09',
+    matchedFiles: '\u53ef\u80fd\u76f8\u5173\u7684\u6587\u4ef6\uff08\u4ec5\u4f9b\u53c2\u8003\uff09',
+    noMatch: '\uff08\u672a\u81ea\u52a8\u547d\u4e2d\u6587\u4ef6\uff0c\u8bf7\u4ee5\u5b8c\u6574\u5806\u6808\u4e3a\u51c6\uff09',
     fullStack: '\u5b8c\u6574\u5806\u6808',
     fixHints: '\u6392\u67e5\u5efa\u8bae',
+    askReproduce:
+      '\u8bf7\u4ec5\u6839\u636e\u4ee5\u4e0a\u5806\u6808\u4e0e\u4e0a\u4e0b\u6587\uff0c\u6574\u7406\u53ef\u4f9b\u4e0e\u5f00\u53d1\u540c\u4e8b\u6c9f\u901a\u7684\u590d\u73b0\u65b9\u5f0f\uff08\u524d\u7f6e\u6761\u4ef6\u3001\u64cd\u4f5c\u6b65\u9aa4\u3001\u671f\u671b/\u5b9e\u9645\u73b0\u8c61\uff09\u3002\u4e0d\u8981\u5199\u6839\u56e0\u5206\u6790\u3001\u4e0d\u8981\u7ed9\u4fee\u590d\u65b9\u6848\u3001\u4e0d\u8981\u6539\u4ee3\u7801\u3002',
     askFix:
       '\u8bf7\u6839\u636e\u4ee5\u4e0a\u62a5\u544a\u5728\u672c\u4ed3\u5e93\u5b9a\u4f4d\u6839\u56e0\u5e76\u7ed9\u51fa\u6700\u5c0f\u4fee\u590d\uff1b\u4e0d\u8981\u6539\u65e0\u5173\u6587\u4ef6\u3002\u56de\u590d\u8bf7\u5305\u542b\uff1a\u6839\u56e0\u3001\u5f71\u54cd\u8303\u56f4\u3001\u4fee\u590d\u5efa\u8bae\u3002',
     jobIdLabel: '\u4efb\u52a1 ID',
     skillName: 'tracescope-crash-analysis',
     publishTool: 'tracescope_publish_crash_analysis',
-    publishHint:
+    publishHintReproduce:
+      '\u6574\u7406\u5b8c\u6210\u540e\u5fc5\u987b\u8c03\u7528 tracescope_publish_crash_analysis \u5199\u56de\u4fa7\u680f\uff08jobId \u5fc5\u987b\u4e0e\u4e0a\u6587\u4e00\u81f4\uff1banalysis \u4ec5\u4e3a\u590d\u73b0\u65b9\u5f0f\uff0c\u4e0d\u542b\u6839\u56e0/\u4fee\u590d\uff09\u3002',
+    publishHintFix:
       '\u5206\u6790\u5b8c\u6210\u540e\u5fc5\u987b\u8c03\u7528 tracescope_publish_crash_analysis \u5199\u56de\u4fa7\u680f\uff08jobId \u5fc5\u987b\u4e0e\u4e0a\u6587\u4e00\u81f4\uff1banalysis \u4e3a\u5b8c\u6574\u4e2d\u6587\u7ed3\u8bba\uff1a\u6839\u56e0\u3001\u5f71\u54cd\u3001\u4fee\u590d\u5efa\u8bae\uff09\u3002',
     count: '\u6b21\u6570',
     aiAnalysis: 'AI \u5206\u6790\u7ed3\u8bba',
+    aiReproduce: '\u590d\u73b0\u65b9\u5f0f',
     defectTitle: '## TraceScope \u5d29\u6e83\u5206\u6790\u62a5\u544a',
     incident: '\u6807\u9898',
     exception: '\u5f02\u5e38',
@@ -40,25 +52,32 @@ const COPY = {
     stack: '\u5806\u6808',
     subjectPrefix: '[\u5d29\u6e83]',
     footer: '_\u7531 TraceScope \u5d29\u6e83\u5206\u6790\u81ea\u52a8\u751f\u6210_',
-    summaryNoMatch: '\u672a\u547d\u4e2d\u4ed3\u5e93\u6587\u4ef6',
+    summaryNoMatch: '\u672a\u81ea\u52a8\u547d\u4e2d\u6587\u4ef6\uff08\u53ef\u76f4\u63a5\u4ee5\u5806\u6808\u7ee7\u7eed\uff09',
   },
   en: {
     promptTitle: 'Crash analysis',
+    promptTitleReproduce: 'Crash reproduction steps',
+    promptTitleFix: 'Crash root-cause & fix',
     repo: 'Repository',
     summary: 'Summary',
-    matchedFiles: 'Matched files',
-    noMatch: '(No repo file matched)',
+    matchedFiles: 'Possible related files (hints only)',
+    noMatch: '(No automatic file match — use the full stack)',
     fullStack: 'Full stack trace',
     fixHints: 'Suggested next steps',
+    askReproduce:
+      'Using only the stack and context above, write clear reproduction steps for teammates (preconditions, steps, expected vs actual). Do NOT diagnose root cause, do NOT propose fixes, and do NOT change code.',
     askFix:
       'Using the report above, locate the root cause in this repository and propose a minimal fix; do not change unrelated files. Reply with: root cause, impact, and fix suggestions.',
     jobIdLabel: 'Job ID',
     skillName: 'tracescope-crash-analysis',
     publishTool: 'tracescope_publish_crash_analysis',
-    publishHint:
+    publishHintReproduce:
+      'When done, you MUST call tracescope_publish_crash_analysis to write back to the sidebar (jobId must match above; analysis = reproduction steps only — no root cause / fix).',
+    publishHintFix:
       'When done, you MUST call tracescope_publish_crash_analysis to write back to the sidebar (jobId must match above; analysis = full conclusion: root cause, impact, fix suggestions).',
     count: 'Count',
     aiAnalysis: 'AI analysis',
+    aiReproduce: 'Reproduction steps',
     defectTitle: '## TraceScope crash analysis report',
     incident: 'Title',
     exception: 'Exception',
@@ -75,7 +94,7 @@ const COPY = {
     stack: 'Stack trace',
     subjectPrefix: '[Crash]',
     footer: '_Generated by TraceScope crash analysis_',
-    summaryNoMatch: 'No repo file matched',
+    summaryNoMatch: 'No automatic file match (continue with the stack)',
   },
 } as const
 
@@ -97,6 +116,8 @@ export interface CrashReportParts {
   incident: CrashIncident
   /** When set, prompt instructs the agent to publish via tool write-back. */
   jobId?: string
+  /** `reproduce` (teammate handoff) or `fix` (root cause). Default `fix` for API compat. */
+  analysisKind?: CrashAnalysisKind
 }
 
 function formatMatchedFiles(files: CrashMatchedFile[], lang: FeedbackLang): string {
@@ -105,7 +126,8 @@ function formatMatchedFiles(files: CrashMatchedFile[], lang: FeedbackLang): stri
   return files
     .map((f, i) => {
       const sym = f.symbol ? ` (${f.symbol})` : ''
-      return `${i + 1}. \`${f.path}\`${sym} — ${f.reason}`
+      const line = f.line != null ? `:${f.line}` : ''
+      return `${i + 1}. \`${f.path}${line}\`${sym} — ${f.reason}`
     })
     .join('\n')
 }
@@ -116,9 +138,15 @@ function formatFixHints(hints: string[], lang: FeedbackLang): string {
   return [`${t.fixHints}:`, ...hints.map((h, i) => `${i + 1}. ${h}`)].join('\n')
 }
 
-function promptHeader(incident: CrashIncident, exceptionName: string, lang: FeedbackLang): string {
+function promptHeader(
+  incident: CrashIncident,
+  exceptionName: string,
+  lang: FeedbackLang,
+  kind: CrashAnalysisKind,
+): string {
   const t = COPY[lang]
-  const parts = [`[${t.promptTitle}]`, exceptionName]
+  const title = kind === 'reproduce' ? t.promptTitleReproduce : t.promptTitleFix
+  const parts = [`[${title}]`, exceptionName]
   if (incident.appVersion?.trim()) parts.push(incident.appVersion.trim())
   if (incident.count != null && Number.isFinite(incident.count)) {
     parts.push(`${t.count} ${incident.count}`)
@@ -130,10 +158,11 @@ function promptHeader(incident: CrashIncident, exceptionName: string, lang: Feed
 export function buildCrashPrompt(parts: CrashReportParts, lang?: FeedbackLang | string): string {
   const l = normalizeFeedbackLang(lang)
   const t = COPY[l]
+  const kind = normalizeCrashAnalysisKind(parts.analysisKind ?? 'fix')
   const exceptionName = resolveExceptionName(parts.incident, { stackText: parts.stackText })
   const jobId = parts.jobId?.trim()
   const lines = [
-    promptHeader(parts.incident, exceptionName, l),
+    promptHeader(parts.incident, exceptionName, l, kind),
     ...(jobId
       ? [
           `${t.jobIdLabel}\uff1a${jobId}`,
@@ -146,13 +175,21 @@ export function buildCrashPrompt(parts: CrashReportParts, lang?: FeedbackLang | 
     `${t.matchedFiles}\uff1a`,
     formatMatchedFiles(parts.matchedFiles, l),
   ]
-  const hintsBlock = formatFixHints(parts.fixHints, l)
-  if (hintsBlock) {
-    lines.push('', hintsBlock)
+  if (kind === 'fix') {
+    const hintsBlock = formatFixHints(parts.fixHints, l)
+    if (hintsBlock) {
+      lines.push('', hintsBlock)
+    }
   }
-  lines.push('', `${t.fullStack}\uff1a`, parts.stackText.trim(), '', t.askFix)
+  lines.push(
+    '',
+    `${t.fullStack}\uff1a`,
+    parts.stackText.trim(),
+    '',
+    kind === 'reproduce' ? t.askReproduce : t.askFix,
+  )
   if (jobId) {
-    lines.push('', t.publishHint)
+    lines.push('', kind === 'reproduce' ? t.publishHintReproduce : t.publishHintFix)
   }
   return lines.join('\n')
 }
@@ -173,9 +210,11 @@ export function buildCrashDefectBody(input: {
   repoPath?: string
   lang?: FeedbackLang | string
   aiAnalysis?: string
+  analysisKind?: CrashAnalysisKind
 }): string {
   const l = normalizeFeedbackLang(input.lang)
   const t = COPY[l]
+  const kind = normalizeCrashAnalysisKind(input.analysisKind ?? 'fix')
   const incident = input.incident
   const stackRaw = incident.stackText.trim()
   const stack =
@@ -203,12 +242,13 @@ export function buildCrashDefectBody(input: {
   lines.push('', `- ${t.summary}: ${input.summary}`, '')
   lines.push(`### ${t.matchedFiles}`, '', formatMatchedFiles(input.matchedFiles, l), '')
   const hints = input.fixHints ?? []
-  if (hints.length) {
+  if (hints.length && kind === 'fix') {
     lines.push(formatFixHints(hints, l), '')
   }
   const ai = input.aiAnalysis?.trim()
   if (ai) {
-    lines.push(`### ${t.aiAnalysis}`, '', ai, '')
+    const aiHeader = kind === 'reproduce' ? t.aiReproduce : t.aiAnalysis
+    lines.push(`### ${aiHeader}`, '', ai, '')
   }
   lines.push(`### ${t.stack}`, '', '```', stack, '```', '', '---', t.footer)
   return lines.join('\n')
@@ -226,7 +266,11 @@ export function applyAiAnalysisToReport(
     aiAnalysis?: string
   },
   aiAnalysis: string,
-  options?: { repoPath?: string; lang?: FeedbackLang | string },
+  options?: {
+    repoPath?: string
+    lang?: FeedbackLang | string
+    analysisKind?: CrashAnalysisKind
+  },
 ): typeof report & { aiAnalysis: string; defectBody: string } {
   const text = aiAnalysis.trim()
   return {
@@ -240,8 +284,18 @@ export function applyAiAnalysisToReport(
       repoPath: options?.repoPath,
       lang: options?.lang,
       aiAnalysis: text,
+      analysisKind: options?.analysisKind,
     }),
   }
+}
+
+/** Section title for AI write-back (reproduce vs fix). */
+export function crashAiSectionTitle(
+  kind?: CrashAnalysisKind,
+  lang?: FeedbackLang | string,
+): string {
+  const t = COPY[normalizeFeedbackLang(lang)]
+  return normalizeCrashAnalysisKind(kind ?? 'fix') === 'reproduce' ? t.aiReproduce : t.aiAnalysis
 }
 
 export function buildCrashDefectSubject(incident: CrashIncident, lang?: FeedbackLang | string): string {

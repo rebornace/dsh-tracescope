@@ -8,7 +8,7 @@ TraceScope (`dsh-tracescope`) helps developers and testers with three core capab
 |------------|-------------|
 | **Impact analysis** | What does this change affect? Build a verification checklist. |
 | **Design diff** | Where does the implementation diverge from Figma / Lanhu? Static compare, locate, file defects. |
-| **Crash analysis** | Umeng U-APM / Firebase Crashlytics or pasted stack → repo report, AI write-back, composer draft, or tracker filing. |
+| **Crash analysis** | Umeng U-APM / Firebase Crashlytics → repo report, AI write-back, composer draft, or tracker filing. |
 
 Primary UX: **official DeepSeek Harness Desktop** sidebar. All three pillars (including **crash analysis**) are available over `@rebornace/tracescope-mcp` for Cursor / Claude / other agents; the sidebar is a richer shell. Crash MCP tools share `agent-api` with the Host (list / detail / analyze / publish).
 
@@ -31,7 +31,7 @@ UI language (zh/en) **follows the Desktop / Host locale** — no separate toggle
 
 **Design diff** - Figma / Lanhu as source of truth, **static** compare (not device render); major mobile / web / miniprogram stacks; layered match + property compare, optional AI write-back. Sidebar: raster, hotspot diffs, pick file, export defects.
 
-**Crash analysis** - Umeng U-APM (cookie) or Firebase Crashlytics (access token / service account; local gcloud can auto-refresh tokens; system proxy / `HTTPS_PROXY` for Google) list/detail (filters collapsed by default) or paste-stack fallback; stack parse + repo file match; **Analyze & write to session** with agent tool write-back; **Submit defect** with dedicated crash body.
+**Crash analysis** - Umeng U-APM (cookie) or Firebase Crashlytics (access token / service account; local gcloud can auto-refresh tokens; system proxy / `HTTPS_PROXY` for Google) list/detail (filters collapsed by default); stack parse + soft file hints; **Analyze & write to session** with agent tool write-back; **Submit defect** with dedicated crash body.
 
 Details (adapter deep enrichment, credential memory, limitations): [User Guide](./docs/GUIDE.en.md).
 
@@ -83,7 +83,7 @@ MCP UI: call `tracescope_open_panel` for the same three-mode workbench as the DS
 
 ## Roadmap
 
-Crash sources (`CrashProvider`), collaboration trackers (`TrackerAdapter`), and design sources (normalize to `DesignDoc`) are all **horizontally extensible**. Today: Umeng / Crashlytics / paste-stack; Yunxiao / GitHub / GitLab / Webhook; Figma / Lanhu. **More platforms will land over time**. Request prioritization via [Issues](https://github.com/rebornace/dsh-tracescope/issues). Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).
+Crash sources (`CrashProvider`), collaboration trackers (`TrackerAdapter`), and design sources (normalize to `DesignDoc`) are all **horizontally extensible**. Today: Umeng / Crashlytics; Yunxiao / GitHub / GitLab / Webhook; Figma / Lanhu. **More platforms will land over time**. Request prioritization via [Issues](https://github.com/rebornace/dsh-tracescope/issues). Details: [User Guide · Roadmap & extension plans](./docs/GUIDE.en.md#11-roadmap--extension-plans).
 
 ## License
 
