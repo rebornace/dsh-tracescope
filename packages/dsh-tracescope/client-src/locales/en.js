@@ -914,6 +914,14 @@ export default {
   'crash.inboxAdbPrepareFail':
     'Could not prepare Android capture tools. Retry with a system proxy, or use “Paste stack → analyze” below.',
   'crash.inboxAdbProgressTitle': 'Android capture tools',
+  'crash.inboxPreparingIos': 'Checking iOS capture tools (libimobiledevice)…',
+  'crash.inboxIosReady': 'iOS capture tools ready',
+  'crash.inboxIosPrepareFail':
+    'iOS capture tools unavailable. Install with the command below, then Recheck — or use Paste stack → analyze.',
+  'crash.inboxIosProgressTitle': 'iOS capture tools',
+  'crash.inboxIosCopyInstall': 'Copy install command',
+  'crash.inboxIosCopied': 'Copied to clipboard',
+  'crash.inboxIosRecheck': 'I’ve installed — recheck',
   'crash.inboxWireless': 'Wireless debugging (use when Huawei USB stays on HDB)',
   'crash.inboxWirelessPlaceholder': 'e.g. 192.168.1.8:5555',
   'crash.inboxWirelessConnect': 'Connect',

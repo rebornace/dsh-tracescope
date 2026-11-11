@@ -671,6 +671,12 @@ export function CrashBoard({
     percent: number | null
     message: string
   } | null>(null)
+  const [iosPrep, setIosPrep] = useState<{
+    phase: string
+    percent: number | null
+    message: string
+    installCommand?: string
+  } | null>(null)
   const [wirelessTarget, setWirelessTarget] = useState('')
 
   const listGen = useRef(0)
@@ -1021,7 +1027,7 @@ export function CrashBoard({
     t,
   ])
 
-  const refreshCaptureDevices = useCallback(async () => {
+  const refreshCaptureDevices = useCallback(async (options?: { force?: boolean }) => {
     if (!repo || provider !== 'local') return
     setCaptureBusy(true)
     setError('')
@@ -1048,8 +1054,27 @@ export function CrashBoard({
         /* ignore poll errors */
       }
     }
+    const readIosPrep = async () => {
+      try {
+        const st = await apiPost('/tracescope/v1/crash-inbox-ios-status', { repoPath: repo })
+        const progress = st.progress as Record<string, unknown> | undefined
+        if (!progress || typeof progress !== 'object') return
+        const phase = typeof progress.phase === 'string' ? progress.phase : 'idle'
+        const message = typeof progress.message === 'string' ? progress.message : ''
+        const percent = typeof progress.percent === 'number' ? progress.percent : null
+        const installCommand =
+          typeof progress.installCommand === 'string' ? progress.installCommand : undefined
+        if (phase !== 'idle' && message) {
+          setIosPrep({ phase, percent, message, installCommand })
+          setHint(message)
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    }
     try {
       if (capturePlatform === 'android') {
+        setIosPrep(null)
         setAdbPrep({ phase: 'checking', percent: null, message: t('crash.inboxPreparingAdb') })
         setHint(t('crash.inboxPreparingAdb'))
         pollTimer = setInterval(() => {
@@ -1079,6 +1104,62 @@ export function CrashBoard({
         }
       } else {
         setAdbPrep(null)
+        setIosPrep({ phase: 'checking', percent: null, message: t('crash.inboxPreparingIos') })
+        setHint(t('crash.inboxPreparingIos'))
+        pollTimer = setInterval(() => {
+          void readIosPrep()
+        }, 400)
+        void readIosPrep()
+        const ensured = await apiPost('/tracescope/v1/crash-inbox-ios-ensure', {
+          repoPath: repo,
+          force: Boolean(options?.force),
+        })
+        const ensuredProgress = ensured.progress as Record<string, unknown> | undefined
+        if (ensuredProgress && typeof ensuredProgress.message === 'string') {
+          setIosPrep({
+            phase: typeof ensuredProgress.phase === 'string' ? ensuredProgress.phase : 'ready',
+            percent: typeof ensuredProgress.percent === 'number' ? ensuredProgress.percent : 100,
+            message: ensuredProgress.message,
+            installCommand:
+              typeof ensuredProgress.installCommand === 'string'
+                ? ensuredProgress.installCommand
+                : typeof ensured.installCommand === 'string'
+                  ? ensured.installCommand
+                  : undefined,
+          })
+          setHint(ensuredProgress.message)
+        }
+        if (ensured.ok === false) {
+          const installCommand =
+            typeof ensured.installCommand === 'string'
+              ? ensured.installCommand
+              : typeof ensuredProgress?.installCommand === 'string'
+                ? ensuredProgress.installCommand
+                : undefined
+          const msg =
+            typeof ensured.error === 'string'
+              ? ensured.error
+              : typeof ensuredProgress?.error === 'string'
+                ? ensuredProgress.error
+                : t('crash.inboxIosPrepareFail')
+          setIosCaptureSupported(false)
+          setIosCaptureReason(msg)
+          setIosPrep({
+            phase: 'error',
+            percent: null,
+            message:
+              typeof ensuredProgress?.message === 'string'
+                ? ensuredProgress.message
+                : t('crash.inboxIosPrepareFail'),
+            installCommand,
+          })
+          setError(msg)
+          return
+        }
+        setIosCaptureSupported(true)
+        setIosCaptureReason('')
+        setHint(t('crash.inboxIosReady'))
+        setIosPrep({ phase: 'ready', percent: 100, message: t('crash.inboxIosReady') })
       }
       const data = await apiPost('/tracescope/v1/crash-inbox-devices', {
         repoPath: repo,
@@ -1129,6 +1210,21 @@ export function CrashBoard({
       setCaptureBusy(false)
     }
   }, [apiPost, captureDeviceId, capturePlatform, provider, repo, t])
+
+  const recheckIosTools = useCallback(() => {
+    void refreshCaptureDevices({ force: true })
+  }, [refreshCaptureDevices])
+
+  const copyIosInstallCommand = useCallback(async () => {
+    const cmd = iosPrep?.installCommand?.trim()
+    if (!cmd) return
+    try {
+      await navigator.clipboard.writeText(cmd)
+      setHint(t('crash.inboxIosCopied'))
+    } catch {
+      setError(cmd)
+    }
+  }, [iosPrep?.installCommand, t])
 
   const syncCaptureStatus = useCallback(async () => {
     try {
@@ -1194,6 +1290,35 @@ export function CrashBoard({
     setCaptureBusy(true)
     setError('')
     try {
+      if (capturePlatform === 'ios') {
+        const ensured = await apiPost('/tracescope/v1/crash-inbox-ios-ensure', {
+          repoPath: repo,
+          force: false,
+        })
+        if (ensured.ok === false) {
+          const ensuredProgress = ensured.progress as Record<string, unknown> | undefined
+          setIosCaptureSupported(false)
+          setIosCaptureReason(typeof ensured.error === 'string' ? ensured.error : '')
+          setIosPrep({
+            phase: 'error',
+            percent: null,
+            message:
+              typeof ensuredProgress?.message === 'string'
+                ? ensuredProgress.message
+                : t('crash.inboxIosPrepareFail'),
+            installCommand:
+              typeof ensured.installCommand === 'string'
+                ? ensured.installCommand
+                : typeof ensuredProgress?.installCommand === 'string'
+                  ? ensuredProgress.installCommand
+                  : undefined,
+          })
+          setError(
+            typeof ensured.error === 'string' ? ensured.error : t('crash.inboxIosPrepareFail'),
+          )
+          return
+        }
+      }
       const data = await apiPost('/tracescope/v1/crash-inbox-capture-start', {
         repoPath: repo,
         platform: capturePlatform,
@@ -1943,16 +2068,19 @@ export function CrashBoard({
                     value={capturePlatform}
                     disabled={configDisabled || captureActive}
                     onChange={(e) => {
-                      setCapturePlatform(e.target.value === 'ios' ? 'ios' : 'android')
+                      const next = e.target.value === 'ios' ? 'ios' : 'android'
+                      setCapturePlatform(next)
                       setCaptureDeviceId('')
                       setCaptureDevices([])
+                      if (next === 'android') setIosPrep(null)
+                      else setAdbPrep(null)
                     }}
                   >
                     <option value="android">{t('crash.inboxPlatformAndroid')}</option>
                     <option value="ios">{t('crash.inboxPlatformIos')}</option>
                   </select>
                 </label>
-                {capturePlatform === 'ios' && !iosCaptureSupported ? (
+                {capturePlatform === 'ios' && !iosCaptureSupported && !iosPrep ? (
                   <p style={{ margin: 0, fontSize: 12, color: '#b54708', lineHeight: 1.45 }}>
                     {iosCaptureReason || t('crash.inboxIosUnsupported')}
                   </p>
@@ -1981,11 +2109,83 @@ export function CrashBoard({
                     disabled={configDisabled || captureBusy}
                     onClick={() => void refreshCaptureDevices()}
                   >
-                    {captureBusy && capturePlatform === 'android'
-                      ? t('common.loading')
-                      : t('crash.inboxRefreshDevices')}
+                    {captureBusy ? t('common.loading') : t('crash.inboxRefreshDevices')}
                   </button>
                 </div>
+                {capturePlatform === 'ios' && iosPrep ? (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--dsh-border, #ddd4c5)',
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
+                      {t('crash.inboxIosProgressTitle')}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6b645a', lineHeight: 1.45, marginBottom: 8 }}>
+                      {iosPrep.message}
+                    </div>
+                    {iosPrep.phase === 'checking' ? (
+                      <div
+                        style={{
+                          height: 8,
+                          borderRadius: 999,
+                          background: '#eee6da',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width:
+                              iosPrep.percent != null
+                                ? `${Math.max(4, Math.min(100, iosPrep.percent))}%`
+                                : captureBusy
+                                  ? '40%'
+                                  : '100%',
+                            background: 'var(--dsh-accent, #0f6e56)',
+                            borderRadius: 999,
+                            transition: 'width 0.25s ease',
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    {iosPrep.phase === 'error' && iosPrep.installCommand ? (
+                      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: '8px 10px',
+                            fontSize: 11,
+                            lineHeight: 1.45,
+                            borderRadius: 6,
+                            background: '#f5f0e8',
+                            overflowX: 'auto',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {iosPrep.installCommand}
+                        </pre>
+                        <button type="button" style={btn} onClick={() => void copyIosInstallCommand()}>
+                          {t('crash.inboxIosCopyInstall')}
+                        </button>
+                      </div>
+                    ) : null}
+                    {iosPrep.phase === 'error' ? (
+                      <button
+                        type="button"
+                        style={{ ...btn, marginTop: iosPrep.installCommand ? 8 : 0 }}
+                        disabled={captureBusy}
+                        onClick={recheckIosTools}
+                      >
+                        {t('crash.inboxIosRecheck')}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {capturePlatform === 'android' &&
                 adbPrep &&
                 (adbPrep.phase === 'checking' ||
@@ -2085,7 +2285,8 @@ export function CrashBoard({
                       style={primary}
                       disabled={
                         captureBusy ||
-                        (capturePlatform === 'ios' && !iosCaptureSupported) ||
+                        (capturePlatform === 'ios' &&
+                          (!iosCaptureSupported || iosPrep?.phase === 'checking')) ||
                         (capturePlatform === 'android' && !captureDeviceId)
                       }
                       onClick={() => void startInboxCapture()}
