@@ -26,3 +26,5 @@ docs/superpowers/
 # Git worktrees + SDD per-plan artifacts (do not commit)
 .worktrees/
 .superpowers/
+# Local crash fixtures may contain real app/bundle identifiers — keep out of git
+packages/core/tests/crash-apple-ips.test.ts
