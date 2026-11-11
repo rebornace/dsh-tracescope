@@ -7,14 +7,18 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+## 0.3.6 — 2026-11-11
+
 - **本机崩溃采集**：数据源「本机崩溃采集」支持 Android USB（adb logcat）与 iOS USB（仅 macOS / libimobiledevice）测试期采集，写入 `~/.tracescope/crash-inbox/shared/`；不上报 APM。捕获条目走「输出复现方式 / 定位并修复」。
 - **双路径崩溃分析**：主按钮「输出复现方式」（沟通用）；次按钮「定位并修复」（原根因/修复路径）。本机崩溃采集进入时自动加载历史并显示条数。
 - **去掉粘贴堆栈入口**：本机采集不再提供「已有堆栈？直接分析」；以 USB 录制为主路径。
 - **Android 采集工具自动准备**：本机无 adb 时，刷新设备会自动下载 platform-tools 到 `~/.tracescope/tools/`（含国内镜像），无需用户手动装 SDK。
+- **更新入口收敛**：DSH 官方桌面端已接管插件更新后，去掉详情页「已最新」动作与侧栏「检查更新」；保留「插件更新」卡片；MCP / standalone 独立面板仍可检查更新。
 - **Local crash capture**: Provider Local crash capture captures Android USB (adb logcat) and iOS USB (macOS + libimobiledevice only) into `~/.tracescope/crash-inbox/shared/`; no APM upload.
 - **Dual crash analysis**: Primary Write reproduce steps; secondary Locate & fix. Local crash capture auto-loads history with a count badge.
 - **Removed paste-stack entry**: Local capture no longer offers “Paste stack → analyze”; USB recording is the path.
 - **Auto platform-tools**: If adb is missing, device refresh downloads platform-tools into `~/.tracescope/tools/` (with China mirrors) — no manual SDK setup.
+- **Update UX**: Drop DSH-redundant header Update action and sidebar Check for updates; keep the Plugin update card; standalone/MCP panel still checks for updates.
 - **崩溃分析简化**：去掉侧栏本地符号化、「粘贴堆栈」与单独的「本地分析」按钮。主路径为列表选中详情 →「分析并写入会话」（静默整理堆栈后再灌提示词）；复制/导出/提交也会先静默整理。
 - **Crash analysis simplified**: Removed sidebar local symbolication, paste-stack fallback, and the standalone Local analyze button. Main path is list → detail → Analyze & write to session (quiet prep, then composer fill); copy/export/submit also prep quietly.
 
