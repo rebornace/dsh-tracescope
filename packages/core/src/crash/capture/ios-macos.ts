@@ -234,12 +234,15 @@ export interface StartIosCaptureOptions {
   /** Poll interval for pulling crash reports (ms). */
   pollMs?: number
   onHit?: (incidentId: string) => void
+  onError?: (message: string) => void
 }
 
 /**
  * Poll idevicecrashreport into a temp dir and append **new** reports to the inbox.
- * The first pull only baselines existing device reports (no inbox write), matching
- * Android's logcat -c so starting capture does not dump historical crashes.
+ *
+ * Start moves existing device crash reports off the phone (no `-k`), seeds their
+ * identities without writing the inbox — same idea as Android `logcat -c`.
+ * Later polls only see crashes that appear after that clear.
  */
 export async function startIosMacosCapture(
   options: StartIosCaptureOptions,
@@ -255,19 +258,44 @@ export async function startIosMacosCapture(
   const seenFiles = new Set<string>()
   let stopping = false
   let timer: ReturnType<typeof setInterval> | null = null
+  let firstIngestTimer: ReturnType<typeof setTimeout> | null = null
+  /** Serialize pulls — idevicecrashreport is slow; overlapping polls drop crashes. */
+  let pullChain: Promise<void> = Promise.resolve()
 
-  const pullDeviceReports = async () => {
-    const args = ['-e', '-k', workDir]
+  const pullDeviceReports = async (): Promise<{
+    code: number
+    stdout: string
+    stderr: string
+  }> => {
+    // Intentionally NO `-k`: move reports off the device so the next poll is
+    // only new crashes (keep would re-copy the whole history every time).
+    const args = ['-e', workDir]
     if (options.udid?.trim()) {
       args.unshift('-u', options.udid.trim())
     }
-    await runCmd('idevicecrashreport', args, 60_000)
+    return runCmd('idevicecrashreport', args, 90_000)
   }
 
   const pullOnce = async (mode: 'baseline' | 'ingest') => {
-    await pullDeviceReports()
+    const result = await pullDeviceReports()
+    const errText = `${result.stderr}\n${result.stdout}`.trim()
+    if (result.code === -1 || /No device found|Could not connect|ERROR:/i.test(errText)) {
+      const message =
+        errText.split(/\r?\n/).find(Boolean) ||
+        `idevicecrashreport failed (exit ${result.code})`
+      options.onError?.(message)
+      // Still try to ingest whatever landed on disk.
+    }
     if (mode === 'baseline') {
       await seedSeenCrashFiles(workDir, seenFiles)
+      // Drop baseline copies from disk; identities stay in seenFiles.
+      for (const full of await listCrashFilesInDir(workDir)) {
+        try {
+          await rm(full, { force: true })
+        } catch {
+          /* ignore */
+        }
+      }
       return
     }
     const ids = await ingestCrashDir(repoPath, workDir, {
@@ -278,13 +306,29 @@ export async function startIosMacosCapture(
     for (const id of ids) options.onHit?.(id)
   }
 
+  const enqueuePull = (mode: 'baseline' | 'ingest') => {
+    const run = pullChain.then(
+      () => pullOnce(mode),
+      () => pullOnce(mode),
+    )
+    pullChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
+
   // Baseline historical reports first — do not count them as session hits.
-  await pullOnce('baseline')
-  // iOS crash reports can appear a few seconds after the process dies — poll often.
+  await enqueuePull('baseline')
+  // iOS often writes the .ips a few seconds after the process dies.
   const pollMs = Math.max(3_000, options.pollMs ?? 5_000)
+  firstIngestTimer = setTimeout(() => {
+    if (stopping) return
+    void enqueuePull('ingest')
+  }, 2_000)
   timer = setInterval(() => {
     if (stopping) return
-    void pullOnce('ingest')
+    void enqueuePull('ingest')
   }, pollMs)
 
   const startedAt = new Date().toISOString()
@@ -296,10 +340,12 @@ export async function startIosMacosCapture(
     stop: async () => {
       if (stopping) return
       stopping = true
+      if (firstIngestTimer) clearTimeout(firstIngestTimer)
+      firstIngestTimer = null
       if (timer) clearInterval(timer)
       timer = null
       try {
-        await pullOnce('ingest')
+        await enqueuePull('ingest')
       } catch {
         /* ignore */
       }

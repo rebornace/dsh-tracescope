@@ -152,6 +152,9 @@ export async function startCaptureSession(options: {
         cacheRoot: options.cacheRoot,
         deviceModel: options.deviceModel,
         onHit,
+        onError: (message) => {
+          lastError = message
+        },
       })
     }
   } catch (err) {

@@ -2223,7 +2223,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.providerUmeng": "友盟 U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
         "crash.inboxConfig": "本机崩溃采集",
-        "crash.inboxHint": "测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。",
+        "crash.inboxHint": "测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。iOS 开始录制会移走手机里已有崩溃报告（仅收此后新崩溃），闪退后请再等几秒或点停止。",
         "crash.inboxCapturePlatform": "采集平台",
         "crash.inboxPlatformAndroid": "Android（adb）",
         "crash.inboxPlatformIos": "iOS（仅 macOS）",
@@ -2249,7 +2249,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxStartCapture": "开始录制",
         "crash.inboxStopCapture": "停止录制",
         "crash.inboxCapturing": "录制中 · 已捕获 {count} 条",
-        "crash.inboxCaptureStarted": "已开始本机崩溃录制",
+        "crash.inboxCaptureStarted": "已开始本机崩溃录制（iOS 已清空设备历史报告，只收新崩溃）",
         "crash.inboxCaptureStopped": "已停止录制；列表已刷新",
         "crash.inboxCaptureFail": "启动录制失败",
         "crash.inboxNeedDevice": "请先选择一台 Android 设备",
@@ -3669,7 +3669,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.providerUmeng": "Umeng U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
         "crash.inboxConfig": "Local crash capture",
-        "crash.inboxHint": "Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh.",
+        "crash.inboxHint": "Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.",
         "crash.inboxCapturePlatform": "Capture platform",
         "crash.inboxPlatformAndroid": "Android (adb)",
         "crash.inboxPlatformIos": "iOS (macOS only)",
@@ -3695,7 +3695,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxStartCapture": "Start capture",
         "crash.inboxStopCapture": "Stop capture",
         "crash.inboxCapturing": "Capturing · {count} hit(s)",
-        "crash.inboxCaptureStarted": "Local crash capture started",
+        "crash.inboxCaptureStarted": "Local crash capture started (iOS cleared on-device history; only new crashes count)",
         "crash.inboxCaptureStopped": "Capture stopped; list refreshed",
         "crash.inboxCaptureFail": "Failed to start capture",
         "crash.inboxNeedDevice": "Select an Android device first",
@@ -9823,6 +9823,9 @@ ${text}
         const hits = typeof status?.hitCount === "number" ? status.hitCount : 0;
         setCaptureActive(active2);
         setCaptureHitCount(hits);
+        if (typeof status?.lastError === "string" && status.lastError.trim()) {
+          setError(status.lastError.trim());
+        }
         if (hits > lastCaptureHitRef.current) {
           lastCaptureHitRef.current = hits;
           void fetchList({ page: 1 });

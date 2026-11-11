@@ -901,7 +901,7 @@ export default {
   'crash.providerCrashlytics': 'Firebase Crashlytics',
   'crash.inboxConfig': 'Local crash capture',
   'crash.inboxHint':
-    'Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh.',
+    'Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.',
   'crash.inboxCapturePlatform': 'Capture platform',
   'crash.inboxPlatformAndroid': 'Android (adb)',
   'crash.inboxPlatformIos': 'iOS (macOS only)',
@@ -930,7 +930,8 @@ export default {
   'crash.inboxStartCapture': 'Start capture',
   'crash.inboxStopCapture': 'Stop capture',
   'crash.inboxCapturing': 'Capturing · {count} hit(s)',
-  'crash.inboxCaptureStarted': 'Local crash capture started',
+  'crash.inboxCaptureStarted':
+    'Local crash capture started (iOS cleared on-device history; only new crashes count)',
   'crash.inboxCaptureStopped': 'Capture stopped; list refreshed',
   'crash.inboxCaptureFail': 'Failed to start capture',
   'crash.inboxNeedDevice': 'Select an Android device first',

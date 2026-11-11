@@ -894,7 +894,7 @@ export default {
   'crash.providerCrashlytics': 'Firebase Crashlytics',
   'crash.inboxConfig': '本机崩溃采集',
   'crash.inboxHint':
-    '测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。',
+    '测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。iOS 开始录制会移走手机里已有崩溃报告（仅收此后新崩溃），闪退后请再等几秒或点停止。',
   'crash.inboxCapturePlatform': '采集平台',
   'crash.inboxPlatformAndroid': 'Android（adb）',
   'crash.inboxPlatformIos': 'iOS（仅 macOS）',
@@ -921,7 +921,7 @@ export default {
   'crash.inboxStartCapture': '开始录制',
   'crash.inboxStopCapture': '停止录制',
   'crash.inboxCapturing': '录制中 · 已捕获 {count} 条',
-  'crash.inboxCaptureStarted': '已开始本机崩溃录制',
+  'crash.inboxCaptureStarted': '已开始本机崩溃录制（iOS 已清空设备历史报告，只收新崩溃）',
   'crash.inboxCaptureStopped': '已停止录制；列表已刷新',
   'crash.inboxCaptureFail': '启动录制失败',
   'crash.inboxNeedDevice': '请先选择一台 Android 设备',

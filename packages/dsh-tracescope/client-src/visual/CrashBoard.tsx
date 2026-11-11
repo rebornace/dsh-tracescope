@@ -1234,6 +1234,9 @@ export function CrashBoard({
       const hits = typeof status?.hitCount === 'number' ? status.hitCount : 0
       setCaptureActive(active)
       setCaptureHitCount(hits)
+      if (typeof status?.lastError === 'string' && status.lastError.trim()) {
+        setError(status.lastError.trim())
+      }
       if (hits > lastCaptureHitRef.current) {
         lastCaptureHitRef.current = hits
         void fetchList({ page: 1 })
