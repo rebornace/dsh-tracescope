@@ -4080,27 +4080,30 @@
                       t('自动展开'),
                     ],
                   }),
-                  jsx('button', {
-                    type: 'button',
-                    title: t('对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）'),
-                    disabled: busy || updateBusy,
-                    onClick: function () {
-                      toggleUpdatePanel()
-                    },
-                    style: Object.assign(
-                      {},
-                      styles.miniBtn,
-                      updateOpen || (updateInfo && updateInfo.updateAvailable)
-                        ? styles.miniBtnActive
-                        : null,
-                    ),
-                    children:
-                      updateBusy
-                        ? t('更新中…')
-                        : updateInfo && updateInfo.updateAvailable
-                          ? t('有更新')
-                          : t('检查更新'),
-                  }),
+                  // DSH Desktop owns plugin updates; keep this only for MCP / standalone panel.
+                  typeof window !== 'undefined' && window.__TRACESCOPE_STANDALONE__
+                    ? jsx('button', {
+                        type: 'button',
+                        title: t('对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）'),
+                        disabled: busy || updateBusy,
+                        onClick: function () {
+                          toggleUpdatePanel()
+                        },
+                        style: Object.assign(
+                          {},
+                          styles.miniBtn,
+                          updateOpen || (updateInfo && updateInfo.updateAvailable)
+                            ? styles.miniBtnActive
+                            : null,
+                        ),
+                        children:
+                          updateBusy
+                            ? t('更新中…')
+                            : updateInfo && updateInfo.updateAvailable
+                              ? t('有更新')
+                              : t('检查更新'),
+                      })
+                    : null,
                   jsx('button', {
                     type: 'button',
                     title: t('自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘'),
@@ -4119,7 +4122,7 @@
               }),
             ],
           }),
-          updateOpen
+          typeof window !== 'undefined' && window.__TRACESCOPE_STANDALONE__ && updateOpen
             ? jsxs('div', {
                 style: {
                   display: 'flex',

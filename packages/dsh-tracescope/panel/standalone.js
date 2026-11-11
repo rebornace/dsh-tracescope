@@ -12017,101 +12017,6 @@ ${text}
       ] })
     ] });
   }
-  function PluginUpdateAction(props) {
-    const liveT = useLocaleT();
-    const t2 = props.t || liveT;
-    const [busy, setBusy] = (0, import_react6.useState)(false);
-    const [info, setInfo] = (0, import_react6.useState)(null);
-    const [label2, setLabel] = (0, import_react6.useState)(() => t2("update.action.label"));
-    const [title2, setTitle] = (0, import_react6.useState)(() => t2("update.action.title"));
-    const probed = (0, import_react6.useRef)(false);
-    (0, import_react6.useEffect)(() => {
-      if (!info) {
-        setLabel(t2("update.action.label"));
-        setTitle(t2("update.action.title"));
-        return;
-      }
-      if (info.updateAvailable) {
-        setLabel(
-          info.latestVersion ? t2("update.updateTo", { version: info.latestVersion }) : t2("update.action.label")
-        );
-        setTitle(t2("update.action.foundNewVersion", { version: info.latestVersion || "" }));
-      } else {
-        setLabel(
-          info.installedVersion ? t2("update.action.upToDateWithVersion", { version: info.installedVersion }) : t2("update.action.upToDate")
-        );
-        setTitle(info.latestVersion ? t2("update.action.alreadyLatestTitle") : t2("update.action.npmReadFailedTitle"));
-      }
-    }, [t2, info]);
-    (0, import_react6.useEffect)(() => {
-      if (probed.current) return;
-      probed.current = true;
-      void checkSelfUpdate().then((next) => {
-        setInfo(next);
-        if (next.updateAvailable) {
-          setLabel(
-            next.latestVersion ? t2("update.updateTo", { version: next.latestVersion }) : t2("update.action.label")
-          );
-          setTitle(t2("update.action.foundNewVersion", { version: next.latestVersion || "" }));
-        } else {
-          setLabel(
-            next.installedVersion ? t2("update.action.upToDateWithVersion", { version: next.installedVersion }) : t2("update.action.upToDate")
-          );
-          setTitle(next.latestVersion ? t2("update.action.alreadyLatestTitle") : t2("update.action.npmReadFailedTitle"));
-        }
-      }).catch((e) => {
-        setTitle(e?.message || String(e));
-      });
-    }, [t2]);
-    const onClick = (0, import_react6.useCallback)(async () => {
-      if (busy) return;
-      setBusy(true);
-      try {
-        const current = info || await checkSelfUpdate();
-        setInfo(current);
-        if (!current.updateAvailable) {
-          setLabel(
-            current.installedVersion ? t2("update.action.upToDateWithVersion", { version: current.installedVersion }) : t2("update.action.upToDate")
-          );
-          setTitle(
-            current.latestVersion ? t2("update.action.alreadyLatestTitle") : t2("update.action.npmReadFailedTitle")
-          );
-          return;
-        }
-        setLabel(t2("update.action.updating"));
-        const result = await applySelfUpdate(current, getSelfUpdateHostCtx(), {
-          onProgress: (msg) => setTitle(msg)
-        });
-        if (result.ok) {
-          setInfo(Object.assign({}, current, { updateAvailable: false, installedVersion: result.installedVersion }));
-          setLabel(
-            result.installedVersion ? t2("update.action.updatedWithVersion", { version: result.installedVersion }) : t2("update.action.updated")
-          );
-          setTitle(result.message);
-        } else {
-          setLabel(result.channel === "manual" ? t2("update.action.manualRequired") : t2("update.action.updateFailed"));
-          setTitle(result.message);
-        }
-      } catch (e) {
-        setLabel(t2("update.action.failed"));
-        setTitle(e?.message || String(e));
-      } finally {
-        setBusy(false);
-      }
-    }, [busy, info, t2]);
-    const updateReady = info?.updateAvailable === true;
-    const installedSuffix = props.installedVersion ? t2("update.action.currentInstalledSuffix", { version: props.installedVersion }) : "";
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-      Btn,
-      {
-        primary: updateReady || !info,
-        disabled: busy,
-        title: title2 + installedSuffix,
-        onClick: () => void onClick(),
-        children: busy ? t2("update.action.updating") : label2
-      }
-    );
-  }
   var import_react6, import_jsx_runtime6, card2, head, title, desc, body, row2, labelBox, hint, actions, primaryBtn, secondaryBtn, err, ver;
   var init_PluginSettingsCard = __esm({
     "client-src/PluginSettingsCard.tsx"() {
@@ -12191,9 +12096,6 @@ ${text}
     SETTINGS_NS: () => SETTINGS_NS,
     registerPluginSettings: () => registerPluginSettings
   });
-  function isOurBundle(subject) {
-    return subject && subject.kind === "bundle" && subject.pkg && subject.pkg.name === PACKAGE_NAME;
-  }
   function registerPluginSettings(ctx) {
     if (!ctx || !ctx.slots || typeof ctx.slots.inject !== "function") return;
     setSelfUpdateHostCtx(ctx);
@@ -12201,23 +12103,6 @@ ${text}
       setModuleTranslator(createTranslator(ctx));
     } catch (_e) {
     }
-    ctx.slots.inject("plugins.detail.actions", function() {
-      return ctx.slots.register(
-        {
-          name: "plugins.detail.actions",
-          id: "tracescope-update-action",
-          order: 20
-        },
-        function DetailAction(ownerProps) {
-          var subject = ownerProps && ownerProps.subject;
-          if (!isOurBundle(subject)) return null;
-          return (0, import_jsx_runtime7.jsx)(PluginUpdateAction, {
-            installedVersion: subject.pkg && subject.pkg.version || null,
-            t: getT()
-          });
-        }
-      );
-    });
     ctx.slots.inject("plugins.bundle.config", function() {
       return ctx.slots.register(
         {
@@ -38364,7 +38249,8 @@ ${text}
                     t("自动展开")
                   ]
                 }),
-                jsx8("button", {
+                // DSH Desktop owns plugin updates; keep this only for MCP / standalone panel.
+                typeof window !== "undefined" && window.__TRACESCOPE_STANDALONE__ ? jsx8("button", {
                   type: "button",
                   title: t("对照 npm 检查 TraceScope 版本；优先用官方插件管理器更新（无需插件市场）"),
                   disabled: busy || updateBusy,
@@ -38377,7 +38263,7 @@ ${text}
                     updateOpen || updateInfo && updateInfo.updateAvailable ? styles.miniBtnActive : null
                   ),
                   children: updateBusy ? t("更新中…") : updateInfo && updateInfo.updateAvailable ? t("有更新") : t("检查更新")
-                }),
+                }) : null,
                 jsx8("button", {
                   type: "button",
                   title: t("自定义 TraceScope 数据（清单/附件/缓存仓库）的存放目录，可迁移到其他磁盘"),
@@ -38392,7 +38278,7 @@ ${text}
             })
           ]
         }),
-        updateOpen ? jsxs7("div", {
+        typeof window !== "undefined" && window.__TRACESCOPE_STANDALONE__ && updateOpen ? jsxs7("div", {
           style: {
             display: "flex",
             flexDirection: "column",

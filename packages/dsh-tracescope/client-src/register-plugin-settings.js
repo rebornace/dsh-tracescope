@@ -2,27 +2,19 @@
  * Register TraceScope on Desktop / Web plugin detail seats.
  *
  * Bundle detail:
- * - plugins.detail.actions — Update next to Uninstall
- * - plugins.bundle.config  — always-open status (not a second collapsed card)
+ * - plugins.bundle.config — “插件更新” card (kept for MCP / non-DSH update paths)
  *
+ * Do not inject plugins.detail.actions: official DSH Desktop now owns the
+ * header update control next to Uninstall.
  * Do not register plugins.detail.section (that duplicated the card).
  */
 import { jsx } from 'react/jsx-runtime'
-import { PluginSettingsCard, PluginUpdateAction } from './PluginSettingsCard.tsx'
+import { PluginSettingsCard } from './PluginSettingsCard.tsx'
 import { createTranslator, getT, setModuleTranslator } from './locales/i18n.js'
 import { PACKAGE_NAME, setSelfUpdateHostCtx } from './self-update.js'
 
 export var SETTINGS_NS = 'tracescope'
 export { PACKAGE_NAME }
-
-function isOurBundle(subject) {
-  return (
-    subject &&
-    subject.kind === 'bundle' &&
-    subject.pkg &&
-    subject.pkg.name === PACKAGE_NAME
-  )
-}
 
 /**
  * @param {object} ctx cordis client context with slots (and optional inject)
@@ -34,24 +26,6 @@ export function registerPluginSettings(ctx) {
   try {
     setModuleTranslator(createTranslator(ctx))
   } catch (_e) {}
-
-  ctx.slots.inject('plugins.detail.actions', function () {
-    return ctx.slots.register(
-      {
-        name: 'plugins.detail.actions',
-        id: 'tracescope-update-action',
-        order: 20,
-      },
-      function DetailAction(ownerProps) {
-        var subject = ownerProps && ownerProps.subject
-        if (!isOurBundle(subject)) return null
-        return jsx(PluginUpdateAction, {
-          installedVersion: (subject.pkg && subject.pkg.version) || null,
-          t: getT(),
-        })
-      },
-    )
-  })
 
   ctx.slots.inject('plugins.bundle.config', function () {
     return ctx.slots.register(
