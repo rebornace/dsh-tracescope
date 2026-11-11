@@ -664,8 +664,6 @@ export function CrashBoard({
   const [captureBusy, setCaptureBusy] = useState(false)
   const [iosCaptureSupported, setIosCaptureSupported] = useState(true)
   const [iosCaptureReason, setIosCaptureReason] = useState('')
-  const [pasteStackText, setPasteStackText] = useState('')
-  const [pasteOpen, setPasteOpen] = useState(false)
   const [adbPrep, setAdbPrep] = useState<{
     phase: string
     percent: number | null
@@ -1579,43 +1577,6 @@ export function CrashBoard({
     [apiPost, ensureReport, onSendToChat, repo, t],
   )
 
-  /** Paste stack / .crash text → select as current incident → write reproduce session (no inbox hop). */
-  const analyzePastedStack = useCallback(async () => {
-    if (!repo) {
-      setError(t('选择仓库 / 先在配置中添加'))
-      return
-    }
-    const text = pasteStackText.trim()
-    if (!text) {
-      setError(t('crash.pasteStackRequired'))
-      return
-    }
-    const firstLine = text.split(/\r?\n/, 1)[0]?.trim() || 'pasted-crash'
-    const now = new Date().toISOString()
-    const incident: UmengIncident = {
-      id: `paste-${Date.now().toString(36)}`,
-      title: firstLine.slice(0, 200),
-      provider: 'local',
-      stackText: text,
-      platform: capturePlatform === 'ios' ? 'ios' : 'android',
-      errorKind: 'crash',
-      status: 'open',
-      occurredAt: now,
-      firstSeenAt: now,
-      lastSeenAt: now,
-      count: 1,
-    }
-    setSelectedId(incident.id)
-    setSelectedIncident(incident)
-    setReport(null)
-    reportRef.current = null
-    reportKindRef.current = null
-    setPasteStackText('')
-    setPasteOpen(false)
-    setHint(t('crash.pasteStackReady'))
-    await writeSessionFor(incident, 'reproduce')
-  }, [capturePlatform, pasteStackText, repo, t, writeSessionFor])
-
   async function applyAiText(raw: string): Promise<boolean> {
     const text = raw.trim()
     if (!text) {
@@ -2306,51 +2267,6 @@ export function CrashBoard({
                     </span>
                   ) : null}
                 </div>
-                <div style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    style={{ ...btn, width: '100%', textAlign: 'left', fontWeight: 600 }}
-                    onClick={() => setPasteOpen((v) => !v)}
-                  >
-                    {pasteOpen ? '▾ ' : '▸ '}
-                    {t('crash.pasteStackTitle')}
-                  </button>
-                  {pasteOpen ? (
-                    <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
-                      <p style={{ margin: 0, fontSize: 12, color: '#6b645a', lineHeight: 1.45 }}>
-                        {t('crash.pasteStackHint')}
-                      </p>
-                      <textarea
-                        style={{
-                          ...input,
-                          minHeight: 72,
-                          resize: 'vertical',
-                          fontFamily: 'ui-monospace, monospace',
-                        }}
-                        value={pasteStackText}
-                        disabled={configDisabled || busy}
-                        placeholder={t('crash.pasteStackPlaceholder')}
-                        onChange={(e) => setPasteStackText(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        style={primary}
-                        disabled={configDisabled || busy || !pasteStackText.trim()}
-                        onClick={() => void analyzePastedStack()}
-                      >
-                        {busy ? t('common.loading') : t('crash.writeReproduce')}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  style={btn}
-                  disabled={configDisabled}
-                  onClick={() => void apiPost('/tracescope/v1/crash-config-save', configBody()).then(() => setHint(t('crash.credentialsSaved')))}
-                >
-                  {t('crash.saveCredentials')}
-                </button>
               </div>
             ) : provider === 'crashlytics' ? (
               <>

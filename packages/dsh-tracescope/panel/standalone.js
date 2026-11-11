@@ -2223,7 +2223,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.providerUmeng": "友盟 U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
         "crash.inboxConfig": "本机崩溃采集",
-        "crash.inboxHint": "测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。已有堆栈可折叠「直接分析」。Android 首次刷新设备时可自动下载采集工具。iOS 开始录制会移走手机里已有崩溃报告（仅收此后新崩溃），闪退后请再等几秒或点停止。",
+        "crash.inboxHint": "测试期用 USB 从真机抓崩溃 / ANR，只存在本机、不上报 APM。Android 首次刷新设备时可自动下载采集工具。iOS 开始录制会移走手机里已有崩溃报告（仅收此后新崩溃），闪退后请再等几秒或点停止。",
         "crash.inboxCapturePlatform": "采集平台",
         "crash.inboxPlatformAndroid": "Android（adb）",
         "crash.inboxPlatformIos": "iOS（仅 macOS）",
@@ -2233,11 +2233,11 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxPreparingAdb": "正在准备 Android 采集工具（首次可能自动下载，约 10–30 秒）…",
         "crash.inboxAdbReady": "已自动准备 adb，可刷新设备",
         "crash.inboxAdbDownloaded": "已下载 Android platform-tools 到本机缓存",
-        "crash.inboxAdbPrepareFail": "自动准备 Android 采集工具失败。可开系统代理后重试，或改用下方「已有堆栈？直接分析」。",
+        "crash.inboxAdbPrepareFail": "自动准备 Android 采集工具失败。可开系统代理后重试。",
         "crash.inboxAdbProgressTitle": "Android 采集工具",
         "crash.inboxPreparingIos": "正在检测 iOS 采集工具（libimobiledevice）…",
         "crash.inboxIosReady": "iOS 采集工具已就绪",
-        "crash.inboxIosPrepareFail": "iOS 采集工具不可用。可按下方命令安装后点「重新检测」，或改用「已有堆栈？直接分析」。",
+        "crash.inboxIosPrepareFail": "iOS 采集工具不可用。可按下方命令安装后点「重新检测」。",
         "crash.inboxIosProgressTitle": "iOS 采集工具",
         "crash.inboxIosCopyInstall": "复制安装命令",
         "crash.inboxIosCopied": "已复制到剪贴板",
@@ -2254,17 +2254,12 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxCaptureFail": "启动录制失败",
         "crash.inboxNeedDevice": "请先选择一台 Android 设备",
         "crash.inboxIosUnsupported": "当前系统不支持 iOS USB 采集（需 macOS + libimobiledevice）",
-        "crash.pasteStackTitle": "已有堆栈？直接分析",
-        "crash.pasteStackHint": "粘贴堆栈或 .crash / .ips 后直接「输出复现方式」写入会话，不必先录制。",
-        "crash.pasteStackPlaceholder": "粘贴堆栈或 .crash / .ips 文本内容",
-        "crash.pasteStackRequired": "请先粘贴堆栈文本",
-        "crash.pasteStackReady": "已载入粘贴堆栈，正在输出复现方式…",
         "crash.inboxRefreshList": "刷新列表",
         "crash.inboxFetchHint": "进入本机崩溃采集会自动加载已捕获记录；也可手动刷新。录制中会自动追加。",
         "crash.inboxListRefreshed": "已刷新本机崩溃列表",
         "crash.inboxListTitle": "已捕获崩溃",
         "crash.inboxListCount": " · {count} 条",
-        "crash.inboxListEmpty": "还没有捕获记录。开始 USB 录制，或用上方「已有堆栈？直接分析」。",
+        "crash.inboxListEmpty": "还没有捕获记录。开始 USB 录制即可采集崩溃。",
         "crash.inboxDelete": "删除",
         "crash.crashlyticsConfig": "Crashlytics 配置",
         "crash.crashlyticsHint": "填写 Firebase 项目 ID（或项目编号）与 App ID。推荐粘贴 Access Token（gcloud auth print-access-token）；服务账号常无法读取 topIssues 完整报告。若用服务账号：① 启用 Firebase Crashlytics API；② IAM 授予「Firebase Crashlytics Viewer」。国内需代理（自动读系统代理 / HTTPS_PROXY）。勾选「记住凭证」可持久化到本机。",
@@ -3669,7 +3664,7 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.providerUmeng": "Umeng U-APM",
         "crash.providerCrashlytics": "Firebase Crashlytics",
         "crash.inboxConfig": "Local crash capture",
-        "crash.inboxHint": "Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.",
+        "crash.inboxHint": "Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.",
         "crash.inboxCapturePlatform": "Capture platform",
         "crash.inboxPlatformAndroid": "Android (adb)",
         "crash.inboxPlatformIos": "iOS (macOS only)",
@@ -3679,11 +3674,11 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxPreparingAdb": "Preparing Android capture tools (first download may take 10–30s)…",
         "crash.inboxAdbReady": "adb is ready — refresh devices",
         "crash.inboxAdbDownloaded": "Downloaded Android platform-tools into local cache",
-        "crash.inboxAdbPrepareFail": "Could not prepare Android capture tools. Retry with a system proxy, or use “Paste stack → analyze” below.",
+        "crash.inboxAdbPrepareFail": "Could not prepare Android capture tools. Retry with a system proxy.",
         "crash.inboxAdbProgressTitle": "Android capture tools",
         "crash.inboxPreparingIos": "Checking iOS capture tools (libimobiledevice)…",
         "crash.inboxIosReady": "iOS capture tools ready",
-        "crash.inboxIosPrepareFail": "iOS capture tools unavailable. Install with the command below, then Recheck — or use Paste stack → analyze.",
+        "crash.inboxIosPrepareFail": "iOS capture tools unavailable. Install with the command below, then Recheck.",
         "crash.inboxIosProgressTitle": "iOS capture tools",
         "crash.inboxIosCopyInstall": "Copy install command",
         "crash.inboxIosCopied": "Copied to clipboard",
@@ -3700,17 +3695,12 @@ window.__TRACESCOPE_STANDALONE__=true;
         "crash.inboxCaptureFail": "Failed to start capture",
         "crash.inboxNeedDevice": "Select an Android device first",
         "crash.inboxIosUnsupported": "iOS USB capture needs macOS + libimobiledevice",
-        "crash.pasteStackTitle": "Paste stack → analyze",
-        "crash.pasteStackHint": "Paste a stack or .crash / .ips and Write reproduce steps directly — no need to record first.",
-        "crash.pasteStackPlaceholder": "Paste stack or .crash / .ips file contents",
-        "crash.pasteStackRequired": "Paste stack text first",
-        "crash.pasteStackReady": "Pasted stack loaded — writing reproduce steps…",
         "crash.inboxRefreshList": "Refresh list",
         "crash.inboxFetchHint": "Captured crashes load automatically when you open this source; you can still refresh manually. New hits append while recording.",
         "crash.inboxListRefreshed": "Local crash list refreshed",
         "crash.inboxListTitle": "Captured crashes",
         "crash.inboxListCount": " · {count}",
-        "crash.inboxListEmpty": "No captures yet. Start USB recording, or use “Paste stack → analyze” above for text you already have.",
+        "crash.inboxListEmpty": "No captures yet. Start USB recording to collect crashes.",
         "crash.inboxDelete": "Delete",
         "crash.crashlyticsConfig": "Crashlytics settings",
         "crash.crashlyticsHint": "Enter the Firebase project ID (or project number) and App ID. Prefer an access token (gcloud auth print-access-token); service accounts often cannot read full topIssues reports. If using a service account: (1) enable Firebase Crashlytics API; (2) grant Firebase Crashlytics Viewer in IAM. System proxy / HTTPS_PROXY is used automatically. Enable “Remember credentials” to persist on this machine.",
@@ -9336,8 +9326,6 @@ ${text}
     const [captureBusy, setCaptureBusy] = (0, import_react5.useState)(false);
     const [iosCaptureSupported, setIosCaptureSupported] = (0, import_react5.useState)(true);
     const [iosCaptureReason, setIosCaptureReason] = (0, import_react5.useState)("");
-    const [pasteStackText, setPasteStackText] = (0, import_react5.useState)("");
-    const [pasteOpen, setPasteOpen] = (0, import_react5.useState)(false);
     const [adbPrep, setAdbPrep] = (0, import_react5.useState)(null);
     const [iosPrep, setIosPrep] = (0, import_react5.useState)(null);
     const [wirelessTarget, setWirelessTarget] = (0, import_react5.useState)("");
@@ -10120,41 +10108,6 @@ ${text}
       },
       [apiPost2, ensureReport, onSendToChat, repo, t2]
     );
-    const analyzePastedStack = (0, import_react5.useCallback)(async () => {
-      if (!repo) {
-        setError(t2("选择仓库 / 先在配置中添加"));
-        return;
-      }
-      const text = pasteStackText.trim();
-      if (!text) {
-        setError(t2("crash.pasteStackRequired"));
-        return;
-      }
-      const firstLine = text.split(/\r?\n/, 1)[0]?.trim() || "pasted-crash";
-      const now = (/* @__PURE__ */ new Date()).toISOString();
-      const incident = {
-        id: `paste-${Date.now().toString(36)}`,
-        title: firstLine.slice(0, 200),
-        provider: "local",
-        stackText: text,
-        platform: capturePlatform === "ios" ? "ios" : "android",
-        errorKind: "crash",
-        status: "open",
-        occurredAt: now,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        count: 1
-      };
-      setSelectedId(incident.id);
-      setSelectedIncident(incident);
-      setReport(null);
-      reportRef.current = null;
-      reportKindRef.current = null;
-      setPasteStackText("");
-      setPasteOpen(false);
-      setHint(t2("crash.pasteStackReady"));
-      await writeSessionFor(incident, "reproduce");
-    }, [capturePlatform, pasteStackText, repo, t2, writeSessionFor]);
     async function applyAiText(raw) {
       const text = raw.trim();
       if (!text) {
@@ -10767,59 +10720,7 @@ ${text}
                 }
               ),
               captureActive ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { fontSize: 12, color: "#3d6b4f" }, children: t2("crash.inboxCapturing", { count: String(captureHitCount) }) }) : null
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 4 }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-                "button",
-                {
-                  type: "button",
-                  style: { ...btn, width: "100%", textAlign: "left", fontWeight: 600 },
-                  onClick: () => setPasteOpen((v) => !v),
-                  children: [
-                    pasteOpen ? "▾ " : "▸ ",
-                    t2("crash.pasteStackTitle")
-                  ]
-                }
-              ),
-              pasteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: { marginTop: 8, display: "grid", gap: 8 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { margin: 0, fontSize: 12, color: "#6b645a", lineHeight: 1.45 }, children: t2("crash.pasteStackHint") }),
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-                  "textarea",
-                  {
-                    style: {
-                      ...input,
-                      minHeight: 72,
-                      resize: "vertical",
-                      fontFamily: "ui-monospace, monospace"
-                    },
-                    value: pasteStackText,
-                    disabled: configDisabled || busy,
-                    placeholder: t2("crash.pasteStackPlaceholder"),
-                    onChange: (e) => setPasteStackText(e.target.value)
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-                  "button",
-                  {
-                    type: "button",
-                    style: primary,
-                    disabled: configDisabled || busy || !pasteStackText.trim(),
-                    onClick: () => void analyzePastedStack(),
-                    children: busy ? t2("common.loading") : t2("crash.writeReproduce")
-                  }
-                )
-              ] }) : null
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "button",
-              {
-                type: "button",
-                style: btn,
-                disabled: configDisabled,
-                onClick: () => void apiPost2("/tracescope/v1/crash-config-save", configBody()).then(() => setHint(t2("crash.credentialsSaved"))),
-                children: t2("crash.saveCredentials")
-              }
-            )
+            ] })
           ] }) : provider === "crashlytics" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
             /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { style: label, children: [
               t2("crash.projectId"),

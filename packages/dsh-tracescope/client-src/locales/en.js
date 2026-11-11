@@ -901,7 +901,7 @@ export default {
   'crash.providerCrashlytics': 'Firebase Crashlytics',
   'crash.inboxConfig': 'Local crash capture',
   'crash.inboxHint':
-    'Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Already have a stack? Use the collapsed “Paste stack → analyze” path. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.',
+    'Capture crashes/ANRs from a USB device during testing — stored on this machine only, never uploaded to APM. Android can auto-download capture tools on first refresh. iOS start moves existing crash reports off the phone (only new ones count); after a crash wait a few seconds or tap Stop.',
   'crash.inboxCapturePlatform': 'Capture platform',
   'crash.inboxPlatformAndroid': 'Android (adb)',
   'crash.inboxPlatformIos': 'iOS (macOS only)',
@@ -911,13 +911,12 @@ export default {
   'crash.inboxPreparingAdb': 'Preparing Android capture tools (first download may take 10–30s)…',
   'crash.inboxAdbReady': 'adb is ready — refresh devices',
   'crash.inboxAdbDownloaded': 'Downloaded Android platform-tools into local cache',
-  'crash.inboxAdbPrepareFail':
-    'Could not prepare Android capture tools. Retry with a system proxy, or use “Paste stack → analyze” below.',
+  'crash.inboxAdbPrepareFail': 'Could not prepare Android capture tools. Retry with a system proxy.',
   'crash.inboxAdbProgressTitle': 'Android capture tools',
   'crash.inboxPreparingIos': 'Checking iOS capture tools (libimobiledevice)…',
   'crash.inboxIosReady': 'iOS capture tools ready',
   'crash.inboxIosPrepareFail':
-    'iOS capture tools unavailable. Install with the command below, then Recheck — or use Paste stack → analyze.',
+    'iOS capture tools unavailable. Install with the command below, then Recheck.',
   'crash.inboxIosProgressTitle': 'iOS capture tools',
   'crash.inboxIosCopyInstall': 'Copy install command',
   'crash.inboxIosCopied': 'Copied to clipboard',
@@ -936,20 +935,13 @@ export default {
   'crash.inboxCaptureFail': 'Failed to start capture',
   'crash.inboxNeedDevice': 'Select an Android device first',
   'crash.inboxIosUnsupported': 'iOS USB capture needs macOS + libimobiledevice',
-  'crash.pasteStackTitle': 'Paste stack → analyze',
-  'crash.pasteStackHint':
-    'Paste a stack or .crash / .ips and Write reproduce steps directly — no need to record first.',
-  'crash.pasteStackPlaceholder': 'Paste stack or .crash / .ips file contents',
-  'crash.pasteStackRequired': 'Paste stack text first',
-  'crash.pasteStackReady': 'Pasted stack loaded — writing reproduce steps…',
   'crash.inboxRefreshList': 'Refresh list',
   'crash.inboxFetchHint':
     'Captured crashes load automatically when you open this source; you can still refresh manually. New hits append while recording.',
   'crash.inboxListRefreshed': 'Local crash list refreshed',
   'crash.inboxListTitle': 'Captured crashes',
   'crash.inboxListCount': ' · {count}',
-  'crash.inboxListEmpty':
-    'No captures yet. Start USB recording, or use “Paste stack → analyze” above for text you already have.',
+  'crash.inboxListEmpty': 'No captures yet. Start USB recording to collect crashes.',
   'crash.inboxDelete': 'Delete',
   'crash.crashlyticsConfig': 'Crashlytics settings',
   'crash.crashlyticsHint':

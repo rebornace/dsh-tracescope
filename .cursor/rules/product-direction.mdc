@@ -1,0 +1,35 @@
+---
+description: TraceScope product direction and deferred work — remind when planning next iterations
+alwaysApply: true
+---
+
+# TraceScope product direction (user decisions)
+
+When the user asks what to build next, or starts a new iteration, **remind them of this direction** before proposing large new work.
+
+## Current pillars (stable — polish, don’t expand lightly)
+
+1. **功能影响分析**
+2. **设计差异分析** — design-stack enrichment is **on hold**; the user will redesign a better approach later. Do not keep piling android-xml–style enrichments unless they reopen this.
+3. **崩溃分析** — local USB capture (Android; iOS macOS-only) + Umeng + Crashlytics; dual paths **输出复现方式** (primary) / **定位并修复**.
+
+## Explicitly deferred / don’t push
+
+- **Web crash analysis / web-specific crash tab** — browser “crashes” are rare; web QA is functional / JS / compatibility, not USB-style crash capture. Parked.
+- **Browser extension recording** — scaffold only; not current delivery.
+- **Crash symbolication (mapping / dSYM)** — considered low value when AI already sees the full stack; do not prioritize.
+- **Umeng OpenAPI** — paid; only if a real user asks.
+- **Paste-stack / “已有堆栈？直接分析”** — removed on purpose; local capture is USB-first.
+- **Windows iOS USB live capture** — not realistic short-term.
+
+## Extend only when there is a concrete user need
+
+- Crash sources: Sentry, Bugly, other APMs  
+- Trackers: Jira, Feishu/Lark, etc.  
+- Design sources: MasterGo, 即时设计, etc.  
+- Crashlytics service-account full reports: follow upstream  
+
+## Naming / UX reminders
+
+- Local provider display name: **本机崩溃采集** (not「收件箱」).
+- Prefer **输出复现方式** over deep fix for teammate handoff.

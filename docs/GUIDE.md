@@ -234,9 +234,8 @@ gcloud auth print-access-token
 3. **Android**：若本机没有 adb，首次刷新会自动下载 platform-tools 到 `~/.tracescope/tools/`（国内会尝试镜像；仍失败时可开系统代理）。手机需开 USB 调试。  
 4. 进入本机崩溃采集会**自动加载**历史列表（标题旁显示条数）；也可点「刷新列表」。  
 5. 点开已捕获条目后优先「输出复现方式」，需要改代码再「定位并修复」。  
-6. **已有堆栈 / `.crash` / `.ips`**：展开「已有堆栈？直接分析」粘贴后直接「输出复现方式」，不必先录制。  
-7. **Windows 上 iOS USB 录制不可用**（仍可查看已捕获列表、粘贴堆栈直达分析）；Android USB 在 Windows / macOS 均可。  
-8. TraceScope **不会**把本机捕获内容上报到友盟 / Crashlytics / 其它 APM。
+6. **Windows 上 iOS USB 录制不可用**（仍可查看已捕获列表）；Android USB 在 Windows / macOS 均可。  
+7. TraceScope **不会**把本机捕获内容上报到友盟 / Crashlytics / 其它 APM。
 
 Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-filter-options`、`crash-list`、`crash-detail`、`crash-analyze`、`crash-ai-job`、`crash-job`，以及本机崩溃采集 `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`。
 
@@ -438,7 +437,7 @@ TraceScope 的三条能力都按**插件化横向扩展**，不绑死单一厂�
 - 浏览器扩展录制等（仓库内 `browser-extension` 脚手架：**未纳入当前 npm 交付**）  
 - 友盟 OpenAPI（需付费开通，等有用户明确提出再做）；Crashlytics 服务账号完整报告支持跟进上游
 - 更多栈的 enrichment（在能力齐平前提下按需扩展，而非主路径特化）  
-- Windows 上的 iOS USB 实时采集（本机崩溃采集已支持 macOS iOS 采集；Windows 可粘贴堆栈直达分析）  
+- Windows 上的 iOS USB 实时采集（本机崩溃采集已支持 macOS iOS 采集；Windows 可查看已捕获列表）  
 
 ---
 

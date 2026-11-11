@@ -255,7 +255,7 @@ async function downloadZip(urls: string[]): Promise<{ buffer: Buffer; url: strin
     }
   }
   throw new Error(
-    `自动下载 Android 采集工具失败。${lastError}。${formatProxyHint()}。也可改用「已有堆栈？直接分析」。`,
+    `自动下载 Android 采集工具失败。${lastError}。${formatProxyHint()}。`,
   )
 }
 

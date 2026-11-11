@@ -175,9 +175,8 @@ Row click loads stack detail (`crash-detail`). On auth failure, update credentia
 2. Refresh devices → Start capture; crashes/ANRs land under `~/.tracescope/crash-inbox/shared/` (same store whether the code directory is a local path or a remote URL).  
 3. Opening Local crash capture **auto-loads** history (count shown in the list title); Refresh list remains available.  
 4. Open a row → prefer **Write reproduce steps**; use **Locate & fix** when changing code.  
-5. **Already have a stack / `.crash` / `.ips`**: expand “Paste stack → analyze” and Write reproduce steps directly (no need to record first).  
-6. **iOS USB capture is macOS-only** (Windows can still browse captured crashes or paste a stack). Android USB works on Windows and macOS.  
-7. TraceScope does **not** upload locally captured items to Umeng / Crashlytics / other APM.
+5. **iOS USB capture is macOS-only** (Windows can still browse captured crashes). Android USB works on Windows and macOS.  
+6. TraceScope does **not** upload locally captured items to Umeng / Crashlytics / other APM.
 
 Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-filter-options`, `crash-list`, `crash-detail`, `crash-analyze`, `crash-ai-job`, `crash-job`, plus inbox `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`.
 
@@ -357,7 +356,7 @@ Other items (not required for the current npm cut):
 - Browser recording; in-repo `browser-extension` scaffolds (not in current npm delivery)  
 - Umeng OpenAPI (paid; add it when a user asks); fuller Crashlytics service-account report support as upstream allows  
 - More enrichment stacks when capability is on par (opt-in extras, not main-path forks)  
-- iOS USB live capture on Windows (inbox already supports macOS iOS capture; Windows can paste a stack and analyze)
+- iOS USB live capture on Windows (local crash capture already supports macOS iOS capture; Windows can browse captured crashes)
 
 ---
 
