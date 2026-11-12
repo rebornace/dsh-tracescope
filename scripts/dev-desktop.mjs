@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * One-command local desktop loop for TraceScope ↔ DeepSeek Harness.
  *
  *   pnpm dev          build once, link into desktop profile, watch & rebuild
  *   pnpm dev:link     only link local package into ~/.dsh/profiles/desktop
- *   pnpm dev:unlink   restore npm @rebornace/dsh-tracescope@0.3.6
+ *   pnpm dev:unlink   restore npm @rebornace/dsh-tracescope@0.3.7
  *
  * After a rebuild, refresh the TraceScope sidebar (or restart Harness if the
  * Host does not pick up the new dist).
@@ -23,7 +23,7 @@ const coreDir = join(root, 'packages', 'core')
 const profileDir = join(homedir(), '.dsh', 'profiles', 'desktop')
 const profilePkg = join(profileDir, 'package.json')
 const linkSpec = `link:${pluginDir.replace(/\\/g, '/')}`
-const npmSpec = '0.3.6'
+const npmSpec = '0.3.7'
 const scopedName = '@rebornace/dsh-tracescope'
 
 const cmd = (process.argv[2] || 'watch').trim()
