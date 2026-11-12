@@ -120,6 +120,14 @@ export interface CrashIncident extends CrashIncidentSummary {
   exceptionName?: string
   appVersion?: string
   buildNumber?: string
+  /**
+   * Binary / build identity for correlating a local capture with a deployed
+   * artifact (e.g. Android `versionCode`, iOS `CFBundleVersion`, or an OS
+   * build id when the app id is unknown).
+   */
+  buildId?: string
+  /** Android process / iOS bundle id when known. */
+  packageName?: string
   platform?: 'android' | 'ios' | 'other'
   errorKind?: 'crash' | 'anr' | 'error' | 'other'
   status?: 'open' | 'closed' | 'other'

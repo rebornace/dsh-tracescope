@@ -7,10 +7,14 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   appleIpsIdentity,
+  extractAppleIpsCaptureMeta,
   parseAppleIpsText,
   titleFromAppleIps,
 } from '../apple-ips.js'
-import { appendInboxIncident } from '../inbox-store.js'
+import {
+  appendInboxIncident,
+  type CrashCaptureDeviceMeta,
+} from '../inbox-store.js'
 import { ensureIosTools, type EnsureIosDeps } from './ensure-ios.js'
 
 export interface IosDevice {
@@ -184,10 +188,42 @@ export async function seedSeenCrashFiles(
   return n
 }
 
+async function fetchIosDeviceMeta(udid?: string): Promise<CrashCaptureDeviceMeta | undefined> {
+  const idArgs = udid?.trim() ? ['-u', udid.trim()] : []
+  const readKey = async (key: string): Promise<string | undefined> => {
+    const result = await runCmd('ideviceinfo', [...idArgs, '-k', key], 8_000)
+    const value = result.stdout.trim()
+    return result.code === 0 && value ? value : undefined
+  }
+  try {
+    const [productType, productVersion, deviceName, hardwareModel] = await Promise.all([
+      readKey('ProductType'),
+      readKey('ProductVersion'),
+      readKey('DeviceName'),
+      readKey('HardwareModel'),
+    ])
+    const device: CrashCaptureDeviceMeta = {
+      id: udid?.trim() || undefined,
+      model: productType || hardwareModel || undefined,
+      name: deviceName || undefined,
+      osVersion: productVersion || undefined,
+      product: hardwareModel || undefined,
+    }
+    return Object.values(device).some(Boolean) ? device : undefined
+  } catch {
+    return udid?.trim() ? { id: udid.trim() } : undefined
+  }
+}
+
 async function ingestCrashDir(
   repoPath: string,
   dir: string,
-  options: { cacheRoot?: string; deviceModel?: string; seenFiles: Set<string> },
+  options: {
+    cacheRoot?: string
+    deviceModel?: string
+    device?: CrashCaptureDeviceMeta
+    seenFiles: Set<string>
+  },
 ): Promise<string[]> {
   const ids: string[] = []
   const files = await listCrashFilesInDir(dir)
@@ -208,6 +244,20 @@ async function ingestCrashDir(
       ? [ips.body.exception?.type, ips.body.exception?.signal].filter(Boolean).join(' / ') ||
         undefined
       : undefined
+    const ipsMeta = ips ? extractAppleIpsCaptureMeta(ips) : null
+    const device: CrashCaptureDeviceMeta | undefined = options.device
+      ? {
+          ...options.device,
+          model:
+            options.device.model ||
+            ipsMeta?.deviceModel ||
+            options.deviceModel,
+          osVersion: options.device.osVersion || ipsMeta?.osVersion,
+        }
+      : {
+          model: ipsMeta?.deviceModel || options.deviceModel,
+          osVersion: ipsMeta?.osVersion,
+        }
     const entry = await appendInboxIncident(
       repoPath,
       {
@@ -216,10 +266,24 @@ async function ingestCrashDir(
         exceptionName,
         platform: 'ios',
         errorKind: 'crash',
-        deviceModel: options.deviceModel,
+        deviceModel: device?.model || options.deviceModel,
+        osVersion: device?.osVersion || ipsMeta?.osVersion,
+        packageName: ipsMeta?.packageName,
+        appVersion: ipsMeta?.appVersion,
+        buildNumber: ipsMeta?.buildNumber,
+        buildId: ipsMeta?.buildId,
+        occurredAt: ipsMeta?.occurredAt,
+        firstSeenAt: ipsMeta?.occurredAt,
+        lastSeenAt: ipsMeta?.occurredAt,
         rawRef: name,
       },
-      { source: 'ios-usb', cacheRoot: options.cacheRoot },
+      {
+        source: 'ios-usb',
+        cacheRoot: options.cacheRoot,
+        clockSource: ipsMeta?.clockSource ?? 'host-utc',
+        buildId: ipsMeta?.buildId,
+        device,
+      },
     )
     if (entry) ids.push(entry.incident.id)
   }
@@ -256,6 +320,14 @@ export async function startIosMacosCapture(
 
   const workDir = await mkdtemp(path.join(tmpdir(), 'ts-ios-crash-'))
   const seenFiles = new Set<string>()
+  const deviceMeta =
+    (await fetchIosDeviceMeta(options.udid)) ||
+    (options.deviceModel || options.udid
+      ? {
+          id: options.udid?.trim() || undefined,
+          model: options.deviceModel,
+        }
+      : undefined)
   let stopping = false
   let timer: ReturnType<typeof setInterval> | null = null
   let firstIngestTimer: ReturnType<typeof setTimeout> | null = null
@@ -301,6 +373,7 @@ export async function startIosMacosCapture(
     const ids = await ingestCrashDir(repoPath, workDir, {
       cacheRoot: options.cacheRoot,
       deviceModel: options.deviceModel,
+      device: deviceMeta,
       seenFiles,
     })
     for (const id of ids) options.onHit?.(id)

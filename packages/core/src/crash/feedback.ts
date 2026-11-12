@@ -41,6 +41,8 @@ const COPY = {
     exception: '\u5f02\u5e38',
     appVersion: '\u7248\u672c',
     buildNumber: '\u6784\u5efa\u53f7',
+    buildId: 'Build ID',
+    packageName: '\u5305\u540d',
     platform: '\u5e73\u53f0',
     errorKind: '\u9519\u8bef\u7c7b\u578b',
     status: '\u72b6\u6001',
@@ -83,6 +85,8 @@ const COPY = {
     exception: 'Exception',
     appVersion: 'App version',
     buildNumber: 'Build',
+    buildId: 'Build ID',
+    packageName: 'Package',
     platform: 'Platform',
     errorKind: 'Error kind',
     status: 'Status',
@@ -227,6 +231,8 @@ export function buildCrashDefectBody(input: {
   appendMetaLine(lines, t.exception, resolveExceptionName(incident, { stackText: stackRaw }))
   appendMetaLine(lines, t.appVersion, incident.appVersion)
   appendMetaLine(lines, t.buildNumber, incident.buildNumber)
+  appendMetaLine(lines, t.buildId, incident.buildId)
+  appendMetaLine(lines, t.packageName, incident.packageName)
   appendMetaLine(lines, t.platform, incident.platform)
   appendMetaLine(lines, t.errorKind, incident.errorKind)
   appendMetaLine(lines, t.status, incident.status)

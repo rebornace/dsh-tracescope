@@ -176,7 +176,9 @@ Row click loads stack detail (`crash-detail`). On auth failure, update credentia
 3. Opening Local crash capture **auto-loads** history (count shown in the list title); Refresh list remains available.  
 4. Open a row → prefer **Write reproduce steps**; use **Locate & fix** when changing code.  
 5. **iOS USB capture is macOS-only** (Windows can still browse captured crashes). Android USB works on Windows and macOS.  
-6. TraceScope does **not** upload locally captured items to Umeng / Crashlytics / other APM.
+6. TraceScope does **not** upload locally captured items to Umeng / Crashlytics / other APM.  
+7. **Capture artifact metadata** — each inbox JSON records `buildId` (app `versionCode` / iOS `CFBundleVersion` when known), `clockSource` (`host-utc` or report timestamp), and device fields (serial/UDID, model, OS, manufacturer/ABI when available) so a USB trace can be correlated with the deployed binary.  
+8. **Retention** — local only; auto-prune after **30 days** or when over **200** entries (oldest first). Delete rows in the UI anytime. Corrupt JSON is moved to `~/.tracescope/crash-inbox/quarantine/` (not dropped silently) and can be recovered into a new inbox entry.
 
 Host routes: `crash-config`, `crash-config-save`, `crash-cookie-clear`, `crash-probe`, `crash-filter-options`, `crash-list`, `crash-detail`, `crash-analyze`, `crash-ai-job`, `crash-job`, plus inbox `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`.
 
@@ -249,6 +251,15 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
 Restart Desktop Harness after a successful install.
+
+**Local desktop loop (repo root):**
+
+```bash
+pnpm dev          # build + link into desktop + watch/rebuild
+pnpm dev:unlink   # finish local loop; restore the npm package
+```
+
+The watcher rebuilds on save; restart Harness if the sidebar does not pick up changes. `pnpm dev:link` only re-links the local package.
 
 ### UI seats
 

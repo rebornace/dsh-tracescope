@@ -7,6 +7,13 @@ User-facing milestones only. Install the npm `latest` tag. The plugin market ver
 
 ## 未发布 / Unreleased
 
+- **本机崩溃采集产物**：写入 `buildId`、`clockSource`、设备元数据（序列号/UDID、机型、系统版本等），便于对照已部署二进制；缺陷报告同步带出 Build ID / 包名。
+- **侧栏详情展示采集信息**：详情堆栈上方展示 Build ID、时间来源、包名、设备块（机型/厂商/系统/ABI/设备 ID 等）。
+- **本机保留策略**：`crash-inbox` 默认保留 30 天、最多 200 条（先删最旧）；不上报 APM。损坏条目移入 `quarantine/`，支持恢复。
+- **Local crash capture artifacts**: Persist `buildId`, `clockSource`, and device metadata for binary correlation; defect bodies include Build ID / package.
+- **Sidebar capture meta**: Detail view shows Build ID, clock source, package, and device block above the stack.
+- **Local retention**: Inbox keeps 30 days / 200 entries max (oldest pruned first); corrupt files go to `quarantine/` with recovery.
+
 ## 0.3.6 — 2026-11-11
 
 - **本机崩溃采集**：数据源「本机崩溃采集」支持 Android USB（adb logcat）与 iOS USB（仅 macOS / libimobiledevice）测试期采集，写入 `~/.tracescope/crash-inbox/shared/`；不上报 APM。捕获条目走「输出复现方式 / 定位并修复」。

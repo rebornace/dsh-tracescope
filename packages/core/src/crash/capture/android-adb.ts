@@ -2,7 +2,12 @@
  * Android USB capture via adb logcat → local crash inbox.
  */
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
-import { appendInboxIncident } from '../inbox-store.js'
+import { appendInboxIncident, type CrashCaptureDeviceMeta } from '../inbox-store.js'
+import {
+  extractAndroidProcessName,
+  fetchAndroidDeviceMeta,
+  fetchAndroidPackageVersion,
+} from './android-device-meta.js'
 import { ensureAdb, spawnAdb } from './ensure-adb.js'
 import { extractAndroidLogcatHits } from './android-logcat-parse.js'
 
@@ -186,6 +191,25 @@ export async function startAndroidAdbCapture(
   // Clear so we only see new events during this session (best-effort).
   await runAdb(adbPath, ['-s', serial, 'logcat', '-c'], 10_000)
 
+  let deviceMeta: CrashCaptureDeviceMeta | undefined
+  try {
+    const fetched = await fetchAndroidDeviceMeta(adbPath, serial)
+    deviceMeta = {
+      id: fetched.id,
+      model: fetched.model || options.deviceModel,
+      product: fetched.product,
+      manufacturer: fetched.manufacturer,
+      osVersion: fetched.osVersion,
+      abi: fetched.abi,
+      osBuildId: fetched.osBuildId,
+    }
+  } catch {
+    deviceMeta = {
+      id: serial,
+      model: options.deviceModel,
+    }
+  }
+
   const child =
     options.spawnLogcat?.(serial) ??
     spawnAdb(adbPath, ['-s', serial, 'logcat', '-v', 'threadtime'])
@@ -193,6 +217,10 @@ export async function startAndroidAdbCapture(
   let buffer = ''
   let stopping = false
   const seenTitles = new Set<string>()
+  const packageVersionCache = new Map<
+    string,
+    Awaited<ReturnType<typeof fetchAndroidPackageVersion>>
+  >()
 
   const flush = async (force = false) => {
     if (!buffer.trim()) return
@@ -203,6 +231,28 @@ export async function startAndroidAdbCapture(
       const dedupeKey = `${hit.kind}:${hit.title}`
       if (seenTitles.has(dedupeKey)) continue
       seenTitles.add(dedupeKey)
+      const packageName = extractAndroidProcessName(hit.stackText)
+      let appVersion: string | undefined
+      let buildNumber: string | undefined
+      let buildId: string | undefined
+      if (packageName) {
+        let pkgMeta = packageVersionCache.get(packageName)
+        if (pkgMeta === undefined) {
+          try {
+            pkgMeta = await fetchAndroidPackageVersion(adbPath, serial, packageName)
+          } catch {
+            pkgMeta = null
+          }
+          packageVersionCache.set(packageName, pkgMeta)
+        }
+        if (pkgMeta) {
+          appVersion = pkgMeta.appVersion
+          buildNumber = pkgMeta.buildNumber
+          buildId = pkgMeta.buildId
+        }
+      }
+      // Fall back to OS image id only when the app binary id is unknown.
+      if (!buildId && deviceMeta?.osBuildId) buildId = `os:${deviceMeta.osBuildId}`
       const entry = await appendInboxIncident(
         repoPath,
         {
@@ -211,9 +261,20 @@ export async function startAndroidAdbCapture(
           exceptionName: hit.exceptionName,
           platform: 'android',
           errorKind: hit.kind,
-          deviceModel: options.deviceModel,
+          deviceModel: deviceMeta?.model || options.deviceModel,
+          osVersion: deviceMeta?.osVersion,
+          packageName,
+          appVersion,
+          buildNumber,
+          buildId,
         },
-        { source: 'android-adb', cacheRoot: options.cacheRoot },
+        {
+          source: 'android-adb',
+          cacheRoot: options.cacheRoot,
+          clockSource: 'host-utc',
+          buildId,
+          device: deviceMeta,
+        },
       )
       if (entry && options.onHit) options.onHit(entry.incident.id)
     }

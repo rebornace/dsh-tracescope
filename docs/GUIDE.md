@@ -235,7 +235,9 @@ gcloud auth print-access-token
 4. 进入本机崩溃采集会**自动加载**历史列表（标题旁显示条数）；也可点「刷新列表」。  
 5. 点开已捕获条目后优先「输出复现方式」，需要改代码再「定位并修复」。  
 6. **Windows 上 iOS USB 录制不可用**（仍可查看已捕获列表）；Android USB 在 Windows / macOS 均可。  
-7. TraceScope **不会**把本机捕获内容上报到友盟 / Crashlytics / 其它 APM。
+7. TraceScope **不会**把本机捕获内容上报到友盟 / Crashlytics / 其它 APM。  
+8. **采集产物元数据**：每条 inbox JSON 写入 `buildId`（Android `versionCode` / iOS `CFBundleVersion`，可得时）、`clockSource`（主机 UTC 或报告内时间戳），以及设备字段（序列号/UDID、机型、系统版本、厂商/ABI 等），便于与已部署二进制对照。  
+9. **保留策略**：仅本机存储；超过 **30 天**或超过 **200** 条时自动清理（先删最旧）。可随时在侧栏删除。损坏的 JSON 会移入 `~/.tracescope/crash-inbox/quarantine/`（不会静默丢弃），可恢复为新的 inbox 条目。
 
 Host 路由：`crash-config`、`crash-config-save`、`crash-cookie-clear`、`crash-probe`、`crash-filter-options`、`crash-list`、`crash-detail`、`crash-analyze`、`crash-ai-job`、`crash-job`，以及本机崩溃采集 `crash-inbox-devices` / `crash-inbox-capture-*` / `crash-inbox-import` / `crash-inbox-delete`。
 
@@ -332,6 +334,15 @@ dsh plugin --profile desktop add @rebornace/dsh-tracescope
 ```
 
 安装成功后请在**桌面端重启** Harness 使新版本生效。
+
+**本地联调（仓库根目录）：**
+
+```bash
+pnpm dev          # 构建 + link 到 desktop + 监听改动自动重建
+pnpm dev:unlink   # 结束联调，恢复 npm 正式包
+```
+
+改代码后脚本会自动 rebuild；侧栏不刷新时重启一次 Harness。`pnpm dev:link` 仅重新挂本地包。
 
 ### 8.3 界面入口
 

@@ -12,6 +12,12 @@ export type AppleIpsMeta = {
   timestamp?: string
 }
 
+export type AppleIpsBundleInfo = {
+  CFBundleShortVersionString?: string
+  CFBundleVersion?: string
+  CFBundleIdentifier?: string
+}
+
 export type AppleIpsBody = {
   exception?: {
     type?: string
@@ -25,6 +31,16 @@ export type AppleIpsBody = {
   }
   asi?: Record<string, string[] | string>
   faultingThread?: number
+  bundleInfo?: AppleIpsBundleInfo
+  /** Some reports nest bundle fields under `frontmost` / `appBundle` variants. */
+  appBundleID?: string
+  bundleID?: string
+  osVersion?: {
+    train?: string
+    isEmbeddedOS?: boolean
+  } | string
+  deviceType?: string
+  modelCode?: string
   threads?: Array<{
     frames?: Array<{
       imageOffset?: number
@@ -42,6 +58,68 @@ export type AppleIpsBody = {
     size?: number
     uuid?: string
   }>
+}
+
+/** App / build identity extracted from an .ips report for binary correlation. */
+export type AppleIpsCaptureMeta = {
+  packageName?: string
+  appVersion?: string
+  buildNumber?: string
+  buildId?: string
+  osVersion?: string
+  deviceModel?: string
+  /** ISO-ish timestamp from the report when present. */
+  occurredAt?: string
+  clockSource: 'report' | 'host-utc'
+}
+
+function asTrimmed(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const t = value.trim()
+  return t ? t : undefined
+}
+
+/** Pull package / build / device fields from a parsed .ips report. */
+export function extractAppleIpsCaptureMeta(parsed: ParsedAppleIps): AppleIpsCaptureMeta {
+  const bundle = parsed.body.bundleInfo
+  const packageName =
+    asTrimmed(parsed.meta.bundleID) ||
+    asTrimmed(bundle?.CFBundleIdentifier) ||
+    asTrimmed(parsed.body.appBundleID) ||
+    asTrimmed(parsed.body.bundleID)
+  const appVersion = asTrimmed(bundle?.CFBundleShortVersionString)
+  const buildNumber = asTrimmed(bundle?.CFBundleVersion)
+  const buildId = buildNumber || appVersion
+  const osRaw = parsed.body.osVersion
+  const osVersion =
+    typeof osRaw === 'string'
+      ? asTrimmed(osRaw)
+      : asTrimmed(osRaw?.train)
+  const deviceModel =
+    asTrimmed(parsed.body.modelCode) || asTrimmed(parsed.body.deviceType)
+  const reportTs = asTrimmed(parsed.meta.timestamp)
+  let occurredAt: string | undefined
+  let clockSource: AppleIpsCaptureMeta['clockSource'] = 'host-utc'
+  if (reportTs) {
+    const ms = Date.parse(reportTs)
+    if (Number.isFinite(ms)) {
+      occurredAt = new Date(ms).toISOString()
+      clockSource = 'report'
+    } else {
+      occurredAt = reportTs
+      clockSource = 'report'
+    }
+  }
+  return {
+    packageName,
+    appVersion,
+    buildNumber,
+    buildId,
+    osVersion,
+    deviceModel,
+    occurredAt,
+    clockSource,
+  }
 }
 
 export type ParsedAppleIps = {

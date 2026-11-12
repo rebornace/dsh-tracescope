@@ -167,10 +167,69 @@ type UmengIncident = CrashListItem & {
   stackText: string
   exceptionName?: string
   buildNumber?: string
+  buildId?: string
+  packageName?: string
   platform?: 'android' | 'ios' | 'other'
   occurredAt?: string
   firstSeenAt?: string
   rawRef?: string
+}
+
+type CaptureClockSource = 'host-utc' | 'report' | 'unknown'
+
+type CaptureDeviceMeta = {
+  id?: string
+  model?: string
+  product?: string
+  manufacturer?: string
+  osVersion?: string
+  abi?: string
+  name?: string
+  osBuildId?: string
+}
+
+/** Local USB capture artifact meta from crash-detail (optional). */
+type CaptureArtifactMeta = {
+  schemaVersion?: number
+  capturedAt?: string
+  source?: string
+  clockSource?: CaptureClockSource
+  buildId?: string
+  device?: CaptureDeviceMeta
+}
+
+function parseCaptureDevice(raw: unknown): CaptureDeviceMeta | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const o = raw as Record<string, unknown>
+  const device: CaptureDeviceMeta = {
+    id: typeof o.id === 'string' ? o.id : undefined,
+    model: typeof o.model === 'string' ? o.model : undefined,
+    product: typeof o.product === 'string' ? o.product : undefined,
+    manufacturer: typeof o.manufacturer === 'string' ? o.manufacturer : undefined,
+    osVersion: typeof o.osVersion === 'string' ? o.osVersion : undefined,
+    abi: typeof o.abi === 'string' ? o.abi : undefined,
+    name: typeof o.name === 'string' ? o.name : undefined,
+    osBuildId: typeof o.osBuildId === 'string' ? o.osBuildId : undefined,
+  }
+  return Object.values(device).some(Boolean) ? device : undefined
+}
+
+function parseCaptureMeta(raw: unknown): CaptureArtifactMeta | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const clock =
+    o.clockSource === 'host-utc' || o.clockSource === 'report' || o.clockSource === 'unknown'
+      ? o.clockSource
+      : undefined
+  const meta: CaptureArtifactMeta = {
+    schemaVersion: typeof o.schemaVersion === 'number' ? o.schemaVersion : undefined,
+    capturedAt: typeof o.capturedAt === 'string' ? o.capturedAt : undefined,
+    source: typeof o.source === 'string' ? o.source : undefined,
+    clockSource: clock,
+    buildId: typeof o.buildId === 'string' ? o.buildId : undefined,
+    device: parseCaptureDevice(o.device),
+  }
+  return meta.clockSource || meta.buildId || meta.device || meta.capturedAt ? meta : null
 }
 
 function parseUmengIncident(inc: Record<string, unknown>, fallbackId: string): UmengIncident {
@@ -183,6 +242,8 @@ function parseUmengIncident(inc: Record<string, unknown>, fallbackId: string): U
     exceptionName: typeof inc.exceptionName === 'string' ? inc.exceptionName : undefined,
     appVersion: typeof inc.appVersion === 'string' ? inc.appVersion : undefined,
     buildNumber: typeof inc.buildNumber === 'string' ? inc.buildNumber : undefined,
+    buildId: typeof inc.buildId === 'string' ? inc.buildId : undefined,
+    packageName: typeof inc.packageName === 'string' ? inc.packageName : undefined,
     platform:
       platform === 'android' || platform === 'ios' || platform === 'other' ? platform : undefined,
     errorKind:
@@ -216,6 +277,8 @@ function umengIncidentForAnalyze(selected: UmengIncident): Record<string, unknow
     exceptionName: selected.exceptionName,
     appVersion: selected.appVersion,
     buildNumber: selected.buildNumber,
+    buildId: selected.buildId,
+    packageName: selected.packageName,
     platform: selected.platform,
     count: selected.count,
     affectedUsers: selected.affectedUsers,
@@ -228,6 +291,35 @@ function umengIncidentForAnalyze(selected: UmengIncident): Record<string, unknow
     lastSeenAt: selected.lastSeenAt,
     rawRef: selected.rawRef,
   }
+}
+
+function clockSourceLabel(
+  clock: CaptureClockSource | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (clock === 'host-utc') return t('crash.capture.clock.hostUtc')
+  if (clock === 'report') return t('crash.capture.clock.report')
+  if (clock === 'unknown') return t('crash.capture.clock.unknown')
+  return '—'
+}
+
+function formatDeviceSummary(device: CaptureDeviceMeta | undefined, incident: UmengIncident): string {
+  const os = device?.osVersion || incident.osVersion
+  const osLabel = os
+    ? incident.platform === 'ios'
+      ? `iOS ${os}`
+      : incident.platform === 'android'
+        ? `Android ${os}`
+        : os
+    : undefined
+  const parts = [
+    device?.model || incident.deviceModel,
+    device?.manufacturer,
+    osLabel,
+    device?.abi,
+    device?.name,
+  ].filter(Boolean) as string[]
+  return parts.length ? parts.join(' · ') : '—'
 }
 
 type FilterKey =
@@ -642,6 +734,7 @@ export function CrashBoard({
   const [listHasMore, setListHasMore] = useState(false)
   const [selectedId, setSelectedId] = useState('')
   const [selectedIncident, setSelectedIncident] = useState<UmengIncident | null>(null)
+  const [captureMeta, setCaptureMeta] = useState<CaptureArtifactMeta | null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
   const [aiDraft, setAiDraft] = useState('')
   const [awaitingAiPaste, setAwaitingAiPaste] = useState(false)
@@ -852,6 +945,7 @@ export function CrashBoard({
       setListItems([])
       setSelectedId('')
       setSelectedIncident(null)
+      setCaptureMeta(null)
       setHint(provider === 'crashlytics' ? t('crash.tokenCleared') : t('crash.cookieCleared'))
     } catch (err) {
       setError((err as Error).message || String(err))
@@ -1371,6 +1465,7 @@ export function CrashBoard({
         if (selectedId === id) {
           setSelectedId('')
           setSelectedIncident(null)
+          setCaptureMeta(null)
           setReport(null)
         }
         void fetchList({ page: listPage })
@@ -1440,6 +1535,7 @@ export function CrashBoard({
       setAiDraft('')
       setAwaitingAiPaste(false)
       setUmengOpen(false)
+      setCaptureMeta(null)
       try {
         const data = await apiPost('/tracescope/v1/crash-detail', {
           ...configBody(),
@@ -1454,11 +1550,13 @@ export function CrashBoard({
           throw new Error(t('crash.detailMissing'))
         }
         setSelectedIncident(full)
+        setCaptureMeta(parseCaptureMeta(data.capture))
       } catch (err) {
         const msg = (err as Error).message || String(err)
         if (isAuthFailure(undefined, msg)) handleAuthFailure(authExpiredMessage())
         else setError(msg)
         setSelectedIncident(null)
+        setCaptureMeta(null)
       } finally {
         setDetailBusy(false)
       }
@@ -1977,6 +2075,7 @@ export function CrashBoard({
             setListTotal(undefined)
             setSelectedId('')
             setSelectedIncident(null)
+            setCaptureMeta(null)
             setReport(null)
             reportRef.current = null
             reportKindRef.current = null
@@ -2846,6 +2945,64 @@ export function CrashBoard({
 
       {selectedIncident || detailBusy ? (
         <div ref={detailPanelRef} style={{ marginBottom: 10 }}>
+          {!detailBusy && selectedIncident ? (
+            <div
+              style={{
+                marginBottom: 8,
+                padding: '8px 10px',
+                background: '#f7f4ee',
+                border: '1px solid var(--dsh-border, #ddd4c5)',
+                borderRadius: 8,
+                fontSize: 11,
+                lineHeight: 1.5,
+                color: '#3f3a34',
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>
+                {t('crash.capture.title')}
+              </div>
+              <div>
+                {t('crash.capture.buildId')}:{' '}
+                {captureMeta?.buildId || selectedIncident.buildId || '—'}
+              </div>
+              <div>
+                {t('crash.capture.clock')}: {clockSourceLabel(captureMeta?.clockSource, t)}
+                {captureMeta?.capturedAt ? ` · ${captureMeta.capturedAt}` : ''}
+              </div>
+              {selectedIncident.packageName ? (
+                <div>
+                  {t('crash.capture.package')}: {selectedIncident.packageName}
+                </div>
+              ) : null}
+              {(selectedIncident.appVersion || selectedIncident.buildNumber) && (
+                <div>
+                  {t('crash.col.version')}:{' '}
+                  {[selectedIncident.appVersion, selectedIncident.buildNumber]
+                    .filter(Boolean)
+                    .join(' / ') || '—'}
+                </div>
+              )}
+              <div>
+                {t('crash.capture.device')}:{' '}
+                {formatDeviceSummary(captureMeta?.device, selectedIncident)}
+              </div>
+              {captureMeta?.device?.id ? (
+                <div>
+                  {t('crash.capture.deviceId')}: {captureMeta.device.id}
+                </div>
+              ) : null}
+              {captureMeta?.device?.osBuildId ? (
+                <div>
+                  {t('crash.capture.osBuildId')}: {captureMeta.device.osBuildId}
+                </div>
+              ) : null}
+              {selectedIncident.occurredAt ? (
+                <div>
+                  {t('crash.capture.occurredAt')}: {selectedIncident.occurredAt}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>{t('crash.detailStack')}</div>
           <pre
             style={{

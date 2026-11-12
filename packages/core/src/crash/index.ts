@@ -42,10 +42,13 @@ export {
 } from './feedback.js'
 export {
   appleIpsIdentity,
+  extractAppleIpsCaptureMeta,
   parseAppleIpsText,
   renderAppleIpsAsClassicStack,
   titleFromAppleIps,
   type AppleIpsBody,
+  type AppleIpsBundleInfo,
+  type AppleIpsCaptureMeta,
   type AppleIpsMeta,
   type ParsedAppleIps,
 } from './apple-ips.js'
@@ -61,14 +64,33 @@ export { localCrashProvider, LOCAL_CRASH_INCIDENT_ID } from './providers/local.j
 export {
   appendInboxIncident,
   crashInboxDir,
+  crashInboxQuarantineDir,
   deleteInboxIncident,
+  getInboxEntry,
   getInboxIncident,
+  getInboxRetentionPolicy,
   importInboxStack,
   listInboxIncidents,
+  listQuarantinedInbox,
+  purgeQuarantinedInbox,
+  recoverQuarantinedInboxEntry,
+  INBOX_MAX_ENTRIES,
+  INBOX_RETENTION_DAYS,
   type AppendInboxOptions,
+  type CrashCaptureDeviceMeta,
+  type CrashClockSource,
   type CrashInboxEntry,
   type CrashInboxSource,
+  type InboxRetentionPolicy,
+  type QuarantinedInboxItem,
 } from './inbox-store.js'
+export {
+  extractAndroidProcessName,
+  fetchAndroidDeviceMeta,
+  fetchAndroidPackageVersion,
+  type AndroidDeviceMeta,
+  type AndroidPackageVersion,
+} from './capture/android-device-meta.js'
 export {
   extractAndroidLogcatHits,
   type AndroidLogcatHit,

@@ -860,6 +860,17 @@ var init_zh = __esm({
       "crash.credentialsSaved": "凭证已保存",
       "crash.detailMissing": "未获取到崩溃详情",
       "crash.detailStack": "详情堆栈",
+      "crash.capture.title": "采集信息",
+      "crash.capture.buildId": "Build ID",
+      "crash.capture.clock": "时间来源",
+      "crash.capture.clock.hostUtc": "主机 UTC",
+      "crash.capture.clock.report": "报告内时间戳",
+      "crash.capture.clock.unknown": "未知",
+      "crash.capture.package": "包名",
+      "crash.capture.device": "设备",
+      "crash.capture.deviceId": "设备 ID",
+      "crash.capture.osBuildId": "系统 Build",
+      "crash.capture.occurredAt": "发生时间",
       "crash.errorKind.anr": "ANR",
       "crash.errorKind.crash": "崩溃",
       "crash.errorKind.error": "错误",
@@ -2301,6 +2312,17 @@ var init_en = __esm({
       "crash.credentialsSaved": "Credentials saved",
       "crash.detailMissing": "Crash detail not available",
       "crash.detailStack": "Detail stack",
+      "crash.capture.title": "Capture info",
+      "crash.capture.buildId": "Build ID",
+      "crash.capture.clock": "Clock source",
+      "crash.capture.clock.hostUtc": "Host UTC",
+      "crash.capture.clock.report": "Report timestamp",
+      "crash.capture.clock.unknown": "Unknown",
+      "crash.capture.package": "Package",
+      "crash.capture.device": "Device",
+      "crash.capture.deviceId": "Device ID",
+      "crash.capture.osBuildId": "OS build",
+      "crash.capture.occurredAt": "Occurred at",
       "crash.errorKind.anr": "ANR",
       "crash.errorKind.crash": "Crash",
       "crash.errorKind.error": "Error",
@@ -7716,6 +7738,35 @@ function buildCrashExportMarkdown(report, repoPath) {
   lines.push("", "## Defect body", "", report.defectBody, "", "## Stack", "", "```", report.incident.stackText, "```", "");
   return lines.join("\n");
 }
+function parseCaptureDevice(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const o = raw;
+  const device = {
+    id: typeof o.id === "string" ? o.id : void 0,
+    model: typeof o.model === "string" ? o.model : void 0,
+    product: typeof o.product === "string" ? o.product : void 0,
+    manufacturer: typeof o.manufacturer === "string" ? o.manufacturer : void 0,
+    osVersion: typeof o.osVersion === "string" ? o.osVersion : void 0,
+    abi: typeof o.abi === "string" ? o.abi : void 0,
+    name: typeof o.name === "string" ? o.name : void 0,
+    osBuildId: typeof o.osBuildId === "string" ? o.osBuildId : void 0
+  };
+  return Object.values(device).some(Boolean) ? device : void 0;
+}
+function parseCaptureMeta(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw;
+  const clock = o.clockSource === "host-utc" || o.clockSource === "report" || o.clockSource === "unknown" ? o.clockSource : void 0;
+  const meta = {
+    schemaVersion: typeof o.schemaVersion === "number" ? o.schemaVersion : void 0,
+    capturedAt: typeof o.capturedAt === "string" ? o.capturedAt : void 0,
+    source: typeof o.source === "string" ? o.source : void 0,
+    clockSource: clock,
+    buildId: typeof o.buildId === "string" ? o.buildId : void 0,
+    device: parseCaptureDevice(o.device)
+  };
+  return meta.clockSource || meta.buildId || meta.device || meta.capturedAt ? meta : null;
+}
 function parseUmengIncident(inc, fallbackId) {
   const platform = inc.platform;
   return {
@@ -7726,6 +7777,8 @@ function parseUmengIncident(inc, fallbackId) {
     exceptionName: typeof inc.exceptionName === "string" ? inc.exceptionName : void 0,
     appVersion: typeof inc.appVersion === "string" ? inc.appVersion : void 0,
     buildNumber: typeof inc.buildNumber === "string" ? inc.buildNumber : void 0,
+    buildId: typeof inc.buildId === "string" ? inc.buildId : void 0,
+    packageName: typeof inc.packageName === "string" ? inc.packageName : void 0,
     platform: platform === "android" || platform === "ios" || platform === "other" ? platform : void 0,
     errorKind: inc.errorKind === "crash" || inc.errorKind === "anr" || inc.errorKind === "error" || inc.errorKind === "other" ? inc.errorKind : void 0,
     status: inc.status === "open" || inc.status === "closed" || inc.status === "other" ? inc.status : void 0,
@@ -7748,6 +7801,8 @@ function umengIncidentForAnalyze(selected) {
     exceptionName: selected.exceptionName,
     appVersion: selected.appVersion,
     buildNumber: selected.buildNumber,
+    buildId: selected.buildId,
+    packageName: selected.packageName,
     platform: selected.platform,
     count: selected.count,
     affectedUsers: selected.affectedUsers,
@@ -7760,6 +7815,24 @@ function umengIncidentForAnalyze(selected) {
     lastSeenAt: selected.lastSeenAt,
     rawRef: selected.rawRef
   };
+}
+function clockSourceLabel(clock, t2) {
+  if (clock === "host-utc") return t2("crash.capture.clock.hostUtc");
+  if (clock === "report") return t2("crash.capture.clock.report");
+  if (clock === "unknown") return t2("crash.capture.clock.unknown");
+  return "—";
+}
+function formatDeviceSummary(device, incident) {
+  const os = device?.osVersion || incident.osVersion;
+  const osLabel = os ? incident.platform === "ios" ? `iOS ${os}` : incident.platform === "android" ? `Android ${os}` : os : void 0;
+  const parts = [
+    device?.model || incident.deviceModel,
+    device?.manufacturer,
+    osLabel,
+    device?.abi,
+    device?.name
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
 }
 function padDatePart(n) {
   return String(n).padStart(2, "0");
@@ -8010,6 +8083,7 @@ function CrashBoard({
   const [listHasMore, setListHasMore] = (0, import_react5.useState)(false);
   const [selectedId, setSelectedId] = (0, import_react5.useState)("");
   const [selectedIncident, setSelectedIncident] = (0, import_react5.useState)(null);
+  const [captureMeta, setCaptureMeta] = (0, import_react5.useState)(null);
   const [detailBusy, setDetailBusy] = (0, import_react5.useState)(false);
   const [aiDraft, setAiDraft] = (0, import_react5.useState)("");
   const [awaitingAiPaste, setAwaitingAiPaste] = (0, import_react5.useState)(false);
@@ -8187,6 +8261,7 @@ function CrashBoard({
       setListItems([]);
       setSelectedId("");
       setSelectedIncident(null);
+      setCaptureMeta(null);
       setHint(provider === "crashlytics" ? t2("crash.tokenCleared") : t2("crash.cookieCleared"));
     } catch (err2) {
       setError(err2.message || String(err2));
@@ -8638,6 +8713,7 @@ function CrashBoard({
         if (selectedId === id) {
           setSelectedId("");
           setSelectedIncident(null);
+          setCaptureMeta(null);
           setReport(null);
         }
         void fetchList({ page: listPage });
@@ -8694,6 +8770,7 @@ function CrashBoard({
       setAiDraft("");
       setAwaitingAiPaste(false);
       setUmengOpen(false);
+      setCaptureMeta(null);
       try {
         const data = await apiPost2("/tracescope/v1/crash-detail", {
           ...configBody(),
@@ -8708,11 +8785,13 @@ function CrashBoard({
           throw new Error(t2("crash.detailMissing"));
         }
         setSelectedIncident(full);
+        setCaptureMeta(parseCaptureMeta(data.capture));
       } catch (err2) {
         const msg = err2.message || String(err2);
         if (isAuthFailure(void 0, msg)) handleAuthFailure(authExpiredMessage());
         else setError(msg);
         setSelectedIncident(null);
+        setCaptureMeta(null);
       } finally {
         setDetailBusy(false);
       }
@@ -9157,6 +9236,7 @@ function CrashBoard({
             setListTotal(void 0);
             setSelectedId("");
             setSelectedIncident(null);
+            setCaptureMeta(null);
             setReport(null);
             reportRef.current = null;
             reportKindRef.current = null;
@@ -9999,6 +10079,68 @@ function CrashBoard({
       ] }) : null
     ] }),
     selectedIncident || detailBusy ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { ref: detailPanelRef, style: { marginBottom: 10 }, children: [
+      !detailBusy && selectedIncident ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "div",
+        {
+          style: {
+            marginBottom: 8,
+            padding: "8px 10px",
+            background: "#f7f4ee",
+            border: "1px solid var(--dsh-border, #ddd4c5)",
+            borderRadius: 8,
+            fontSize: 11,
+            lineHeight: 1.5,
+            color: "#3f3a34"
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.capture.title") }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.buildId"),
+              ":",
+              " ",
+              captureMeta?.buildId || selectedIncident.buildId || "—"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.clock"),
+              ": ",
+              clockSourceLabel(captureMeta?.clockSource, t2),
+              captureMeta?.capturedAt ? ` · ${captureMeta.capturedAt}` : ""
+            ] }),
+            selectedIncident.packageName ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.package"),
+              ": ",
+              selectedIncident.packageName
+            ] }) : null,
+            (selectedIncident.appVersion || selectedIncident.buildNumber) && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.col.version"),
+              ":",
+              " ",
+              [selectedIncident.appVersion, selectedIncident.buildNumber].filter(Boolean).join(" / ") || "—"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.device"),
+              ":",
+              " ",
+              formatDeviceSummary(captureMeta?.device, selectedIncident)
+            ] }),
+            captureMeta?.device?.id ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.deviceId"),
+              ": ",
+              captureMeta.device.id
+            ] }) : null,
+            captureMeta?.device?.osBuildId ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.osBuildId"),
+              ": ",
+              captureMeta.device.osBuildId
+            ] }) : null,
+            selectedIncident.occurredAt ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              t2("crash.capture.occurredAt"),
+              ": ",
+              selectedIncident.occurredAt
+            ] }) : null
+          ]
+        }
+      ) : null,
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { fontWeight: 600, marginBottom: 4, fontSize: 12 }, children: t2("crash.detailStack") }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
         "pre",

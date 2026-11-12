@@ -39,7 +39,7 @@ Crash list/detail/analyze runs on `/tracescope/v1/crash-*` (DSH Host and MCP sta
 
 | Provider | Auth | List | Notes |
 |----------|------|------|--------|
-| `local` | None (local capture store) | `~/.tracescope/crash-inbox/shared/` (+ legacy per-repo hash dirs read for compat) | Test-time USB capture (Android adb; iOS macOS-only) + paste stack; never uploads to APM |
+| `local` | None (local capture store) | `~/.tracescope/crash-inbox/shared/` (+ `quarantine/` for corrupt JSON; legacy per-repo hash dirs read for compat) | Test-time USB capture (Android adb; iOS macOS-only); artifact includes buildId / clockSource / device meta; retention 30d / 200 entries; never uploads to APM |
 | `umeng` | Console cookie | U-APM Console XHR | China; cookie expiry → refresh credentials |
 | `crashlytics` | User access token (prefer live `gcloud auth print-access-token`) or service-account JWT | Firebase Crashlytics REST `v1alpha` `reports/topIssues` | User tokens need `x-goog-user-project`; proxy-aware fetch; SA support for full reports is incomplete upstream |
 

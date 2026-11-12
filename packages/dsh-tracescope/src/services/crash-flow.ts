@@ -13,6 +13,7 @@ import {
   getIosPrepProgress,
   getCaptureSessionStatus,
   getCrashProvider,
+  getInboxEntry,
   getIosCaptureSupport,
   importInboxStack,
   listCaptureDevices,
@@ -98,6 +99,8 @@ export function parseCrashIncident(raw: unknown): CrashIncident | null {
     exceptionName: typeof o.exceptionName === 'string' ? o.exceptionName : undefined,
     appVersion: typeof o.appVersion === 'string' ? o.appVersion : undefined,
     buildNumber: typeof o.buildNumber === 'string' ? o.buildNumber : undefined,
+    buildId: typeof o.buildId === 'string' ? o.buildId : undefined,
+    packageName: typeof o.packageName === 'string' ? o.packageName : undefined,
     platform:
       o.platform === 'android' || o.platform === 'ios' || o.platform === 'other'
         ? o.platform
@@ -329,6 +332,30 @@ export async function getCrashIncident(args: Record<string, unknown>) {
   }
   try {
     const incident = await adapter.get(config, id)
+    if (config.provider === 'local') {
+      const entry = await getInboxEntry(
+        typeof config.repoPath === 'string' ? config.repoPath : '',
+        id,
+        config.cacheRoot,
+      )
+      if (entry) {
+        return {
+          incident: {
+            ...incident,
+            buildId: incident.buildId ?? entry.buildId ?? entry.incident.buildId,
+            packageName: incident.packageName ?? entry.incident.packageName,
+          },
+          capture: {
+            schemaVersion: entry.schemaVersion,
+            capturedAt: entry.capturedAt,
+            source: entry.source,
+            clockSource: entry.clockSource,
+            buildId: entry.buildId ?? entry.incident.buildId,
+            device: entry.device,
+          },
+        }
+      }
+    }
     return { incident }
   } catch (err) {
     rethrowProviderCrashError(err, lang)
